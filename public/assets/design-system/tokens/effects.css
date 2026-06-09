@@ -1,0 +1,77 @@
+/* ============================================================
+   DriftLands — Effects (PIXEL-ART system)
+   No soft blur — it fights the pixel grid. Depth comes from HARD
+   offset shadows and 1px bevel lines (light top-left, dark bottom-
+   right). "Glow" is built from stepped, zero-blur spread rings +
+   dither, so it reads as pixels, not a gaussian haze.
+   ============================================================ */
+
+:root {
+  /* ---- Hard offset shadows (pixel drop shadow; integer offsets, 0 blur) ---- */
+  --shadow-pixel-sm:  2px 2px 0 0 rgba(10, 8, 16, 0.85);
+  --shadow-pixel:     3px 3px 0 0 rgba(10, 8, 16, 0.85);
+  --shadow-pixel-lg:  5px 5px 0 0 rgba(10, 8, 16, 0.9);
+
+  /* ---- Bevels (the pixel "3D" — built from inset 1px lines) ---- */
+  --bevel-raised:  inset 1px 1px 0 0 var(--frame-light),
+                   inset -1px -1px 0 0 var(--frame-dark);
+  --bevel-inset:   inset 1px 1px 0 0 var(--frame-dark),
+                   inset -1px -1px 0 0 var(--frame-light);
+  --bevel-slot:    inset 1px 1px 0 0 rgba(10, 8, 16, 0.9),
+                   inset -1px -1px 0 0 rgba(58, 51, 80, 0.7); /* @kind other */
+
+  /* ---- The signature pixel frame: purple edge + bevel + drop ---- */
+  --frame-shadow:  0 0 0 1px var(--frame-edge),
+                   var(--bevel-raised),
+                   var(--shadow-pixel);
+
+  /* ---- The Drift glow — stepped zero-blur rings (reads as pixels) ---- */
+  --glow-corrupt-sm:  0 0 0 1px var(--corrupt-55),
+                      0 0 0 2px var(--corrupt-32);
+  --glow-corrupt-md:  0 0 0 1px var(--drift-corrupt),
+                      0 0 0 2px var(--corrupt-55),
+                      0 0 0 4px var(--corrupt-16);
+  --glow-corrupt-lg:  0 0 0 1px var(--drift-core),
+                      0 0 0 2px var(--drift-corrupt),
+                      0 0 0 4px var(--corrupt-55),
+                      0 0 0 6px var(--corrupt-16);
+  --glow-ember:       0 0 0 1px var(--ember), 0 0 0 2px var(--ember-24);
+  --glow-gold:        0 0 0 1px var(--gold), 0 0 0 2px var(--gold-24);
+  --glow-blood:       0 0 0 1px var(--blood), 0 0 0 2px var(--blood-24);
+
+  /* ---- Focus ring (keyboard / selection) — crisp double ring ---- */
+  --ring-focus: 0 0 0 1px var(--bg-app), 0 0 0 3px var(--drift-corrupt);
+
+  /* ---- Text shadow for HUD legibility (hard 1px, no blur) ---- */
+  --text-shadow-hud:  1px 1px 0 rgba(10, 8, 16, 0.95);
+  --text-shadow-glow: 0 0 0 rgba(0,0,0,0); /* @kind other */
+
+  /* ---- Notch geometry for 9-slice frames (cut corners = pixel UI) ---- */
+  --notch: 4px;            /* corner cut size @kind other */
+  --clip-notch: polygon(
+    0 var(--notch), var(--notch) 0,
+    calc(100% - var(--notch)) 0, 100% var(--notch),
+    100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+    var(--notch) 100%, 0 calc(100% - var(--notch))
+  ); /* @kind other */
+
+  /* ---- Dither tiles (1px checker) for corruption bloom & ramps ---- */
+  --dither-corrupt: repeating-conic-gradient(var(--corrupt-32) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px; /* @kind other */
+  --dither-void:    repeating-conic-gradient(rgba(10,8,16,0.5) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px; /* @kind other */
+
+  /* ---- Gradients used as PIXEL fills (stepped, hard stops) ---- */
+  --grad-xp:   linear-gradient(90deg, var(--drift-lo) 0%, var(--drift-mid) 60%, var(--drift-hi) 100%); /* @kind other */
+  --grad-gold: linear-gradient(180deg, var(--gold-hi) 0% 50%, var(--gold) 50% 100%); /* @kind other */
+  --grad-scrim-bottom: linear-gradient(0deg, var(--void-82) 0%, transparent 100%); /* @kind other */
+
+  /* ---- Motion (snappy, no easing flourish — pixel UIs are abrupt) ---- */
+  --ease-step:   steps(4, end);                 /* @kind other */
+  --ease-out:    cubic-bezier(0.2, 0.9, 0.3, 1);/* @kind other */
+  --dur-fast:    90ms;    /* @kind other */
+  --dur-base:    150ms;   /* @kind other */
+  --dur-slow:    300ms;   /* @kind other */
+  --dur-drift:   2000ms;  /* @kind other */
+
+  /* ---- Pixel snapping helper value ---- */
+  --pixel-render: pixelated; /* @kind other */
+}

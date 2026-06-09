@@ -9,15 +9,7 @@ import { ResourceNode } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
 import { Mob } from "@/game/entities/mob";
-
-const TILE_COLORS: Record<string, [string, string]> = {
-  // [top face, side/edge tint]
-  grass: ["#243827", "#1a2a1c"],
-  dirt: ["#3a2f24", "#2a221a"],
-  stone: ["#2f2f3a", "#23232c"],
-  water: ["#15303f", "#0e2230"],
-  corrupt: ["#3a1d4a", "#27123a"],
-};
+import { spriteCache, TileType } from "@/game/render/sprites";
 
 export class Game {
   canvas: HTMLCanvasElement;
@@ -48,17 +40,33 @@ export class Game {
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.snapTo(iso.x, iso.y);
 
+    spriteCache.init();
+
     this.combat.spawn(this.world, 8);
 
     this.drift.onRelocate = (kind) =>
       useGame.getState().pushLog(`A ${kind} re-forms somewhere in the Drift…`, "#7c6f93");
     this.drift.onSeason = () => {
-      useGame.getState().bumpSeason();
-      useGame.getState().pushLog("The Drift deepens. A new season corrupts the land.", "#a855f7");
+      const store = useGame.getState();
+      store.bumpSeason();
+      store.setDriftPct(this.corruptionPct());
+      store.pushLog("The Drift deepens. A new season corrupts the land.", "#a855f7");
     };
 
     this.bindEvents();
     this.resize();
+  }
+
+  /** share of land tiles (non-water) consumed by the Drift */
+  private corruptionPct(): number {
+    let corrupt = 0;
+    let land = 0;
+    for (const t of this.world.tiles) {
+      if (t === "water") continue;
+      land++;
+      if (t === "corrupt") corrupt++;
+    }
+    return land > 0 ? (corrupt / land) * 100 : 0;
   }
 
   start() {
@@ -280,53 +288,31 @@ export class Game {
   }
 
   private drawGround(ctx: CanvasRenderingContext2D) {
-    const z = this.camera.zoom;
-    const hw = (TILE_W / 2) * z;
-    const hh = (TILE_H / 2) * z;
+    const z   = this.camera.zoom;
+    const hw  = (TILE_W / 2) * z;
+    const hh  = (TILE_H / 2) * z;
     const now = performance.now();
+    // animation frame indices
+    const waterF   = Math.floor(now / 250) % 4;
+    const corruptF = Math.floor(now / 500) % 6;
 
     for (let y = 0; y < this.world.h; y++) {
       for (let x = 0; x < this.world.w; x++) {
         const s = this.tileScreen(x, y);
-        // viewport cull
         if (
-          s.x < -hw * 2 ||
-          s.x > this.camera.viewW + hw * 2 ||
-          s.y < -hh * 2 ||
-          s.y > this.camera.viewH + hh * 4
-        )
-          continue;
+          s.x < -hw * 2 || s.x > this.camera.viewW + hw * 2 ||
+          s.y < -hh * 2 || s.y > this.camera.viewH + hh * 4
+        ) continue;
 
-        const t = this.world.tile(x, y);
-        const [top] = TILE_COLORS[t];
-        this.diamond(ctx, s.x, s.y, hw, hh, top);
+        const t = this.world.tile(x, y) as TileType;
+        const frame = t === 'water' ? waterF : t === 'corrupt' ? corruptF : 0;
+        spriteCache.drawTile(ctx, t, s.x, s.y, z, frame);
 
-        if (t === "corrupt") {
-          const pulse = 0.35 + 0.25 * Math.sin(now / 400 + (x + y));
-          ctx.save();
-          ctx.globalAlpha = pulse;
-          this.diamond(ctx, s.x, s.y, hw * 0.7, hh * 0.7, "#a855f7");
-          ctx.restore();
-        }
-        if (t === "water") {
-          const shimmer = 0.15 + 0.1 * Math.sin(now / 600 + (x - y));
-          ctx.save();
-          ctx.globalAlpha = shimmer;
-          this.diamond(ctx, s.x, s.y - 2 * z, hw * 0.8, hh * 0.8, "#3b6f86");
-          ctx.restore();
-        }
-
-        // grid line
-        ctx.strokeStyle = "rgba(0,0,0,0.25)";
-        ctx.lineWidth = 1;
-        this.diamondPath(ctx, s.x, s.y, hw, hh);
-        ctx.stroke();
-
-        // hover highlight
+        // hover highlight (drawn over the tile, using diamond path)
         if (this.hover && this.hover.x === x && this.hover.y === y) {
           this.diamond(ctx, s.x, s.y, hw, hh, "rgba(231,200,115,0.18)");
           ctx.strokeStyle = "rgba(231,200,115,0.7)";
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth   = 1.5;
           this.diamondPath(ctx, s.x, s.y, hw, hh);
           ctx.stroke();
         }
@@ -376,121 +362,60 @@ export class Game {
   }
 
   private drawNode(ctx: CanvasRenderingContext2D, node: ResourceNode) {
-    const s = this.tileScreen(node.gx, node.gy);
-    const z = this.camera.zoom;
-    const sway = Math.sin(node.phase * 1.5) * 1.5 * z;
-    const depleted = node.amount / node.maxAmount;
+    const s        = this.tileScreen(node.gx, node.gy);
+    const z        = this.camera.zoom;
+    const depleted = node.amount <= 0;
+    const fishF    = Math.floor(performance.now() / 300) % 4;
 
-    if (node.kind === "tree") {
-      // trunk
-      ctx.fillStyle = "#2c2018";
-      ctx.fillRect(s.x - 3 * z, s.y - 18 * z, 6 * z, 20 * z);
-      // canopy (dark, drift-tinged)
-      const layers = ["#1c3322", "#24402a", "#2e5034"];
-      for (let i = 0; i < layers.length; i++) {
-        ctx.fillStyle = layers[i];
-        ctx.beginPath();
-        const cy = s.y - (20 + i * 10) * z;
-        const r = (20 - i * 4) * z * (0.85 + 0.15 * depleted);
-        ctx.moveTo(s.x + sway, cy - r);
-        ctx.lineTo(s.x + sway + r, cy + r * 0.7);
-        ctx.lineTo(s.x + sway - r, cy + r * 0.7);
-        ctx.closePath();
-        ctx.fill();
-      }
-    } else if (node.kind === "rock") {
-      ctx.fillStyle = "#3a3a46";
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y - 20 * z * depleted - 4 * z);
-      ctx.lineTo(s.x + 16 * z, s.y - 2 * z);
-      ctx.lineTo(s.x + 8 * z, s.y + 6 * z);
-      ctx.lineTo(s.x - 10 * z, s.y + 5 * z);
-      ctx.lineTo(s.x - 15 * z, s.y - 4 * z);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "#52525f";
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y - 20 * z * depleted - 4 * z);
-      ctx.lineTo(s.x + 16 * z, s.y - 2 * z);
-      ctx.lineTo(s.x + 2 * z, s.y - 2 * z);
-      ctx.closePath();
-      ctx.fill();
-    } else {
-      // fishing spot: ripples
-      ctx.strokeStyle = "rgba(95,176,201,0.7)";
-      ctx.lineWidth = 2 * z;
-      for (let i = 0; i < 3; i++) {
-        const rr = ((node.phase * 18 + i * 10) % 30) * z;
-        ctx.globalAlpha = 1 - rr / (30 * z);
-        ctx.beginPath();
-        ctx.ellipse(s.x, s.y, rr + 4 * z, (rr + 4 * z) * 0.5, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-    }
+    spriteCache.drawNode(ctx, node.kind as 'tree' | 'rock' | 'fish', depleted, s.x, s.y, z, fishF);
 
-    // gather progress ring if player is working this node
+    // gather progress arc
     if (this.player.action === "gather" && this.player.targetNode === node) {
       const p = this.player.gatherMs / this.player.gatherTotal;
       ctx.strokeStyle = "rgba(0,0,0,0.5)";
       ctx.lineWidth = 4 * z;
       ctx.beginPath();
-      ctx.arc(s.x, s.y - 4 * z, 14 * z, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y - 28 * z, 10 * z, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = "#e7c873";
+      ctx.lineWidth = 3 * z;
       ctx.beginPath();
-      ctx.arc(s.x, s.y - 4 * z, 14 * z, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+      ctx.arc(s.x, s.y - 28 * z, 10 * z, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
       ctx.stroke();
     }
   }
 
   private drawPlayer(ctx: CanvasRenderingContext2D) {
     const iso = gridToIso(this.player.px, this.player.py);
-    const s = this.camera.worldToScreen(iso.x, iso.y);
-    const z = this.camera.zoom;
-    const bob = (this.player.action === "walk" ? Math.abs(Math.sin(this.player.bob)) : 0) * 3 * z;
+    const s   = this.camera.worldToScreen(iso.x, iso.y);
+    const z   = this.camera.zoom;
 
-    // shadow
+    // ellipse shadow
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
     ctx.ellipse(s.x, s.y, 10 * z, 5 * z, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    const f = this.player.facing;
-    const cy = s.y - bob;
+    // resolve anim + frame
+    const action = this.player.action;
+    const anim   = action === 'gather' ? 'swing'
+                 : action === 'walk'   ? 'walk'
+                 : 'idle';
+    let frame: number;
+    if (anim === 'walk')  frame = Math.floor((this.player.bob / (Math.PI * 2)) * 6) & 0xff;
+    else if (anim === 'swing') frame = Math.floor((this.player.gatherMs / this.player.gatherTotal) * 4);
+    else                  frame = Math.floor(performance.now() / 500) % 2;
 
-    // cloak body
-    ctx.fillStyle = "#2a2438";
-    ctx.beginPath();
-    ctx.moveTo(s.x, cy - 30 * z);
-    ctx.lineTo(s.x + 11 * z, cy - 2 * z);
-    ctx.lineTo(s.x - 11 * z, cy - 2 * z);
-    ctx.closePath();
-    ctx.fill();
-    // drift trim
-    ctx.fillStyle = "#a855f7";
-    ctx.fillRect(s.x - 2 * z, cy - 22 * z, 4 * z, 16 * z);
-    // hood
-    ctx.fillStyle = "#1c1726";
-    ctx.beginPath();
-    ctx.arc(s.x + f * 1 * z, cy - 30 * z, 7 * z, 0, Math.PI * 2);
-    ctx.fill();
-    // face glow
-    ctx.fillStyle = "rgba(168,85,247,0.9)";
-    ctx.beginPath();
-    ctx.arc(s.x + f * 2 * z, cy - 30 * z, 2 * z, 0, Math.PI * 2);
-    ctx.fill();
-
-    // gather "swing" arm hint
-    if (this.player.action === "gather") {
-      const swing = Math.sin(this.player.gatherMs / 90) * 0.5;
-      ctx.strokeStyle = "#6b5d7e";
-      ctx.lineWidth = 3 * z;
-      ctx.beginPath();
-      ctx.moveTo(s.x + f * 6 * z, cy - 18 * z);
-      ctx.lineTo(s.x + f * (12 + swing * 6) * z, cy - (24 + swing * 8) * z);
-      ctx.stroke();
-    }
+    spriteCache.drawChar(
+      ctx,
+      this.player.isoFacing,
+      this.player.isoMirror,
+      anim,
+      frame,
+      s.x,
+      s.y,
+      z,
+    );
   }
 
   private drawMob(ctx: CanvasRenderingContext2D, mob: Mob) {

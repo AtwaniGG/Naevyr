@@ -16,6 +16,7 @@ interface SaveData {
   equipment: unknown;
   gold: number;
   driftSeason: number;
+  driftPct?: number;
   quests: { id: string; progress: number; claimed: boolean }[];
 }
 
@@ -45,6 +46,7 @@ export function initPersistence() {
         ...(data.equipment ? { equipment: data.equipment as never } : {}),
         gold: data.gold ?? 0,
         driftSeason: data.driftSeason ?? 1,
+        driftPct: data.driftPct ?? 0,
         quests,
       });
     }
@@ -68,6 +70,7 @@ export function initPersistence() {
         equipment: s.equipment,
         gold: s.gold,
         driftSeason: s.driftSeason,
+        driftPct: s.driftPct,
         quests: s.quests.map((q) => ({
           id: q.def.id,
           progress: q.progress,

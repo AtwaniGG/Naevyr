@@ -1,0 +1,29 @@
+{
+  "image": "world/dirt.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "dirt-full": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "dirt-to-grass": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  }
+}

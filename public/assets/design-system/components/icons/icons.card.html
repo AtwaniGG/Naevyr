@@ -1,0 +1,56 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Icons" subtitle="The 6-tool kit + resource & HUD glyphs, one 24-grid family" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 20px; background: var(--bg-app); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ico {
+    width: 64px; height: 70px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    background: var(--surface-well); box-shadow: var(--bevel-slot);
+    color: var(--text-primary); image-rendering: pixelated;
+  }
+  .ico span { font: var(--weight-medium) 9px/1 var(--font-ui); color: var(--text-muted); letter-spacing: .04em; }
+  .lbl { font: var(--weight-semibold) 11px/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 8px; }
+  .grp { margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Icon, ICON_NAMES } = window.DriftLandsDesignSystem_3de3e2;
+  const tools = ['axe','pickaxe','rod','sword','ward','sigil'];
+  const res = ['log','ore','fish','coin','drift'];
+  const hud = ['heart','leaf','bag','bolt','chevronRight','x'];
+  function Group({ title, names }) {
+    return (
+      <div className="grp">
+        <div className="lbl">{title}</div>
+        <div className="row">
+          {names.map(n => (
+            <div className="ico" key={n}>
+              <Icon name={n} size={40} glow={n==='drift'} />
+              <span>{n}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <>
+      <Group title="Tools" names={tools} />
+      <Group title="Resources" names={res} />
+      <Group title="HUD" names={hud} />
+    </>
+  );
+</script>
+</body>
+</html>

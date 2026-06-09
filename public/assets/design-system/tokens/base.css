@@ -1,0 +1,139 @@
+/* ============================================================
+   DriftLands — Base layer (PIXEL-ART system)
+   Resets + canonical pixel HUD primitives as utility classes, so
+   cards & quick mocks match the React components exactly. Pixel
+   art everywhere: image-rendering: pixelated on art, hard bevels,
+   corner notches, no soft blur.
+   ============================================================ */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Crisp scaling for ALL pixel art (sprites, icons, frame textures) */
+img.drift-pixel,
+.drift-pixel,
+svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---- Display / heading helpers ---- */
+.drift-wordmark {
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-primary);
+  line-height: var(--leading-tight);
+}
+.drift-heading {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-snug);
+}
+.drift-label {
+  font-family: var(--font-pixel);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.drift-num {
+  font-family: var(--font-num);
+  font-weight: var(--weight-semibold);
+  font-feature-settings: var(--type-num-feature);
+}
+
+/* ---- The canonical pixel frame (9-slice look via notch + bevel) ----
+   Semi-transparent fill so the world reads through; opaque-ish frame
+   edge in corruption purple; hard bevel; hard drop shadow. */
+.drift-panel {
+  position: relative;
+  background: var(--surface-panel);
+  border: 0;
+  clip-path: var(--clip-notch);
+  box-shadow: var(--frame-shadow);
+  color: var(--text-primary);
+}
+/* corruption dither bleeding in from the top-right corner */
+.drift-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 70% at 100% 0%, var(--corrupt-16) 0%, transparent 55%),
+    var(--dither-corrupt);
+  clip-path: var(--clip-notch);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.drift-panel > * { position: relative; }
+
+/* ---- Inset well (slots, bar tracks) ---- */
+.drift-well {
+  background: var(--surface-well);
+  box-shadow: var(--bevel-slot);
+}
+
+/* ---- Pixel button (chrome lives here; React sets --btn-* vars) ---- */
+.drift-pixel-btn {
+  --btn-bg: var(--drift-corrupt-dim);
+  --btn-bg-hi: var(--drift-corrupt);
+  --btn-fg: #f6efff;
+  --btn-edge: var(--drift-corrupt);
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-pixel); font-weight: var(--weight-regular);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--btn-fg); background: var(--btn-bg); border: 0; cursor: pointer;
+  image-rendering: pixelated;
+  clip-path: polygon(0 3px,3px 0,calc(100% - 3px) 0,100% 3px,100% calc(100% - 3px),calc(100% - 3px) 100%,3px 100%,0 calc(100% - 3px));
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.18),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 3px 0 0 rgba(10,8,16,.6);
+  transition: background var(--dur-fast) steps(2), filter var(--dur-fast);
+}
+.drift-pixel-btn:hover:not(:disabled) { background: var(--btn-bg-hi); filter: brightness(1.04); }
+.drift-pixel-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.12),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 1px 0 0 rgba(10,8,16,.6);
+}
+.drift-pixel-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.18),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 3px 0 0 rgba(10,8,16,.6),
+    0 0 0 3px var(--drift-corrupt);
+}
+.drift-pixel-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- HUD legibility helper ---- */
+.drift-hud-text { text-shadow: var(--text-shadow-hud); }
+
+/* ---- Drift ambient pulse (sparingly on active corruption) ---- */
+@keyframes drift-pulse {
+  0%, 100% { box-shadow: var(--glow-corrupt-sm); }
+  50%      { box-shadow: var(--glow-corrupt-md); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drift-pulse { animation: drift-pulse var(--dur-drift) steps(6, end) infinite; }
+}

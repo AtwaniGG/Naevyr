@@ -1,0 +1,84 @@
+<!-- @dsCard group="World Art" viewport="1100x620" name="World art — full set" subtitle="Every shipped sprite at 1× and 4× — tiles, overlay, nodes, character, FX, brand" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DriftLands — World Art Review</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0a0810; font-family: monospace; }
+  h2 { font: 700 17px/1 monospace; color: #d8cfe0; letter-spacing: .06em; margin: 26px 0 4px; text-transform: uppercase; }
+  .sub { font: 400 10px/1.5 monospace; color: rgba(216,207,224,.45); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-end; }
+  .asset { display: flex; flex-direction: column; gap: 6px; }
+  .pair { display: flex; align-items: flex-end; gap: 10px; }
+  .well { background: #171320; box-shadow: inset 1px 1px 0 0 rgba(10,8,16,.9), inset -1px -1px 0 0 rgba(58,51,80,.7); padding: 8px; display: inline-flex; }
+  img { display: block; image-rendering: pixelated; }
+  .cap { font: 400 10px/1.4 monospace; color: rgba(216,207,224,.72); letter-spacing: .05em; }
+  .cap b { color: #a855f7; font-weight: 400; }
+  .scroll { max-width: 100%; overflow-x: auto; }
+</style>
+</head>
+<body>
+  <h2>Ground tiles</h2>
+  <p class="sub">64×32 diamond + 3px south lip · sheets: base + transition / shimmer frames</p>
+  <div class="row" id="tiles"></div>
+
+  <h2>Corruption overlay</h2>
+  <p class="sub">Separate layer · 6 pulse frames · fps 3 · alpha .18→.34</p>
+  <div class="row" id="overlay"></div>
+
+  <h2>Resource nodes</h2>
+  <p class="sub">Bottom-center anchored · full + near-depleted</p>
+  <div class="row" id="nodes"></div>
+
+  <h2>Character — wanderer</h2>
+  <p class="sub">32×40 cells · rows S/SE/E/NE/N · cols idle 2 · walk 6 · gather 4</p>
+  <div class="row" id="char"></div>
+
+  <h2>FX</h2>
+  <p class="sub">Motes · embers · ash · gather progress ring (8 steps)</p>
+  <div class="row" id="fx"></div>
+
+  <h2>Brand</h2>
+  <p class="sub">Rect-grid exports · horizontal 512×96 · stacked 256×220 · emblem 16/32/64 · mono</p>
+  <div class="row" id="brand"></div>
+
+  <script>
+    const A = [
+      ['tiles', 'world/grass.svg', 128, 36, 'grass — full · →dirt'],
+      ['tiles', 'world/dirt.svg', 128, 36, 'dirt — full · →grass'],
+      ['tiles', 'world/stone.svg', 128, 36, 'stone — full · seam'],
+      ['tiles', 'world/water.svg', 320, 36, 'water — shimmer ×4 · foam'],
+      ['overlay', 'world/corrupt-overlay.svg', 384, 32, 'corrupt_00…05'],
+      ['nodes', 'nodes/tree.svg', 96, 56, 'tree 48×56'],
+      ['nodes', 'nodes/rock.svg', 80, 30, 'rock 40×30'],
+      ['nodes', 'nodes/fish.svg', 200, 20, 'fish ripple 40×20 ×4 + depleted'],
+      ['char', 'character/wanderer.svg', 384, 200, 'wanderer.svg 384×200'],
+      ['fx', 'fx/motes.svg', 6, 2, 'motes ×3'],
+      ['fx', 'fx/embers.svg', 3, 1, 'embers ×3'],
+      ['fx', 'fx/ash.svg', 3, 1, 'ash ×3'],
+      ['fx', 'fx/ring.svg', 192, 24, 'ring_00…07'],
+      ['brand', 'brand/logo-horizontal.svg', 512, 96, 'logo-horizontal'],
+      ['brand', 'brand/logo-horizontal-mono.svg', 512, 96, 'mono'],
+      ['brand', 'brand/logo-stacked.svg', 256, 220, 'logo-stacked'],
+      ['brand', 'brand/emblem-16.svg', 16, 16, 'emblem 16'],
+      ['brand', 'brand/emblem-32.svg', 32, 32, 'emblem 32'],
+      ['brand', 'brand/emblem-64.svg', 64, 64, 'emblem 64'],
+      ['brand', 'brand/emblem-64-mono.svg', 64, 64, 'emblem mono'],
+    ];
+    const big = { 'character/wanderer.svg': 2, 'brand/logo-horizontal.svg': 1, 'brand/logo-horizontal-mono.svg': 1, 'brand/logo-stacked.svg': 1 };
+    A.forEach(([sec, src, w, h, cap]) => {
+      const zoom = big[src] != null ? big[src] : 4;
+      const el = document.createElement('div');
+      el.className = 'asset';
+      el.innerHTML =
+        '<div class="pair scroll">' +
+        '<span class="well"><img src="' + src + '" width="' + w + '" height="' + h + '" alt=""></span>' +
+        (zoom > 1 ? '<span class="well"><img src="' + src + '" width="' + (w * zoom) + '" height="' + (h * zoom) + '" alt=""></span>' : '') +
+        '</div>' +
+        '<span class="cap">' + cap + ' <b>· 1×' + (zoom > 1 ? ' / ' + zoom + '×' : '') + '</b></span>';
+      document.getElementById(sec).appendChild(el);
+    });
+  </script>
+</body>
+</html>

@@ -7,10 +7,10 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #0a0810;
-  color: #d8cfe0;
+  background: var(--bg-world, #0a0810);
+  color: var(--text-primary, #d8cfe0);
   overflow: hidden;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui, ui-sans-serif, system-ui, sans-serif);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -18,25 +18,4 @@ body {
 canvas {
   display: block;
   image-rendering: pixelated;
-}
-
-/* subtle pixel/scanline vibe for the HUD frame */
-.panel {
-  background: linear-gradient(180deg, rgba(42, 36, 56, 0.92), rgba(23, 19, 32, 0.92));
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-}
-
-@keyframes corruptPulse {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-.corrupt-pulse {
-  animation: corruptPulse 2.4s ease-in-out infinite;
 }

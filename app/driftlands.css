@@ -1,0 +1,372 @@
+/* ============================================================
+   DriftLands design tokens + base primitives.
+   Ported from the design-system package (public/assets/design-system):
+   tokens/{colors,typography,spacing,effects}.css + base.css, with the
+   font families remapped onto next/font CSS variables.
+   ============================================================ */
+
+:root {
+  /* ============ BASE (drift.*) — locked ============ */
+  --drift-void:         #0a0810;
+  --drift-ash:          #171320;
+  --drift-stone:        #2a2438;
+  --drift-bone:         #d8cfe0;
+  --drift-corrupt:      #a855f7;
+  --drift-corrupt-dim:  #6b21a8;
+  --drift-ember:        #f59e0b;
+  --drift-blood:        #dc2626;
+  --drift-moss:         #4d7c4d;
+  --drift-gold:         #e7c873;
+
+  /* ============ MATERIAL RAMPS (hi → base → shadow → deep) ============ */
+  --ui-100: #3a3350;
+  --ui-80:  #2a2438;
+  --ui-60:  #1f1a2c;
+  --ui-40:  #171320;
+  --ui-20:  #0f0c16;
+  --ui-0:   #0a0810;
+
+  --bone-hi:  #efe9f4;
+  --bone:     #d8cfe0;
+  --bone-mid: #a99fb8;
+  --bone-lo:  #6f6781;
+
+  --grass-hi:  #7fae5e;
+  --grass:     #4d7c4d;
+  --grass-lo:  #356037;
+  --grass-dp:  #20402a;
+
+  --dirt-hi:   #7a6048;
+  --dirt:      #50402e;
+  --dirt-lo:   #36291c;
+  --dirt-dp:   #241a11;
+
+  --rock-hi:   #4a4360;
+  --rock:      #322b46;
+  --rock-lo:   #211c30;
+  --rock-dp:   #14101e;
+
+  --water-hi:  #4a7fa0;
+  --water:     #2c5775;
+  --water-lo:  #173a52;
+  --water-dp:  #0d2336;
+
+  --drift-core: #f3e8ff;
+  --drift-hi:   #d8b4fe;
+  --drift-mid:  #a855f7;
+  --drift-lo:   #6b21a8;
+  --drift-dp:   #3b1162;
+
+  --ember-hi:  #fcd34d;
+  --ember:     #f59e0b;
+  --ember-lo:  #b45309;
+  --ember-dp:  #7c3a06;
+
+  --gold-hi:   #f6e0a6;
+  --gold:      #e7c873;
+  --gold-lo:   #b8943f;
+  --gold-dp:   #7c5f23;
+
+  --blood-hi:  #ef4444;
+  --blood:     #dc2626;
+  --blood-lo:  #991b1b;
+  --blood-dp:  #5f1212;
+
+  /* ============ ALPHA WASHES ============ */
+  --void-82:    rgba(10, 8, 16, 0.82);
+  --void-60:    rgba(10, 8, 16, 0.60);
+  --ash-92:     rgba(23, 19, 32, 0.92);
+  --ash-80:     rgba(23, 19, 32, 0.80);
+  --ash-64:     rgba(23, 19, 32, 0.64);
+  --stone-70:   rgba(42, 36, 56, 0.70);
+
+  --bone-72:    rgba(216, 207, 224, 0.72);
+  --bone-45:    rgba(216, 207, 224, 0.45);
+  --bone-14:    rgba(216, 207, 224, 0.14);
+
+  --corrupt-55: rgba(168, 85, 247, 0.55);
+  --corrupt-32: rgba(168, 85, 247, 0.32);
+  --corrupt-16: rgba(168, 85, 247, 0.16);
+  --ember-24:   rgba(245, 158, 11, 0.24);
+  --blood-24:   rgba(220, 38, 38, 0.24);
+  --moss-24:    rgba(77, 124, 77, 0.24);
+  --gold-24:    rgba(231, 200, 115, 0.24);
+
+  /* ============ SEMANTIC ALIASES ============ */
+  --bg-world:        var(--drift-void);
+  --bg-app:          var(--drift-ash);
+  --surface-panel:   var(--ash-80);
+  --surface-frame:   var(--ui-80);
+  --surface-raised:  var(--drift-stone);
+  --surface-well:    var(--void-60);
+
+  --text-primary:    var(--drift-bone);
+  --text-secondary:  var(--bone-72);
+  --text-muted:      var(--bone-45);
+  --text-accent:     var(--drift-corrupt);
+  --text-value:      var(--drift-gold);
+
+  --frame-light:     var(--ui-100);
+  --frame-dark:      var(--ui-0);
+  --frame-edge:      var(--corrupt-55);
+  --border-hairline: var(--bone-14);
+
+  --accent:          var(--drift-corrupt);
+  --accent-deep:     var(--drift-corrupt-dim);
+  --focus-ring:      var(--drift-corrupt);
+
+  --status-danger:   var(--drift-blood);
+  --status-warning:  var(--drift-ember);
+  --status-success:  var(--drift-moss);
+  --status-info:     var(--drift-corrupt);
+
+  --skill-woodcutting: var(--drift-ember);
+  --skill-mining:      var(--drift-gold);
+  --skill-fishing:     var(--water-hi);
+  --skill-combat:      var(--drift-blood);
+  --skill-corruption:  var(--drift-corrupt);
+
+  /* ============ TYPOGRAPHY (families via next/font) ============ */
+  --font-display: var(--font-pixelify), 'Pixelify Sans', monospace;
+  --font-pixel:   var(--font-silkscreen), 'Silkscreen', monospace;
+  --font-ui:      var(--font-sora), 'Sora', system-ui, sans-serif;
+  --font-num:     var(--font-sora), 'Sora', ui-monospace, monospace;
+
+  --text-2xs:   11px;
+  --text-xs:    12px;
+  --text-sm:    13px;
+  --text-base:  14px;
+  --text-md:    16px;
+  --text-lg:    20px;
+  --text-xl:    28px;
+  --text-2xl:   36px;
+  --text-3xl:   48px;
+  --text-4xl:   72px;
+
+  --weight-light:     300;
+  --weight-regular:   400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+  --weight-display:   700;
+
+  --leading-tight:   1.05;
+  --leading-snug:    1.25;
+  --leading-normal:  1.5;
+
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.04em;
+  --tracking-wider:   0.10em;
+  --tracking-widest:  0.18em;
+
+  --type-num-feature: "tnum" 1;
+
+  /* ============ SPACING / SIZING ============ */
+  --space-1:   2px;
+  --space-2:   4px;
+  --space-3:   8px;
+  --space-4:   12px;
+  --space-5:   16px;
+  --space-6:   20px;
+  --space-7:   24px;
+  --space-8:   32px;
+
+  --slot-size:        52px;
+  --slot-gap:         6px;
+  --icon-sm:          16px;
+  --icon-md:          20px;
+  --icon-lg:          24px;
+  --xpbar-height:     8px;
+  --panel-max-w:      320px;
+  --hud-edge:         16px;
+
+  --notch: 4px;
+
+  /* ============ EFFECTS ============ */
+  --shadow-pixel-sm:  2px 2px 0 0 rgba(10, 8, 16, 0.85);
+  --shadow-pixel:     3px 3px 0 0 rgba(10, 8, 16, 0.85);
+  --shadow-pixel-lg:  5px 5px 0 0 rgba(10, 8, 16, 0.9);
+
+  --bevel-raised:  inset 1px 1px 0 0 var(--frame-light),
+                   inset -1px -1px 0 0 var(--frame-dark);
+  --bevel-inset:   inset 1px 1px 0 0 var(--frame-dark),
+                   inset -1px -1px 0 0 var(--frame-light);
+  --bevel-slot:    inset 1px 1px 0 0 rgba(10, 8, 16, 0.9),
+                   inset -1px -1px 0 0 rgba(58, 51, 80, 0.7);
+
+  --frame-shadow:  0 0 0 1px var(--frame-edge),
+                   var(--bevel-raised),
+                   var(--shadow-pixel);
+
+  --glow-corrupt-sm:  0 0 0 1px var(--corrupt-55),
+                      0 0 0 2px var(--corrupt-32);
+  --glow-corrupt-md:  0 0 0 1px var(--drift-corrupt),
+                      0 0 0 2px var(--corrupt-55),
+                      0 0 0 4px var(--corrupt-16);
+  --glow-corrupt-lg:  0 0 0 1px var(--drift-core),
+                      0 0 0 2px var(--drift-corrupt),
+                      0 0 0 4px var(--corrupt-55),
+                      0 0 0 6px var(--corrupt-16);
+  --glow-ember:       0 0 0 1px var(--ember), 0 0 0 2px var(--ember-24);
+  --glow-gold:        0 0 0 1px var(--gold), 0 0 0 2px var(--gold-24);
+  --glow-blood:       0 0 0 1px var(--blood), 0 0 0 2px var(--blood-24);
+
+  --ring-focus: 0 0 0 1px var(--bg-app), 0 0 0 3px var(--drift-corrupt);
+
+  --text-shadow-hud:  1px 1px 0 rgba(10, 8, 16, 0.95);
+
+  --clip-notch: polygon(
+    0 var(--notch), var(--notch) 0,
+    calc(100% - var(--notch)) 0, 100% var(--notch),
+    100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+    var(--notch) 100%, 0 calc(100% - var(--notch))
+  );
+
+  --dither-corrupt: repeating-conic-gradient(var(--corrupt-32) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
+  --dither-void:    repeating-conic-gradient(rgba(10,8,16,0.5) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
+
+  --grad-xp:   linear-gradient(90deg, var(--drift-lo) 0%, var(--drift-mid) 60%, var(--drift-hi) 100%);
+  --grad-scrim-bottom: linear-gradient(0deg, var(--void-82) 0%, transparent 100%);
+
+  --ease-step:   steps(4, end);
+  --ease-out:    cubic-bezier(0.2, 0.9, 0.3, 1);
+  --dur-fast:    90ms;
+  --dur-base:    150ms;
+  --dur-slow:    300ms;
+  --dur-drift:   2000ms;
+}
+
+/* ============ BASE PRIMITIVES ============ */
+
+img.drift-pixel,
+.drift-pixel,
+svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+.drift-wordmark {
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-primary);
+  line-height: var(--leading-tight);
+}
+.drift-heading {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-snug);
+}
+.drift-label {
+  font-family: var(--font-pixel);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.drift-num {
+  font-family: var(--font-num);
+  font-weight: var(--weight-semibold);
+  font-feature-settings: var(--type-num-feature);
+}
+
+/* The canonical pixel frame */
+.drift-panel {
+  position: relative;
+  background: var(--surface-panel);
+  border: 0;
+  clip-path: var(--clip-notch);
+  box-shadow: var(--frame-shadow);
+  color: var(--text-primary);
+}
+.drift-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 70% at 100% 0%, var(--corrupt-16) 0%, transparent 55%),
+    var(--dither-corrupt);
+  clip-path: var(--clip-notch);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.drift-panel > * { position: relative; }
+
+.drift-well {
+  background: var(--surface-well);
+  box-shadow: var(--bevel-slot);
+}
+
+.drift-pixel-btn {
+  --btn-bg: var(--drift-corrupt-dim);
+  --btn-bg-hi: var(--drift-corrupt);
+  --btn-fg: #f6efff;
+  --btn-edge: var(--drift-corrupt);
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-pixel); font-weight: var(--weight-regular);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--btn-fg); background: var(--btn-bg); border: 0; cursor: pointer;
+  image-rendering: pixelated;
+  clip-path: polygon(0 3px,3px 0,calc(100% - 3px) 0,100% 3px,100% calc(100% - 3px),calc(100% - 3px) 100%,3px 100%,0 calc(100% - 3px));
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.18),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 3px 0 0 rgba(10,8,16,.6);
+  transition: background var(--dur-fast) steps(2), filter var(--dur-fast);
+}
+.drift-pixel-btn:hover:not(:disabled) { background: var(--btn-bg-hi); filter: brightness(1.04); }
+.drift-pixel-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.12),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 1px 0 0 rgba(10,8,16,.6);
+}
+.drift-pixel-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--btn-edge),
+    inset 1px 1px 0 0 rgba(255,255,255,.18),
+    inset -1px -1px 0 0 rgba(10,8,16,.5),
+    0 3px 0 0 rgba(10,8,16,.6),
+    0 0 0 3px var(--drift-corrupt);
+}
+.drift-pixel-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.drift-hud-text { text-shadow: var(--text-shadow-hud); }
+
+@keyframes drift-pulse {
+  0%, 100% { box-shadow: var(--glow-corrupt-sm); }
+  50%      { box-shadow: var(--glow-corrupt-md); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drift-pulse { animation: drift-pulse var(--dur-drift) steps(6, end) infinite; }
+}
+
+/* The wordmark's corruption bleed: hard-stop steps, no smooth gradient */
+.drift-wordmark-bleed {
+  background: linear-gradient(
+    180deg,
+    var(--bone-hi) 0%, var(--bone-hi) 48%,
+    var(--drift-hi) 48%, var(--drift-hi) 66%,
+    var(--drift-mid) 66%, var(--drift-mid) 84%,
+    var(--drift-lo) 84%, var(--drift-lo) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Global moonlight + vignette scrim between world and HUD */
+.drift-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(10, 8, 16, 0.5) 100%),
+    linear-gradient(180deg, rgba(59, 17, 98, 0.10) 0%, transparent 30%);
+  mix-blend-mode: normal;
+}

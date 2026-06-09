@@ -1,0 +1,29 @@
+{
+  "image": "world/grass.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "grass-full": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "grass-to-dirt": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  }
+}

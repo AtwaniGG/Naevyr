@@ -1,0 +1,29 @@
+<!-- @dsCard group="Colors" viewport="700x210" name="Base palette · drift.*" subtitle="The locked engine palette — mirrors the Tailwind drift.* tokens" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg-app); }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .sw { display: flex; flex-direction: column; }
+  .chip { height: 52px; box-shadow: var(--bevel-slot); }
+  .meta { display: flex; flex-direction: column; gap: 1px; padding-top: 6px; }
+  .nm { font: 400 11px/1.2 var(--font-pixel); letter-spacing: .06em; color: var(--text-primary); text-transform: uppercase; }
+  .hex { font: 500 11px/1.2 var(--font-num); color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="grid" id="g"></div>
+  <script>
+    const items = [
+      ['void','#0a0810'],['ash','#171320'],['stone','#2a2438'],['bone','#d8cfe0'],['corrupt','#a855f7'],
+      ['corruptDim','#6b21a8'],['ember','#f59e0b'],['blood','#dc2626'],['moss','#4d7c4d'],['gold','#e7c873'],
+    ];
+    document.getElementById('g').innerHTML = items.map(([n,h]) =>
+      `<div class="sw"><div class="chip" style="background:${h}"></div><div class="meta"><span class="nm">${n}</span><span class="hex">${h}</span></div></div>`
+    ).join('');
+  </script>
+</body>
+</html>

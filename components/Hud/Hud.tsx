@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useGame, xpForLevel } from "@/game/state/store";
+import { useGame, xpForLevel, QuestState } from "@/game/state/store";
 import {
   EquipSlot,
   INVENTORY_ORDER,
@@ -10,183 +10,127 @@ import {
   RECIPES,
   SKILL_META,
   SkillKey,
+  seasonName,
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
+import {
+  ActivityLog,
+  Badge,
+  Button,
+  Hotbar,
+  Icon,
+  IconName,
+  Panel,
+  SeasonBadge,
+  Slot,
+  XPBar,
+} from "@/components/ds";
 
-const HOTBAR: { slot: number; icon: string; label: string; locked?: boolean }[] = [
-  { slot: 1, icon: "🪓", label: "Axe" },
-  { slot: 2, icon: "⛏️", label: "Pick" },
-  { slot: 3, icon: "🎣", label: "Rod" },
-  { slot: 4, icon: "⚔️", label: "Blade" },
-  { slot: 5, icon: "🛡️", label: "Ward", locked: true },
-  { slot: 6, icon: "🜂", label: "Sigil", locked: true },
+// pixel-icon mapping for items / skills / recipes (no emoji — design rule)
+const ITEM_ICON: Record<ItemKey, IconName> = {
+  wood: "log",
+  stone: "ore",
+  fish: "fish",
+  cooked_fish: "fish",
+  driftshard: "drift",
+  hide: "bag",
+};
+
+const SKILL_ICON: Record<SkillKey, IconName> = {
+  woodcutting: "axe",
+  mining: "pickaxe",
+  fishing: "rod",
+  combat: "sword",
+};
+
+const RECIPE_ICON: Record<string, IconName> = {
+  bone_blade: "sword",
+  shard_saber: "sword",
+  keen_tools: "axe",
+  shardtooth_tools: "pickaxe",
+  hide_ward: "ward",
+  drift_sigil: "sigil",
+};
+
+const QUEST_ICON: Record<string, IconName> = {
+  chop_wood: "axe",
+  mine_stone: "pickaxe",
+  catch_fish: "rod",
+  slay_beasts: "sword",
+  cook_fish: "bolt",
+};
+
+const HOTBAR_TOOLS: { slot: number; icon: IconName; name: string; locked?: boolean }[] = [
+  { slot: 1, icon: "axe", name: "Axe" },
+  { slot: 2, icon: "pickaxe", name: "Pickaxe" },
+  { slot: 3, icon: "rod", name: "Rod" },
+  { slot: 4, icon: "sword", name: "Sword" },
+  { slot: 5, icon: "ward", name: "Ward", locked: true },
+  { slot: 6, icon: "sigil", name: "Sigil", locked: true },
 ];
 
 export default function Hud() {
   return (
-    <div className="pointer-events-none absolute inset-0 select-none">
-      <TopBar />
-      <QuestBoard />
-      <SkillPanel />
-      <ActivityLog />
-      <Inventory />
-      <Vitals />
-      <Hotbar />
-      <Forge />
-      <Controls />
+    <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
+      <div className="drift-scrim" />
+      <TopLeft />
+      <Satchel />
+      <SkillsPanel />
+      <ActivityPanel />
+      <HotbarDock />
+      <ForgeDock />
     </div>
   );
 }
 
-function Forge() {
-  const [open, setOpen] = useState(false);
-  const inventory = useGame((s) => s.inventory);
-  const skills = useGame((s) => s.skills);
-  const equipment = useGame((s) => s.equipment);
-  // subscribing to inventory/skills/equipment keeps canCraft() results fresh
-  void inventory;
-  void skills;
+// ---- top-left: wordmark + season + vitals + quests --------------------------
 
+function TopLeft() {
+  const season = useGame((s) => s.driftSeason);
+  const driftPct = useGame((s) => s.driftPct);
   return (
-    <>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={[
-          "pointer-events-auto panel absolute right-4 top-1/2 -translate-y-1/2 rounded-md px-3 py-2 text-sm font-semibold transition",
-          open ? "text-drift-corrupt shadow-glow" : "text-drift-bone/80 hover:text-drift-corrupt",
-        ].join(" ")}
+    <div
+      className="absolute flex flex-col items-start"
+      style={{ top: "var(--hud-edge)", left: "var(--hud-edge)", gap: 10 }}
+    >
+      <div
+        className="drift-wordmark drift-wordmark-bleed drift-hud-text"
+        style={{ fontSize: "var(--text-xl)", lineHeight: 1, textShadow: "none" }}
       >
-        ⚒ Forge
-      </button>
-
-      {open && (
-        <div className="pointer-events-auto panel absolute right-4 top-1/2 w-80 -translate-y-1/2 translate-x-[-3.5rem] rounded-md p-3 sm:translate-x-[-4.5rem]">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="font-display text-sm font-bold tracking-widest text-drift-bone">
-              THE FORGE
-            </span>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-drift-bone/50 hover:text-drift-bone"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* equipped */}
-          <div className="mb-3 flex gap-2">
-            {(["weapon", "tool", "ward"] as EquipSlot[]).map((slot) => {
-              const item = equipment[slot];
-              return (
-                <div
-                  key={slot}
-                  className="flex flex-1 flex-col items-center rounded bg-black/40 px-1 py-1.5"
-                  title={item ? `${item.label} — ${item.flavor}` : `No ${slot}`}
-                >
-                  <span className="text-lg leading-none">{item ? item.icon : "·"}</span>
-                  <span className="mt-0.5 text-[8px] uppercase tracking-wider text-drift-bone/40">
-                    {slot}
-                  </span>
-                  <span className="text-[9px] text-drift-gold">
-                    {item ? item.flavor : "—"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* recipes */}
-          <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
-            {RECIPES.map((r) => {
-              const check = canCraft(r);
-              const costStr = Object.entries(r.cost)
-                .map(([k, q]) => `${q} ${ITEM_META[k as ItemKey].label}`)
-                .join(" · ");
-              return (
-                <button
-                  key={r.result.id}
-                  disabled={!check.ok}
-                  onClick={() => craft(r)}
-                  title={check.ok ? `Craft ${r.result.label}` : check.reason}
-                  className={[
-                    "rounded bg-black/30 px-2 py-1.5 text-left transition",
-                    check.ok
-                      ? "ring-1 ring-drift-gold/50 hover:bg-drift-gold/10"
-                      : "opacity-45",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-drift-bone">
-                      {r.result.icon} {r.result.label}
-                    </span>
-                    <span className="text-drift-gold">{r.result.flavor}</span>
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-drift-bone/50">
-                    {costStr}
-                    {r.reqCombat ? ` · Combat ${r.reqCombat}+` : ""}
-                  </div>
-                  {!check.ok && (
-                    <div className="text-[10px] text-drift-blood/80">{check.reason}</div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </>
+        DRIFTLANDS
+      </div>
+      <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
+      <Vitals />
+      <QuestBoard />
+    </div>
   );
 }
 
 function Vitals() {
   const { hp, maxHp } = useGame((s) => s.vitals);
-  const pct = Math.max(0, Math.min(1, hp / maxHp));
-  const low = pct < 0.34;
-  return (
-    <div className="absolute bottom-24 left-1/2 w-56 -translate-x-1/2">
-      <div className="panel rounded-md px-3 py-1.5">
-        <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-widest">
-          <span className={low ? "text-drift-blood corrupt-pulse" : "text-drift-bone/70"}>
-            ❤ Vitality
-          </span>
-          <span className="text-drift-bone/80">
-            {hp} / {maxHp}
-          </span>
-        </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-black/60">
-          <div
-            className="h-full rounded-full transition-[width] duration-200"
-            style={{
-              width: `${pct * 100}%`,
-              background: low
-                ? "linear-gradient(90deg,#7f1d1d,#dc2626)"
-                : "linear-gradient(90deg,#dc2626,#f59e0b)",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TopBar() {
-  const season = useGame((s) => s.driftSeason);
   const gold = useGame((s) => s.gold);
+  const hearts = 5;
+  const filled = Math.ceil((hp / maxHp) * hearts);
   return (
-    <div className="absolute left-4 top-4 flex items-center gap-3">
-      <div className="panel rounded-md px-4 py-2">
-        <div className="font-display text-xl font-bold tracking-[0.25em] text-drift-bone">
-          DRIFT<span className="text-drift-corrupt">LANDS</span>
+    <Panel padded={false} corners={false} className="pointer-events-auto" style={{ padding: "8px 12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ display: "flex", gap: 3 }} title={`Vitality ${hp} / ${maxHp}`}>
+          {Array.from({ length: hearts }, (_, i) => (
+            <Icon key={i} name="heart" size={16} style={{ opacity: i < filled ? 1 : 0.18 }} />
+          ))}
         </div>
-        <div className="text-[10px] uppercase tracking-widest text-drift-corrupt corrupt-pulse">
-          Season {season} · the Drift deepens
-        </div>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Gold">
+          <Icon name="coin" size={16} glow />
+          <span
+            className="drift-num drift-hud-text"
+            style={{ fontWeight: 700, fontSize: 15, color: "var(--drift-gold)" }}
+          >
+            {gold.toLocaleString()}
+          </span>
+        </span>
       </div>
-      <div className="panel rounded-md px-3 py-2 text-sm font-bold text-drift-gold">
-        🪙 {gold}
-      </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -194,82 +138,142 @@ function QuestBoard() {
   const quests = useGame((s) => s.quests);
   const claimQuest = useGame((s) => s.claimQuest);
   return (
-    <div className="pointer-events-auto absolute left-4 top-24 w-64">
-      <div className="panel rounded-md p-2.5">
-        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-drift-bone/70">
-          📜 Daily Quests
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {quests.map((q) => {
-            const done = q.progress >= q.def.target;
-            const pct = Math.min(1, q.progress / q.def.target);
-            return (
-              <div
-                key={q.def.id}
-                className={[
-                  "rounded bg-black/30 px-2 py-1.5",
-                  q.claimed ? "opacity-40" : "",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-drift-bone">
-                    {q.def.icon} {q.def.label}
-                  </span>
-                  <span className="text-[10px] text-drift-bone/60">
-                    {q.progress}/{q.def.target}
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/50">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-drift-corruptDim to-drift-corrupt transition-[width] duration-300"
-                    style={{ width: `${pct * 100}%` }}
-                  />
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-[10px] text-drift-gold">
-                    +{q.def.goldReward}g · +{q.def.xpReward.xp}xp
-                  </span>
-                  {q.claimed ? (
-                    <span className="text-[10px] uppercase text-drift-bone/50">claimed</span>
-                  ) : done ? (
-                    <button
-                      onClick={() => claimQuest(q.def.id)}
-                      className="rounded bg-drift-gold/20 px-2 py-0.5 text-[10px] font-bold uppercase text-drift-gold ring-1 ring-drift-gold/60 hover:bg-drift-gold/30"
-                    >
-                      Claim
-                    </button>
-                  ) : null}
-                </div>
+    <Panel kicker="Dailies" title="Quest Board" className="pointer-events-auto" style={{ width: 248 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {quests.map((q: QuestState) => {
+          const done = q.progress >= q.def.target;
+          const pct = Math.min(100, (q.progress / q.def.target) * 100);
+          return (
+            <div key={q.def.id} style={{ opacity: q.claimed ? 0.4 : 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <Icon name={QUEST_ICON[q.def.id] ?? "drift"} size={16} />
+                <span
+                  style={{
+                    flex: 1,
+                    font: "400 12px/1.3 var(--font-ui)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {q.def.label}
+                </span>
+                <span className="drift-num" style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                  {q.progress}/{q.def.target}
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <div
+                className="drift-well"
+                style={{ position: "relative", height: 6, marginTop: 5, overflow: "hidden" }}
+              >
+                <span
+                  style={{
+                    position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`,
+                    background: "var(--grad-xp)",
+                    transition: "width var(--dur-slow) steps(8)",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                <span className="drift-num" style={{ fontSize: 10, color: "var(--drift-gold)" }}>
+                  +{q.def.goldReward}g · +{q.def.xpReward.xp} XP
+                </span>
+                {q.claimed ? (
+                  <span className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)" }}>
+                    Claimed
+                  </span>
+                ) : done ? (
+                  <Button size="sm" variant="gold" onClick={() => claimQuest(q.def.id)}>
+                    Claim
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Panel>
   );
 }
 
-function Trader() {
-  const [open, setOpen] = useState(false);
+// ---- top-right: satchel ------------------------------------------------------
+
+function Satchel() {
   const inv = useGame((s) => s.inventory);
   const sellItem = useGame((s) => s.sellItem);
+  const rawFish = inv.fish;
+  const [trading, setTrading] = useState(false);
+  const carried = INVENTORY_ORDER.reduce((n, k) => n + inv[k], 0);
+
   return (
-    <>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={[
-          "panel rounded-md px-3 py-1 text-xs font-semibold transition",
-          open ? "text-drift-gold shadow-glow" : "text-drift-bone/80 hover:text-drift-gold",
-        ].join(" ")}
+    <div
+      className="absolute pointer-events-auto"
+      style={{ top: "var(--hud-edge)", right: "var(--hud-edge)" }}
+    >
+      <Panel
+        kicker="Satchel"
+        title="Inventory"
+        accessory={<Badge tone="neutral">{carried} carried</Badge>}
+        style={{ width: 232 }}
       >
-        🪙 Trade
-      </button>
-      {open && (
-        <div className="panel absolute bottom-12 left-0 w-60 rounded-md p-2.5">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-drift-bone/70">
-            Wandering Trader
-          </div>
-          <div className="flex flex-col gap-1">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--slot-gap)" }}>
+          {INVENTORY_ORDER.map((key) => {
+            const meta = ITEM_META[key];
+            const count = inv[key];
+            const edible = !!meta.heal && count > 0;
+            return (
+              <Slot
+                key={key}
+                size={62}
+                icon={
+                  <Icon
+                    name={ITEM_ICON[key]}
+                    size={32}
+                    glow={key === "driftshard"}
+                    style={
+                      key === "cooked_fish"
+                        ? { filter: "drop-shadow(0 0 1px #f59e0b) sepia(0.4) saturate(1.4) hue-rotate(-28deg)" }
+                        : undefined
+                    }
+                  />
+                }
+                count={count > 0 ? count : null}
+                rarity={key === "driftshard" ? "epic" : edible ? "uncommon" : null}
+                disabled={count <= 0}
+                style={{ opacity: count > 0 ? 1 : 0.4 }}
+                title={
+                  meta.heal
+                    ? `${meta.label} — eat to restore ${meta.heal} vitality`
+                    : `${meta.label} — sells for ${meta.sellValue}g`
+                }
+                onClick={() => edible && eat(key)}
+              />
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={rawFish <= 0}
+            onClick={() => cookAllFish()}
+            iconLeft={<Icon name="bolt" size={12} />}
+          >
+            Cook{rawFish > 0 ? ` x${rawFish}` : ""}
+          </Button>
+          <Button
+            size="sm"
+            variant={trading ? "gold" : "ghost"}
+            onClick={() => setTrading((t) => !t)}
+            iconLeft={<Icon name="coin" size={12} />}
+          >
+            Trade
+          </Button>
+        </div>
+      </Panel>
+
+      {trading && (
+        <Panel kicker="Wandering Trader" title="Sell" style={{ width: 232, marginTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {INVENTORY_ORDER.map((key) => {
               const meta = ITEM_META[key];
               const count = inv[key];
@@ -278,196 +282,206 @@ function Trader() {
                   key={key}
                   disabled={count <= 0}
                   onClick={() => sellItem(key, count, meta.sellValue)}
-                  className={[
-                    "flex items-center justify-between rounded bg-black/30 px-2 py-1 text-xs transition",
-                    count > 0
-                      ? "hover:bg-drift-gold/10 hover:ring-1 hover:ring-drift-gold/40"
-                      : "opacity-35",
-                  ].join(" ")}
+                  className="drift-well"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, border: 0,
+                    padding: "5px 8px", cursor: count > 0 ? "pointer" : "default",
+                    opacity: count > 0 ? 1 : 0.35,
+                  }}
+                  title={count > 0 ? `Sell all ${meta.label}` : meta.label}
                 >
-                  <span className="text-drift-bone">
-                    {meta.icon} {meta.label} × {count}
+                  <Icon name={ITEM_ICON[key]} size={16} />
+                  <span style={{ flex: 1, textAlign: "left", font: "400 12px/1 var(--font-ui)", color: "var(--text-secondary)" }}>
+                    {meta.label} <span className="drift-num">x{count}</span>
                   </span>
-                  <span className="text-drift-gold">
-                    sell all · {count * meta.sellValue}g
+                  <span className="drift-num" style={{ fontSize: 11, color: "var(--drift-gold)" }}>
+                    {count * meta.sellValue}g
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </Panel>
       )}
-    </>
+    </div>
   );
 }
 
-function SkillPanel() {
+// ---- bottom-left: skills -----------------------------------------------------
+
+function SkillsPanel() {
   const skills = useGame((s) => s.skills);
   return (
-    <div className="absolute right-4 top-4 flex w-56 flex-col gap-2">
-      {(Object.keys(SKILL_META) as SkillKey[]).map((key) => {
-        const st = skills[key];
-        const meta = SKILL_META[key];
-        const floor = xpForLevel(st.level);
-        const next = xpForLevel(st.level + 1);
-        const pct = Math.max(0, Math.min(1, (st.xp - floor) / (next - floor)));
-        return (
-          <div key={key} className="panel rounded-md px-3 py-2">
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-semibold" style={{ color: meta.color }}>
-                {meta.label}
-              </span>
-              <span className="text-drift-bone/70">
-                Lv <span className="text-drift-gold">{st.level}</span>
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-black/50">
-              <div
-                className="h-full rounded-full transition-[width] duration-300"
-                style={{
-                  width: `${pct * 100}%`,
-                  background: `linear-gradient(90deg, ${meta.color}, #e7c873)`,
-                }}
+    <div
+      className="absolute pointer-events-auto"
+      style={{ bottom: "var(--hud-edge)", left: "var(--hud-edge)" }}
+    >
+      <Panel kicker="Skills" title="Gathering & War" style={{ width: 264 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          {(Object.keys(SKILL_META) as SkillKey[]).map((key) => {
+            const st = skills[key];
+            const meta = SKILL_META[key];
+            const floor = xpForLevel(st.level);
+            const next = xpForLevel(st.level + 1);
+            return (
+              <XPBar
+                key={key}
+                skill={meta.label}
+                level={st.level}
+                value={st.xp - floor}
+                max={next - floor}
+                color={meta.color}
+                icon={<Icon name={SKILL_ICON[key]} size={16} />}
               />
-            </div>
-            <div className="mt-0.5 text-right text-[10px] text-drift-bone/40">
-              {st.xp} / {next} xp
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ActivityLog() {
-  const log = useGame((s) => s.log);
-  const recent = log.slice(-6);
-  return (
-    <div className="absolute bottom-40 left-4 flex w-72 flex-col gap-0.5">
-      {recent.map((l) => (
-        <div
-          key={l.id}
-          className="rounded bg-black/40 px-2 py-0.5 text-xs backdrop-blur-sm"
-          style={{ color: l.color || "#d8cfe0" }}
-        >
-          {l.text}
+            );
+          })}
         </div>
-      ))}
+      </Panel>
     </div>
   );
 }
 
-function Inventory() {
-  const inv = useGame((s) => s.inventory);
+// ---- bottom-right: activity --------------------------------------------------
+
+function ActivityPanel() {
+  const log = useGame((s) => s.log);
+  const entries = [...log].reverse();
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 flex flex-col gap-1.5">
-      <div className="panel flex gap-1.5 rounded-md px-2.5 py-2">
-        {INVENTORY_ORDER.map((key) => {
-          const meta = ITEM_META[key];
-          const count = inv[key];
-          const edible = !!meta.heal && count > 0;
-          return (
-            <button
-              key={key}
-              disabled={!edible}
-              onClick={() => edible && eat(key)}
-              title={
-                meta.heal
-                  ? `${meta.label} — click to eat (+${meta.heal} HP)`
-                  : meta.label
-              }
-              className={[
-                "flex w-14 flex-col items-center rounded bg-black/30 px-1 py-1 transition",
-                count > 0 ? "opacity-100" : "opacity-30",
-                edible ? "ring-1 ring-drift-moss/60 hover:bg-drift-moss/20" : "",
-              ].join(" ")}
-            >
-              <span className="text-lg leading-none">{meta.icon}</span>
-              <span className="mt-0.5 text-sm font-bold text-drift-gold">{count}</span>
-              <span className="w-full truncate text-center text-[8px] text-drift-bone/50">
-                {meta.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <CampActions />
+    <div
+      className="absolute pointer-events-auto"
+      style={{ bottom: "var(--hud-edge)", right: "var(--hud-edge)" }}
+    >
+      <Panel kicker="Realm" title="Activity" style={{ width: 264 }}>
+        <ActivityLog entries={entries} max={7} />
+      </Panel>
     </div>
   );
 }
 
-function CampActions() {
-  const rawFish = useGame((s) => s.inventory.fish);
-  return (
-    <div className="relative flex gap-2">
-      <button
-        onClick={() => cookAllFish()}
-        disabled={rawFish <= 0}
-        className={[
-          "panel rounded-md px-3 py-1 text-xs font-semibold transition",
-          rawFish > 0
-            ? "text-drift-ember hover:shadow-glow"
-            : "cursor-not-allowed text-drift-bone/30",
-        ].join(" ")}
-      >
-        🔥 Cook fish{rawFish > 0 ? ` (${rawFish})` : ""}
-      </button>
-      <Trader />
-    </div>
-  );
-}
+// ---- bottom-center: hotbar ----------------------------------------------------
 
-function Hotbar() {
+function HotbarDock() {
   const hotbar = useGame((s) => s.hotbar);
   const setHotbar = useGame((s) => s.setHotbar);
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
-      {HOTBAR.map((h) => {
-        const active = hotbar === h.slot;
-        return (
-          <button
-            key={h.slot}
-            onClick={() => !h.locked && setHotbar(h.slot)}
-            className={[
-              "panel relative flex h-14 w-14 flex-col items-center justify-center rounded-md transition",
-              active ? "ring-2 ring-drift-gold shadow-glow" : "opacity-90 hover:opacity-100",
-              h.locked ? "grayscale" : "",
-            ].join(" ")}
-          >
-            <span className="text-xl leading-none">{h.icon}</span>
-            <span className="absolute right-1 top-0.5 text-[9px] text-drift-bone/50">
-              {h.slot}
-            </span>
-            {h.locked && (
-              <span className="absolute bottom-0.5 text-[8px] uppercase text-drift-bone/40">
-                soon
-              </span>
-            )}
-          </button>
-        );
-      })}
+    <div
+      className="absolute pointer-events-auto"
+      style={{ bottom: "var(--hud-edge)", left: "50%", transform: "translateX(-50%)" }}
+    >
+      <Hotbar
+        selected={hotbar - 1}
+        onSelect={(i) => !HOTBAR_TOOLS[i].locked && setHotbar(i + 1)}
+        slots={HOTBAR_TOOLS.map((t) => ({
+          icon: <Icon name={t.icon} size={32} style={t.locked ? { opacity: 0.5, filter: "grayscale(0.8)" } : undefined} />,
+          name: t.locked ? `${t.name} — sealed for now` : t.name,
+          disabled: t.locked,
+        }))}
+      />
     </div>
   );
 }
 
-function Controls() {
+// ---- right-middle: the Forge ---------------------------------------------------
+
+function ForgeDock() {
+  const [open, setOpen] = useState(false);
+  const inventory = useGame((s) => s.inventory);
+  const skills = useGame((s) => s.skills);
+  const equipment = useGame((s) => s.equipment);
+  // subscribing keeps canCraft() fresh as materials/levels change
+  void inventory;
+  void skills;
+
   return (
-    <div className="absolute bottom-4 right-4 panel hidden rounded-md px-3 py-2 text-[10px] leading-relaxed text-drift-bone/60 sm:block">
-      <div>
-        <span className="text-drift-gold">Click</span> to move
-      </div>
-      <div>
-        <span className="text-drift-gold">Click a node</span> to gather
-      </div>
-      <div>
-        <span className="text-drift-blood">Click a beast</span> to fight
-      </div>
-      <div>
-        <span className="text-drift-gold">Cook</span> raw fish, then <span className="text-drift-moss">click food</span> to heal
-      </div>
-      <div>
-        <span className="text-drift-gold">Scroll</span> to zoom · <span className="text-drift-gold">1–6</span> tools
+    <div
+      className="absolute pointer-events-auto"
+      style={{ right: "var(--hud-edge)", top: "50%", transform: "translateY(-50%)" }}
+    >
+      <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen((o) => !o)}
+          iconLeft={<Icon name="sigil" size={16} glow={open} />}
+        >
+          Forge
+        </Button>
+
+        {open && (
+          <Panel kicker="The Forge" title="Smithing" style={{ width: 296 }}>
+            {/* equipped */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {(["weapon", "tool", "ward"] as EquipSlot[]).map((slot) => {
+                const item = equipment[slot];
+                return (
+                  <div
+                    key={slot}
+                    className="drift-well"
+                    style={{
+                      flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+                      gap: 2, padding: "6px 4px",
+                    }}
+                    title={item ? `${item.label} — ${item.flavor}` : `No ${slot} equipped`}
+                  >
+                    {item ? (
+                      <Icon name={RECIPE_ICON[item.id] ?? "sword"} size={20} />
+                    ) : (
+                      <span style={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>·</span>
+                    )}
+                    <span className="drift-label" style={{ fontSize: 8 }}>{slot}</span>
+                    <span className="drift-num" style={{ fontSize: 9, color: "var(--drift-gold)" }}>
+                      {item ? item.flavor : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* recipes */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto", paddingRight: 2 }}>
+              {RECIPES.map((r) => {
+                const check = canCraft(r);
+                const costStr = Object.entries(r.cost)
+                  .map(([k, q]) => `${q} ${ITEM_META[k as ItemKey].label}`)
+                  .join(" · ");
+                return (
+                  <button
+                    key={r.result.id}
+                    disabled={!check.ok}
+                    onClick={() => craft(r)}
+                    className="drift-well"
+                    title={check.ok ? `Forge ${r.result.label}` : check.reason}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left", border: 0,
+                      padding: "7px 9px", cursor: check.ok ? "pointer" : "default",
+                      opacity: check.ok ? 1 : 0.45,
+                      boxShadow: check.ok ? "var(--bevel-slot), inset 0 0 0 1px var(--gold-lo)" : undefined,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <Icon name={RECIPE_ICON[r.result.id] ?? "sword"} size={16} />
+                      <span style={{ flex: 1, font: "600 12px/1 var(--font-ui)", color: "var(--text-primary)" }}>
+                        {r.result.label}
+                      </span>
+                      <span className="drift-num" style={{ fontSize: 10, color: "var(--drift-gold)" }}>
+                        {r.result.flavor}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 4, font: "400 10px/1.3 var(--font-ui)", color: "var(--text-muted)" }}>
+                      {costStr}
+                      {r.reqCombat ? ` · Combat ${r.reqCombat}+` : ""}
+                    </div>
+                    {!check.ok && (
+                      <div style={{ marginTop: 2, font: "400 10px/1.2 var(--font-ui)", color: "var(--blood-hi)" }}>
+                        {check.reason}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </Panel>
+        )}
       </div>
     </div>
   );

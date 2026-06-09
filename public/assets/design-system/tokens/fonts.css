@@ -1,0 +1,15 @@
+/* ============================================================
+   DriftLands — Webfonts (PIXEL-ART system)
+   Loaded from Google Fonts (open license: SIL OFL 1.1).
+   - Pixelify Sans : true pixel/bitmap face → wordmark + headings
+     (the game-logo letterform; renders on the pixel grid).
+   - Silkscreen    : crisp 5px bitmap → HUD micro-labels, keybind
+     caps, the season badge, tags. Legible at tiny sizes.
+   - Sora          : clean readable sans → UI numbers, XP counts,
+     log lines & body. The "still-crisp readable" companion the
+     spec asks for so stat numbers stay legible over a busy scene.
+   NOTE: CDN-linked, not self-hosted. Ask if you need the .woff2
+   binaries vendored into /assets/fonts.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Sora:wght@300;400;500;600;700;800&display=swap');

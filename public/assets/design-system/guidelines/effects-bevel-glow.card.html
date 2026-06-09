@@ -1,0 +1,28 @@
+<!-- @dsCard group="Brand" viewport="700x200" name="Bevels & the Drift glow" subtitle="Depth from hard 1px bevels; glow from stepped zero-blur rings" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg-app); display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .box { width: 64px; height: 64px; background: var(--surface-frame); }
+  .raised { box-shadow: var(--bevel-raised); }
+  .inset { box-shadow: var(--bevel-inset); }
+  .slot { background: var(--surface-well); box-shadow: var(--bevel-slot); }
+  .glow-sm { box-shadow: var(--glow-corrupt-sm); }
+  .glow-md { box-shadow: var(--glow-corrupt-md); }
+  .glow-lg { box-shadow: var(--glow-corrupt-lg); }
+  .lbl { font: 400 10px/1.2 var(--font-pixel); letter-spacing: .05em; color: var(--text-muted); text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <div class="item"><div class="box raised"></div><span class="lbl">raised</span></div>
+  <div class="item"><div class="box inset"></div><span class="lbl">inset</span></div>
+  <div class="item"><div class="box slot"></div><span class="lbl">slot well</span></div>
+  <div class="item"><div class="box glow-sm"></div><span class="lbl">glow sm</span></div>
+  <div class="item"><div class="box glow-md"></div><span class="lbl">glow md</span></div>
+  <div class="item"><div class="box glow-lg"></div><span class="lbl">glow lg</span></div>
+</body>
+</html>

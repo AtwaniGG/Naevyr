@@ -1,0 +1,34 @@
+<!-- @dsCard group="Type" viewport="700x260" name="Type scale" subtitle="HUD-tuned steps — pixel display vs Sora body, nothing below 12px" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 18px; background: var(--bg-app); }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 5px 8px; vertical-align: baseline; border-bottom: 1px solid var(--bone-14); }
+  .tok { font: 500 11px/1 var(--font-num); color: var(--text-muted); width: 96px; white-space: nowrap; }
+  .px { font: 500 11px/1 var(--font-num); color: var(--drift-corrupt); width: 44px; }
+  .spec { color: var(--text-primary); font-family: var(--font-display); font-weight: 600; }
+  .spec.sans { font-family: var(--font-ui); font-weight: 500; }
+</style>
+</head>
+<body>
+  <table id="t"></table>
+  <script>
+    const rows = [
+      ['--text-4xl','72px','Driftlands','disp'],
+      ['--text-2xl','36px','Season title','disp'],
+      ['--text-xl','28px','Panel heading','disp'],
+      ['--text-lg','20px','Stat 42','sans'],
+      ['--text-md','16px','Panel label','sans'],
+      ['--text-base','14px','Activity log line','sans'],
+      ['--text-xs','12px','Slot count · meta','sans'],
+    ];
+    document.getElementById('t').innerHTML = rows.map(([tok,px,txt,k]) =>
+      `<tr><td class="tok">${tok}</td><td class="px">${px}</td><td><span class="spec ${k==='sans'?'sans':''}" style="font-size:${px}">${txt}</span></td></tr>`
+    ).join('');
+  </script>
+</body>
+</html>

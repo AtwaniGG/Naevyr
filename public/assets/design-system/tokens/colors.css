@@ -1,0 +1,139 @@
+/* ============================================================
+   DriftLands — Master Palette (PIXEL-ART system)
+   Locked base mirrors the Tailwind `drift.*` namespace. On top of
+   the base we declare a LIGHT→SHADOW ramp per material so every
+   sprite, tile and icon shades from the same color logic.
+   Tight, disciplined palette — ~48 hues total. Keep dithering (not
+   blur) for gradients & glow when painting sprites.
+   ============================================================ */
+
+:root {
+  /* ============ BASE (drift.*) — locked ============ */
+  --drift-void:         #0a0810;  /* deepest bg, world letterbox */
+  --drift-ash:          #171320;  /* panel base / app chrome */
+  --drift-stone:        #2a2438;  /* raised surface, frame fill */
+  --drift-bone:         #d8cfe0;  /* primary text */
+  --drift-corrupt:      #a855f7;  /* THE DRIFT — glow, selection, accent */
+  --drift-corrupt-dim:  #6b21a8;  /* deep corruption, borders, pressed */
+  --drift-ember:        #f59e0b;  /* warmth / woodcutting / warnings */
+  --drift-blood:        #dc2626;  /* danger, low health, destructive */
+  --drift-moss:         #4d7c4d;  /* nature / grass / success */
+  --drift-gold:         #e7c873;  /* values, currency, rarity, accents */
+
+  /* ============ MATERIAL RAMPS (hi → base → shadow → deep) ============ */
+  /* UI chrome / neutrals */
+  --ui-100: #3a3350;  /* frame highlight / top bevel */
+  --ui-80:  #2a2438;  /* = stone, frame fill */
+  --ui-60:  #1f1a2c;  /* recessed */
+  --ui-40:  #171320;  /* = ash, panel base */
+  --ui-20:  #0f0c16;  /* well */
+  --ui-0:   #0a0810;  /* = void */
+
+  /* Text / bone ramp */
+  --bone-hi:  #efe9f4;
+  --bone:     #d8cfe0;
+  --bone-mid: #a99fb8;
+  --bone-lo:  #6f6781;
+
+  /* Grass / foliage */
+  --grass-hi:  #7fae5e;
+  --grass:     #4d7c4d;  /* = moss */
+  --grass-lo:  #356037;
+  --grass-dp:  #20402a;
+
+  /* Dirt / path */
+  --dirt-hi:   #7a6048;
+  --dirt:      #50402e;
+  --dirt-lo:   #36291c;
+  --dirt-dp:   #241a11;
+
+  /* Stone / ore body */
+  --rock-hi:   #4a4360;
+  --rock:      #322b46;
+  --rock-lo:   #211c30;
+  --rock-dp:   #14101e;
+
+  /* Water (cold moonlit) */
+  --water-hi:  #4a7fa0;
+  --water:     #2c5775;
+  --water-lo:  #173a52;
+  --water-dp:  #0d2336;
+
+  /* The Drift — glow ramp (signature; brightest core is near-white) */
+  --drift-core: #f3e8ff;  /* mote core / hottest pixel */
+  --drift-hi:   #d8b4fe;  /* corruption highlight */
+  --drift-mid:  #a855f7;  /* = corrupt */
+  --drift-lo:   #6b21a8;  /* = corruptDim */
+  --drift-dp:   #3b1162;  /* deep vein */
+
+  /* Ember / fire */
+  --ember-hi:  #fcd34d;
+  --ember:     #f59e0b;
+  --ember-lo:  #b45309;
+  --ember-dp:  #7c3a06;
+
+  /* Gold / value */
+  --gold-hi:   #f6e0a6;
+  --gold:      #e7c873;
+  --gold-lo:   #b8943f;
+  --gold-dp:   #7c5f23;
+
+  /* Blood / danger */
+  --blood-hi:  #ef4444;
+  --blood:     #dc2626;
+  --blood-lo:  #991b1b;
+  --blood-dp:  #5f1212;
+
+  /* ============ ALPHA WASHES (HUD over the scene) ============ */
+  --void-82:    rgba(10, 8, 16, 0.82);
+  --void-60:    rgba(10, 8, 16, 0.60);
+  --ash-92:     rgba(23, 19, 32, 0.92);
+  --ash-80:     rgba(23, 19, 32, 0.80);  /* semi-transparent panel fill */
+  --ash-64:     rgba(23, 19, 32, 0.64);
+  --stone-70:   rgba(42, 36, 56, 0.70);
+
+  --bone-72:    rgba(216, 207, 224, 0.72);  /* secondary text */
+  --bone-45:    rgba(216, 207, 224, 0.45);  /* tertiary / muted */
+  --bone-14:    rgba(216, 207, 224, 0.14);  /* hairline */
+
+  --corrupt-55: rgba(168, 85, 247, 0.55);   /* frame edge */
+  --corrupt-32: rgba(168, 85, 247, 0.32);   /* corruption wash */
+  --corrupt-16: rgba(168, 85, 247, 0.16);   /* faint veil */
+  --ember-24:   rgba(245, 158, 11, 0.24);
+  --blood-24:   rgba(220, 38, 38, 0.24);
+  --moss-24:    rgba(77, 124, 77, 0.24);
+  --gold-24:    rgba(231, 200, 115, 0.24);
+
+  /* ============ SEMANTIC ALIASES (use these in components) ============ */
+  --bg-world:        var(--drift-void);
+  --bg-app:          var(--drift-ash);
+  --surface-panel:   var(--ash-80);    /* semi-transparent pixel frame fill */
+  --surface-frame:   var(--ui-80);     /* opaque frame border body */
+  --surface-raised:  var(--drift-stone);
+  --surface-well:    var(--void-60);   /* inset slot/well */
+
+  --text-primary:    var(--drift-bone);
+  --text-secondary:  var(--bone-72);
+  --text-muted:      var(--bone-45);
+  --text-accent:     var(--drift-corrupt);
+  --text-value:      var(--drift-gold);
+
+  --frame-light:     var(--ui-100);    /* top/left bevel */
+  --frame-dark:      var(--ui-0);      /* bottom/right bevel */
+  --frame-edge:      var(--corrupt-55);/* the signature purple frame line */
+  --border-hairline: var(--bone-14);
+
+  --accent:          var(--drift-corrupt);
+  --accent-deep:     var(--drift-corrupt-dim);
+  --focus-ring:      var(--drift-corrupt);
+
+  --status-danger:   var(--drift-blood);
+  --status-warning:  var(--drift-ember);
+  --status-success:  var(--drift-moss);
+  --status-info:     var(--drift-corrupt);
+
+  --skill-woodcutting: var(--drift-ember);
+  --skill-mining:      var(--drift-gold);
+  --skill-fishing:     var(--water-hi);
+  --skill-corruption:  var(--drift-corrupt);
+}

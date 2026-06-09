@@ -1,0 +1,29 @@
+{
+  "image": "nodes/tree.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "tree-full": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 56,
+      "anchor": {
+        "x": 24,
+        "y": 56
+      }
+    },
+    "tree-depleted": {
+      "x": 48,
+      "y": 0,
+      "w": 48,
+      "h": 56,
+      "anchor": {
+        "x": 24,
+        "y": 56
+      }
+    }
+  }
+}

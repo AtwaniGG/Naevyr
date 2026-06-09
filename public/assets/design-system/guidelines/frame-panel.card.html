@@ -1,0 +1,31 @@
+<!-- @dsCard group="Brand" viewport="700x230" name="The pixel frame" subtitle="9-slice look: notched corners, hard bevel, purple edge, semi-transparent fill" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body {
+    margin: 0; padding: 22px; min-height: 100vh; box-sizing: border-box;
+    background:
+      repeating-linear-gradient(135deg, #2a2438 0 10px, #1f1a2c 10px 20px),
+      var(--bg-world);
+    display: flex; gap: 18px; align-items: flex-start;
+  }
+  .panel { width: 240px; padding: 14px 16px; }
+  .title { font: 700 16px/1 var(--font-display); letter-spacing: .03em; color: var(--text-primary); margin: 0 0 4px; }
+  .sub { font: 400 12px/1.5 var(--font-ui); color: var(--text-secondary); margin: 0; }
+  .note { width: 220px; font: 400 12px/1.6 var(--font-ui); color: var(--text-muted); }
+  .note b { color: var(--text-secondary); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="panel drift-panel">
+    <p class="title">Wayfarer's Pack</p>
+    <p class="sub">Glassy enough to read the world through; the corruption dither bleeds from the top-right corner.</p>
+  </div>
+  <div class="note">
+    <p><b>.drift-panel</b> = surface-panel fill (ash @ 80%) · <b>clip-path</b> notch corners · <b>frame-shadow</b> (purple edge + raised bevel + hard drop). No blur — pixel-crisp.</p>
+  </div>
+</body>
+</html>

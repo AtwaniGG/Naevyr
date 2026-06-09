@@ -70,10 +70,11 @@ export const ITEM_META: Record<
   hide: { label: "Beast Hide", color: "#8a6b52", icon: "🟫", sellValue: 8 },
 };
 
+// skill tints from the design system (--skill-* tokens)
 export const SKILL_META: Record<SkillKey, { label: string; color: string }> = {
-  woodcutting: { label: "Woodcutting", color: "#9a6b3f" },
-  mining: { label: "Mining", color: "#9aa0b0" },
-  fishing: { label: "Fishing", color: "#5fb0c9" },
+  woodcutting: { label: "Woodcutting", color: "#f59e0b" },
+  mining: { label: "Mining", color: "#e7c873" },
+  fishing: { label: "Fishing", color: "#4a7fa0" },
   combat: { label: "Combat", color: "#dc2626" },
 };
 
@@ -242,3 +243,21 @@ export const QUEST_POOL: QuestDef[] = [
     matches: (e) => (e.type === "cook" ? e.qty : 0),
   },
 ];
+
+// ---- seasons ----------------------------------------------------------------
+
+/** evocative season names, cycled by season number (voice: place-like, decaying) */
+export const SEASON_NAMES = [
+  "Ashfall",
+  "Hollowmere",
+  "Gloamreach",
+  "Palewake",
+  "Vesselrot",
+  "Embershade",
+  "Duskharrow",
+  "Mournveil",
+] as const;
+
+export function seasonName(season: number): string {
+  return SEASON_NAMES[(season - 1) % SEASON_NAMES.length];
+}

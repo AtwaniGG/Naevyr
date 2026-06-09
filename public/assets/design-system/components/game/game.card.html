@@ -1,0 +1,75 @@
+<!-- @dsCard group="Components" viewport="700x460" name="Game · Slot, Hotbar, XPBar, Log" subtitle="Inventory cells, the 6-slot hotbar, skill XP bars & activity feed" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; padding: 22px;
+    background: repeating-linear-gradient(135deg, #1c1728 0 12px, #171320 12px 24px), var(--bg-world); }
+  .wrap { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; gap: 14px; }
+  .lbl { font: 400 10px/1 var(--font-pixel); letter-spacing: .1em; color: var(--text-muted); text-transform: uppercase; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Panel, Slot, Hotbar, XPBar, ActivityLog, Icon } = window.DriftLandsDesignSystem_3de3e2;
+  const I = (n) => <Icon name={n} size={32} />;
+  function Demo() {
+    const [sel, setSel] = React.useState(0);
+    return (
+      <div className="wrap">
+        <div className="col">
+          <span className="lbl">Slots — rarity · count · selected · empty</span>
+          <div className="row">
+            <Slot icon={I('log')} count={64} rarity="common" />
+            <Slot icon={I('ore')} count={18} rarity="rare" />
+            <Slot icon={I('sigil')} rarity="epic" selected />
+            <Slot icon={I('coin')} count={'1.2k'} rarity="legendary" />
+            <Slot />
+          </div>
+          <span className="lbl" style={{ marginTop: 4 }}>Hotbar — keys 1–6</span>
+          <Hotbar
+            selected={sel}
+            onSelect={setSel}
+            slots={[
+              { icon: I('axe'), name: 'Axe' },
+              { icon: I('pickaxe'), name: 'Pickaxe' },
+              { icon: I('rod'), name: 'Rod' },
+              { icon: I('sword'), name: 'Sword' },
+              { icon: I('ward'), name: 'Ward' },
+              { icon: I('sigil'), name: 'Sigil', rarity: 'epic' },
+            ]}
+          />
+          <Panel kicker="Skills" title="Gathering" style={{ width: 300, marginTop: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <XPBar skill="Woodcutting" level={42} value={6280} max={9000} color="var(--skill-woodcutting)" icon={<Icon name="axe" size={16} />} />
+              <XPBar skill="Mining" level={31} value={3400} max={7200} color="var(--skill-mining)" icon={<Icon name="pickaxe" size={16} />} />
+              <XPBar skill="Fishing" level={28} value={5100} max={6400} color="var(--skill-fishing)" icon={<Icon name="rod" size={16} />} />
+            </div>
+          </Panel>
+        </div>
+        <Panel kicker="Realm" title="Activity" style={{ width: 270 }}>
+          <ActivityLog entries={[
+            { kind: 'xp', text: 'Woodcutting', meta: '+128 XP' },
+            { kind: 'loot', text: 'Ashen log', meta: 'x3' },
+            { kind: 'drift', text: 'The Drift crept into Hollowmere.' },
+            { kind: 'xp', text: 'Mining', meta: '+64 XP' },
+            { kind: 'info', text: 'A rock vein re-formed nearby.' },
+            { kind: 'danger', text: 'Corruption damages you.', meta: '-12' },
+          ]} />
+        </Panel>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

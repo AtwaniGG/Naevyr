@@ -1,0 +1,63 @@
+/* ============================================================
+   DriftLands — Spacing, sizing & radii
+   8px base grid. Game UI is dense — most padding lands at 8/12px.
+   Isometric engine constants are mirrored here as read-only
+   reference tokens (do NOT restyle the canvas; these exist so HUD
+   anchors line up with world objects).
+   ============================================================ */
+
+:root {
+  /* ---- Spacing scale (8px grid) ---- */
+  --space-0:   0;
+  --space-1:   2px;
+  --space-2:   4px;
+  --space-3:   8px;
+  --space-4:   12px;
+  --space-5:   16px;
+  --space-6:   20px;
+  --space-7:   24px;
+  --space-8:   32px;
+  --space-9:   40px;
+  --space-10:  48px;
+  --space-12:  64px;
+
+  /* ---- Radii (PIXEL ART: no rounding. Frames use corner NOTCHES via
+     --clip-notch, not border-radius. These stay ~0; pill only for the
+     rare circular token-coin avatar.) ---- */
+  --radius-xs:   0;
+  --radius-sm:   0;
+  --radius-md:   0;
+  --radius-lg:   0;
+  --radius-pill: 999px; /* circular avatar / coin only */
+  --notch-sm:    3px;   /* small corner cut (slots, buttons) @kind other */
+  --notch-md:    4px;   /* panel corner cut @kind other */
+
+  /* ---- HUD element sizing ---- */
+  --slot-size:        52px;  /* inventory / hotbar slot */
+  --slot-gap:         6px;
+  --hotbar-slots:     6;     /* @kind other */
+  --icon-sm:          16px;
+  --icon-md:          20px;
+  --icon-lg:          24px;
+  --tap-min:          44px;  /* minimum hit target */
+  --xpbar-height:     8px;
+  --panel-max-w:      320px;
+
+  /* ---- Border widths ---- */
+  --hairline:   1px;
+  --border-2:   2px;
+
+  /* ---- Layout / z-index for the DOM overlay over <canvas> ---- */
+  --z-world:     0;   /* @kind other */
+  --z-hud:       10;  /* @kind other */
+  --z-panel:     20;  /* @kind other */
+  --z-tooltip:   40;  /* @kind other */
+  --z-toast:     50;  /* @kind other */
+  --z-dialog:    60;  /* @kind other */
+  --hud-edge:    16px;  /* safe inset from viewport edge */
+
+  /* ---- Isometric world constants (READ-ONLY mirror of engine) ---- */
+  --iso-tile-w:   64px;  /* diamond width  */
+  --iso-tile-h:   32px;  /* diamond height (2:1 ratio) */
+  --iso-ratio:    2;     /* @kind other */
+}

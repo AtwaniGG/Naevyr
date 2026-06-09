@@ -1,4 +1,5 @@
 import { Cell, ResourceNode } from "@/game/types";
+import { IsoFacing } from "@/game/render/sprites";
 
 export type PlayerAction = "idle" | "walk" | "gather" | "attack";
 
@@ -12,7 +13,10 @@ export class Player {
   path: Cell[] = [];
   speed = 3.2; // tiles per second
   action: PlayerAction = "idle";
-  facing = 1; // 1 = right-ish, -1 = left-ish (for sprite flip)
+  facing = 1; // 1 = right-ish, -1 = left-ish (legacy, kept for mob rendering)
+  // iso facing for the wanderer sprite
+  isoFacing: IsoFacing = 's';
+  isoMirror  = false;
   bob = 0; // walk bob phase
 
   // gather state
@@ -50,6 +54,31 @@ export class Player {
     this.facing = node.gx >= this.px ? 1 : -1;
   }
 
+  // Map grid movement direction (dx, dy) to the nearest DS wanderer facing.
+  // DS facings s/se/e/ne/n cover the right half; mirror flag covers the left half.
+  private updateIsoFacing(dx: number, dy: number) {
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+    const sum  = dx + dy;  // positive = toward camera (south)
+    const diff = dx - dy;  // positive = screen-right (east)
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    let f: IsoFacing = 's';
+    let m = false;
+    if (adx < 0.1) {
+      // pure north/south
+      f = dy > 0 ? 's' : 'n'; m = false;
+    } else if (ady < 0.1) {
+      // pure east/west → 'e' or mirror of 'e'
+      f = 'e'; m = dx < 0;
+    } else if (sum > 0 && diff > 0)  { f = 'se'; m = false; }
+    else if (sum > 0 && diff < 0)    { f = 'se'; m = true;  }  // sw = mirror se
+    else if (sum < 0 && diff > 0)    { f = 'ne'; m = false; }
+    else if (sum < 0 && diff < 0)    { f = 'ne'; m = true;  }  // nw = mirror ne
+    else if (sum > 0)                 { f = 's';  m = false; }
+    else                              { f = 'n';  m = false; }
+    this.isoFacing  = f;
+    this.isoMirror  = m;
+  }
+
   cancelGather() {
     if (this.action === "gather") this.action = "idle";
     this.targetNode = null;
@@ -65,6 +94,7 @@ export class Player {
       const dist = Math.hypot(dx, dy);
       const step = this.speed * dt;
       if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
+      this.updateIsoFacing(dx, dy);
       if (dist <= step) {
         this.px = next.x;
         this.py = next.y;

@@ -1,0 +1,761 @@
+{
+  "image": "character/wanderer.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "wanderer-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_04": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-s_05": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-s_00": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-s_01": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-s_02": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-s_03": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_00": {
+      "x": 64,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_01": {
+      "x": 96,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_02": {
+      "x": 128,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_03": {
+      "x": 160,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_04": {
+      "x": 192,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-se_05": {
+      "x": 224,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-se_00": {
+      "x": 256,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-se_01": {
+      "x": 288,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-se_02": {
+      "x": 320,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-se_03": {
+      "x": 352,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_00": {
+      "x": 64,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_01": {
+      "x": 96,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_02": {
+      "x": 128,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_03": {
+      "x": 160,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_04": {
+      "x": 192,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-e_05": {
+      "x": 224,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-e_00": {
+      "x": 256,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-e_01": {
+      "x": 288,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-e_02": {
+      "x": 320,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-e_03": {
+      "x": 352,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_00": {
+      "x": 64,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_01": {
+      "x": 96,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_02": {
+      "x": 128,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_03": {
+      "x": 160,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_04": {
+      "x": 192,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-ne_05": {
+      "x": 224,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-ne_00": {
+      "x": 256,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-ne_01": {
+      "x": 288,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-ne_02": {
+      "x": 320,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-ne_03": {
+      "x": 352,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_00": {
+      "x": 64,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_01": {
+      "x": 96,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_02": {
+      "x": 128,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_03": {
+      "x": 160,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_04": {
+      "x": 192,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-walk-n_05": {
+      "x": 224,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-n_00": {
+      "x": 256,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-n_01": {
+      "x": 288,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-n_02": {
+      "x": 320,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "wanderer-gather-n_03": {
+      "x": 352,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "wanderer-idle-s_00",
+        "wanderer-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "wanderer-walk-s_00",
+        "wanderer-walk-s_01",
+        "wanderer-walk-s_02",
+        "wanderer-walk-s_03",
+        "wanderer-walk-s_04",
+        "wanderer-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "gather-s": {
+      "frames": [
+        "wanderer-gather-s_00",
+        "wanderer-gather-s_01",
+        "wanderer-gather-s_02",
+        "wanderer-gather-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "wanderer-idle-se_00",
+        "wanderer-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "wanderer-walk-se_00",
+        "wanderer-walk-se_01",
+        "wanderer-walk-se_02",
+        "wanderer-walk-se_03",
+        "wanderer-walk-se_04",
+        "wanderer-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "gather-se": {
+      "frames": [
+        "wanderer-gather-se_00",
+        "wanderer-gather-se_01",
+        "wanderer-gather-se_02",
+        "wanderer-gather-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "wanderer-idle-e_00",
+        "wanderer-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "wanderer-walk-e_00",
+        "wanderer-walk-e_01",
+        "wanderer-walk-e_02",
+        "wanderer-walk-e_03",
+        "wanderer-walk-e_04",
+        "wanderer-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "gather-e": {
+      "frames": [
+        "wanderer-gather-e_00",
+        "wanderer-gather-e_01",
+        "wanderer-gather-e_02",
+        "wanderer-gather-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "wanderer-idle-ne_00",
+        "wanderer-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "wanderer-walk-ne_00",
+        "wanderer-walk-ne_01",
+        "wanderer-walk-ne_02",
+        "wanderer-walk-ne_03",
+        "wanderer-walk-ne_04",
+        "wanderer-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "gather-ne": {
+      "frames": [
+        "wanderer-gather-ne_00",
+        "wanderer-gather-ne_01",
+        "wanderer-gather-ne_02",
+        "wanderer-gather-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "wanderer-idle-n_00",
+        "wanderer-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "wanderer-walk-n_00",
+        "wanderer-walk-n_01",
+        "wanderer-walk-n_02",
+        "wanderer-walk-n_03",
+        "wanderer-walk-n_04",
+        "wanderer-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "gather-n": {
+      "frames": [
+        "wanderer-gather-n_00",
+        "wanderer-gather-n_01",
+        "wanderer-gather-n_02",
+        "wanderer-gather-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

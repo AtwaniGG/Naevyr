@@ -1,0 +1,29 @@
+{
+  "image": "nodes/rock.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "rock-full": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 30,
+      "anchor": {
+        "x": 20,
+        "y": 30
+      }
+    },
+    "rock-depleted": {
+      "x": 40,
+      "y": 0,
+      "w": 40,
+      "h": 30,
+      "anchor": {
+        "x": 20,
+        "y": 30
+      }
+    }
+  }
+}

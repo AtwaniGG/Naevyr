@@ -1,0 +1,83 @@
+{
+  "image": "world/corrupt-overlay.svg",
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "frames": {
+    "corrupt_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "corrupt_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "corrupt_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "corrupt_03": {
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "corrupt_04": {
+      "x": 256,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "corrupt_05": {
+      "x": 320,
+      "y": 0,
+      "w": 64,
+      "h": 32,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "corrupt_00",
+        "corrupt_01",
+        "corrupt_02",
+        "corrupt_03",
+        "corrupt_04",
+        "corrupt_05"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

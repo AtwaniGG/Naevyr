@@ -1,0 +1,82 @@
+<!-- @dsCard group="Brand" viewport="700x470" name="Logo & brand mark" subtitle="Pixel wordmark + emblem — horizontal, stacked, square icon, mono" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 26px; background: var(--bg-world); image-rendering: pixelated;
+         display: flex; flex-direction: column; gap: 26px; }
+  .lockup { display: flex; align-items: center; gap: 16px; }
+  .stack { display: flex; flex-direction: column; align-items: center; gap: 8px; width: max-content; }
+  /* pixel wordmark — Drift corruption bleeds up from the baseline */
+  .wm {
+    font-family: var(--font-display); font-weight: 700; line-height: .9;
+    letter-spacing: .02em;
+    background: linear-gradient(180deg, #efe9f4 0%, #d8cfe0 52%, #c4a3e8 78%, #a855f7 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 1px rgba(168,85,247,.55));
+  }
+  .wm.mono { background: none; color: var(--drift-bone); -webkit-text-fill-color: var(--drift-bone); filter: none; }
+  .tag { font: 400 11px/1 var(--font-pixel); letter-spacing: .26em; color: var(--text-muted); text-transform: uppercase; }
+  .row { display: flex; align-items: flex-end; gap: 30px; }
+  .panel { padding: 16px 20px; background: rgba(23,19,32,.55); box-shadow: var(--frame-shadow); clip-path: var(--clip-notch); }
+  .panel.light { background: var(--drift-bone); }
+  .iconset { display: flex; align-items: flex-end; gap: 22px; }
+  .icap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .icap span { font: 400 10px/1 var(--font-pixel); letter-spacing: .08em; color: var(--text-muted); }
+  .label { font: 400 10px/1 var(--font-pixel); letter-spacing: .12em; color: var(--text-muted); text-transform: uppercase; }
+  .seg { display: flex; flex-direction: column; gap: 12px; }
+</style>
+</head>
+<body>
+  <div class="seg">
+    <span class="label">Horizontal lockup</span>
+    <div class="lockup"><span class="em" data-size="56"></span><span class="wm" style="font-size:46px">DRIFTLANDS</span></div>
+  </div>
+
+  <div class="row">
+    <div class="seg">
+      <span class="label">Stacked / compact</span>
+      <div class="stack"><span class="em" data-size="46"></span><span class="wm" style="font-size:30px">DRIFTLANDS</span><span class="tag">Realm of the Drift</span></div>
+    </div>
+    <div class="seg">
+      <span class="label">Square icon · 64 / 32 / 16</span>
+      <div class="iconset">
+        <div class="icap"><span class="em" data-size="64"></span><span>64</span></div>
+        <div class="icap"><span class="em" data-size="32"></span><span>32</span></div>
+        <div class="icap"><span class="em" data-size="16"></span><span>16</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="seg">
+    <span class="label">Monochrome (bone) — for busy / light surfaces</span>
+    <div class="row">
+      <div class="panel"><div class="lockup"><span class="em" data-size="34" data-mono="1"></span><span class="wm mono" style="font-size:26px">DRIFTLANDS</span></div></div>
+      <div class="panel light"><div class="lockup"><span class="em" data-size="34" data-ink="void"></span><span class="wm" style="font-size:26px;-webkit-text-fill-color:#0a0810;color:#0a0810;background:none;filter:none">DRIFTLANDS</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    const EMBLEM = [
+      '.......kk.......','......kCCk......','.....kCccCk.....','....kCc..cCk....',
+      '...kCc.p..cCk...','..kCc.pPp..cCk..','.kCc..pPp...cCk.','kCc..pPPPp...cCk',
+      '.kCc..pPp...cCk.','..kCc.pPp..cCk..','...kCc.p..cCk...','....kCc..cCk....',
+      '.....kCccCk.....','......kCCk......','.......kk.......','................',
+    ];
+    const PAL = {k:'#0a0810',C:'#4a4360',c:'#322b46',s:'#6f6781',P:'#f3e8ff',p:'#a855f7',u:'#6b21a8'};
+    const MONO = {k:'#0a0810',C:'#d8cfe0',c:'#a99fb8',s:'#efe9f4',P:'#efe9f4',p:'#d8cfe0',u:'#a99fb8'};
+    const INK = {k:'#0a0810',C:'#0a0810',c:'#2a2438',s:'#2a2438',P:'#6b21a8',p:'#6b21a8',u:'#3b1162'};
+    function svg(size, pal){
+      let r='';
+      for(let y=0;y<EMBLEM.length;y++)for(let x=0;x<EMBLEM[y].length;x++){const ch=EMBLEM[y][x];if(ch!=='.'&&pal[ch])r+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`;}
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" shape-rendering="crispEdges" style="display:block;image-rendering:pixelated">${r}</svg>`;
+    }
+    document.querySelectorAll('.em').forEach(el=>{
+      const s=+el.dataset.size; const pal = el.dataset.mono?MONO : el.dataset.ink==='void'?INK : PAL;
+      el.innerHTML=svg(s,pal);
+    });
+  </script>
+</body>
+</html>

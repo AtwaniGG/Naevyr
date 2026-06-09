@@ -46,6 +46,10 @@ interface GameState {
   hotbar: number; // 1..6 selected slot
   log: LogLine[];
   driftSeason: number;
+  /** % of land tiles consumed by the Drift (0-100) */
+  driftPct: number;
+
+  setDriftPct: (pct: number) => void;
 
   addGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
@@ -117,6 +121,9 @@ export const useGame = create<GameState>((set, get) => ({
   hotbar: 1,
   log: [],
   driftSeason: 1,
+  driftPct: 0,
+
+  setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
 
   addGold: (amount) => set((s) => ({ gold: s.gold + amount })),
 

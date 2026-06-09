@@ -1,0 +1,39 @@
+<!-- @dsCard group="Colors" viewport="700x200" name="HUD overlay washes" subtitle="Semi-transparent fills the panels use to read over a moving scene" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body {
+    margin: 0; padding: 16px; min-height: 100vh;
+    /* fake "busy scene" behind the washes */
+    background:
+      repeating-linear-gradient(135deg, #2c5775 0 8px, #173a52 8px 16px),
+      var(--bg-world);
+  }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .cell { height: 92px; display: flex; flex-direction: column; justify-content: flex-end; padding: 8px; }
+  .nm { font: 400 10px/1.3 var(--font-pixel); letter-spacing: .04em; color: #fff; text-transform: uppercase; text-shadow: var(--text-shadow-hud); }
+  .hex { font: 500 10px/1.3 var(--font-num); color: rgba(255,255,255,.7); text-shadow: var(--text-shadow-hud); }
+</style>
+</head>
+<body>
+  <div class="grid" id="g"></div>
+  <script>
+    const items = [
+      ['panel · ash-80','rgba(23,19,32,.80)'],
+      ['scrim · void-82','rgba(10,8,16,.82)'],
+      ['well · void-60','rgba(10,8,16,.60)'],
+      ['frame · ash-92','rgba(23,19,32,.92)'],
+      ['corrupt-32','rgba(168,85,247,.32)'],
+      ['ember-24','rgba(245,158,11,.24)'],
+      ['moss-24','rgba(77,124,77,.24)'],
+      ['gold-24','rgba(231,200,115,.24)'],
+    ];
+    document.getElementById('g').innerHTML = items.map(([n,c]) =>
+      `<div class="cell" style="background:${c}"><span class="nm">${n}</span><span class="hex">${c}</span></div>`
+    ).join('');
+  </script>
+</body>
+</html>

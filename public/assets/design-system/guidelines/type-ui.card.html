@@ -1,0 +1,29 @@
+<!-- @dsCard group="Type" viewport="700x210" name="UI & numbers · Sora" subtitle="The still-crisp companion for stat numbers, counts & log body" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--bg-app); display: flex; flex-direction: column; gap: 14px; }
+  .meta { font: 400 10px/1 var(--font-pixel); letter-spacing: .1em; color: var(--text-muted); text-transform: uppercase; }
+  .nums { display: flex; gap: 22px; align-items: baseline; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .val { font: 600 28px/1 var(--font-num); font-feature-settings: "tnum" 1; color: var(--text-primary); }
+  .val.gold { color: var(--drift-gold); }
+  .val.corrupt { color: var(--drift-corrupt); }
+  .cap { font: 400 10px/1 var(--font-pixel); letter-spacing: .08em; color: var(--text-muted); text-transform: uppercase; }
+  .body { font: 400 14px/1.55 var(--font-ui); color: var(--text-secondary); max-width: 560px; }
+</style>
+</head>
+<body>
+  <div class="meta">font-ui / font-num · Sora</div>
+  <div class="nums">
+    <div class="stat"><span class="val gold">1,284</span><span class="cap">Drift Shards</span></div>
+    <div class="stat"><span class="val">Lv 42</span><span class="cap">Woodcutting</span></div>
+    <div class="stat"><span class="val corrupt">+128</span><span class="cap">XP gained</span></div>
+    <div class="stat"><span class="val">98 / 120</span><span class="cap">Carry weight</span></div>
+  </div>
+  <p class="body">You fell the ashen oak. Its rings glow faintly with corruption — the Drift has been here. The node will re-form elsewhere by nightfall.</p>
+</body>
+</html>

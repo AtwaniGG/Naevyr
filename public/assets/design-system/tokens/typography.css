@@ -1,0 +1,65 @@
+/* ============================================================
+   DriftLands — Typography tokens (PIXEL-ART system)
+   Pixel/bitmap for chrome, clean sans for numbers.
+   Pixel faces must sit on whole-pixel sizes (multiples that keep
+   the bitmap crisp): use the --text-* steps as given.
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --font-display: 'Pixelify Sans', 'Press Start 2P', monospace; /* wordmark + headings */
+  --font-pixel:   'Silkscreen', 'Pixelify Sans', monospace;     /* micro labels, keybinds, badge */
+  --font-ui:      'Sora', 'Segoe UI', system-ui, sans-serif;     /* numbers, body, log */
+  --font-num:     'Sora', ui-monospace, monospace;               /* tabular HUD numbers */
+
+  /* ---- Type scale (HUD-tuned; nothing below 12px on screen) ---- */
+  --text-2xs:   11px;  /* Silkscreen keybind caps only (pixel font reads fine here) */
+  --text-xs:    12px;  /* slot counts, log meta */
+  --text-sm:    13px;  /* secondary UI */
+  --text-base:  14px;  /* body / log lines */
+  --text-md:    16px;  /* panel labels */
+  --text-lg:    20px;  /* stat numbers, panel titles */
+  --text-xl:    28px;  /* section headings (pixel) */
+  --text-2xl:   36px;  /* screen titles (pixel) */
+  --text-3xl:   48px;  /* hero / season name (pixel) */
+  --text-4xl:   72px;  /* wordmark (pixel) */
+
+  /* ---- Weights ---- */
+  --weight-light:     300;
+  --weight-regular:   400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+  --weight-display:   700;  /* Pixelify headings */
+
+  /* ---- Line heights ---- */
+  --leading-tight:   1.05;
+  --leading-snug:    1.25;
+  --leading-normal:  1.5;
+
+  /* ---- Tracking ---- */
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.04em;
+  --tracking-wider:   0.10em;  /* pixel labels, badges */
+  --tracking-widest:  0.18em;  /* eyebrow / keybind caps */
+
+  /* ---- Semantic roles ---- */
+  --type-wordmark-family:  var(--font-display);
+  --type-wordmark-weight:  var(--weight-display);
+  --type-wordmark-track:   var(--tracking-wide);
+
+  --type-heading-family:   var(--font-display);
+  --type-heading-weight:   var(--weight-bold);
+
+  --type-label-family:     var(--font-pixel);
+  --type-label-weight:     var(--weight-regular);
+  --type-label-track:      var(--tracking-wider);
+
+  --type-body-family:      var(--font-ui);
+  --type-body-weight:      var(--weight-regular);
+
+  --type-num-family:       var(--font-num);
+  --type-num-weight:       var(--weight-semibold);
+  --type-num-feature:      "tnum" 1; /* tabular numerals @kind other */
+}

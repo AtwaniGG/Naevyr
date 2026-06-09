@@ -1,0 +1,33 @@
+<!-- @dsCard group="Spacing" viewport="700x210" name="HUD geometry" subtitle="Slot 52 · gap 6 · 6-slot hotbar · 44px min tap · 4px corner notch" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 18px; background: var(--bg-app); display: flex; gap: 30px; align-items: center; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .lbl { font: 400 10px/1.2 var(--font-pixel); letter-spacing: .06em; color: var(--text-muted); text-transform: uppercase; }
+  .hotbar { display: flex; gap: 6px; }
+  .slot { width: 52px; height: 52px; background: var(--surface-well); box-shadow: var(--bevel-slot); position: relative; }
+  .slot.sel { box-shadow: var(--bevel-slot), 0 0 0 2px var(--drift-corrupt); }
+  .key { position: absolute; left: 3px; top: 2px; font: 400 10px/1 var(--font-pixel); color: var(--text-secondary); }
+  .notch { width: 64px; height: 64px; background: var(--surface-frame); clip-path: var(--clip-notch); box-shadow: var(--frame-shadow); }
+</style>
+</head>
+<body>
+  <div class="col">
+    <span class="lbl">6-slot hotbar · 52px · gap 6</span>
+    <div class="hotbar" id="hb"></div>
+  </div>
+  <div class="col">
+    <span class="lbl">4px corner notch</span>
+    <div class="notch"></div>
+  </div>
+  <script>
+    document.getElementById('hb').innerHTML = [1,2,3,4,5,6].map((n,i) =>
+      `<div class="slot ${i===0?'sel':''}"><span class="key">${n}</span></div>`
+    ).join('');
+  </script>
+</body>
+</html>
