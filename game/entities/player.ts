@@ -43,6 +43,8 @@ export class Player {
   dye = "stone";
   eye = "drift";
   title = "";
+  /** active chat/emote bubble, drawn above the name tag */
+  bubble: { text: string; t0: number; emote: boolean } | null = null;
 
   // gather state
   gatherMs = 0;

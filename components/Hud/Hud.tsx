@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame, xpForLevel, currentTitle, QuestState } from "@/game/state/store";
 import {
   EquipSlot,
@@ -15,6 +15,7 @@ import {
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
+import { bus } from "@/game/state/bus";
 import {
   ActivityLog,
   Badge,
@@ -82,6 +83,7 @@ export default function Hud() {
       <HotbarDock />
       <ForgeDock />
       <IdentityDock />
+      <MinimapPanel />
     </div>
   );
 }
@@ -510,6 +512,121 @@ function ActivityPanel() {
     >
       <Panel kicker="Realm" title="Activity" style={{ width: 264 }}>
         <ActivityLog entries={entries} max={7} />
+        <ChatRow />
+      </Panel>
+    </div>
+  );
+}
+
+/** chat input — Enter anywhere focuses it; Esc blurs; /wave etc. emote */
+function ChatRow() {
+  const [text, setText] = useState("");
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (e.key === "Enter" && tag !== "INPUT" && tag !== "TEXTAREA") {
+        e.preventDefault();
+        ref.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const send = () => {
+    const t = text.trim();
+    if (t) bus.emit("chat", t);
+    setText("");
+    ref.current?.blur();
+  };
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <input
+        ref={ref}
+        value={text}
+        maxLength={120}
+        placeholder="Say something… (Enter)"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") send();
+          if (e.key === "Escape") ref.current?.blur();
+        }}
+        className="drift-well"
+        style={{
+          width: "100%", border: 0, outline: "none", padding: "6px 8px",
+          font: "400 11px/1 var(--font-ui)", color: "var(--text-primary)",
+          background: "var(--surface-well)",
+        }}
+      />
+      <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+        {(["wave", "sit", "point", "dance"] as const).map((e) => (
+          <button
+            key={e}
+            onClick={() => bus.emit("emote", e)}
+            className="drift-well"
+            style={{
+              border: 0, cursor: "pointer", padding: "3px 7px",
+              font: "600 9px/1 var(--font-ui)", color: "var(--text-secondary)",
+            }}
+          >
+            /{e}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---- right side: minimap ---------------------------------------------------------
+
+const MINI_TILE_COLORS = ["#2c4a2e", "#3c2d1f", "#262138", "#1d4258", "#6b21a8"];
+
+function MinimapPanel() {
+  const snap = useGame((s) => s.minimap);
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv || !snap) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    const px = cv.width / snap.w;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < snap.h; y++) {
+      for (let x = 0; x < snap.w; x++) {
+        ctx.fillStyle = MINI_TILE_COLORS[snap.tiles[y * snap.w + x]] ?? MINI_TILE_COLORS[0];
+        ctx.fillRect(x * px, y * px, px + 0.5, px + 0.5);
+      }
+    }
+    ctx.fillStyle = "#e7c873";
+    for (const n of snap.nodes) ctx.fillRect(n.x * px - 1, n.y * px - 1, 2, 2);
+    for (const m of snap.mobs) {
+      ctx.fillStyle = m.boss ? "#f59e0b" : "#dc2626";
+      const r = m.boss ? 2.5 : 1.5;
+      ctx.fillRect(m.x * px - r, m.y * px - r, r * 2, r * 2);
+    }
+    for (const p of snap.players) {
+      ctx.fillStyle = p.self ? "#efe9f4" : "#a855f7";
+      ctx.fillRect(p.x * px - 2, p.y * px - 2, 4, 4);
+    }
+  }, [snap]);
+
+  if (!snap) return null;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ top: 360, right: "var(--hud-edge)" }}
+    >
+      <Panel padded={false} corners={false} style={{ padding: 6 }} title={undefined}>
+        <canvas
+          ref={ref}
+          width={144}
+          height={144}
+          style={{ display: "block", width: 144, height: 144, imageRendering: "pixelated" }}
+        />
       </Panel>
     </div>
   );

@@ -17,6 +17,8 @@ import {
   DyeKey, EyeKey,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
+import { bus } from "@/game/state/bus";
+import { tileToCode } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
 
 export class Game {
@@ -57,6 +59,12 @@ export class Game {
   private levelFlashT0 = 0;
   private lastLevels: number[] | null = null;
 
+  // ---- world events + living-world bits ----
+  /** corruption thresholds that wake a Colossus (consumed in order) */
+  private bossThresholds = [10, 25, 40, 60, 80];
+  private driftfallFx: { gx: number; gy: number; t0: number } | null = null;
+  private minimapTimer = 0;
+
   private cleanupFns: Array<() => void> = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -74,6 +82,8 @@ export class Game {
 
     this.drift.onRelocate = (kind) =>
       useGame.getState().pushLog(`A ${kind} re-forms somewhere in the Drift…`, "#7c6f93");
+    // offline driftfall (online: the server's Drift fires and broadcasts)
+    this.drift.onDriftfall = (cell) => this.announceDriftfall(cell.x, cell.y);
     this.drift.onSeason = () => {
       const store = useGame.getState();
       store.bumpSeason();
@@ -103,7 +113,43 @@ export class Game {
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
     useGame.getState().pushLog("You awaken in the Driftlands.", "#d8cfe0");
+    this.cleanupFns.push(bus.on("chat", (text) => this.handleChatInput(text)));
+    this.cleanupFns.push(bus.on("emote", (e) => this.handleChatInput(`/${e}`)));
     void this.connect();
+  }
+
+  // ---- chat & emotes -----------------------------------------------------------
+
+  private static EMOTES: Record<string, string> = {
+    wave: "waves", sit: "sits down", point: "points", dance: "dances",
+  };
+
+  private handleChatInput(raw: string) {
+    initAudio();
+    let text = raw.trim().slice(0, 120);
+    if (!text) return;
+    let kind: "say" | "emote" = "say";
+    if (text.startsWith("/")) {
+      const verb = Game.EMOTES[text.slice(1).split(" ")[0].toLowerCase()];
+      if (!verb) {
+        useGame.getState().pushLog(`Unknown emote. Try: /wave /sit /point /dance`, "#6f6781");
+        return;
+      }
+      kind = "emote";
+      text = verb;
+    }
+    if (this.net) {
+      this.net.room.send("chat", { text, kind });
+      return; // bubble + log arrive via the broadcast (everyone incl. us)
+    }
+    this.showChat(this.player, useGame.getState().cosmetics.name, text, kind === "emote");
+  }
+
+  private showChat(p: Player, name: string, text: string, emote: boolean) {
+    p.bubble = { text, t0: performance.now(), emote };
+    const store = useGame.getState();
+    if (emote) store.pushLog(`${name} ${text}.`, "#d8b4fe");
+    else store.pushLog(`${name}: ${text}`, "#d8cfe0");
   }
 
   destroy() {
@@ -167,6 +213,18 @@ export class Game {
     net.onMessage<{ kind: string }>("relocate", (m) =>
       useGame.getState().pushLog(`A ${m.kind} re-forms somewhere in the Drift…`, "#7c6f93"),
     );
+    net.onMessage<{ id: string; name: string; text: string; kind: string }>(
+      "chat",
+      (m) => {
+        const target =
+          m.id === net.sessionId ? this.player : this.remotes.get(m.id);
+        if (target) this.showChat(target, m.name, m.text, m.kind === "emote");
+        if (m.id !== net.sessionId) play("chat");
+      },
+    );
+    net.onMessage<{ x: number; y: number }>("driftfall", (m) =>
+      this.announceDriftfall(m.x, m.y),
+    );
     net.onMessage<{ season: number; driftPct: number }>("season", (m) => {
       const s = useGame.getState();
       s.setSeason(m.season);
@@ -212,6 +270,42 @@ export class Game {
     for (let i = 0; i < codes.length && i < this.world.tiles.length; i++) {
       this.world.tiles[i] = codeToTile(codes[i]);
     }
+  }
+
+  // ---- world events --------------------------------------------------------------
+
+  private announceDriftfall(gx: number, gy: number) {
+    this.driftfallFx = { gx, gy, t0: performance.now() };
+    play("driftfall");
+    useGame
+      .getState()
+      .pushLog("DRIFTFALL — a shard crashes down. Rich nodes, briefly.", "#d8b4fe");
+  }
+
+  /** corruption thresholds wake the Colossus at the corruption front */
+  private watchBoss() {
+    if (this.bossThresholds.length === 0) return;
+    const pct = useGame.getState().driftPct;
+    if (pct < this.bossThresholds[0] || this.combat.bossAlive()) return;
+    // find a corrupt tile to anchor the spawn
+    let cell: { x: number; y: number } | null = null;
+    for (let i = 0; i < this.world.tiles.length; i++) {
+      if (this.world.tiles[i] === "corrupt" && Math.random() < 0.05) {
+        cell = { x: i % this.world.w, y: (i / this.world.w) | 0 };
+        break;
+      }
+    }
+    if (!cell) return;
+    const boss = this.combat.spawnBoss(this.world, cell);
+    if (!boss) return;
+    this.bossThresholds.shift();
+    play("boss");
+    this.shakeUntil = performance.now() + 600;
+    this.shakeMag = 5;
+    this.spawnFloater(boss.px, boss.py - 1.5, "THE COLOSSUS AWAKENS", "#a855f7");
+    useGame
+      .getState()
+      .pushLog("The ground shudders. A COLOSSUS rises from the corruption…", "#a855f7");
   }
 
   /** juice + respawn hooks (re-run whenever a fresh CombatManager is created) */
@@ -306,6 +400,9 @@ export class Game {
       this.hover = cell && this.world.inBounds(cell.x, cell.y) ? cell : null;
     };
     const onKey = (e: KeyboardEvent) => {
+      // ignore hotkeys while typing in the chat input (or any form field)
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key >= "1" && e.key <= "6") useGame.getState().setHotbar(parseInt(e.key, 10));
     };
     const onResize = () => this.resize();
@@ -493,10 +590,37 @@ export class Game {
     }
 
     this.watchLevelUps();
+    this.watchBoss();
+
+    // minimap snapshot ~2×/sec
+    this.minimapTimer += dt;
+    if (this.minimapTimer >= 0.5) {
+      this.minimapTimer = 0;
+      this.pushMinimap();
+    }
 
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.follow(iso.x, iso.y);
     this.camera.update(dt);
+  }
+
+  private pushMinimap() {
+    const players: { x: number; y: number; self: boolean }[] = [
+      { x: this.player.px, y: this.player.py, self: true },
+    ];
+    for (const r of this.remotes.values()) players.push({ x: r.px, y: r.py, self: false });
+    useGame.getState().setMinimap({
+      w: this.world.w,
+      h: this.world.h,
+      tiles: this.world.tiles.map(tileToCode),
+      nodes: this.world.nodes
+        .filter((n) => n.regrowIn <= 0)
+        .map((n) => ({ x: n.gx, y: n.gy })),
+      players,
+      mobs: this.combat.mobs
+        .filter((m) => m.state !== "dead")
+        .map((m) => ({ x: m.px, y: m.py, boss: m.kind === "colossus" })),
+    });
   }
 
   /** Online: mirror server state into local entities (smoothed). */
@@ -685,6 +809,30 @@ export class Game {
     ctx.globalAlpha = 1;
     ctx.textAlign = "left";
 
+    // driftfall: violet beam + ring at the crash site, ~2.5s
+    if (this.driftfallFx && now - this.driftfallFx.t0 < 2500) {
+      const t = (now - this.driftfallFx.t0) / 2500;
+      const iso = gridToIso(this.driftfallFx.gx, this.driftfallFx.gy);
+      const s = this.camera.worldToScreen(iso.x, iso.y);
+      ctx.save();
+      const beamA = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+      const bg = ctx.createLinearGradient(0, s.y - 240 * z, 0, s.y);
+      bg.addColorStop(0, "rgba(216,180,254,0)");
+      bg.addColorStop(1, `rgba(168,85,247,${0.5 * beamA})`);
+      ctx.fillStyle = bg;
+      ctx.fillRect(s.x - 10 * z, s.y - 240 * z, 20 * z, 240 * z);
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 2 * z;
+      const rr = (4 + t * 50) * z;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, rr, rr * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (this.driftfallFx && now - this.driftfallFx.t0 >= 2500) {
+      this.driftfallFx = null;
+    }
+
     // level-up: expanding gold ring + light pillar, ~750ms
     if (this.levelFlashT0 && now - this.levelFlashT0 < 750) {
       const t = (now - this.levelFlashT0) / 750;
@@ -715,11 +863,17 @@ export class Game {
     const z = this.camera.zoom;
     const now = performance.now();
 
-    // pulsing additive glow on corrupt ground
-    const pulse = 0.55 + Math.sin(now / 900) * 0.2;
+    // slow day/night breath (8-min cycle); deep night leans cold blue
+    const night = 0.5 - 0.5 * Math.cos(((now / 480_000) % 1) * Math.PI * 2);
+
+    // pulsing additive glow on corrupt ground — fiercer in the dark
+    const pulse = (0.55 + Math.sin(now / 900) * 0.2) * (1 + night * 0.5);
     for (const gpos of this.corruptGlows) {
       spriteCache.drawGlow(ctx, gpos.sx, gpos.sy, z, pulse);
     }
+
+    ctx.fillStyle = `rgba(10, 12, 34, ${0.16 * night})`;
+    ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
 
     // moonlight: the world dims away from the wanderer
     const p = this.tileScreen(this.player.px, this.player.py);
@@ -1017,6 +1171,31 @@ export class Game {
       ctx.font = `${6.5 * z}px ui-sans-serif`;
       ctx.fillText(title, s.x, s.y - 40 * z);
     }
+
+    // chat / emote bubble
+    if (p.bubble && performance.now() - p.bubble.t0 < 4500) {
+      const b = p.bubble;
+      const lines = wrapText(b.emote ? `~ ${b.text} ~` : b.text, 26);
+      const fs = 9 * z;
+      ctx.font = `${fs}px ui-sans-serif`;
+      const wMax = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      const pad = 4 * z;
+      const lh = fs + 2 * z;
+      const bh = lines.length * lh + pad * 2;
+      const bw = wMax + pad * 2;
+      const by = s.y - 54 * z - bh;
+      ctx.fillStyle = "rgba(23,19,32,0.92)";
+      ctx.fillRect(s.x - bw / 2, by, bw, bh);
+      ctx.strokeStyle = "rgba(216,207,224,0.18)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(s.x - bw / 2, by, bw, bh);
+      ctx.fillStyle = b.emote ? "#d8b4fe" : "#d8cfe0";
+      lines.forEach((l, i) =>
+        ctx.fillText(l, s.x, by + pad + (i + 1) * lh - 3 * z),
+      );
+    } else if (p.bubble) {
+      p.bubble = null;
+    }
     ctx.textAlign = "left";
   }
 
@@ -1025,7 +1204,7 @@ export class Game {
     const s = this.camera.worldToScreen(iso.x, iso.y);
     const z = this.camera.zoom;
     const now = performance.now();
-    const kind: BeastKind = mob.level >= 3 ? "stalker" : "husk";
+    const kind: BeastKind = mob.kind;
 
     // death animation (no shadow/bars — the beast is crumbling into motes)
     if (mob.state === "dead") {
@@ -1099,6 +1278,24 @@ export class Game {
     ctx.lineTo(cx - hw, cy);
     ctx.closePath();
   }
+}
+
+/** greedy word wrap for chat bubbles */
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur && cur.length + w.length + 1 > maxChars) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+    if (lines.length === 3) break; // cap bubble height
+  }
+  if (cur && lines.length < 3) lines.push(cur);
+  return lines;
 }
 
 function chebyshev(a: { x: number; y: number }, b: { x: number; y: number }) {

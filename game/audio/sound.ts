@@ -5,7 +5,8 @@
 export type SfxName =
   | "chop" | "mine" | "splash"        // gathering
   | "hit" | "hurt" | "kill" | "death" // combat
-  | "levelup" | "coin" | "craft" | "eat" | "ui";
+  | "levelup" | "coin" | "craft" | "eat" | "ui"
+  | "boss" | "driftfall" | "chat";    // world events
 
 const PREF_KEY = "driftlands-sound";
 
@@ -142,6 +143,22 @@ export function play(name: SfxName) {
       break;
     case "ui":
       tone("square", 660, 660, 0.03, 0.06);
+      break;
+    case "boss":
+      // low war-horn: two detuned saws swelling, then a rumble
+      tone("sawtooth", 65, 62, 1.4, 0.2);
+      tone("sawtooth", 49, 47, 1.4, 0.18, 0.05);
+      noiseBurst(0.8, 220, 0.12, 0.5);
+      break;
+    case "driftfall":
+      // falling whistle → impact thump → mote shimmer
+      tone("sine", 1200, 180, 0.5, 0.1);
+      tone("sine", 80, 35, 0.3, 0.35, 0.5);
+      noiseBurst(0.25, 600, 0.2, 0.5);
+      tone("sine", 990, 1980, 0.4, 0.05, 0.7);
+      break;
+    case "chat":
+      tone("triangle", 520, 520, 0.04, 0.08);
       break;
   }
 }

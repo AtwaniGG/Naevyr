@@ -66,6 +66,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
 
     this.drift.onRelocate = (kind) => this.broadcast("relocate", { kind });
+    this.drift.onDriftfall = (cell) =>
+      this.broadcast("driftfall", { x: cell.x, y: cell.y });
     this.drift.onSeason = () => {
       this.state.season += 1;
       this.syncTiles();
@@ -113,6 +115,16 @@ export class DriftRoom extends Room<DriftRoomState> {
         }
       },
     );
+
+    // chat + emotes: relay with the sender's display name attached
+    this.onMessage("chat", (client, msg: { text?: string; kind?: string }) => {
+      const ps = this.state.players.get(client.sessionId);
+      if (!ps || typeof msg?.text !== "string") return;
+      const text = msg.text.trim().slice(0, 120);
+      if (!text) return;
+      const kind = msg.kind === "emote" ? "emote" : "say";
+      this.broadcast("chat", { id: client.sessionId, name: ps.name, text, kind });
+    });
 
     // cosmetic identity: trusted but sanitized (length caps + key whitelists)
     this.onMessage(
@@ -263,8 +275,14 @@ export class DriftRoom extends Room<DriftRoomState> {
 
   private syncNodes() {
     for (const node of this.world.nodes) {
-      const ns = this.state.nodes.get(String(node.id));
-      if (!ns) continue;
+      let ns = this.state.nodes.get(String(node.id));
+      if (!ns) {
+        // driftfall spawns new nodes mid-game — mirror them into the schema
+        ns = new NodeState();
+        ns.id = node.id;
+        ns.kind = node.kind;
+        this.state.nodes.set(String(node.id), ns);
+      }
       const alive = node.regrowIn <= 0 && node.amount > 0;
       if (ns.gx !== node.gx) ns.gx = node.gx;
       if (ns.gy !== node.gy) ns.gy = node.gy;

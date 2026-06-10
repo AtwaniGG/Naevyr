@@ -43,6 +43,33 @@ export class CombatManager {
     }
   }
 
+  /** spawn the Drift Colossus near a given cell (corruption-front world boss) */
+  spawnBoss(world: World, near: { x: number; y: number }): Mob | null {
+    let cell: { x: number; y: number } | null = null;
+    for (let r = 0; r < 6 && !cell; r++) {
+      for (let dy = -r; dy <= r && !cell; dy++) {
+        for (let dx = -r; dx <= r && !cell; dx++) {
+          if (world.isWalkable(near.x + dx, near.y + dy)) {
+            cell = { x: near.x + dx, y: near.y + dy };
+          }
+        }
+      }
+    }
+    if (!cell) return null;
+    const boss = new Mob(this.nextId++, cell.x, cell.y, 6, "colossus");
+    boss.maxHp = boss.hp = 140;
+    boss.damage = 7;
+    boss.xpReward = 120;
+    boss.speed = 0.45; // a walking ruin does not hurry
+    this.mobs.push(boss);
+    return boss;
+  }
+
+  /** is a Colossus currently alive in the world? */
+  bossAlive(): boolean {
+    return this.mobs.some((m) => m.kind === "colossus" && m.state !== "dead");
+  }
+
   /** living mob at (or very near) a clicked cell, for targeting */
   mobAtCell(cell: { x: number; y: number }): Mob | null {
     let best: Mob | null = null;
@@ -144,6 +171,20 @@ export class CombatManager {
     const store = useGame.getState();
     store.questEvent({ type: "kill" });
     store.bumpKills();
+
+    if (mob.kind === "colossus") {
+      store.addItem("driftshard", 5);
+      store.addGold(50);
+      const { leveledTo } = store.addXp("combat", mob.xpReward);
+      play("kill");
+      store.pushLog(
+        "THE COLOSSUS CRUMBLES. Loot: 5 Drift Shards + 50g.",
+        "#e7c873",
+      );
+      if (leveledTo) store.pushLog(`Combat is now level ${leveledTo}!`, "#e7c873");
+      return;
+    }
+
     store.addItem("driftshard", 1);
     let loot = "Drift Shard";
     if (Math.random() < 0.5) {

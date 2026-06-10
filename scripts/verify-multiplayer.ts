@@ -15,7 +15,7 @@ function check(name: string, ok: boolean, detail = "") {
 }
 
 function muteMessages(room: Room<any>) {
-  for (const t of ["loot", "gatherStart", "relocate", "season"]) {
+  for (const t of ["loot", "gatherStart", "relocate", "season", "chat", "driftfall"]) {
     room.onMessage(t, () => {});
   }
 }
@@ -116,6 +116,24 @@ async function main() {
     a.state.players.get(b.sessionId).name.length <= 16 &&
       a.state.players.get(b.sessionId).dye === "ember",
     `name len=${a.state.players.get(b.sessionId).name.length} dye=${a.state.players.get(b.sessionId).dye}`,
+  );
+
+  // ---- chat: B speaks, A hears it with B's name attached -------------------------
+  b.send("identity", { name: "Testovia" }); // restore after the sanitize test
+  await wait(300);
+  const heard = new Promise<{ name: string; text: string; kind: string }>((resolve) => {
+    a.onMessage("chat", (m: any) => resolve(m));
+  });
+  a.onMessage("driftfall", () => {});
+  b.send("chat", { text: "the Drift provides", kind: "say" });
+  const chatMsg = await Promise.race([
+    heard,
+    wait(3000).then(() => null),
+  ]);
+  check(
+    "A hears B's chat",
+    chatMsg !== null && chatMsg.text === "the Drift provides" && chatMsg.name === "Testovia",
+    chatMsg ? `${chatMsg.name}: ${chatMsg.text}` : "timed out",
   );
 
   // ---- leave: B departs, A's roster shrinks ------------------------------------

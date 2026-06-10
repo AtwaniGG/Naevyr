@@ -44,6 +44,16 @@ export interface Cosmetics {
   eye: EyeKey;
 }
 
+/** lightweight world snapshot pushed by the engine ~2×/sec for the minimap */
+export interface MinimapSnap {
+  w: number;
+  h: number;
+  tiles: number[]; // TILE_CODES indices
+  nodes: { x: number; y: number }[];
+  players: { x: number; y: number; self: boolean }[];
+  mobs: { x: number; y: number; boss: boolean }[];
+}
+
 /** Earned title, best first. Derived — never stored. */
 export function currentTitle(s: {
   skills: Record<SkillKey, SkillState>;
@@ -75,12 +85,14 @@ interface GameState {
   cosmetics: Cosmetics;
   /** lifetime Drift Beast kills (feeds titles) */
   kills: number;
+  minimap: MinimapSnap | null;
 
   setDriftPct: (pct: number) => void;
   setSeason: (season: number) => void;
   setPlayersOnline: (n: number) => void;
   setCosmetics: (c: Partial<Cosmetics>) => void;
   bumpKills: () => void;
+  setMinimap: (m: MinimapSnap) => void;
 
   addGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
@@ -156,6 +168,7 @@ export const useGame = create<GameState>((set, get) => ({
   playersOnline: 1,
   cosmetics: { name: "Wanderer", dye: "stone", eye: "drift" },
   kills: 0,
+  minimap: null,
 
   setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
   setSeason: (season) => set({ driftSeason: season }),
@@ -171,6 +184,7 @@ export const useGame = create<GameState>((set, get) => ({
       },
     })),
   bumpKills: () => set((s) => ({ kills: s.kills + 1 })),
+  setMinimap: (m) => set({ minimap: m }),
 
   addGold: (amount) => set((s) => ({ gold: s.gold + amount })),
 

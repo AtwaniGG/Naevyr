@@ -1,6 +1,6 @@
 import { World } from "@/game/world/tilemap";
 import { isoFacingFromDelta } from "@/game/entities/player";
-import { IsoFacing } from "@/game/render/sprites";
+import { BeastKind, IsoFacing } from "@/game/render/sprites";
 
 // Drift Beasts: corrupted creatures that wander their territory. They don't
 // hunt the player — they only retaliate while engaged (handled by the combat
@@ -21,6 +21,8 @@ export class Mob {
   xpReward: number;
 
   state: MobState = "wander";
+  /** which beast sprite this mob renders with */
+  kind: BeastKind;
   facing = 1;
   isoFacing: IsoFacing = "s";
   isoMirror = false;
@@ -39,11 +41,12 @@ export class Mob {
   private wanderRadius = 4;
   respawnIn = 0;
 
-  constructor(id: number, gx: number, gy: number, level = 1) {
+  constructor(id: number, gx: number, gy: number, level = 1, kind?: BeastKind) {
     this.id = id;
     this.px = this.tx = this.spawnX = gx;
     this.py = this.ty = this.spawnY = gy;
     this.level = level;
+    this.kind = kind ?? (level >= 3 ? "stalker" : "husk");
     this.maxHp = 14 + level * 4;
     this.hp = this.maxHp;
     this.damage = 2 + level;
@@ -63,7 +66,9 @@ export class Mob {
   private die() {
     this.state = "dead";
     this.deathT = 0;
-    this.respawnIn = 6000 + Math.random() * 4000;
+    // a slain Colossus stays slain; regular beasts respawn at their den
+    this.respawnIn =
+      this.kind === "colossus" ? Number.POSITIVE_INFINITY : 6000 + Math.random() * 4000;
   }
 
   updateIsoFacing(dx: number, dy: number) {
