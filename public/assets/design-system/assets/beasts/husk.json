@@ -1,0 +1,864 @@
+{
+  "image": "beasts/husk.svg",
+  "cell": {
+    "w": 32,
+    "h": 32
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "drift-hi (#d8b4fe)",
+  "frames": {
+    "husk-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-s_00": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-s_01": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-s_02": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-s_03": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-s_00": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-s_01": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-s_02": {
+      "x": 384,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-se_00": {
+      "x": 0,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-se_01": {
+      "x": 32,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-se_00": {
+      "x": 64,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-se_01": {
+      "x": 96,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-se_02": {
+      "x": 128,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-se_03": {
+      "x": 160,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-se_00": {
+      "x": 192,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-se_01": {
+      "x": 224,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-se_02": {
+      "x": 256,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-se_03": {
+      "x": 288,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-se_00": {
+      "x": 320,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-se_01": {
+      "x": 352,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-se_02": {
+      "x": 384,
+      "y": 32,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-e_00": {
+      "x": 0,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-e_01": {
+      "x": 32,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-e_00": {
+      "x": 64,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-e_01": {
+      "x": 96,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-e_02": {
+      "x": 128,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-e_03": {
+      "x": 160,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-e_00": {
+      "x": 192,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-e_01": {
+      "x": 224,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-e_02": {
+      "x": 256,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-e_03": {
+      "x": 288,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-e_00": {
+      "x": 320,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-e_01": {
+      "x": 352,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-e_02": {
+      "x": 384,
+      "y": 64,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-ne_00": {
+      "x": 0,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-ne_01": {
+      "x": 32,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-ne_00": {
+      "x": 64,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-ne_01": {
+      "x": 96,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-ne_02": {
+      "x": 128,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-ne_03": {
+      "x": 160,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-ne_00": {
+      "x": 192,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-ne_01": {
+      "x": 224,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-ne_02": {
+      "x": 256,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-ne_03": {
+      "x": 288,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-ne_00": {
+      "x": 320,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-ne_01": {
+      "x": 352,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-ne_02": {
+      "x": 384,
+      "y": 96,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-n_00": {
+      "x": 0,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-idle-n_01": {
+      "x": 32,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-n_00": {
+      "x": 64,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-n_01": {
+      "x": 96,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-n_02": {
+      "x": 128,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-skitter-n_03": {
+      "x": 160,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-n_00": {
+      "x": 192,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-n_01": {
+      "x": 224,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-n_02": {
+      "x": 256,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-lunge-n_03": {
+      "x": 288,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-n_00": {
+      "x": 320,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-n_01": {
+      "x": 352,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    },
+    "husk-death-n_02": {
+      "x": 384,
+      "y": 128,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "husk-idle-s_00",
+        "husk-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "skitter-s": {
+      "frames": [
+        "husk-skitter-s_00",
+        "husk-skitter-s_01",
+        "husk-skitter-s_02",
+        "husk-skitter-s_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-s": {
+      "frames": [
+        "husk-lunge-s_00",
+        "husk-lunge-s_01",
+        "husk-lunge-s_02",
+        "husk-lunge-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "husk-death-s_00",
+        "husk-death-s_01",
+        "husk-death-s_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "husk-idle-se_00",
+        "husk-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "skitter-se": {
+      "frames": [
+        "husk-skitter-se_00",
+        "husk-skitter-se_01",
+        "husk-skitter-se_02",
+        "husk-skitter-se_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-se": {
+      "frames": [
+        "husk-lunge-se_00",
+        "husk-lunge-se_01",
+        "husk-lunge-se_02",
+        "husk-lunge-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "husk-death-se_00",
+        "husk-death-se_01",
+        "husk-death-se_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "husk-idle-e_00",
+        "husk-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "skitter-e": {
+      "frames": [
+        "husk-skitter-e_00",
+        "husk-skitter-e_01",
+        "husk-skitter-e_02",
+        "husk-skitter-e_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-e": {
+      "frames": [
+        "husk-lunge-e_00",
+        "husk-lunge-e_01",
+        "husk-lunge-e_02",
+        "husk-lunge-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "husk-death-e_00",
+        "husk-death-e_01",
+        "husk-death-e_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "husk-idle-ne_00",
+        "husk-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "skitter-ne": {
+      "frames": [
+        "husk-skitter-ne_00",
+        "husk-skitter-ne_01",
+        "husk-skitter-ne_02",
+        "husk-skitter-ne_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-ne": {
+      "frames": [
+        "husk-lunge-ne_00",
+        "husk-lunge-ne_01",
+        "husk-lunge-ne_02",
+        "husk-lunge-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "husk-death-ne_00",
+        "husk-death-ne_01",
+        "husk-death-ne_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "husk-idle-n_00",
+        "husk-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "skitter-n": {
+      "frames": [
+        "husk-skitter-n_00",
+        "husk-skitter-n_01",
+        "husk-skitter-n_02",
+        "husk-skitter-n_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-n": {
+      "frames": [
+        "husk-lunge-n_00",
+        "husk-lunge-n_01",
+        "husk-lunge-n_02",
+        "husk-lunge-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "husk-death-n_00",
+        "husk-death-n_01",
+        "husk-death-n_02"
+      ],
+      "fps": 6,
+      "loop": false
+    }
+  }
+}

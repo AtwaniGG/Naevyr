@@ -1,0 +1,974 @@
+{
+  "image": "beasts/raider.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "blood-hi (#ef4444)",
+  "frames": {
+    "raider-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_04": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-s_05": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-s_00": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-s_01": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-s_02": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-s_03": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-s_00": {
+      "x": 384,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-s_01": {
+      "x": 416,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-s_02": {
+      "x": 448,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_00": {
+      "x": 64,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_01": {
+      "x": 96,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_02": {
+      "x": 128,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_03": {
+      "x": 160,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_04": {
+      "x": 192,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-se_05": {
+      "x": 224,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-se_00": {
+      "x": 256,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-se_01": {
+      "x": 288,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-se_02": {
+      "x": 320,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-se_03": {
+      "x": 352,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-se_00": {
+      "x": 384,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-se_01": {
+      "x": 416,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-se_02": {
+      "x": 448,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_00": {
+      "x": 64,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_01": {
+      "x": 96,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_02": {
+      "x": 128,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_03": {
+      "x": 160,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_04": {
+      "x": 192,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-e_05": {
+      "x": 224,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-e_00": {
+      "x": 256,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-e_01": {
+      "x": 288,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-e_02": {
+      "x": 320,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-e_03": {
+      "x": 352,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-e_00": {
+      "x": 384,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-e_01": {
+      "x": 416,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-e_02": {
+      "x": 448,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_00": {
+      "x": 64,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_01": {
+      "x": 96,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_02": {
+      "x": 128,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_03": {
+      "x": 160,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_04": {
+      "x": 192,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-ne_05": {
+      "x": 224,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-ne_00": {
+      "x": 256,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-ne_01": {
+      "x": 288,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-ne_02": {
+      "x": 320,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-ne_03": {
+      "x": 352,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-ne_00": {
+      "x": 384,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-ne_01": {
+      "x": 416,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-ne_02": {
+      "x": 448,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_00": {
+      "x": 64,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_01": {
+      "x": 96,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_02": {
+      "x": 128,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_03": {
+      "x": 160,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_04": {
+      "x": 192,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-walk-n_05": {
+      "x": 224,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-n_00": {
+      "x": 256,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-n_01": {
+      "x": 288,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-n_02": {
+      "x": 320,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-slash-n_03": {
+      "x": 352,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-n_00": {
+      "x": 384,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-n_01": {
+      "x": 416,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "raider-death-n_02": {
+      "x": 448,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "raider-idle-s_00",
+        "raider-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "raider-walk-s_00",
+        "raider-walk-s_01",
+        "raider-walk-s_02",
+        "raider-walk-s_03",
+        "raider-walk-s_04",
+        "raider-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "slash-s": {
+      "frames": [
+        "raider-slash-s_00",
+        "raider-slash-s_01",
+        "raider-slash-s_02",
+        "raider-slash-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "raider-death-s_00",
+        "raider-death-s_01",
+        "raider-death-s_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "raider-idle-se_00",
+        "raider-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "raider-walk-se_00",
+        "raider-walk-se_01",
+        "raider-walk-se_02",
+        "raider-walk-se_03",
+        "raider-walk-se_04",
+        "raider-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "slash-se": {
+      "frames": [
+        "raider-slash-se_00",
+        "raider-slash-se_01",
+        "raider-slash-se_02",
+        "raider-slash-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "raider-death-se_00",
+        "raider-death-se_01",
+        "raider-death-se_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "raider-idle-e_00",
+        "raider-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "raider-walk-e_00",
+        "raider-walk-e_01",
+        "raider-walk-e_02",
+        "raider-walk-e_03",
+        "raider-walk-e_04",
+        "raider-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "slash-e": {
+      "frames": [
+        "raider-slash-e_00",
+        "raider-slash-e_01",
+        "raider-slash-e_02",
+        "raider-slash-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "raider-death-e_00",
+        "raider-death-e_01",
+        "raider-death-e_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "raider-idle-ne_00",
+        "raider-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "raider-walk-ne_00",
+        "raider-walk-ne_01",
+        "raider-walk-ne_02",
+        "raider-walk-ne_03",
+        "raider-walk-ne_04",
+        "raider-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "slash-ne": {
+      "frames": [
+        "raider-slash-ne_00",
+        "raider-slash-ne_01",
+        "raider-slash-ne_02",
+        "raider-slash-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "raider-death-ne_00",
+        "raider-death-ne_01",
+        "raider-death-ne_02"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "raider-idle-n_00",
+        "raider-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "raider-walk-n_00",
+        "raider-walk-n_01",
+        "raider-walk-n_02",
+        "raider-walk-n_03",
+        "raider-walk-n_04",
+        "raider-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "slash-n": {
+      "frames": [
+        "raider-slash-n_00",
+        "raider-slash-n_01",
+        "raider-slash-n_02",
+        "raider-slash-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "raider-death-n_00",
+        "raider-death-n_01",
+        "raider-death-n_02"
+      ],
+      "fps": 6,
+      "loop": false
+    }
+  }
+}

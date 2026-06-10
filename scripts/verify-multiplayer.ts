@@ -1,0 +1,142 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Phase 3 verification: two headless clients join the shared world, see each
+// other, watch each other move, share node state, and observe leave events.
+// Run with the server up:  npx tsx scripts/verify-multiplayer.ts
+
+import { Client, Room } from "colyseus.js";
+
+const URL = process.env.GAME_SERVER ?? "ws://localhost:2567";
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+let failures = 0;
+function check(name: string, ok: boolean, detail = "") {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`);
+  if (!ok) failures++;
+}
+
+function muteMessages(room: Room<any>) {
+  for (const t of ["loot", "gatherStart", "relocate", "season"]) {
+    room.onMessage(t, () => {});
+  }
+}
+
+async function main() {
+  const a = await new Client(URL).joinOrCreate<any>("drift");
+  const b = await new Client(URL).joinOrCreate<any>("drift");
+  muteMessages(b);
+  await wait(600); // let initial patches land
+
+  check("both clients in the same room", a.roomId === b.roomId);
+  check(
+    "A sees 2 players",
+    a.state.players.size === 2,
+    `size=${a.state.players.size}`,
+  );
+  check(
+    "B sees 2 players",
+    b.state.players.size === 2,
+    `size=${b.state.players.size}`,
+  );
+  check("map synced (40×40)", a.state.w === 40 && a.state.tiles.length === 1600);
+  check("nodes synced", a.state.nodes.size > 0, `nodes=${a.state.nodes.size}`);
+
+  // ---- movement: B moves, A should see it -------------------------------------
+  const bStart = snapshot(b.state.players.get(b.sessionId));
+  const targets = [
+    { x: bStart.x + 4, y: bStart.y },
+    { x: bStart.x, y: bStart.y + 4 },
+    { x: bStart.x - 4, y: bStart.y },
+    { x: bStart.x, y: bStart.y - 4 },
+  ];
+  for (const t of targets) b.send("move", t); // last valid intent wins
+  await wait(2000);
+  const bSeenByA = snapshot(a.state.players.get(b.sessionId));
+  const moved = Math.hypot(bSeenByA.x - bStart.x, bSeenByA.y - bStart.y);
+  check("A sees B move", moved > 1, `displacement=${moved.toFixed(2)} tiles`);
+
+  // ---- gathering: A gathers, gets loot, B sees the node tick down --------------
+  const aPos = snapshot(a.state.players.get(a.sessionId));
+  let target: any = null;
+  let bestD = Infinity;
+  a.state.nodes.forEach((n: any) => {
+    if (!n.alive) return;
+    const d = Math.hypot(n.gx - aPos.x, n.gy - aPos.y);
+    if (d < bestD) {
+      bestD = d;
+      target = n;
+    }
+  });
+  check("found a live node to gather", !!target, target ? `${target.kind} @ ${target.gx},${target.gy} (${bestD.toFixed(1)} tiles)` : "");
+
+  if (target) {
+    const beforeAmount = target.amount;
+    let lootKind = "";
+    let gatherStarted = false;
+    const loot = new Promise<void>((resolve) => {
+      a.onMessage("loot", (m: any) => {
+        lootKind = m.kind;
+        resolve();
+      });
+    });
+    a.onMessage("gatherStart", () => {
+      gatherStarted = true;
+    });
+    a.onMessage("relocate", () => {});
+    a.onMessage("season", () => {});
+
+    a.send("gather", { nodeId: target.id, speedMult: 1 });
+    const lootOk = await Promise.race([
+      loot.then(() => true),
+      wait(20_000).then(() => false),
+    ]);
+    check("A walked to node and got loot", lootOk, lootOk ? `kind=${lootKind}` : "timed out");
+    check("server announced gatherStart", gatherStarted);
+    await wait(300);
+    const bNode = b.state.nodes.get(String(target.id));
+    check(
+      "B sees the node's charges drop",
+      bNode.amount < beforeAmount,
+      `${beforeAmount} → ${bNode.amount}`,
+    );
+  }
+
+  // ---- identity: B renames + dyes, A sees it ------------------------------------
+  b.send("identity", { name: "Testovia", dye: "ember", eye: "blood", title: "Stonebreaker" });
+  await wait(400);
+  const bIdent = a.state.players.get(b.sessionId);
+  check(
+    "A sees B's cosmetics",
+    bIdent.name === "Testovia" && bIdent.dye === "ember" && bIdent.eye === "blood" && bIdent.title === "Stonebreaker",
+    `name=${bIdent.name} dye=${bIdent.dye} eye=${bIdent.eye} title=${bIdent.title}`,
+  );
+  b.send("identity", { name: "x".repeat(99), dye: "neon-pink", eye: "laser" });
+  await wait(400);
+  check(
+    "server sanitizes bad identity",
+    a.state.players.get(b.sessionId).name.length <= 16 &&
+      a.state.players.get(b.sessionId).dye === "ember",
+    `name len=${a.state.players.get(b.sessionId).name.length} dye=${a.state.players.get(b.sessionId).dye}`,
+  );
+
+  // ---- leave: B departs, A's roster shrinks ------------------------------------
+  await b.leave();
+  await wait(600);
+  check(
+    "A sees B leave",
+    a.state.players.size === 1,
+    `size=${a.state.players.size}`,
+  );
+
+  await a.leave();
+  console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+function snapshot(p: any) {
+  return { x: p?.x ?? -1, y: p?.y ?? -1 };
+}
+
+main().catch((e) => {
+  console.error("verify-multiplayer crashed:", e);
+  process.exit(1);
+});

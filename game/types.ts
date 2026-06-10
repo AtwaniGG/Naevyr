@@ -2,6 +2,17 @@
 
 export type TileType = "grass" | "dirt" | "stone" | "water" | "corrupt";
 
+/** uint8 encoding of TileType for network sync (index = wire code) */
+export const TILE_CODES: readonly TileType[] = [
+  "grass",
+  "dirt",
+  "stone",
+  "water",
+  "corrupt",
+];
+export const tileToCode = (t: TileType) => TILE_CODES.indexOf(t);
+export const codeToTile = (c: number): TileType => TILE_CODES[c] ?? "grass";
+
 export type ResourceKind = "tree" | "rock" | "fish";
 
 export type SkillKey = "woodcutting" | "mining" | "fishing" | "combat";

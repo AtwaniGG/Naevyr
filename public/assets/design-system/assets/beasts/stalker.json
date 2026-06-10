@@ -1,0 +1,1029 @@
+{
+  "image": "beasts/stalker.svg",
+  "cell": {
+    "w": 36,
+    "h": 40
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "blood-hi (#ef4444)",
+  "frames": {
+    "stalker-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-s_01": {
+      "x": 36,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_00": {
+      "x": 72,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_01": {
+      "x": 108,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_02": {
+      "x": 144,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_03": {
+      "x": 180,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_04": {
+      "x": 216,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-s_05": {
+      "x": 252,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-s_00": {
+      "x": 288,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-s_01": {
+      "x": 324,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-s_02": {
+      "x": 360,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-s_03": {
+      "x": 396,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-s_00": {
+      "x": 432,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-s_01": {
+      "x": 468,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-s_02": {
+      "x": 504,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-s_03": {
+      "x": 540,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-se_01": {
+      "x": 36,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_00": {
+      "x": 72,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_01": {
+      "x": 108,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_02": {
+      "x": 144,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_03": {
+      "x": 180,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_04": {
+      "x": 216,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-se_05": {
+      "x": 252,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-se_00": {
+      "x": 288,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-se_01": {
+      "x": 324,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-se_02": {
+      "x": 360,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-se_03": {
+      "x": 396,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-se_00": {
+      "x": 432,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-se_01": {
+      "x": 468,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-se_02": {
+      "x": 504,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-se_03": {
+      "x": 540,
+      "y": 40,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-e_01": {
+      "x": 36,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_00": {
+      "x": 72,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_01": {
+      "x": 108,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_02": {
+      "x": 144,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_03": {
+      "x": 180,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_04": {
+      "x": 216,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-e_05": {
+      "x": 252,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-e_00": {
+      "x": 288,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-e_01": {
+      "x": 324,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-e_02": {
+      "x": 360,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-e_03": {
+      "x": 396,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-e_00": {
+      "x": 432,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-e_01": {
+      "x": 468,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-e_02": {
+      "x": 504,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-e_03": {
+      "x": 540,
+      "y": 80,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-ne_01": {
+      "x": 36,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_00": {
+      "x": 72,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_01": {
+      "x": 108,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_02": {
+      "x": 144,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_03": {
+      "x": 180,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_04": {
+      "x": 216,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-ne_05": {
+      "x": 252,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-ne_00": {
+      "x": 288,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-ne_01": {
+      "x": 324,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-ne_02": {
+      "x": 360,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-ne_03": {
+      "x": 396,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-ne_00": {
+      "x": 432,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-ne_01": {
+      "x": 468,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-ne_02": {
+      "x": 504,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-ne_03": {
+      "x": 540,
+      "y": 120,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-idle-n_01": {
+      "x": 36,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_00": {
+      "x": 72,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_01": {
+      "x": 108,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_02": {
+      "x": 144,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_03": {
+      "x": 180,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_04": {
+      "x": 216,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-stalk-n_05": {
+      "x": 252,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-n_00": {
+      "x": 288,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-n_01": {
+      "x": 324,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-n_02": {
+      "x": 360,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-lunge-n_03": {
+      "x": 396,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-n_00": {
+      "x": 432,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-n_01": {
+      "x": 468,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-n_02": {
+      "x": 504,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "stalker-death-n_03": {
+      "x": 540,
+      "y": 160,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "stalker-idle-s_00",
+        "stalker-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "stalk-s": {
+      "frames": [
+        "stalker-stalk-s_00",
+        "stalker-stalk-s_01",
+        "stalker-stalk-s_02",
+        "stalker-stalk-s_03",
+        "stalker-stalk-s_04",
+        "stalker-stalk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-s": {
+      "frames": [
+        "stalker-lunge-s_00",
+        "stalker-lunge-s_01",
+        "stalker-lunge-s_02",
+        "stalker-lunge-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "stalker-death-s_00",
+        "stalker-death-s_01",
+        "stalker-death-s_02",
+        "stalker-death-s_03"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "stalker-idle-se_00",
+        "stalker-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "stalk-se": {
+      "frames": [
+        "stalker-stalk-se_00",
+        "stalker-stalk-se_01",
+        "stalker-stalk-se_02",
+        "stalker-stalk-se_03",
+        "stalker-stalk-se_04",
+        "stalker-stalk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-se": {
+      "frames": [
+        "stalker-lunge-se_00",
+        "stalker-lunge-se_01",
+        "stalker-lunge-se_02",
+        "stalker-lunge-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "stalker-death-se_00",
+        "stalker-death-se_01",
+        "stalker-death-se_02",
+        "stalker-death-se_03"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "stalker-idle-e_00",
+        "stalker-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "stalk-e": {
+      "frames": [
+        "stalker-stalk-e_00",
+        "stalker-stalk-e_01",
+        "stalker-stalk-e_02",
+        "stalker-stalk-e_03",
+        "stalker-stalk-e_04",
+        "stalker-stalk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-e": {
+      "frames": [
+        "stalker-lunge-e_00",
+        "stalker-lunge-e_01",
+        "stalker-lunge-e_02",
+        "stalker-lunge-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "stalker-death-e_00",
+        "stalker-death-e_01",
+        "stalker-death-e_02",
+        "stalker-death-e_03"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "stalker-idle-ne_00",
+        "stalker-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "stalk-ne": {
+      "frames": [
+        "stalker-stalk-ne_00",
+        "stalker-stalk-ne_01",
+        "stalker-stalk-ne_02",
+        "stalker-stalk-ne_03",
+        "stalker-stalk-ne_04",
+        "stalker-stalk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-ne": {
+      "frames": [
+        "stalker-lunge-ne_00",
+        "stalker-lunge-ne_01",
+        "stalker-lunge-ne_02",
+        "stalker-lunge-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "stalker-death-ne_00",
+        "stalker-death-ne_01",
+        "stalker-death-ne_02",
+        "stalker-death-ne_03"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "stalker-idle-n_00",
+        "stalker-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "stalk-n": {
+      "frames": [
+        "stalker-stalk-n_00",
+        "stalker-stalk-n_01",
+        "stalker-stalk-n_02",
+        "stalker-stalk-n_03",
+        "stalker-stalk-n_04",
+        "stalker-stalk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "lunge-n": {
+      "frames": [
+        "stalker-lunge-n_00",
+        "stalker-lunge-n_01",
+        "stalker-lunge-n_02",
+        "stalker-lunge-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "stalker-death-n_00",
+        "stalker-death-n_01",
+        "stalker-death-n_02",
+        "stalker-death-n_03"
+      ],
+      "fps": 6,
+      "loop": false
+    }
+  }
+}

@@ -1,4 +1,6 @@
 import { World } from "@/game/world/tilemap";
+import { isoFacingFromDelta } from "@/game/entities/player";
+import { IsoFacing } from "@/game/render/sprites";
 
 // Drift Beasts: corrupted creatures that wander their territory. They don't
 // hunt the player — they only retaliate while engaged (handled by the combat
@@ -20,6 +22,12 @@ export class Mob {
 
   state: MobState = "wander";
   facing = 1;
+  isoFacing: IsoFacing = "s";
+  isoMirror = false;
+  /** true while actually drifting toward a wander target (drives walk anim) */
+  moving = false;
+  /** seconds since death — drives the death animation */
+  deathT = 0;
   speed = 1.4;
   bob = 0;
   phase = Math.random() * Math.PI * 2;
@@ -54,7 +62,15 @@ export class Mob {
 
   private die() {
     this.state = "dead";
+    this.deathT = 0;
     this.respawnIn = 6000 + Math.random() * 4000;
+  }
+
+  updateIsoFacing(dx: number, dy: number) {
+    const r = isoFacingFromDelta(dx, dy);
+    if (!r) return;
+    this.isoFacing = r.f;
+    this.isoMirror = r.m;
   }
 
   respawn() {
@@ -70,6 +86,7 @@ export class Mob {
     this.phase += dt;
 
     if (this.state === "dead") {
+      this.deathT += dt;
       this.respawnIn -= dt * 1000;
       if (this.respawnIn <= 0) this.respawn();
       return;
@@ -77,6 +94,7 @@ export class Mob {
 
     if (this.state === "engaged") {
       // hold position; facing handled by combat system
+      this.moving = false;
       this.bob += dt * 4;
       return;
     }
@@ -86,11 +104,14 @@ export class Mob {
     const dy = this.ty - this.py;
     const dist = Math.hypot(dx, dy);
     if (dist < 0.1) {
+      this.moving = false;
       this.idle -= dt;
       if (this.idle <= 0) this.pickTarget(world);
     } else {
       const step = this.speed * dt;
       this.facing = dx >= 0 ? 1 : -1;
+      this.moving = true;
+      this.updateIsoFacing(dx, dy);
       this.px += (dx / dist) * Math.min(step, dist);
       this.py += (dy / dist) * Math.min(step, dist);
       this.bob += dt * 6;

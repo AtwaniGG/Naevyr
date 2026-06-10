@@ -3,6 +3,7 @@ import { Player } from "@/game/entities/player";
 import { World } from "@/game/world/tilemap";
 import { useGame, MAX_HP } from "@/game/state/store";
 import { weaponBonus, damageReduction } from "@/game/systems/crafting";
+import { play } from "@/game/audio/sound";
 
 // Combat system: owns the Drift Beasts, runs an auto-attack exchange while the
 // player is engaged and adjacent, and handles loot, XP, death and respawns.
@@ -17,6 +18,11 @@ function cheby(a: { x: number; y: number }, b: { x: number; y: number }) {
 
 export class CombatManager {
   mobs: Mob[] = [];
+  /** set by the engine in online mode — tells the server we respawned */
+  onRespawn: (() => void) | null = null;
+  /** juice hooks (floaters, sparks, shake) wired by the engine */
+  onPlayerHit: ((mob: Mob, dmg: number) => void) | null = null;
+  onSelfHit: ((dmg: number) => void) | null = null;
   private nextId = 1;
 
   private engaged: Mob | null = null;
@@ -68,7 +74,9 @@ export class CombatManager {
     this.mobTimer = MOB_ATTACK_MS;
     player.action = "attack";
     player.facing = mob.px >= player.px ? 1 : -1;
+    player.updateIsoFacing(mob.px - player.px, mob.py - player.py);
     mob.facing = player.px >= mob.px ? 1 : -1;
+    mob.updateIsoFacing(player.px - mob.px, player.py - mob.py);
   }
 
   disengage(player?: Player) {
@@ -96,7 +104,9 @@ export class CombatManager {
     }
 
     player.facing = mob.px >= player.px ? 1 : -1;
+    player.updateIsoFacing(mob.px - player.px, mob.py - player.py);
     mob.facing = player.px >= mob.px ? 1 : -1;
+    mob.updateIsoFacing(player.px - mob.px, player.py - mob.py);
 
     // player swings
     this.playerTimer -= dt * 1000;
@@ -123,6 +133,8 @@ export class CombatManager {
     const dmg =
       3 + Math.floor(lvl / 2) + weaponBonus() + Math.floor(Math.random() * 4);
     mob.hit(dmg);
+    play("hit");
+    this.onPlayerHit?.(mob, dmg);
     store.addXp("combat", 4);
     store.pushLog(`You strike the Drift Beast for ${dmg}.`, "#e7c873");
     if (mob.state === "dead") this.onKill(mob);
@@ -131,6 +143,7 @@ export class CombatManager {
   private onKill(mob: Mob) {
     const store = useGame.getState();
     store.questEvent({ type: "kill" });
+    store.bumpKills();
     store.addItem("driftshard", 1);
     let loot = "Drift Shard";
     if (Math.random() < 0.5) {
@@ -138,6 +151,7 @@ export class CombatManager {
       loot += " + Beast Hide";
     }
     const { leveledTo } = store.addXp("combat", mob.xpReward);
+    play("kill");
     store.pushLog(`The Drift Beast dissolves. Loot: ${loot}.`, "#a855f7");
     if (leveledTo) store.pushLog(`Combat is now level ${leveledTo}!`, "#e7c873");
   }
@@ -147,12 +161,15 @@ export class CombatManager {
     const raw = mob.damage + Math.floor(Math.random() * 3);
     const dmg = Math.max(1, raw - damageReduction());
     const remaining = store.damage(dmg);
+    play("hurt");
+    this.onSelfHit?.(dmg);
     store.pushLog(`The Drift Beast hits you for ${dmg}.`, "#dc2626");
     if (remaining <= 0) this.onPlayerDeath(player);
   }
 
   private onPlayerDeath(player: Player) {
     const store = useGame.getState();
+    play("death");
     store.pushLog("The Drift takes you… you wake at the spawn.", "#dc2626");
     store.setHp(MAX_HP);
     player.px = SPAWN_CELL.x;
@@ -160,5 +177,6 @@ export class CombatManager {
     player.path = [];
     player.action = "idle";
     this.disengage(player);
+    this.onRespawn?.();
   }
 }

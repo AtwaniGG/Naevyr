@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useGame, xpForLevel, QuestState } from "@/game/state/store";
+import { useEffect, useState } from "react";
+import { useGame, xpForLevel, currentTitle, QuestState } from "@/game/state/store";
 import {
   EquipSlot,
   INVENTORY_ORDER,
@@ -14,6 +14,7 @@ import {
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
+import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import {
   ActivityLog,
   Badge,
@@ -80,6 +81,133 @@ export default function Hud() {
       <ActivityPanel />
       <HotbarDock />
       <ForgeDock />
+      <IdentityDock />
+    </div>
+  );
+}
+
+// ---- right-middle (below Forge): wanderer identity ------------------------------
+
+const DYE_SWATCH: Record<string, string> = {
+  stone: "#4a4360", ember: "#b45309", moss: "#4d7c4d", blood: "#991b1b",
+  gold: "#b8943f", bone: "#a99fb8", water: "#2c5775", void: "#211c30",
+};
+const EYE_SWATCH: Record<string, string> = {
+  drift: "#a855f7", ember: "#f59e0b", blood: "#dc2626", gold: "#e7c873", water: "#4a7fa0",
+};
+
+function IdentityDock() {
+  const [open, setOpen] = useState(false);
+  const [sound, setSound] = useState(true);
+  useEffect(() => setSound(audioEnabled()), []);
+  const cosmetics = useGame((s) => s.cosmetics);
+  const setCosmetics = useGame((s) => s.setCosmetics);
+  const skills = useGame((s) => s.skills);
+  const kills = useGame((s) => s.kills);
+  const title = currentTitle({ skills, kills });
+
+  const swatchBtn = (
+    color: string,
+    selected: boolean,
+    onClick: () => void,
+    label: string,
+  ) => (
+    <button
+      key={label}
+      onClick={onClick}
+      title={label}
+      style={{
+        width: 22,
+        height: 22,
+        background: color,
+        border: 0,
+        cursor: "pointer",
+        boxShadow: selected
+          ? "0 0 0 2px var(--drift-gold), var(--bevel-slot)"
+          : "var(--bevel-slot)",
+      }}
+    />
+  );
+
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ right: "var(--hud-edge)", top: "calc(50% + 52px)", transform: "translateY(-50%)" }}
+    >
+      <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen((o) => !o)}
+          iconLeft={<Icon name="heart" size={16} glow={open} />}
+        >
+          You
+        </Button>
+
+        {open && (
+          <Panel kicker="The Wanderer" title="Identity" style={{ width: 296 }}>
+            {/* name */}
+            <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+              Name
+            </label>
+            <input
+              value={cosmetics.name}
+              maxLength={16}
+              onChange={(e) => setCosmetics({ name: e.target.value })}
+              className="drift-well"
+              style={{
+                width: "100%", border: 0, outline: "none", padding: "7px 9px",
+                font: "600 13px/1 var(--font-ui)", color: "var(--text-primary)",
+                background: "var(--surface-well)", marginBottom: 8,
+              }}
+            />
+            {/* earned title */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
+              <span className="drift-label" style={{ fontSize: 9 }}>Title</span>
+              <span style={{ font: "600 12px/1 var(--font-ui)", color: "var(--drift-corrupt)" }}>
+                {title}
+              </span>
+              <span style={{ font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)" }}>
+                — earned through deeds
+              </span>
+            </div>
+            {/* cloak dye */}
+            <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+              Cloak dye
+            </label>
+            <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
+              {Object.entries(DYE_SWATCH).map(([k, c]) =>
+                swatchBtn(c, cosmetics.dye === k, () => setCosmetics({ dye: k as never }), k),
+              )}
+            </div>
+            {/* eye glow */}
+            <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+              Eye glow
+            </label>
+            <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
+              {Object.entries(EYE_SWATCH).map(([k, c]) =>
+                swatchBtn(c, cosmetics.eye === k, () => setCosmetics({ eye: k as never }), k),
+              )}
+            </div>
+            {/* sound */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="drift-label" style={{ fontSize: 9 }}>Sound</span>
+              <Button
+                variant={sound ? "primary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  const next = !sound;
+                  setSound(next);
+                  setAudioEnabled(next);
+                  if (next) initAudio();
+                }}
+              >
+                {sound ? "On" : "Muted"}
+              </Button>
+            </div>
+          </Panel>
+        )}
+      </div>
     </div>
   );
 }
@@ -101,8 +229,37 @@ function TopLeft() {
         DRIFTLANDS
       </div>
       <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
+      <OnlineBadge />
       <Vitals />
       <QuestBoard />
+    </div>
+  );
+}
+
+/** other wanderers sharing the world — hidden when alone/offline */
+function OnlineBadge() {
+  const n = useGame((s) => s.playersOnline);
+  if (n <= 1) return null;
+  return (
+    <div
+      className="drift-hud-text"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        color: "var(--text-secondary)",
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          background: "var(--status-success)",
+          boxShadow: "0 0 4px var(--status-success)",
+        }}
+      />
+      {n} wanderers in the Drift
     </div>
   );
 }

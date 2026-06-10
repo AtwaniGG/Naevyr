@@ -3,6 +3,25 @@ import { IsoFacing } from "@/game/render/sprites";
 
 export type PlayerAction = "idle" | "walk" | "gather" | "attack";
 
+// Map a grid movement direction (dx, dy) to the nearest DS facing. The five
+// drawn facings s/se/e/ne/n cover the right half; mirror covers the left half.
+export function isoFacingFromDelta(
+  dx: number,
+  dy: number,
+): { f: IsoFacing; m: boolean } | null {
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return null;
+  const sum  = dx + dy;  // positive = toward camera (south)
+  const diff = dx - dy;  // positive = screen-right (east)
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  if (adx < 0.1) return { f: dy > 0 ? 's' : 'n', m: false };
+  if (ady < 0.1) return { f: 'e', m: dx < 0 };
+  if (sum > 0 && diff > 0)  return { f: 'se', m: false };
+  if (sum > 0 && diff < 0)  return { f: 'se', m: true };  // sw = mirror se
+  if (sum < 0 && diff > 0)  return { f: 'ne', m: false };
+  if (sum < 0 && diff < 0)  return { f: 'ne', m: true };  // nw = mirror ne
+  return { f: sum > 0 ? 's' : 'n', m: false };
+}
+
 // The player's smooth position is a fractional grid coordinate (px,py). It
 // advances along `path` one cell at a time. Gathering is a timed action that
 // fires a callback on completion (wired by the Game).
@@ -18,6 +37,12 @@ export class Player {
   isoFacing: IsoFacing = 's';
   isoMirror  = false;
   bob = 0; // walk bob phase
+
+  // cosmetic identity (remotes carry what the server synced)
+  name = "";
+  dye = "stone";
+  eye = "drift";
+  title = "";
 
   // gather state
   gatherMs = 0;
@@ -54,29 +79,11 @@ export class Player {
     this.facing = node.gx >= this.px ? 1 : -1;
   }
 
-  // Map grid movement direction (dx, dy) to the nearest DS wanderer facing.
-  // DS facings s/se/e/ne/n cover the right half; mirror flag covers the left half.
-  private updateIsoFacing(dx: number, dy: number) {
-    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
-    const sum  = dx + dy;  // positive = toward camera (south)
-    const diff = dx - dy;  // positive = screen-right (east)
-    const adx = Math.abs(dx), ady = Math.abs(dy);
-    let f: IsoFacing = 's';
-    let m = false;
-    if (adx < 0.1) {
-      // pure north/south
-      f = dy > 0 ? 's' : 'n'; m = false;
-    } else if (ady < 0.1) {
-      // pure east/west → 'e' or mirror of 'e'
-      f = 'e'; m = dx < 0;
-    } else if (sum > 0 && diff > 0)  { f = 'se'; m = false; }
-    else if (sum > 0 && diff < 0)    { f = 'se'; m = true;  }  // sw = mirror se
-    else if (sum < 0 && diff > 0)    { f = 'ne'; m = false; }
-    else if (sum < 0 && diff < 0)    { f = 'ne'; m = true;  }  // nw = mirror ne
-    else if (sum > 0)                 { f = 's';  m = false; }
-    else                              { f = 'n';  m = false; }
-    this.isoFacing  = f;
-    this.isoMirror  = m;
+  updateIsoFacing(dx: number, dy: number) {
+    const r = isoFacingFromDelta(dx, dy);
+    if (!r) return;
+    this.isoFacing = r.f;
+    this.isoMirror = r.m;
   }
 
   cancelGather() {

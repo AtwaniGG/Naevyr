@@ -1,5 +1,6 @@
 import { ITEM_META, ItemKey, Recipe } from "@/game/types";
 import { useGame } from "@/game/state/store";
+import { play } from "@/game/audio/sound";
 
 // Crafting: spend gathered materials to forge equipment. Equipment is
 // slot-based (weapon/tool/ward); crafting auto-equips if the new piece is a
@@ -37,6 +38,7 @@ export function craft(recipe: Recipe): boolean {
     store.removeItem(item as ItemKey, qty ?? 0);
   }
   store.equip(recipe.result);
+  play("craft");
   store.pushLog(
     `Forged ${recipe.result.label} (${recipe.result.flavor}).`,
     "#e7c873",

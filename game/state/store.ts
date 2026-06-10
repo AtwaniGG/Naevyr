@@ -10,6 +10,8 @@ import {
   QUEST_POOL,
   SKILL_META,
 } from "@/game/types";
+import { DyeKey, EyeKey } from "@/game/render/sprites";
+import { play } from "@/game/audio/sound";
 
 // Zustand holds only HUD-facing state. The live world/player simulation lives
 // in the Game instance (mutable, per-frame) and pushes updates here on events.
@@ -36,6 +38,26 @@ export interface QuestState {
   claimed: boolean;
 }
 
+export interface Cosmetics {
+  name: string;
+  dye: DyeKey;
+  eye: EyeKey;
+}
+
+/** Earned title, best first. Derived — never stored. */
+export function currentTitle(s: {
+  skills: Record<SkillKey, SkillState>;
+  kills: number;
+}): string {
+  if (s.kills >= 50) return "Beastbane";
+  if (s.skills.combat.level >= 5) return "Warbrand";
+  if (s.skills.mining.level >= 5) return "Stonebreaker";
+  if (s.skills.woodcutting.level >= 5) return "Hewer";
+  if (s.skills.fishing.level >= 5) return "Tidecaller";
+  if (s.kills >= 10) return "Beast-tested";
+  return "Drifter";
+}
+
 interface GameState {
   inventory: Record<ItemKey, number>;
   skills: Record<SkillKey, SkillState>;
@@ -48,8 +70,17 @@ interface GameState {
   driftSeason: number;
   /** % of land tiles consumed by the Drift (0-100) */
   driftPct: number;
+  /** wanderers in the shared world (1 = just you / offline) */
+  playersOnline: number;
+  cosmetics: Cosmetics;
+  /** lifetime Drift Beast kills (feeds titles) */
+  kills: number;
 
   setDriftPct: (pct: number) => void;
+  setSeason: (season: number) => void;
+  setPlayersOnline: (n: number) => void;
+  setCosmetics: (c: Partial<Cosmetics>) => void;
+  bumpKills: () => void;
 
   addGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
@@ -122,8 +153,24 @@ export const useGame = create<GameState>((set, get) => ({
   log: [],
   driftSeason: 1,
   driftPct: 0,
+  playersOnline: 1,
+  cosmetics: { name: "Wanderer", dye: "stone", eye: "drift" },
+  kills: 0,
 
   setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
+  setSeason: (season) => set({ driftSeason: season }),
+  setPlayersOnline: (n) => set({ playersOnline: n }),
+  setCosmetics: (c) =>
+    set((s) => ({
+      cosmetics: {
+        ...s.cosmetics,
+        ...c,
+        ...(c.name !== undefined
+          ? { name: c.name.trim().slice(0, 16) || "Wanderer" }
+          : {}),
+      },
+    })),
+  bumpKills: () => set((s) => ({ kills: s.kills + 1 })),
 
   addGold: (amount) => set((s) => ({ gold: s.gold + amount })),
 
@@ -153,6 +200,7 @@ export const useGame = create<GameState>((set, get) => ({
         x.def.id === id ? { ...x, claimed: true } : x,
       ),
     }));
+    play("coin");
     get().addXp(q.def.xpReward.skill, q.def.xpReward.xp);
     get().pushLog(
       `Quest complete: ${q.def.label} — +${q.def.goldReward}g, +${q.def.xpReward.xp} ${SKILL_META[q.def.xpReward.skill].label} XP`,
@@ -163,6 +211,7 @@ export const useGame = create<GameState>((set, get) => ({
   sellItem: (item, qty, goldEach) => {
     if (!get().removeItem(item, qty)) return;
     const total = qty * goldEach;
+    play("coin");
     get().addGold(total);
     get().pushLog(`Sold ${qty}× for ${total}g.`, "#e7c873");
   },

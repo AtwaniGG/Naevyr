@@ -404,11 +404,19 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `character/` — `wanderer.svg` 384×200 (5 facings × idle 2 / walk 6 / gather 4, 32×40
     cells, anchor 16,39) + `wanderer.json` (frames + animations, fps 2/8/10).
   - `fx/` — `motes` `embers` `ash` `ring` (8-step gather progress).
+  - `beasts/` — **the creature set** (rect-grid SVG sheets + atlas JSON): `husk` 32×32,
+    `stalker` 36×40, `colossus` 64×64, `raider` 32×40. Each sheet is rows = 5 facings
+    (s/se/e/ne/n; engine mirrors w/sw/nw) × the anim frames; atlas gives per-frame rect +
+    bottom-center anchor + named animations w/ fps + loop. Every cell reserves its **top 4px**
+    for engine HP-bar / level-tag clearance, and each atlas carries a `hurtFlash` ramp
+    (husk→drift-hi, stalker/raider→blood-hi, colossus→bone-hi then drift-hi).
   - `brand/` — `logo-horizontal` 512×96, `logo-stacked` 256×220, `emblem-16/32/64`, each with
     a `-mono` bone variant.
-  - `world-art-preview.html` — every asset at 1× and 4× for review.
+  - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
+  - `creatures-preview.html` — every creature, facing & animation cycling live.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
-    `character.js`, `fxlogo.js`); re-run them to regenerate or vary any sprite.
+    `character.js`, `beasts.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run them to
+    regenerate or vary any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

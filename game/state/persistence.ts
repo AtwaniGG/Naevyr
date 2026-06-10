@@ -14,6 +14,8 @@ interface SaveData {
   skills: unknown;
   vitals: unknown;
   equipment: unknown;
+  cosmetics?: unknown;
+  kills?: number;
   gold: number;
   driftSeason: number;
   driftPct?: number;
@@ -44,6 +46,8 @@ export function initPersistence() {
         ...(data.skills ? { skills: data.skills as never } : {}),
         ...(data.vitals ? { vitals: data.vitals as never } : {}),
         ...(data.equipment ? { equipment: data.equipment as never } : {}),
+        ...(data.cosmetics ? { cosmetics: data.cosmetics as never } : {}),
+        kills: data.kills ?? 0,
         gold: data.gold ?? 0,
         driftSeason: data.driftSeason ?? 1,
         driftPct: data.driftPct ?? 0,
@@ -68,6 +72,8 @@ export function initPersistence() {
         skills: s.skills,
         vitals: s.vitals,
         equipment: s.equipment,
+        cosmetics: s.cosmetics,
+        kills: s.kills,
         gold: s.gold,
         driftSeason: s.driftSeason,
         driftPct: s.driftPct,

@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "server": "npm --prefix server run dev",
+    "verify:mp": "server/node_modules/.bin/tsx scripts/verify-multiplayer.ts"
   },
   "dependencies": {
+    "colyseus.js": "^0.16.22",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

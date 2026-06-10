@@ -1,13 +1,38 @@
-import { RESOURCE_META, ResourceNode, SKILL_META } from "@/game/types";
+import { RESOURCE_META, ResourceKind, ResourceNode, SKILL_META } from "@/game/types";
 import { Player } from "@/game/entities/player";
 import { World } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { useGame } from "@/game/state/store";
 import { gatherSpeedMultiplier } from "@/game/systems/crafting";
+import { play } from "@/game/audio/sound";
+
+const GATHER_SFX = { tree: "chop", rock: "mine", fish: "splash" } as const;
 
 // Gathering loop: when the player reaches a node, repeatedly perform the timed
 // action — each success yields an item + XP and consumes a charge. When the
 // node is exhausted it is handed to the Drift to relocate elsewhere.
+// Online, the server runs the timers and sends "loot" events; only
+// applyGatherLoot runs locally (inventory/XP stay client-side until Phase 4).
+
+/** Apply one successful gather swing to local state (item, XP, quest, log). */
+export function applyGatherLoot(kind: ResourceKind, depleted: boolean) {
+  const meta = RESOURCE_META[kind];
+  const store = useGame.getState();
+  play(GATHER_SFX[kind]);
+  store.addItem(meta.item, 1);
+  store.questEvent({ type: "gather", item: meta.item });
+  const { leveledTo } = store.addXp(meta.skill, meta.xp);
+  store.pushLog(`+1 ${itemName(meta.item)}`, SKILL_META[meta.skill].color);
+  if (leveledTo) {
+    store.pushLog(
+      `${SKILL_META[meta.skill].label} is now level ${leveledTo}!`,
+      "#e7c873",
+    );
+  }
+  if (depleted) {
+    store.pushLog("The node crumbles into the Drift…", "#a855f7");
+  }
+}
 
 export function startGathering(
   world: World,
@@ -23,25 +48,10 @@ export function startGathering(
       player.cancelGather();
       return;
     }
-    const store = useGame.getState();
-    store.addItem(meta.item, 1);
-    store.questEvent({ type: "gather", item: meta.item });
-    const { leveledTo } = store.addXp(meta.skill, meta.xp);
     node.amount -= 1;
-
-    store.pushLog(
-      `+1 ${itemName(meta.item)}`,
-      SKILL_META[meta.skill].color,
-    );
-    if (leveledTo) {
-      store.pushLog(
-        `${SKILL_META[meta.skill].label} is now level ${leveledTo}!`,
-        "#e7c873",
-      );
-    }
+    applyGatherLoot(node.kind, node.amount <= 0);
 
     if (node.amount <= 0) {
-      store.pushLog("The node crumbles into the Drift…", "#a855f7");
       drift.depleteNode(world, node.gx, node.gy);
       player.cancelGather();
       return;

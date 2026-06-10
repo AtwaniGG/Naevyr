@@ -1,0 +1,18 @@
+{
+  "name": "driftlands-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Driftlands authoritative game server (Colyseus)",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^3.0.0",
+    "colyseus": "^0.16.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  }
+}

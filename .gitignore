@@ -8,3 +8,6 @@
 next-env.d.ts
 .vercel
 tsconfig.tsbuildinfo
+
+# game server
+server/node_modules

@@ -2,7 +2,7 @@
 
 A dark-fantasy, browser-based isometric play-to-earn MMO — built in the spirit of Kintara but with its own world and economy. A crumbling realm is being consumed by **the Drift**, a creeping corruption that keeps the resource map alive and shifting.
 
-> Status: **Phase 2 complete + economy slice.** Multiplayer (Phase 3) is on hold until the pixel-art design package lands; token phases come after.
+> Status: **Phase 3 multiplayer is live** (shared world on a Colyseus server), on top of Phase 2 + the economy slice and the full pixel-art design package. Token phases come after persistence.
 
 ## What works now
 
@@ -22,16 +22,34 @@ A dark-fantasy, browser-based isometric play-to-earn MMO — built in the spirit
 - **Daily Quest Board** — 3 quests/day rolled deterministically from the date; progress tracks real play events (gather/kill/cook); claim for gold + bonus XP
 - **localStorage save** — inventory, skills, HP, gear, gold, season, and quest progress survive refresh; quest board re-rolls on a new calendar day
 
+### Multiplayer (Phase 3)
+- **Authoritative Colyseus server** owns the world: map, resource nodes, the Drift (relocation + corruption seasons), and player movement. Clients send intents (`move`, `gather`); the server pathfinds, walks players at 20Hz, and runs gather timers
+- Other wanderers render live in your world (full sprite animations + name tags); the HUD shows how many share the Drift
+- Nodes are **shared** — watch another player's mining tick a rock's charges down, and the Drift relocate it for everyone at once
+- **Offline fallback:** no server running → the entire game runs as a local sim, exactly as before
+- Loot/XP/inventory still apply client-side (server persistence is Phase 4); mobs/combat are per-client until the creature design package lands
+
+### Pixel-art design system
+The full Claude Design package is integrated: procedural rect-grid sprites (world tiles, tree/rock/fish nodes, the hooded wanderer with idle/walk/swing animations), ambient drift-mote/ash FX that thicken with corruption, pixel HUD components, and brand assets. Source generators live in `public/assets/design-system/`; the TS port is `game/render/sprites.ts`.
+
 ### HUD
-Dark-fantasy overlay: inventory (click food to eat), hotbar (keys `1–6`), live skill XP bars, vitality bar, quest board, Forge & Trader panels, activity log.
+Dark-fantasy overlay: inventory (click food to eat), hotbar (keys `1–6`), live skill XP bars, vitality bar, quest board, Forge & Trader panels, activity log, online presence.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev
-# open http://localhost:3000
+npm run dev        # game at http://localhost:3000 (offline solo mode)
 ```
+
+For the shared world, also run the game server in a second terminal:
+
+```bash
+cd server && npm install   # first time only
+npm run server             # from the repo root — ws://localhost:2567
+```
+
+Open two browser tabs to see two wanderers sharing the same Drift. `npm run verify:mp` runs an automated two-client sync check against a running server.
 
 Click the ground to walk. Click a tree / rock / fishing ripple to gather. Click a beast to fight. Cook fish, eat to heal, forge gear, finish dailies, sell loot.
 
@@ -39,28 +57,34 @@ Click the ground to walk. Click a tree / rock / fishing ripple to gather. Click 
 
 1. ✅ **Phase 1** — playable core loop
 2. ✅ **Phase 2** — Drift seasons, cooking, crafting, combat
-3. ⏸️ **Phase 3** — multiplayer (Colyseus authoritative server) — *on hold for the design package*
-4. 🔜 **Phase 4** — persistence (Neon Postgres), land claims, marketplace, Caravans — *gold + dailies + local saves shipped early*
+3. ✅ **Phase 3** — multiplayer (Colyseus authoritative server, shared world, intent-based movement/gathering)
+4. 🔜 **Phase 4** — persistence (Neon Postgres), server-side inventory/XP, land claims, marketplace, Caravans — *gold + dailies + local saves shipped early*
 5. Phase 5 — wallet + token gating + burns on **Solana devnet**
 6. Phase 6 — hardening + **pump.fun** mainnet launch
 
-Art note: current visuals are placeholder programmer art. A full **pixel-art** design package (logo, UI design system, tiles, sprites, character animations) is being generated externally; the renderer (64×32 iso diamonds, bottom-center anchors, `image-rendering: pixelated`) is built to take it as a drop-in swap.
+Art note: world art + HUD use the integrated pixel design system. Remaining placeholders: Drift Beast mobs (creature design package pending) and the CSS wordmark (pixel logo available, intentionally unused for now).
 
 ## Tech
 
-Next.js (App Router) · HTML5 Canvas (world) · React DOM (HUD) · Zustand · Tailwind · TypeScript.
+Next.js (App Router) · HTML5 Canvas (world) · React DOM (HUD) · Zustand · **Colyseus** (multiplayer) · Tailwind · TypeScript.
 
 ```
 app/                  Next.js routes; mounts <GameCanvas/> + <Hud/>
 components/           GameCanvas + HUD (inventory, hotbar, quests, Forge, Trader)
 game/
-  engine/             fixed-timestep loop + render orchestration
-  render/             iso transforms, camera/zoom
+  engine/             fixed-timestep loop + render orchestration + online mode
+  net/                Colyseus client wrapper (intents out, state polled in)
+  render/             iso transforms, camera/zoom, procedural pixel sprites
   world/              tilemap, A* pathfinding, the Drift (node relocation + corruption)
   entities/           player, mobs
   systems/            gathering, combat, cooking, crafting
   state/              zustand store + localStorage persistence
+server/               authoritative Colyseus game server (reuses game/world logic)
+scripts/              verify-multiplayer.ts — automated two-client sync check
+public/assets/        pixel design system package (generators, brand, tokens)
 ```
+
+The server imports the same `game/world` code the client uses (one source of truth for map gen, walkability, A*, and the Drift). `NEXT_PUBLIC_GAME_SERVER` overrides the default `ws://localhost:2567` for deployed environments.
 
 ### The token (later phases)
 

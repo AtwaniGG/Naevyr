@@ -8,6 +8,7 @@ export class World {
   tiles: TileType[]; // length w*h
   nodes: ResourceNode[] = [];
   private nodeAt: Map<number, ResourceNode> = new Map();
+  private nodeById: Map<number, ResourceNode> = new Map();
   private nextNodeId = 1;
 
   constructor(w: number, h: number) {
@@ -73,6 +74,58 @@ export class World {
     };
     this.nodes.push(node);
     this.nodeAt.set(this.idx(gx, gy), node);
+    this.nodeById.set(node.id, node);
+  }
+
+  /**
+   * Mirror a server-owned node into this world (online mode). Creates the node
+   * on first sight; afterwards tracks position, charges and life state so
+   * walkability and rendering stay consistent with the authoritative state.
+   */
+  syncNetNode(n: {
+    id: number;
+    kind: ResourceKind;
+    gx: number;
+    gy: number;
+    amount: number;
+    alive: boolean;
+  }) {
+    let node = this.nodeById.get(n.id);
+    if (!node) {
+      node = {
+        id: n.id,
+        kind: n.kind,
+        gx: n.gx,
+        gy: n.gy,
+        amount: n.amount,
+        maxAmount: Math.max(1, n.amount),
+        regrowIn: n.alive ? 0 : 1,
+        phase: Math.random() * Math.PI * 2,
+      };
+      this.nodes.push(node);
+      this.nodeById.set(n.id, node);
+      this.nodeAt.set(this.idx(n.gx, n.gy), node);
+      return;
+    }
+    if (node.gx !== n.gx || node.gy !== n.gy) {
+      if (this.nodeAt.get(this.idx(node.gx, node.gy)) === node) {
+        this.nodeAt.delete(this.idx(node.gx, node.gy));
+      }
+      node.gx = n.gx;
+      node.gy = n.gy;
+      node.phase = Math.random() * Math.PI * 2;
+      this.nodeAt.set(this.idx(n.gx, n.gy), node);
+    }
+    node.amount = n.amount;
+    node.maxAmount = Math.max(node.maxAmount, n.amount);
+    node.regrowIn = n.alive ? 0 : 1; // >0 = hidden + walkable, exact ms is server business
+  }
+
+  /** Drop all locally generated nodes (before mirroring the server's). */
+  clearNodes() {
+    this.nodes = [];
+    this.nodeAt.clear();
+    this.nodeById.clear();
   }
 
   /** Move a depleted node to a fresh empty cell and refill it (the Drift). */
