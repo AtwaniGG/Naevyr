@@ -6,7 +6,8 @@ export type SfxName =
   | "chop" | "mine" | "splash"        // gathering
   | "hit" | "hurt" | "kill" | "death" // combat
   | "levelup" | "coin" | "craft" | "eat" | "ui"
-  | "boss" | "driftfall" | "chat";    // world events
+  | "boss" | "driftfall" | "chat"     // world events
+  | "crit" | "rich" | "reclaim";      // crits + tombstone
 
 const PREF_KEY = "driftlands-sound";
 
@@ -159,6 +160,23 @@ export function play(name: SfxName) {
       break;
     case "chat":
       tone("triangle", 520, 520, 0.04, 0.08);
+      break;
+    case "crit":
+      // sharper, brighter strike
+      tone("square", 440, 180, 0.09, 0.22);
+      tone("square", 1760, 880, 0.08, 0.1, 0.01);
+      noiseBurst(0.05, 3500, 0.12);
+      break;
+    case "rich":
+      // gathering jackpot shimmer
+      tone("triangle", 660, 660, 0.07, 0.12);
+      tone("triangle", 990, 990, 0.1, 0.1, 0.07);
+      break;
+    case "reclaim":
+      // gold returns from the grave
+      tone("sine", 392, 392, 0.1, 0.12);
+      tone("sine", 523, 523, 0.1, 0.12, 0.09);
+      tone("sine", 784, 784, 0.16, 0.12, 0.18);
       break;
   }
 }

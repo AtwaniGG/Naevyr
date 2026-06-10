@@ -52,18 +52,41 @@ export interface MinimapSnap {
   nodes: { x: number; y: number }[];
   players: { x: number; y: number; self: boolean }[];
   mobs: { x: number; y: number; boss: boolean }[];
+  /** your unclaimed grave, if any */
+  tomb: { x: number; y: number } | null;
+}
+
+/** lifetime tallies (persisted) — feeds the stats panel + future titles */
+export interface LifetimeStats {
+  deaths: number;
+  gathered: number;
+  crits: number;
+  goldEarned: number;
+  driftfalls: number;
+}
+
+/** who else shares the Drift right now (display only) */
+export interface RosterEntry {
+  name: string;
+  title: string;
+  self: boolean;
 }
 
 /** Earned title, best first. Derived — never stored. */
 export function currentTitle(s: {
   skills: Record<SkillKey, SkillState>;
   kills: number;
+  stats?: LifetimeStats;
 }): string {
   if (s.kills >= 50) return "Beastbane";
+  if (s.stats && s.stats.goldEarned >= 1000) return "Gilded";
+  if (s.stats && s.stats.crits >= 50) return "Deathblow";
   if (s.skills.combat.level >= 5) return "Warbrand";
+  if (s.stats && s.stats.gathered >= 500) return "Provider";
   if (s.skills.mining.level >= 5) return "Stonebreaker";
   if (s.skills.woodcutting.level >= 5) return "Hewer";
   if (s.skills.fishing.level >= 5) return "Tidecaller";
+  if (s.stats && s.stats.deaths >= 5) return "Thrice-fallen";
   if (s.kills >= 10) return "Beast-tested";
   return "Drifter";
 }
@@ -85,14 +108,18 @@ interface GameState {
   cosmetics: Cosmetics;
   /** lifetime Drift Beast kills (feeds titles) */
   kills: number;
+  stats: LifetimeStats;
   minimap: MinimapSnap | null;
+  roster: RosterEntry[];
 
   setDriftPct: (pct: number) => void;
   setSeason: (season: number) => void;
   setPlayersOnline: (n: number) => void;
   setCosmetics: (c: Partial<Cosmetics>) => void;
   bumpKills: () => void;
+  bumpStat: (key: keyof LifetimeStats, n?: number) => void;
   setMinimap: (m: MinimapSnap) => void;
+  setRoster: (r: RosterEntry[]) => void;
 
   addGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
@@ -168,7 +195,9 @@ export const useGame = create<GameState>((set, get) => ({
   playersOnline: 1,
   cosmetics: { name: "Wanderer", dye: "stone", eye: "drift" },
   kills: 0,
+  stats: { deaths: 0, gathered: 0, crits: 0, goldEarned: 0, driftfalls: 0 },
   minimap: null,
+  roster: [],
 
   setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
   setSeason: (season) => set({ driftSeason: season }),
@@ -184,9 +213,19 @@ export const useGame = create<GameState>((set, get) => ({
       },
     })),
   bumpKills: () => set((s) => ({ kills: s.kills + 1 })),
+  bumpStat: (key, n = 1) =>
+    set((s) => ({ stats: { ...s.stats, [key]: s.stats[key] + n } })),
   setMinimap: (m) => set({ minimap: m }),
+  setRoster: (r) => set({ roster: r }),
 
-  addGold: (amount) => set((s) => ({ gold: s.gold + amount })),
+  addGold: (amount) =>
+    set((s) => ({
+      gold: s.gold + amount,
+      stats:
+        amount > 0
+          ? { ...s.stats, goldEarned: s.stats.goldEarned + amount }
+          : s.stats,
+    })),
 
   spendGold: (amount) => {
     if (get().gold < amount) return false;

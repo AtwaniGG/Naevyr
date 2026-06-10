@@ -21,8 +21,10 @@ export class CombatManager {
   /** set by the engine in online mode — tells the server we respawned */
   onRespawn: (() => void) | null = null;
   /** juice hooks (floaters, sparks, shake) wired by the engine */
-  onPlayerHit: ((mob: Mob, dmg: number) => void) | null = null;
+  onPlayerHit: ((mob: Mob, dmg: number, crit: boolean) => void) | null = null;
   onSelfHit: ((dmg: number) => void) | null = null;
+  /** fires with the death position BEFORE the respawn teleport (tombstones) */
+  onDeath: ((x: number, y: number) => void) | null = null;
   private nextId = 1;
 
   private engaged: Mob | null = null;
@@ -157,13 +159,21 @@ export class CombatManager {
   private playerAttack(mob: Mob) {
     const store = useGame.getState();
     const lvl = store.skills.combat.level;
-    const dmg =
+    const base =
       3 + Math.floor(lvl / 2) + weaponBonus() + Math.floor(Math.random() * 4);
+    const crit = Math.random() < 0.12;
+    const dmg = crit ? base * 2 : base;
     mob.hit(dmg);
-    play("hit");
-    this.onPlayerHit?.(mob, dmg);
-    store.addXp("combat", 4);
-    store.pushLog(`You strike the Drift Beast for ${dmg}.`, "#e7c873");
+    play(crit ? "crit" : "hit");
+    this.onPlayerHit?.(mob, dmg, crit);
+    if (crit) store.bumpStat("crits");
+    store.addXp("combat", crit ? 6 : 4);
+    store.pushLog(
+      crit
+        ? `CRITICAL — you strike the Drift Beast for ${dmg}!`
+        : `You strike the Drift Beast for ${dmg}.`,
+      crit ? "#fcd34d" : "#e7c873",
+    );
     if (mob.state === "dead") this.onKill(mob);
   }
 
@@ -211,6 +221,8 @@ export class CombatManager {
   private onPlayerDeath(player: Player) {
     const store = useGame.getState();
     play("death");
+    store.bumpStat("deaths");
+    this.onDeath?.(player.px, player.py);
     store.pushLog("The Drift takes you… you wake at the spawn.", "#dc2626");
     store.setHp(MAX_HP);
     player.px = SPAWN_CELL.x;
@@ -219,5 +231,10 @@ export class CombatManager {
     player.action = "idle";
     this.disengage(player);
     this.onRespawn?.();
+  }
+
+  /** death from non-combat causes (corruption) — same flow, public entry */
+  killPlayer(player: Player) {
+    this.onPlayerDeath(player);
   }
 }

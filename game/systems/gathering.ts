@@ -18,11 +18,18 @@ const GATHER_SFX = { tree: "chop", rock: "mine", fish: "splash" } as const;
 export function applyGatherLoot(kind: ResourceKind, depleted: boolean) {
   const meta = RESOURCE_META[kind];
   const store = useGame.getState();
-  play(GATHER_SFX[kind]);
-  store.addItem(meta.item, 1);
+  // rich strike: 10% chance the swing yields double
+  const rich = Math.random() < 0.1;
+  const qty = rich ? 2 : 1;
+  play(rich ? "rich" : GATHER_SFX[kind]);
+  store.addItem(meta.item, qty);
+  store.bumpStat("gathered", qty);
   store.questEvent({ type: "gather", item: meta.item });
-  const { leveledTo } = store.addXp(meta.skill, meta.xp);
-  store.pushLog(`+1 ${itemName(meta.item)}`, SKILL_META[meta.skill].color);
+  const { leveledTo } = store.addXp(meta.skill, rich ? meta.xp * 2 : meta.xp);
+  store.pushLog(
+    rich ? `RICH STRIKE — +${qty} ${itemName(meta.item)}!` : `+1 ${itemName(meta.item)}`,
+    rich ? "#fcd34d" : SKILL_META[meta.skill].color,
+  );
   if (leveledTo) {
     store.pushLog(
       `${SKILL_META[meta.skill].label} is now level ${leveledTo}!`,

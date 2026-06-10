@@ -16,6 +16,7 @@ interface SaveData {
   equipment: unknown;
   cosmetics?: unknown;
   kills?: number;
+  stats?: unknown;
   gold: number;
   driftSeason: number;
   driftPct?: number;
@@ -47,6 +48,7 @@ export function initPersistence() {
         ...(data.vitals ? { vitals: data.vitals as never } : {}),
         ...(data.equipment ? { equipment: data.equipment as never } : {}),
         ...(data.cosmetics ? { cosmetics: data.cosmetics as never } : {}),
+        ...(data.stats ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never } : {}),
         kills: data.kills ?? 0,
         gold: data.gold ?? 0,
         driftSeason: data.driftSeason ?? 1,
@@ -74,6 +76,7 @@ export function initPersistence() {
         equipment: s.equipment,
         cosmetics: s.cosmetics,
         kills: s.kills,
+        stats: s.stats,
         gold: s.gold,
         driftSeason: s.driftSeason,
         driftPct: s.driftPct,

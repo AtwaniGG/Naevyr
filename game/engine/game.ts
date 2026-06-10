@@ -5,7 +5,7 @@ import { Player } from "@/game/entities/player";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import { startGathering, applyGatherLoot } from "@/game/systems/gathering";
-import { gatherSpeedMultiplier } from "@/game/systems/crafting";
+import { gatherSpeedMultiplier, damageReduction } from "@/game/systems/crafting";
 import { Cell, ResourceKind, ResourceNode, codeToTile } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -64,6 +64,19 @@ export class Game {
   private bossThresholds = [10, 25, 40, 60, 80];
   private driftfallFx: { gx: number; gy: number; t0: number } | null = null;
   private minimapTimer = 0;
+
+  // ---- danger & depth ----
+  /** your unclaimed grave: half your gold waits here for 5 minutes */
+  private tomb: { x: number; y: number; gold: number; t0: number } | null = null;
+  private corruptTickT = 0;
+  private corruptWarned = false;
+  /** drives the red hurt vignette */
+  private lastHurtT0 = 0;
+  private region = "";
+  private banner: { name: string; t0: number } | null = null;
+  private storm: { until: number } | null = null;
+  private nextStormAt = performance.now() + 180_000 + Math.random() * 180_000;
+  private stepAcc = 0;
 
   private cleanupFns: Array<() => void> = [];
 
@@ -276,10 +289,11 @@ export class Game {
 
   private announceDriftfall(gx: number, gy: number) {
     this.driftfallFx = { gx, gy, t0: performance.now() };
+    this.banner = { name: "Driftfall", t0: performance.now() };
     play("driftfall");
-    useGame
-      .getState()
-      .pushLog("DRIFTFALL — a shard crashes down. Rich nodes, briefly.", "#d8b4fe");
+    const store = useGame.getState();
+    store.bumpStat("driftfalls");
+    store.pushLog("DRIFTFALL — a shard crashes down. Rich nodes, briefly.", "#d8b4fe");
   }
 
   /** corruption thresholds wake the Colossus at the corruption front */
@@ -310,15 +324,36 @@ export class Game {
 
   /** juice + respawn hooks (re-run whenever a fresh CombatManager is created) */
   private wireCombat() {
-    this.combat.onPlayerHit = (mob, dmg) => {
-      this.spawnFloater(mob.px, mob.py, `${dmg}`, "#e7c873");
-      this.spawnSparks(mob.px, mob.py, "#d8b4fe", 7);
+    this.combat.onPlayerHit = (mob, dmg, crit) => {
+      this.spawnFloater(
+        mob.px, mob.py,
+        crit ? `CRIT ${dmg}` : `${dmg}`,
+        crit ? "#fcd34d" : "#e7c873",
+      );
+      this.spawnSparks(mob.px, mob.py, crit ? "#fcd34d" : "#d8b4fe", crit ? 12 : 7);
+      if (crit) {
+        this.shakeUntil = performance.now() + 120;
+        this.shakeMag = 3;
+      }
     };
     this.combat.onSelfHit = (dmg) => {
+      this.lastHurtT0 = performance.now();
       this.spawnFloater(this.player.px, this.player.py, `-${dmg}`, "#ef4444");
       this.spawnSparks(this.player.px, this.player.py, "#dc2626", 5);
       this.shakeUntil = performance.now() + 200;
       this.shakeMag = Math.min(7, 2 + dmg * 0.5);
+    };
+    // drop half your gold where you fell — reclaim it within 5 minutes
+    this.combat.onDeath = (x, y) => {
+      const store = useGame.getState();
+      const drop = Math.floor(store.gold / 2);
+      if (drop <= 0) return;
+      store.spendGold(drop);
+      this.tomb = { x: Math.round(x), y: Math.round(y), gold: drop, t0: performance.now() };
+      store.pushLog(
+        `Your tombstone holds ${drop}g — reclaim it before it dissolves (5 min).`,
+        "#a99fb8",
+      );
     };
     this.combat.onRespawn = () => {
       this.shakeUntil = performance.now() + 380;
@@ -591,6 +626,7 @@ export class Game {
 
     this.watchLevelUps();
     this.watchBoss();
+    this.updateWorldFeel(dt);
 
     // minimap snapshot ~2×/sec
     this.minimapTimer += dt;
@@ -604,12 +640,105 @@ export class Game {
     this.camera.update(dt);
   }
 
+  /** corruption hazard, tombstone reclaim, region banners, weather, footsteps */
+  private updateWorldFeel(dt: number) {
+    const now = performance.now();
+    const store = useGame.getState();
+    const cell = this.player.cell;
+
+    // --- corrupted ground burns (wards resist it) ---
+    this.corruptTickT += dt;
+    if (this.corruptTickT >= 1.5) {
+      this.corruptTickT = 0;
+      if (
+        this.world.inBounds(cell.x, cell.y) &&
+        this.world.tile(cell.x, cell.y) === "corrupt"
+      ) {
+        const dmg = Math.max(1, 3 - damageReduction());
+        const remaining = store.damage(dmg);
+        this.lastHurtT0 = now;
+        this.spawnFloater(this.player.px, this.player.py, `-${dmg}`, "#a855f7");
+        play("hurt");
+        if (!this.corruptWarned) {
+          this.corruptWarned = true;
+          store.pushLog("The Drift gnaws at your flesh — corrupted ground is death. Move!", "#a855f7");
+        }
+        if (remaining <= 0) this.combat.killPlayer(this.player);
+      }
+    }
+
+    // --- tombstone: expiry + reclaim ---
+    if (this.tomb) {
+      if (now - this.tomb.t0 > 300_000) {
+        store.pushLog("Your lost gold dissolves into the Drift…", "#6f6781");
+        this.tomb = null;
+      } else if (chebyshev(cell, this.tomb) <= 1) {
+        store.addGold(this.tomb.gold);
+        play("reclaim");
+        this.spawnFloater(this.player.px, this.player.py, `+${this.tomb.gold}g`, "#e7c873");
+        store.pushLog(`You reclaim ${this.tomb.gold}g from your grave.`, "#e7c873");
+        this.tomb = null;
+      }
+    }
+
+    // --- named regions ---
+    if (this.world.inBounds(cell.x, cell.y)) {
+      const r = this.regionAt(cell.x, cell.y);
+      if (r !== this.region) {
+        this.region = r;
+        this.banner = { name: r, t0: now };
+        store.pushLog(`You enter ${r}.`, "#a99fb8");
+      }
+    }
+
+    // --- ash-storms ---
+    if (!this.storm && now >= this.nextStormAt) {
+      this.storm = { until: now + 45_000 };
+      this.nextStormAt = now + 300_000 + Math.random() * 240_000;
+      this.banner = { name: "ASH-STORM", t0: now };
+      store.pushLog("An ash-storm rolls in from the wastes.", "#a99fb8");
+    } else if (this.storm && now > this.storm.until) {
+      this.storm = null;
+      store.pushLog("The ash thins. The storm passes.", "#6f6781");
+    }
+
+    // --- footstep dust ---
+    if (this.player.action === "walk") {
+      this.stepAcc += dt;
+      if (this.stepAcc >= 0.3) {
+        this.stepAcc = 0;
+        for (let i = 0; i < 2; i++) {
+          this.sparkParts.push({
+            gx: this.player.px + (Math.random() - 0.5) * 0.2,
+            gy: this.player.py + 0.6 + (Math.random() - 0.5) * 0.2, // at the feet
+
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: -0.3 - Math.random() * 0.3,
+            t0: now,
+            color: "rgba(122,96,72,0.7)",
+          });
+        }
+      }
+    }
+  }
+
+  private regionAt(x: number, y: number): string {
+    const cx = this.world.w / 2;
+    const cy = this.world.h / 2;
+    if (Math.hypot(x - cx, y - cy) < 6) return "Wanderer's Rest";
+    if (x >= cx && y < cy) return "Palewater";
+    if (x < cx && y < cy) return "The Ashen Flats";
+    if (x < cx && y >= cy) return "Hollowmere Reach";
+    return "The Bonefields";
+  }
+
   private pushMinimap() {
+    const store = useGame.getState();
     const players: { x: number; y: number; self: boolean }[] = [
       { x: this.player.px, y: this.player.py, self: true },
     ];
     for (const r of this.remotes.values()) players.push({ x: r.px, y: r.py, self: false });
-    useGame.getState().setMinimap({
+    store.setMinimap({
       w: this.world.w,
       h: this.world.h,
       tiles: this.world.tiles.map(tileToCode),
@@ -620,7 +749,19 @@ export class Game {
       mobs: this.combat.mobs
         .filter((m) => m.state !== "dead")
         .map((m) => ({ x: m.px, y: m.py, boss: m.kind === "colossus" })),
+      tomb: this.tomb ? { x: this.tomb.x, y: this.tomb.y } : null,
     });
+
+    // who's here (for the roster panel)
+    const roster = [
+      { name: store.cosmetics.name, title: currentTitle(store), self: true },
+      ...[...this.remotes.values()].map((r) => ({
+        name: r.name || "Wanderer",
+        title: r.title,
+        self: false,
+      })),
+    ];
+    store.setRoster(roster);
   }
 
   /** Online: mirror server state into local entities (smoothed). */
@@ -875,6 +1016,45 @@ export class Game {
     ctx.fillStyle = `rgba(10, 12, 34, ${0.16 * night})`;
     ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
 
+    // red pulse at the screen edges when recently hurt
+    if (now - this.lastHurtT0 < 600) {
+      const t = (now - this.lastHurtT0) / 600;
+      const cw2 = this.camera.viewW, ch2 = this.camera.viewH;
+      const hg = ctx.createRadialGradient(
+        cw2 / 2, ch2 / 2, Math.min(cw2, ch2) * 0.35,
+        cw2 / 2, ch2 / 2, Math.max(cw2, ch2) * 0.7,
+      );
+      hg.addColorStop(0, "rgba(220,38,38,0)");
+      hg.addColorStop(1, `rgba(220,38,38,${0.35 * (1 - t)})`);
+      ctx.fillStyle = hg;
+      ctx.fillRect(0, 0, cw2, ch2);
+    }
+
+    // ash-storm: gray veil over everything
+    if (this.storm) {
+      ctx.fillStyle = "rgba(23,19,32,0.16)";
+      ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
+    }
+
+    // region / event banner — fades in, holds, fades out (~3s)
+    if (this.banner && now - this.banner.t0 < 3000) {
+      const t = (now - this.banner.t0) / 3000;
+      const a = t < 0.15 ? t / 0.15 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.textAlign = "center";
+      ctx.font = `700 22px ui-sans-serif`;
+      const bx = this.camera.viewW / 2;
+      ctx.fillStyle = "rgba(10,8,16,0.85)";
+      ctx.fillText(this.banner.name.toUpperCase(), bx + 2, 92);
+      ctx.fillStyle = this.banner.name === "ASH-STORM" ? "#a99fb8" : "#e7c873";
+      ctx.fillText(this.banner.name.toUpperCase(), bx, 90);
+      ctx.restore();
+      ctx.textAlign = "left";
+    } else if (this.banner) {
+      this.banner = null;
+    }
+
     // moonlight: the world dims away from the wanderer
     const p = this.tileScreen(this.player.px, this.player.py);
     const r0 = 170 * z;
@@ -906,12 +1086,14 @@ export class Game {
     const H = this.camera.viewH;
     const t = performance.now() / 1000;
     const drift = useGame.getState().driftPct;
-    const count = 22 + Math.round((drift / 100) * 22); // 22 → 44 with corruption
+    // 22 → 44 with corruption; an ash-storm triples the density
+    let count = 22 + Math.round((drift / 100) * 22);
+    if (this.storm) count *= 3;
 
     ctx.save();
     for (let i = 0; i < count; i++) {
       const isMote = i % 4 === 0;
-      const speed = 0.3 + (i % 3) * 0.2;
+      const speed = (0.3 + (i % 3) * 0.2) * (this.storm ? 2.5 : 1);
       const mx = (i * 97 + t * speed * 18) % W;
       const my = (i * 53 + Math.sin(t * 0.6 + i) * 18 + t * 9) % H;
       const x = W - mx;
@@ -1068,6 +1250,16 @@ export class Game {
         fn: () => this.drawWandererEntity(ctx, r, false),
       });
     }
+    if (this.tomb) {
+      const t = this.tomb;
+      draws.push({
+        depth: t.x + t.y,
+        fn: () => {
+          const s = this.tileScreen(t.x, t.y);
+          spriteCache.drawTombstone(ctx, s.x, s.y, this.camera.zoom);
+        },
+      });
+    }
     const pd = this.player.px + this.player.py;
     draws.push({
       depth: pd + 0.01,
@@ -1085,6 +1277,23 @@ export class Game {
     const fishF    = Math.floor(performance.now() / 300) % 4;
 
     spriteCache.drawNode(ctx, node.kind as 'tree' | 'rock' | 'fish', depleted, s.x, s.y, z, fishF);
+
+    // hover: charge pips so you can size up a node before committing
+    if (
+      !depleted &&
+      this.hover &&
+      this.hover.x === node.gx &&
+      this.hover.y === node.gy
+    ) {
+      const top = node.kind === "tree" ? 58 : node.kind === "rock" ? 33 : 16;
+      const pw = 5 * z;
+      const total = node.maxAmount;
+      const x0 = s.x - (total * pw) / 2;
+      for (let i = 0; i < total; i++) {
+        ctx.fillStyle = i < node.amount ? "#e7c873" : "rgba(216,207,224,0.18)";
+        ctx.fillRect(x0 + i * pw, s.y - top * z, pw - 1.5, 3 * z);
+      }
+    }
 
     // gather progress arc (offline: local timer; online: server-run timer)
     const gatheringThis =

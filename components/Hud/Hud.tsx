@@ -106,7 +106,8 @@ function IdentityDock() {
   const setCosmetics = useGame((s) => s.setCosmetics);
   const skills = useGame((s) => s.skills);
   const kills = useGame((s) => s.kills);
-  const title = currentTitle({ skills, kills });
+  const stats = useGame((s) => s.stats);
+  const title = currentTitle({ skills, kills, stats });
 
   const swatchBtn = (
     color: string,
@@ -191,6 +192,24 @@ function IdentityDock() {
                 swatchBtn(c, cosmetics.eye === k, () => setCosmetics({ eye: k as never }), k),
               )}
             </div>
+            {/* lifetime deeds */}
+            <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+              Deeds
+            </label>
+            <div
+              style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px",
+                font: "400 10px/1.4 var(--font-ui)", color: "var(--text-secondary)",
+                marginBottom: 10,
+              }}
+            >
+              <span>Beasts slain <b style={{ color: "var(--text-value)" }}>{kills}</b></span>
+              <span>Deaths <b style={{ color: "var(--text-value)" }}>{stats.deaths}</b></span>
+              <span>Gathered <b style={{ color: "var(--text-value)" }}>{stats.gathered}</b></span>
+              <span>Crits <b style={{ color: "var(--text-value)" }}>{stats.crits}</b></span>
+              <span>Gold earned <b style={{ color: "var(--text-value)" }}>{stats.goldEarned}</b></span>
+              <span>Driftfalls <b style={{ color: "var(--text-value)" }}>{stats.driftfalls}</b></span>
+            </div>
             {/* sound */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span className="drift-label" style={{ fontSize: 9 }}>Sound</span>
@@ -241,27 +260,43 @@ function TopLeft() {
 /** other wanderers sharing the world — hidden when alone/offline */
 function OnlineBadge() {
   const n = useGame((s) => s.playersOnline);
+  const roster = useGame((s) => s.roster);
   if (n <= 1) return null;
   return (
-    <div
-      className="drift-hud-text"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 11,
-        color: "var(--text-secondary)",
-      }}
-    >
-      <span
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <div
+        className="drift-hud-text"
         style={{
-          width: 6,
-          height: 6,
-          background: "var(--status-success)",
-          boxShadow: "0 0 4px var(--status-success)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 11,
+          color: "var(--text-secondary)",
         }}
-      />
-      {n} wanderers in the Drift
+      >
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            background: "var(--status-success)",
+            boxShadow: "0 0 4px var(--status-success)",
+          }}
+        />
+        {n} wanderers in the Drift
+      </div>
+      {roster.slice(0, 8).map((r, i) => (
+        <div
+          key={i}
+          className="drift-hud-text"
+          style={{ fontSize: 10, paddingLeft: 12, color: r.self ? "var(--text-muted)" : "var(--text-secondary)" }}
+        >
+          {r.name}
+          {r.self ? " (you)" : ""}
+          {r.title && (
+            <span style={{ color: "var(--drift-corrupt)", marginLeft: 5 }}>{r.title}</span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -607,6 +642,11 @@ function MinimapPanel() {
       ctx.fillStyle = m.boss ? "#f59e0b" : "#dc2626";
       const r = m.boss ? 2.5 : 1.5;
       ctx.fillRect(m.x * px - r, m.y * px - r, r * 2, r * 2);
+    }
+    if (snap.tomb) {
+      ctx.fillStyle = "#efe9f4";
+      ctx.fillRect(snap.tomb.x * px - 1, snap.tomb.y * px - 2.5, 2, 5);
+      ctx.fillRect(snap.tomb.x * px - 2.5, snap.tomb.y * px - 1, 5, 2);
     }
     for (const p of snap.players) {
       ctx.fillStyle = p.self ? "#efe9f4" : "#a855f7";

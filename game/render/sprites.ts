@@ -1006,6 +1006,32 @@ function drawRaider(facing: IsoFacing, anim: string, f: number): Grid {
   return g;
 }
 
+// ─── tombstone: dropped-gold grave marker ─────────────────────────────────────
+
+function makeTombstone(): Grid {
+  const g = makeGrid(16, 18);
+  const st = RAMP.stone, bn = RAMP.bone, gd = RAMP.gold;
+  // weathered slab with a rounded top
+  for (let y = 4; y <= 15; y++) {
+    const w = y < 7 ? 3 + (y - 4) : 5;
+    for (let x = 8 - w; x <= 8 + w - 1; x++) {
+      let c = bn[2];
+      if (x < 8 - w + 2) c = bn[1];
+      if (x > 8 + w - 3) c = st[1];
+      if (hash2(x, y, 71) < 0.1) c = st[2]; // weathering
+      P(g, x, y, c);
+    }
+  }
+  // carved mark
+  P(g, 7, 7, st[3]); P(g, 9, 7, st[3]);
+  P(g, 8, 8, st[3]); P(g, 8, 9, st[3]); P(g, 8, 10, st[3]);
+  // base rubble + spilled gold glint
+  for (let x = 3; x <= 12; x++) if (hash2(x, 0, 73) < 0.6) P(g, x, 16, st[2]);
+  P(g, 4, 15, gd[1]); P(g, 5, 16, gd[0]); P(g, 11, 16, gd[1]); P(g, 12, 15, gd[2]);
+  outline(g);
+  return g;
+}
+
 // kind → cell dims, anim table (generic name → [sheet anim, frames]) and
 // hurt-flash tint, all per the design package's beasts metadata.
 // (exported for the headless smoke test — engine code goes through SpriteCache)
@@ -1085,6 +1111,7 @@ export class SpriteCache {
   private corruptOv: OffscreenCanvas[]  = [];
   private doodads  = new Map<string, OffscreenCanvas>();
   private glow!: OffscreenCanvas;
+  private tombstone!: OffscreenCanvas;
   private treeNorm!: OffscreenCanvas;
   private treeDep!:  OffscreenCanvas;
   private rockNorm!: OffscreenCanvas;
@@ -1124,6 +1151,7 @@ export class SpriteCache {
     }
     // soft corruption glow (screen-space atmosphere, drawn additively)
     this.glow = makeGlowCanvas();
+    this.tombstone = gridToCanvas(makeTombstone());
     // nodes
     this.treeNorm = gridToCanvas(makeTree(false));
     this.treeDep  = gridToCanvas(makeTree(true));
@@ -1207,6 +1235,13 @@ export class SpriteCache {
     ctx.imageSmoothingEnabled = false;
     const cv = this.doodads.get(`${kind}-${variant % 2}`);
     if (cv) ctx.drawImage(cv, sx - 8 * z, sy - 11 * z, 16 * z, 12 * z);
+  }
+
+  /** grave marker for dropped gold, bottom-center anchored */
+  drawTombstone(ctx: CanvasRenderingContext2D, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.tombstone, sx - 8 * z, sy - 17 * z, 16 * z, 18 * z);
   }
 
   /** additive purple glow centered on a corrupt tile */

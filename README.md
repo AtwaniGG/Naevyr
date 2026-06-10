@@ -29,6 +29,29 @@ A dark-fantasy, browser-based isometric play-to-earn MMO — built in the spirit
 - **Offline fallback:** no server running → the entire game runs as a local sim, exactly as before
 - Loot/XP/inventory still apply client-side (server persistence is Phase 4); mobs/combat are per-client until the creature design package lands
 
+### Identity & social
+- **Name, cloak dyes (8), eye glow (5), earned titles** — all in the "You" panel, all synced so other players see your look. Titles come from deeds: *Stonebreaker*, *Beastbane*, *Gilded*, *Thrice-fallen*…
+- **Chat & emotes** — press Enter, type, see pixel speech bubbles over heads; `/wave /sit /point /dance`. Server relays with your name; works offline too
+- **Online roster** — who shares the Drift, with their titles
+- **Lifetime stats** — deaths, gathered, crits, gold earned, driftfalls witnessed (persisted)
+
+### Danger & depth
+- **Corrupted ground burns** — stand on the purple and the Drift eats you (wards resist it); red vignette pulse warns you
+- **Tombstones** — death drops half your gold at the spot; reclaim within 5 minutes or it dissolves. Grave marker on the world + minimap
+- **Critical hits** (2×, 12%) and **rich strikes** (double gather yield, 10%) with their own sounds and floaters
+- **Named regions** — Wanderer's Rest, Palewater, The Ashen Flats, Hollowmere Reach, The Bonefields — banner on entry
+- **Ash-storms** — periodic weather that triples the ash and dims the world
+
+### World events
+- **The Colossus** — at corruption thresholds (10/25/40/60/80%) the 64×64 world boss rises at the corruption front. 140 HP, slam attacks, 5 shards + 50g on the kill, stays dead until the next threshold
+- **Driftfall** — every few minutes a shard crashes (violet beam, shockwave): 3× rich nodes for 90 seconds, server-authoritative online
+
+### Feel
+- **Procedural WebAudio** — every sound synthesized in code (gather/combat/UI SFX, war-horn, ambient drone with eerie pad notes); mute in the "You" panel
+- **Juice** — damage floaters, hit sparks, screen shake, level-up light pillar, footstep dust
+- **Atmosphere** — moonlight radius, pulsing corruption light pools, day/night cycle, vignette
+- **Minimap** — terrain + corruption spread, nodes, beasts (boss in amber), players, your grave
+
 ### Pixel-art design system
 The full Claude Design package is integrated: procedural rect-grid sprites (world tiles, tree/rock/fish nodes, the hooded wanderer with idle/walk/swing animations), ambient drift-mote/ash FX that thicken with corruption, pixel HUD components, and brand assets. Source generators live in `public/assets/design-system/`; the TS port is `game/render/sprites.ts`.
 
