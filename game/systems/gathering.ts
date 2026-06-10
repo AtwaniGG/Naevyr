@@ -27,7 +27,7 @@ export function applyGatherLoot(kind: ResourceKind, depleted: boolean) {
   store.questEvent({ type: "gather", item: meta.item });
   const { leveledTo } = store.addXp(meta.skill, rich ? meta.xp * 2 : meta.xp);
   store.pushLog(
-    rich ? `RICH STRIKE — +${qty} ${itemName(meta.item)}!` : `+1 ${itemName(meta.item)}`,
+    rich ? `RICH STRIKE! +${qty} ${itemName(meta.item)}!` : `+1 ${itemName(meta.item)}`,
     rich ? "#fcd34d" : SKILL_META[meta.skill].color,
   );
   if (leveledTo) {

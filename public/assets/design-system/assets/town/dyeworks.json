@@ -1,0 +1,30 @@
+{
+  "image": "town/dyeworks.svg",
+  "cell": {
+    "w": 144,
+    "h": 152
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 72,
+    "y": 151
+  },
+  "labelClearTop": 6,
+  "drawUnderEntities": false,
+  "frames": {
+    "dyeworks": {
+      "x": 0,
+      "y": 0,
+      "w": 144,
+      "h": 152,
+      "anchor": {
+        "x": 72,
+        "y": 151
+      }
+    }
+  }
+}

@@ -56,6 +56,25 @@ export class ListingState extends Schema {
   @type("string") sellerName = "";
 }
 
+export class CaravanState extends Schema {
+  /** increments each departure (clients key local raider cleanup off this) */
+  @type("number") run = 0;
+  /** idle | rolling | ambushed */
+  @type("string") phase = "idle";
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("number") hp = 0;
+  @type("number") maxHp = 0;
+  @type("number") gateX = -1;
+  @type("number") gateY = -1;
+  /** seconds until the next wagon departs (idle phase only) */
+  @type("number") departIn = 0;
+  @type("number") wave = 0;
+  @type("number") waves = 0;
+  @type("number") waveKills = 0;
+  @type("number") waveNeed = 0;
+}
+
 export class DriftRoomState extends Schema {
   @type("number") w = 0;
   @type("number") h = 0;
@@ -65,6 +84,7 @@ export class DriftRoomState extends Schema {
   @type({ map: ClaimState }) claims = new MapSchema<ClaimState>();
   @type({ map: ListingState }) listings = new MapSchema<ListingState>();
   @type({ map: PropState }) props = new MapSchema<PropState>();
+  @type(CaravanState) caravan = new CaravanState();
   @type("number") shrinePot = 0;
   @type("number") shrineGoal = 500;
   @type("number") season = 1;

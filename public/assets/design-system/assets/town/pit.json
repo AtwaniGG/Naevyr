@@ -1,0 +1,30 @@
+{
+  "image": "town/pit.svg",
+  "cell": {
+    "w": 240,
+    "h": 120
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 120,
+    "y": 60
+  },
+  "labelClearTop": 6,
+  "drawUnderEntities": true,
+  "frames": {
+    "pit": {
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 120,
+      "anchor": {
+        "x": 120,
+        "y": 60
+      }
+    }
+  }
+}

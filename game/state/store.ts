@@ -363,7 +363,7 @@ export const useGame = create<GameState>((set, get) => ({
     play("coin");
     get().addXp(q.def.xpReward.skill, q.def.xpReward.xp);
     get().pushLog(
-      `Quest complete: ${q.def.label} — +${q.def.goldReward}g, +${q.def.xpReward.xp} ${SKILL_META[q.def.xpReward.skill].label} XP`,
+      `Quest complete: ${q.def.label}. +${q.def.goldReward}g, +${q.def.xpReward.xp} ${SKILL_META[q.def.xpReward.skill].label} XP`,
       "#e7c873",
     );
   },

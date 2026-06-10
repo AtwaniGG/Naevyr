@@ -51,6 +51,22 @@ export interface NetListing {
   sellerName: string;
 }
 
+export interface NetCaravan {
+  run: number;
+  phase: string; // idle | rolling | ambushed
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  gateX: number;
+  gateY: number;
+  departIn: number;
+  wave: number;
+  waves: number;
+  waveKills: number;
+  waveNeed: number;
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyState = any;
 
@@ -140,6 +156,10 @@ export class NetClient {
     (this.room.state.props as Map<string, NetProp>).forEach((p) => fn(p));
   }
 
+  get caravan(): NetCaravan | null {
+    return (this.room.state.caravan as NetCaravan) ?? null;
+  }
+
   get shrinePot(): number {
     return this.room.state.shrinePot ?? 0;
   }
@@ -203,6 +223,10 @@ export class NetClient {
 
   sendDuelHit(dmg: number) {
     this.safeSend("duelHit", { dmg });
+  }
+
+  sendRaiderKill() {
+    this.safeSend("raiderKill");
   }
 
   sendChat(text: string, kind: "say" | "emote") {

@@ -179,7 +179,10 @@
   --icon-lg:          24px;
   --xpbar-height:     8px;
   --panel-max-w:      320px;
-  --hud-edge:         16px;
+  --hud-edge:         14px;
+  /* global HUD shrink: panels are authored dense; scale them down so the
+     world stays visible at 100% browser zoom */
+  --hud-scale:        0.8;
 
   --notch: 4px;
 

@@ -214,7 +214,7 @@ export class Game {
     const ls = store.listings.find((l) => l.id === id);
     if (!this.net || !ls) return;
     if (!store.spendGold(ls.price)) {
-      store.pushLog(`That costs ${ls.price}g — you carry ${store.gold}g.`, "#6f6781");
+      store.pushLog(`That costs ${ls.price}g. You carry ${store.gold}g.`, "#6f6781");
       return;
     }
     this.pendingBuyPrice = ls.price;
@@ -228,12 +228,12 @@ export class Game {
       return;
     }
     if (!store.claimMode && store.gold < CLAIM_COST) {
-      store.pushLog(`Staking a claim costs ${CLAIM_COST}g — you carry ${store.gold}g.`, "#6f6781");
+      store.pushLog(`Staking a claim costs ${CLAIM_COST}g. You carry ${store.gold}g.`, "#6f6781");
       return;
     }
     store.setClaimMode(!store.claimMode);
     if (useGame.getState().claimMode) {
-      store.pushLog("Choose your ground — click to stake a 3×3 claim.", "#e7c873");
+      store.pushLog("Choose your ground. Click to stake a 3×3 claim.", "#e7c873");
     }
   }
 
@@ -287,7 +287,7 @@ export class Game {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
     const net = await NetClient.connect(url, 2500, getDeviceToken());
     if (!net) {
-      useGame.getState().pushLog("No shared world found — wandering offline.", "#6f6781");
+      useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
       return;
     }
     if (!this.running) {
@@ -344,6 +344,67 @@ export class Game {
     net.onMessage<{ x: number; y: number }>("driftfall", (m) =>
       this.announceDriftfall(m.x, m.y),
     );
+
+    // ---- Caravans (server-authoritative wagon; raiders are local mobs) ----
+    net.onMessage<{ run: number; gateX: number; gateY: number; waves: number }>(
+      "caravanDepart",
+      () => {
+        useGame.getState().pushLog(
+          "A caravan rolls out of the Waystation. Escort it for a cut of the pay.",
+          "#e7c873",
+        );
+      },
+    );
+    net.onMessage<{
+      run: number; x: number; y: number;
+      wave: number; waves: number; count: number; level: number;
+    }>("ambush", (m) => {
+      this.combat.spawnRaiders(this.world, m.x, m.y, m.count, m.level);
+      this.shakeUntil = performance.now() + 200;
+      this.shakeMag = 3;
+      useGame.getState().pushLog(
+        `RAIDERS! Wave ${m.wave}/${m.waves} falls on the caravan. ${m.count} kills break it.`,
+        "#dc2626",
+      );
+    });
+    net.onMessage<{ run: number; wave: number; waves: number }>("waveCleared", (m) => {
+      this.combat.clearRaiders();
+      useGame.getState().pushLog(
+        m.wave >= m.waves
+          ? "The last raiders break. The wagon makes for the gate."
+          : "The raiders break. The wagon rolls on.",
+        "#e7c873",
+      );
+    });
+    net.onMessage<{ run: number }>("caravanLost", () => {
+      this.combat.clearRaiders();
+      useGame.getState().pushLog(
+        "The caravan is torn apart. The Drift keeps its goods.",
+        "#dc2626",
+      );
+    });
+    net.onMessage<{ run: number; pool: number; payouts: { name: string; kills: number; gold: number }[] }>(
+      "caravanArrived",
+      (m) => {
+        this.combat.clearRaiders();
+        useGame.getState().pushLog(
+          m.payouts.length
+            ? `The caravan reaches the gate. ${m.pool}g split among its escorts.`
+            : "The caravan reaches the gate unescorted. No one collects.",
+          "#e7c873",
+        );
+      },
+    );
+    net.onMessage<{ run: number; gold: number; kills: number }>("caravanPayout", (m) => {
+      if (m.gold <= 0) return;
+      const store = useGame.getState();
+      store.addGold(m.gold);
+      play("coin");
+      store.pushLog(
+        `Caravan pay lands in your purse: ${m.gold}g for ${m.kills} raider${m.kills === 1 ? "" : "s"}.`,
+        "#e7c873",
+      );
+    });
     // server-stored progress: apply it, or seed the server with local progress
     net.onMessage<{
       snapshot: SaveData | null;
@@ -393,7 +454,7 @@ export class Game {
       const store = useGame.getState();
       if (m.ok && m.item && m.qty) {
         store.addItem(m.item as never, m.qty);
-        store.pushLog("Offer withdrawn — goods returned to your satchel.", "#a99fb8");
+        store.pushLog("Offer withdrawn. Goods returned to your satchel.", "#a99fb8");
       }
     });
     net.onMessage<{ ok: boolean; item?: string; qty?: number; price?: number; reason?: string }>(
@@ -415,7 +476,7 @@ export class Game {
       const store = useGame.getState();
       store.addGold(m.gold);
       play("coin");
-      store.pushLog(`${m.buyer} bought your ${m.qty}× listing — +${m.gold}g.`, "#e7c873");
+      store.pushLog(`${m.buyer} bought your ${m.qty}× listing. +${m.gold}g.`, "#e7c873");
     });
 
     // ---- the Waystation ----
@@ -453,7 +514,7 @@ export class Game {
       this.banner = { name: "THE PALE FLAME BURNS", t0: performance.now() };
       play("levelup");
       store.pushLog(
-        `The Shrine fires — ${m.count} corrupted tiles burn clean.`,
+        `The Shrine fires. ${m.count} corrupted tiles burn clean.`,
         "#efe9f4",
       );
       this.applyNetTiles();
@@ -520,7 +581,7 @@ export class Game {
             store.addGold(m.pot);
             play("levelup");
             this.banner = { name: "VICTORY", t0: performance.now() };
-            store.pushLog(`You win the duel — ${m.pot}g pot.`, "#e7c873");
+            store.pushLog(`You win the duel. ${m.pot}g pot.`, "#e7c873");
           } else if (m.winner === null) {
             store.addGold(m.pot / 2); // draw: stake returned
             store.pushLog("The duel ends in a draw. Stakes returned.", "#a99fb8");
@@ -544,7 +605,7 @@ export class Game {
         this.myClaimIds.add(m.id);
         store.setMyClaims(this.myClaimIds.size);
         play("reclaim");
-        store.pushLog("You stake your claim. This ground is yours — for now.", "#e7c873");
+        store.pushLog("You stake your claim. This ground is yours, for now.", "#e7c873");
       } else {
         store.addGold(CLAIM_COST); // refund
         store.pushLog(`Claim refused: ${m.reason ?? "the Drift resists"}. Gold returned.`, "#dc2626");
@@ -559,7 +620,7 @@ export class Game {
         store.setMyClaims(this.myClaimIds.size);
         play("death");
         this.banner = { name: "Your claim has fallen", t0: performance.now() };
-        store.pushLog("Your claim's warding breaks — the Drift swallows your land.", "#dc2626");
+        store.pushLog("Your claim's warding breaks. The Drift swallows your land.", "#dc2626");
       } else {
         store.pushLog(`${m.name}'s claim falls to the Drift…`, "#a855f7");
       }
@@ -581,7 +642,7 @@ export class Game {
       s.setPlayersOnline(1);
       s.setOnline(false);
       s.setClaimMode(false);
-      s.pushLog("Connection to the shared Drift lost — wandering offline.", "#dc2626");
+      s.pushLog("Connection to the shared Drift lost. Wandering offline.", "#dc2626");
     });
 
     store.setOnline(true);
@@ -623,7 +684,7 @@ export class Game {
     play("driftfall");
     const store = useGame.getState();
     store.bumpStat("driftfalls");
-    store.pushLog("DRIFTFALL — a shard crashes down. Rich nodes, briefly.", "#d8b4fe");
+    store.pushLog("DRIFTFALL! A shard crashes down. Rich nodes, briefly.", "#d8b4fe");
   }
 
   /** corruption thresholds wake the Colossus at the corruption front */
@@ -654,6 +715,8 @@ export class Game {
 
   /** juice + respawn hooks (re-run whenever a fresh CombatManager is created) */
   private wireCombat() {
+    // escorts report raider kills so the server can resolve the wave
+    this.combat.onRaiderKill = () => this.net?.sendRaiderKill();
     this.combat.onPlayerHit = (mob, dmg, crit) => {
       this.spawnFloater(
         mob.px, mob.py,
@@ -681,7 +744,7 @@ export class Game {
       store.spendGold(drop);
       this.tomb = { x: Math.round(x), y: Math.round(y), gold: drop, t0: performance.now() };
       store.pushLog(
-        `Your tombstone holds ${drop}g — reclaim it before it dissolves (5 min).`,
+        `Your tombstone holds ${drop}g. Reclaim it before it dissolves (5 min).`,
         "#a99fb8",
       );
     };
@@ -1062,7 +1125,7 @@ export class Game {
         play("hurt");
         if (!this.corruptWarned) {
           this.corruptWarned = true;
-          store.pushLog("The Drift gnaws at your flesh — corrupted ground is death. Move!", "#a855f7");
+          store.pushLog("The Drift gnaws at your flesh. Corrupted ground is death. Move!", "#a855f7");
         }
         if (remaining <= 0) this.combat.killPlayer(this.player);
       }
@@ -1795,19 +1858,50 @@ export class Game {
         depth,
         fn: () => {
           const s = this.tileScreen(b.x, b.y + (b.key === "pit" ? 0 : b.r));
-          spriteCache.drawBuilding(ctx, b.key, s.x, s.y, this.camera.zoom);
-          // label floats above the building
+          // shrine's Pale Flame flickers at 4fps
+          const frame = b.key === "shrine" ? Math.floor(performance.now() / 250) % 3 : 0;
+          spriteCache.drawBuilding(ctx, b.key, s.x, s.y, this.camera.zoom, frame);
+          // label floats above the building (sprite top is height-16 above the anchor)
           if (b.key !== "pit") {
-            const top = this.tileScreen(b.x, b.y);
+            const top = s.y - (spriteCache.buildingHeight(b.key) - 10) * this.camera.zoom;
             ctx.textAlign = "center";
             ctx.font = `${7.5 * this.camera.zoom}px ui-sans-serif`;
             ctx.fillStyle = "rgba(216,207,224,0.5)";
-            ctx.fillText(b.label, top.x, top.y - 74 * this.camera.zoom);
+            ctx.fillText(b.label, s.x, top);
             ctx.textAlign = "left";
           }
         },
       });
     }
+    // the caravan wagon (server-synced; only exists in the shared world)
+    const caravan = this.net?.caravan;
+    if (caravan && (caravan.phase === "rolling" || caravan.phase === "ambushed")) {
+      const cv = caravan;
+      draws.push({
+        depth: cv.x + cv.y,
+        fn: () => {
+          const s = this.tileScreen(cv.x, cv.y);
+          const z = this.camera.zoom;
+          const frame = cv.phase === "rolling" ? Math.floor(performance.now() / 220) % 2 : 0;
+          spriteCache.drawWagon(ctx, s.x, s.y, z, frame);
+          // hp bar over the wagon once it has taken damage
+          if (cv.hp < cv.maxHp) {
+            const w = 36 * z;
+            const pct = Math.max(0, cv.hp / Math.max(1, cv.maxHp));
+            ctx.fillStyle = "rgba(10,8,16,0.7)";
+            ctx.fillRect(s.x - w / 2, s.y - 48 * z, w, 4 * z);
+            ctx.fillStyle = pct > 0.4 ? "#4d7c4d" : "#dc2626";
+            ctx.fillRect(s.x - w / 2, s.y - 48 * z, w * pct, 4 * z);
+          }
+          ctx.textAlign = "center";
+          ctx.font = `${7 * z}px ui-sans-serif`;
+          ctx.fillStyle = cv.phase === "ambushed" ? "rgba(220,38,38,0.85)" : "rgba(216,207,224,0.5)";
+          ctx.fillText(cv.phase === "ambushed" ? "AMBUSHED" : "Caravan", s.x, s.y - 52 * z);
+          ctx.textAlign = "left";
+        },
+      });
+    }
+
     for (const mob of this.combat.mobs) {
       // freshly dead beasts play their crumble animation before vanishing
       if (mob.state === "dead" && mob.deathT > 1.2) continue;

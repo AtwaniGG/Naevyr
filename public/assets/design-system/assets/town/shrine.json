@@ -1,0 +1,60 @@
+{
+  "image": "town/shrine.svg",
+  "cell": {
+    "w": 112,
+    "h": 128
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 56,
+    "y": 127
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "shrine_00": {
+      "x": 0,
+      "y": 0,
+      "w": 112,
+      "h": 128,
+      "anchor": {
+        "x": 56,
+        "y": 127
+      }
+    },
+    "shrine_01": {
+      "x": 112,
+      "y": 0,
+      "w": 112,
+      "h": 128,
+      "anchor": {
+        "x": 56,
+        "y": 127
+      }
+    },
+    "shrine_02": {
+      "x": 224,
+      "y": 0,
+      "w": 112,
+      "h": 128,
+      "anchor": {
+        "x": 56,
+        "y": 127
+      }
+    }
+  },
+  "animations": {
+    "flicker": {
+      "frames": [
+        "shrine_00",
+        "shrine_01",
+        "shrine_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

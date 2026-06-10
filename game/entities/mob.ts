@@ -66,9 +66,11 @@ export class Mob {
   private die() {
     this.state = "dead";
     this.deathT = 0;
-    // a slain Colossus stays slain; regular beasts respawn at their den
+    // a slain Colossus stays slain; raiders die with their ambush; beasts respawn
     this.respawnIn =
-      this.kind === "colossus" ? Number.POSITIVE_INFINITY : 6000 + Math.random() * 4000;
+      this.kind === "colossus" || this.kind === "raider"
+        ? Number.POSITIVE_INFINITY
+        : 6000 + Math.random() * 4000;
   }
 
   updateIsoFacing(dx: number, dy: number) {

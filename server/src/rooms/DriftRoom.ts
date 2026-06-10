@@ -54,14 +54,25 @@ const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo"];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
 const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
 
+// ---- Caravans: a wagon runs the Waystation → map-edge gate gauntlet ----------
+// Env overrides exist so the verify script can compress the timeline.
+const CARAVAN_FIRST_S  = Number(process.env.CARAVAN_FIRST_S ?? 90);   // boot → first run
+const CARAVAN_PERIOD_S = Number(process.env.CARAVAN_PERIOD_S ?? 360); // between runs
+const CARAVAN_SPEED    = Number(process.env.CARAVAN_SPEED ?? 1.1);    // tiles/sec
+const CARAVAN_HP       = 100;
+const CARAVAN_GNAW_DPS = 3;    // hp lost per second while raiders swarm it
+const CARAVAN_BASE_POOL = 120; // gold pool at 0% corruption; +3g per corruption point
+const CARAVAN_MIN_ROUTE = 18;  // tiles; gates closer than this don't count
+const CARAVAN_ESCORT_RANGE = 12; // kills count only this close to the wagon
+
 // the Wheel (server-rolled; client pays 50g up front)
 const WHEEL: { p: number; gold: number; shards: number; label: string }[] = [
   { p: 0.40, gold: 0,   shards: 0, label: "The Drift takes your coin." },
-  { p: 0.25, gold: 25,  shards: 0, label: "A modest return — 25g." },
-  { p: 0.15, gold: 75,  shards: 0, label: "The wheel favors you — 75g!" },
-  { p: 0.10, gold: 150, shards: 0, label: "A fine spin — 150g!" },
+  { p: 0.25, gold: 25,  shards: 0, label: "A modest return: 25g." },
+  { p: 0.15, gold: 75,  shards: 0, label: "The wheel favors you: 75g!" },
+  { p: 0.10, gold: 150, shards: 0, label: "A fine spin: 150g!" },
   { p: 0.08, gold: 0,   shards: 2, label: "Two Drift Shards tumble out!" },
-  { p: 0.02, gold: 500, shards: 0, label: "JACKPOT — 500 GOLD!" },
+  { p: 0.02, gold: 500, shards: 0, label: "JACKPOT: 500 GOLD!" },
 ];
 
 interface Duel {
@@ -109,6 +120,11 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** prop id → owner token */
   private propOwner = new Map<number, string>();
   private duels: Duel[] = [];
+  // caravan run state (route + contributions live server-side only)
+  private caravanPath: Cell[] = [];
+  private caravanTotal = 0;
+  private caravanThresholds: number[] = [];
+  private caravanContrib = new Map<string, { name: string; kills: number }>();
 
   async onCreate() {
     this.setState(new DriftRoomState());
@@ -139,6 +155,9 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.state.props.set(String(row.id), ps);
       this.propOwner.set(row.id, row.token);
     }
+
+    // first caravan rolls a little after boot
+    this.state.caravan.departIn = CARAVAN_FIRST_S;
 
     // the Shrine's communal pot
     this.state.shrinePot = await loadShrinePot();
@@ -385,6 +404,26 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
     });
 
+    // ---- Caravans: escorts report raider kills during an ambush ----------------
+    this.onMessage("raiderKill", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      const c = this.state.caravan;
+      if (!sim || c.phase !== "ambushed") return;
+      // only escorts actually at the wagon count
+      if (Math.hypot(sim.px - c.x, sim.py - c.y) > CARAVAN_ESCORT_RANGE) return;
+      c.waveKills += 1;
+      const entry = this.caravanContrib.get(sim.token) ?? {
+        name: this.state.players.get(client.sessionId)?.name ?? "Wanderer",
+        kills: 0,
+      };
+      entry.kills += 1;
+      this.caravanContrib.set(sim.token, entry);
+      if (c.waveKills >= c.waveNeed) {
+        c.phase = "rolling";
+        this.broadcast("waveCleared", { run: c.run, wave: c.wave, waves: c.waves });
+      }
+    });
+
     // stored progress, sent when the client says it's ready to receive it
     this.onMessage("getProfile", async (client) => {
       const sim = this.sims.get(client.sessionId);
@@ -624,6 +663,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   private tick(dt: number) {
     this.drift.update(this.world, dt);
     this.syncNodes();
+    this.stepCaravan(dt);
 
     // duel timeouts → draw, both refunded client-side
     const now = Date.now();
@@ -755,6 +795,158 @@ export class DriftRoom extends Room<DriftRoomState> {
       pot: duel.wager * 2,
       winnerName: winner ? this.state.players.get(winner)?.name ?? "?" : null,
     });
+  }
+
+  // ---- Caravans ---------------------------------------------------------------------
+
+  private stepCaravan(dt: number) {
+    const c = this.state.caravan;
+
+    if (c.phase === "idle") {
+      c.departIn = Math.max(0, c.departIn - dt);
+      if (c.departIn <= 0) this.departCaravan();
+      return;
+    }
+
+    if (c.phase === "ambushed") {
+      // raiders gnaw at the wagon until the escorts clear the wave
+      c.hp = Math.max(0, c.hp - CARAVAN_GNAW_DPS * dt);
+      if (c.hp <= 0) {
+        this.broadcast("caravanLost", { run: c.run, x: c.x, y: c.y });
+        this.resetCaravan();
+      }
+      return;
+    }
+
+    // rolling: walk the route at wagon pace
+    if (!this.caravanPath.length) return void this.arriveCaravan();
+    const next = this.caravanPath[0];
+    const dx = next.x - c.x;
+    const dy = next.y - c.y;
+    const dist = Math.hypot(dx, dy);
+    const step = CARAVAN_SPEED * dt;
+    if (dist <= step) {
+      c.x = next.x;
+      c.y = next.y;
+      this.caravanPath.shift();
+      if (!this.caravanPath.length) return void this.arriveCaravan();
+    } else {
+      c.x += (dx / dist) * step;
+      c.y += (dy / dist) * step;
+    }
+    // raider ambushes trigger at fixed route-progress marks
+    const progress = 1 - this.caravanPath.length / Math.max(1, this.caravanTotal);
+    if (this.caravanThresholds.length && progress >= this.caravanThresholds[0]) {
+      this.caravanThresholds.shift();
+      this.startAmbush();
+    }
+  }
+
+  private departCaravan() {
+    const c = this.state.caravan;
+    const origin = this.findSpawn();
+    const gate = this.findGate(origin);
+    if (!gate) {
+      // no routable gate (heavy corruption); try again shortly
+      c.departIn = 60;
+      return;
+    }
+    const tier = Math.floor(this.corruptionPct() / 20); // 0..5 risk tier
+    c.run += 1;
+    c.phase = "rolling";
+    c.x = origin.x;
+    c.y = origin.y;
+    c.maxHp = CARAVAN_HP;
+    c.hp = CARAVAN_HP;
+    c.gateX = gate.cell.x;
+    c.gateY = gate.cell.y;
+    c.wave = 0;
+    c.waves = Math.min(4, 2 + tier);
+    c.waveKills = 0;
+    c.waveNeed = 0;
+    this.caravanTotal = gate.path.length;
+    this.caravanPath = gate.path;
+    this.caravanContrib.clear();
+    // waves spaced evenly along the route
+    this.caravanThresholds = Array.from(
+      { length: c.waves },
+      (_, i) => (i + 1) / (c.waves + 1),
+    );
+    this.broadcast("caravanDepart", {
+      run: c.run, gateX: c.gateX, gateY: c.gateY, waves: c.waves,
+    });
+  }
+
+  /** a walkable map-edge cell with a real route from the origin */
+  private findGate(origin: Cell): { cell: Cell; path: Cell[] } | null {
+    for (let i = 0; i < 60; i++) {
+      const side = (Math.random() * 4) | 0;
+      const cell: Cell =
+        side === 0 ? { x: 0, y: (Math.random() * this.world.h) | 0 } :
+        side === 1 ? { x: this.world.w - 1, y: (Math.random() * this.world.h) | 0 } :
+        side === 2 ? { x: (Math.random() * this.world.w) | 0, y: 0 } :
+                     { x: (Math.random() * this.world.w) | 0, y: this.world.h - 1 };
+      if (!this.world.isWalkable(cell.x, cell.y)) continue;
+      const path = findPath(this.world, origin, cell);
+      if (path && path.length >= CARAVAN_MIN_ROUTE) return { cell, path };
+    }
+    return null;
+  }
+
+  private startAmbush() {
+    const c = this.state.caravan;
+    const tier = Math.floor(this.corruptionPct() / 20);
+    c.phase = "ambushed";
+    c.wave += 1;
+    c.waveKills = 0;
+    c.waveNeed = 3 + (c.wave - 1) * 2 + tier;
+    this.broadcast("ambush", {
+      run: c.run,
+      x: Math.round(c.x),
+      y: Math.round(c.y),
+      wave: c.wave,
+      waves: c.waves,
+      count: c.waveNeed,
+      level: 2 + tier,
+    });
+  }
+
+  /** the wagon reaches the gate: split the pool pro-rata by kills */
+  private async arriveCaravan() {
+    const c = this.state.caravan;
+    const pool = Math.round(CARAVAN_BASE_POOL + this.corruptionPct() * 3);
+    const totalKills = [...this.caravanContrib.values()].reduce((n, e) => n + e.kills, 0);
+    const payouts: { name: string; kills: number; gold: number }[] = [];
+    for (const [token, e] of this.caravanContrib) {
+      const gold = totalKills > 0
+        ? Math.max(10, Math.round((e.kills / totalKills) * pool))
+        : 0;
+      payouts.push({ name: e.name, kills: e.kills, gold });
+      // online escorts get paid live; offline ones through escrow (market rails)
+      const sim = [...this.sims.values()].find((s) => s.token === token);
+      if (sim) sim.client.send("caravanPayout", { run: c.run, gold, kills: e.kills });
+      else if (gold > 0) await addEscrow(token, gold).catch(() => {});
+    }
+    this.broadcast("caravanArrived", { run: c.run, pool, payouts });
+    this.resetCaravan();
+  }
+
+  private resetCaravan() {
+    const c = this.state.caravan;
+    c.phase = "idle";
+    c.departIn = CARAVAN_PERIOD_S;
+    c.hp = 0;
+    c.maxHp = 0;
+    c.wave = 0;
+    c.waves = 0;
+    c.waveKills = 0;
+    c.waveNeed = 0;
+    c.gateX = -1;
+    c.gateY = -1;
+    this.caravanPath = [];
+    this.caravanTotal = 0;
+    this.caravanThresholds = [];
+    this.caravanContrib.clear();
   }
 
   // ---- the Shrine -----------------------------------------------------------------

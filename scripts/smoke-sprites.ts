@@ -36,24 +36,52 @@ for (const kind of Object.keys(BEAST_SPECS) as BeastKind[]) {
   }
 }
 
-// town buildings
-import { makeBuildingSprite, BuildingSpriteKey } from "../game/render/sprites";
-const BUILDINGS: BuildingSpriteKey[] = [
-  "dyeworks", "vault", "wheel", "lantern", "furnisher", "menagerie", "shrine", "pit",
-];
-for (const key of BUILDINGS) {
+// town buildings (DS town set; shrine has 3 flame frames)
+import { makeBuildingSprite, BuildingSpriteKey, SHRINE_FRAMES } from "../game/render/sprites";
+const CELLS: Record<BuildingSpriteKey, [number, number]> = {
+  dyeworks: [144, 152], vault: [144, 152], wheel: [144, 152], lantern: [144, 152],
+  furnisher: [144, 152], menagerie: [144, 152], shrine: [112, 128], pit: [240, 120],
+};
+for (const key of Object.keys(CELLS) as BuildingSpriteKey[]) {
+  const nFrames = key === "shrine" ? SHRINE_FRAMES : 1;
+  for (let f = 0; f < nFrames; f++) {
+    try {
+      const g = makeBuildingSprite(key, f);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (g.w !== CELLS[key][0] || g.h !== CELLS[key][1]) {
+        failures++;
+        console.error(`FAIL building ${key}#${f}: grid ${g.w}×${g.h}, expected ${CELLS[key][0]}×${CELLS[key][1]}`);
+      } else if (px < 300) {
+        failures++;
+        console.error(`FAIL building ${key}#${f}: only ${px} pixels`);
+      }
+    } catch (e) {
+      failures++;
+      console.error(`THROW building ${key}#${f}:`, e);
+    }
+  }
+}
+// caravan wagon (2 frames, must differ: wheels turn)
+import { makeWagon } from "../game/render/sprites";
+for (let f = 0; f < 2; f++) {
   try {
-    const g = makeBuildingSprite(key);
+    const g = makeWagon(f);
     const px = g.d.filter(Boolean).length;
     frames++;
-    if (px < 300) {
-      failures++;
-      console.error(`FAIL building ${key}: only ${px} pixels`);
-    }
-  } catch (e) {
-    failures++;
-    console.error(`THROW building ${key}:`, e);
-  }
+    if (g.w !== 56 || g.h !== 44) { failures++; console.error(`FAIL wagon#${f}: grid ${g.w}×${g.h}`); }
+    else if (px < 300) { failures++; console.error(`FAIL wagon#${f}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW wagon#${f}:`, e); }
+}
+if (JSON.stringify(makeWagon(0).d) === JSON.stringify(makeWagon(1).d)) {
+  failures++; console.error("FAIL wagon: frames 0 and 1 are identical");
+}
+
+// shrine frames must actually differ (the flame flickers)
+{
+  const a = JSON.stringify(makeBuildingSprite("shrine", 0).d);
+  const b = JSON.stringify(makeBuildingSprite("shrine", 1).d);
+  if (a === b) { failures++; console.error("FAIL shrine: frames 0 and 1 are identical"); }
 }
 
 console.log(

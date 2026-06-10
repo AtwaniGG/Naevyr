@@ -89,11 +89,9 @@ export default function Hud() {
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />
       <TopLeft />
-      <Satchel />
       <SkillsPanel />
-      <ActivityPanel />
       <HotbarDock />
-      <RightRail />
+      <RightColumn />
       <ShopModal />
       <DuelOverlay />
       <ChallengePrompt />
@@ -130,12 +128,14 @@ function ShopModal() {
   return (
     <div
       className="absolute pointer-events-auto"
-      style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 30 }}
+      style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%) scale(var(--hud-scale))", zIndex: 30 }}
     >
-      <Panel kicker={meta.kicker} title={meta.title} style={{ width: 340, maxHeight: "70vh", overflowY: "auto" }}>
-        <div style={{ position: "absolute", top: 10, right: 12 }}>
-          <Button size="sm" variant="ghost" onClick={() => setOpenShop(null)}>✕</Button>
-        </div>
+      <Panel
+        kicker={meta.kicker}
+        title={meta.title}
+        accessory={<Button size="sm" variant="ghost" onClick={() => setOpenShop(null)}>✕</Button>}
+        style={{ width: 340, maxHeight: "70vh", overflowY: "auto" }}
+      >
         {openShop === "dyeworks" && <DyeworksPanel />}
         {openShop === "vault" && <VaultPanel />}
         {openShop === "wheel" && <WheelPanel />}
@@ -154,9 +154,10 @@ function shopRow(
   sub: string,
   right: React.ReactNode,
   swatch?: string,
+  key?: string,
 ) {
   return (
-    <div className="drift-well" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 9px", marginBottom: 5 }}>
+    <div key={key ?? label} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 9px", marginBottom: 5 }}>
       {swatch && <span style={{ width: 14, height: 14, background: swatch, boxShadow: "var(--bevel-slot)" }} />}
       <span style={{ flex: 1 }}>
         <span style={{ display: "block", font: "600 12px/1.2 var(--font-ui)", color: "var(--text-primary)" }}>{label}</span>
@@ -264,7 +265,7 @@ function WheelPanel() {
   return (
     <>
       <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
-        {SPIN_COST}g a spin. Gold, shards, or nothing — the Drift decides.
+        {SPIN_COST}g a spin. Gold, shards, or nothing. The Drift decides.
         Jackpot: <b style={{ color: "var(--drift-gold)" }}>500g</b>.
       </div>
       <Button variant="primary" size="md" onClick={spin} iconLeft={<Icon name="coin" size={16} glow />}>
@@ -423,7 +424,7 @@ function PitPanel() {
             }}>
             Challenge
           </Button>
-        )),
+        ), undefined, r.id),
       )}
     </>
   );
@@ -432,7 +433,7 @@ function PitPanel() {
 function OfflineNote({ what }: { what: string }) {
   return (
     <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-muted)" }}>
-      {what} only opens in the shared world — start the game server and rejoin.
+      {what} only opens in the shared world. Start the game server and rejoin.
     </div>
   );
 }
@@ -456,7 +457,7 @@ function DuelOverlay() {
   return (
     <div
       className="absolute pointer-events-auto"
-      style={{ top: 70, left: "50%", transform: "translateX(-50%)", zIndex: 25, width: 380 }}
+      style={{ top: 70, left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "top center", zIndex: 25, width: 380 }}
     >
       <Panel padded={false} corners={false} style={{ padding: "10px 14px" }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -465,7 +466,7 @@ function DuelOverlay() {
           {bar(duel.oppName, duel.oppHp, "#dc2626")}
         </div>
         <div style={{ font: "400 9px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 5, textAlign: "center" }}>
-          Stand beside your opponent — your wanderer swings on its own. Pot: {duel.wager * 2}g
+          Stand beside your opponent. Your wanderer swings on its own. Pot: {duel.wager * 2}g
         </div>
       </Panel>
     </div>
@@ -479,7 +480,7 @@ function ChallengePrompt() {
   return (
     <div
       className="absolute pointer-events-auto"
-      style={{ top: "32%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 35 }}
+      style={{ top: "32%", left: "50%", transform: "translate(-50%, -50%) scale(var(--hud-scale))", zIndex: 35 }}
     >
       <Panel kicker="The Pit" title="A challenge!" style={{ width: 280 }}>
         <div style={{ font: "400 12px/1.5 var(--font-ui)", color: "var(--text-primary)", marginBottom: 10 }}>
@@ -523,19 +524,45 @@ function BuffChips() {
   );
 }
 
-/** right-edge stack: Forge, You, minimap — one column so nothing overlaps */
+/**
+ * The ENTIRE right edge is one flex column (satchel → rail/minimap → activity).
+ * Flex items stack; they cannot overlap each other or the minimap, ever.
+ * The column itself is scaled by --hud-scale, with its height pre-divided so
+ * the scaled result still spans the full viewport.
+ */
+function RightColumn() {
+  return (
+    <div
+      className="absolute flex flex-col items-end"
+      style={{
+        top: "var(--hud-edge)",
+        right: "var(--hud-edge)",
+        height: "calc((100dvh - 2 * var(--hud-edge)) / var(--hud-scale))",
+        transform: "scale(var(--hud-scale))",
+        transformOrigin: "top right",
+        justifyContent: "space-between",
+        gap: 10,
+        pointerEvents: "none",
+      }}
+    >
+      <Satchel />
+      <RightRail />
+      <ActivityPanel />
+    </div>
+  );
+}
+
+/** middle of the right column: dock buttons + minimap */
 function RightRail() {
   return (
     <div
-      className="absolute pointer-events-auto"
+      className="pointer-events-auto"
       style={{
-        right: "var(--hud-edge)",
-        top: "50%",
-        transform: "translateY(-50%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-end",
         gap: 10,
+        minHeight: 0,
       }}
     >
       <ForgeDock />
@@ -591,7 +618,7 @@ function MarketDock() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto", marginBottom: 10 }}>
                   {offers.length === 0 && (
                     <span style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
-                      No offers — the stalls stand empty.
+                      No offers. The stalls stand empty.
                     </span>
                   )}
                   {offers.map((l) => (
@@ -706,7 +733,7 @@ function StakeButton() {
           ? "Join the shared world to stake land"
           : myClaims >= CLAIM_MAX
             ? `You hold the maximum of ${CLAIM_MAX} claims`
-            : `Stake a 3×3 claim for ${CLAIM_COST}g — claimed land repels corruption and draws nodes`
+            : `Stake a 3×3 claim for ${CLAIM_COST}g. Claimed land repels corruption and draws nodes`
       }
     >
       {claimMode ? "Choose ground…" : `Stake · ${myClaims}/${CLAIM_MAX}`}
@@ -796,7 +823,7 @@ function IdentityDock() {
                 {title}
               </span>
               <span style={{ font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)" }}>
-                — earned through deeds
+                · earned through deeds
               </span>
             </div>
             {/* cloak dye (owned only — the Dyeworks sells more) */}
@@ -870,7 +897,7 @@ function TopLeft() {
   return (
     <div
       className="absolute flex flex-col items-start"
-      style={{ top: "var(--hud-edge)", left: "var(--hud-edge)", gap: 10 }}
+      style={{ top: "var(--hud-edge)", left: "var(--hud-edge)", gap: 10, transform: "scale(var(--hud-scale))", transformOrigin: "top left" }}
     >
       <div
         className="drift-wordmark drift-wordmark-bleed drift-hud-text"
@@ -1028,10 +1055,7 @@ function Satchel() {
   const carried = INVENTORY_ORDER.reduce((n, k) => n + inv[k], 0);
 
   return (
-    <div
-      className="absolute pointer-events-auto"
-      style={{ top: "var(--hud-edge)", right: "var(--hud-edge)" }}
-    >
+    <div className="pointer-events-auto" style={{ position: "relative", flexShrink: 0 }}>
       <Panel
         kicker="Satchel"
         title="Inventory"
@@ -1065,8 +1089,8 @@ function Satchel() {
                 style={{ opacity: count > 0 ? 1 : 0.4 }}
                 title={
                   meta.heal
-                    ? `${meta.label} — eat to restore ${meta.heal} vitality`
-                    : `${meta.label} — sells for ${meta.sellValue}g`
+                    ? `${meta.label} · eat to restore ${meta.heal} vitality`
+                    : `${meta.label} · sells for ${meta.sellValue}g`
                 }
                 onClick={() => edible && eat(key)}
               />
@@ -1096,7 +1120,12 @@ function Satchel() {
       </Panel>
 
       {trading && (
-        <Panel kicker="Wandering Trader" title="Sell" style={{ width: 232, marginTop: 8 }}>
+        <Panel
+          kicker="Wandering Trader"
+          title="Sell"
+          // pops out left of the satchel so the right column never grows taller
+          style={{ width: 232, position: "absolute", right: "100%", top: 0, marginRight: 8 }}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {INVENTORY_ORDER.map((key) => {
               const meta = ITEM_META[key];
@@ -1138,7 +1167,7 @@ function SkillsPanel() {
   return (
     <div
       className="absolute pointer-events-auto"
-      style={{ bottom: "var(--hud-edge)", left: "var(--hud-edge)" }}
+      style={{ bottom: "var(--hud-edge)", left: "var(--hud-edge)", transform: "scale(var(--hud-scale))", transformOrigin: "bottom left" }}
     >
       <Panel kicker="Skills" title="Gathering & War" style={{ width: 264 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
@@ -1171,12 +1200,9 @@ function ActivityPanel() {
   const log = useGame((s) => s.log);
   const entries = [...log].reverse();
   return (
-    <div
-      className="absolute pointer-events-auto"
-      style={{ bottom: "var(--hud-edge)", right: "var(--hud-edge)" }}
-    >
+    <div className="pointer-events-auto" style={{ flexShrink: 0 }}>
       <Panel kicker="Realm" title="Activity" style={{ width: 264 }}>
-        <ActivityLog entries={entries} max={7} />
+        <ActivityLog entries={entries} max={6} />
         <ChatRow />
       </Panel>
     </div>
@@ -1310,14 +1336,14 @@ function HotbarDock() {
   return (
     <div
       className="absolute pointer-events-auto"
-      style={{ bottom: "var(--hud-edge)", left: "50%", transform: "translateX(-50%)" }}
+      style={{ bottom: "var(--hud-edge)", left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "bottom center" }}
     >
       <Hotbar
         selected={hotbar - 1}
         onSelect={(i) => !HOTBAR_TOOLS[i].locked && setHotbar(i + 1)}
         slots={HOTBAR_TOOLS.map((t) => ({
           icon: <Icon name={t.icon} size={32} style={t.locked ? { opacity: 0.5, filter: "grayscale(0.8)" } : undefined} />,
-          name: t.locked ? `${t.name} — sealed for now` : t.name,
+          name: t.locked ? `${t.name} · sealed for now` : t.name,
           disabled: t.locked,
         }))}
       />
@@ -1362,7 +1388,7 @@ function ForgeDock() {
                       flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
                       gap: 2, padding: "6px 4px",
                     }}
-                    title={item ? `${item.label} — ${item.flavor}` : `No ${slot} equipped`}
+                    title={item ? `${item.label} · ${item.flavor}` : `No ${slot} equipped`}
                   >
                     {item ? (
                       <Icon name={RECIPE_ICON[item.id] ?? "sword"} size={20} />
@@ -1371,7 +1397,7 @@ function ForgeDock() {
                     )}
                     <span className="drift-label" style={{ fontSize: 8 }}>{slot}</span>
                     <span className="drift-num" style={{ fontSize: 9, color: "var(--drift-gold)" }}>
-                      {item ? item.flavor : "—"}
+                      {item ? item.flavor : "·"}
                     </span>
                   </div>
                 );

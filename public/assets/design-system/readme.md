@@ -412,11 +412,17 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     (husk→drift-hi, stalker/raider→blood-hi, colossus→bone-hi then drift-hi).
   - `brand/` — `logo-horizontal` 512×96, `logo-stacked` 256×220, `emblem-16/32/64`, each with
     a `-mono` bone variant.
+  - `town/` — **the Waystation set** (rect-grid SVG + atlas JSON): `dyeworks` `vault` `casino`
+    `tavern` `furnisher` `menagerie` (144×152 houses, bottom-center anchor 72,151), `shrine`
+    112×128 (3 pale-flame flicker frames), `pit` 240×120 (flat arena, center anchor,
+    `drawUnderEntities`). Iso 2:1, 3×3-tile footprint, top 6px reserved for the name label;
+    each house has a south door, a warm lit window, and a purpose sign/feature.
   - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
   - `creatures-preview.html` — every creature, facing & animation cycling live.
+  - `town-preview.html` — all eight structures with anchor pins & label-clearance guides.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
-    `character.js`, `beasts.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run them to
-    regenerate or vary any sprite.
+    `character.js`, `beasts.js`, `town.js`, `fxlogo.js`) + `sheet_*.png` preview rasters;
+    re-run them to regenerate or vary any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

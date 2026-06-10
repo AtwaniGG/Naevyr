@@ -25,6 +25,8 @@ export class CombatManager {
   onSelfHit: ((dmg: number) => void) | null = null;
   /** fires with the death position BEFORE the respawn teleport (tombstones) */
   onDeath: ((x: number, y: number) => void) | null = null;
+  /** caravan escort hook: fires when a raider dies (engine reports to server) */
+  onRaiderKill: (() => void) | null = null;
   private nextId = 1;
 
   private engaged: Mob | null = null;
@@ -42,6 +44,34 @@ export class CombatManager {
       const level = 1 + ((Math.random() * 3) | 0);
       this.mobs.push(new Mob(this.nextId++, x, y, level));
       placed++;
+    }
+  }
+
+  /** Raider ambush wave around the caravan wagon (per-client, like all mobs) */
+  spawnRaiders(world: World, x: number, y: number, count: number, level: number): number {
+    let placed = 0;
+    let guard = 0;
+    while (placed < count && guard++ < 400) {
+      const dx = ((Math.random() * 9) | 0) - 4;
+      const dy = ((Math.random() * 9) | 0) - 4;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue; // not on the wagon
+      const cx = x + dx;
+      const cy = y + dy;
+      if (!world.isWalkable(cx, cy)) continue;
+      const raider = new Mob(this.nextId++, cx, cy, level, "raider");
+      this.mobs.push(raider);
+      placed++;
+    }
+    return placed;
+  }
+
+  /** the wave breaks: surviving raiders crumble (wagon rolls on / run ends) */
+  clearRaiders() {
+    for (const m of this.mobs) {
+      if (m.kind === "raider" && m.state !== "dead") {
+        m.hit(m.hp); // plays the death crumble
+        if (this.engaged === m) this.engaged = null;
+      }
     }
   }
 
@@ -118,6 +148,10 @@ export class CombatManager {
 
   update(dt: number, world: World, player: Player) {
     for (const m of this.mobs) m.update(dt, world);
+    // crumbled raiders don't respawn — prune once the death anim finishes
+    this.mobs = this.mobs.filter(
+      (m) => !(m.kind === "raider" && m.state === "dead" && m.deathT > 1.5),
+    );
 
     const mob = this.engaged;
     if (!mob) return;
@@ -170,7 +204,7 @@ export class CombatManager {
     store.addXp("combat", crit ? 6 : 4);
     store.pushLog(
       crit
-        ? `CRITICAL — you strike the Drift Beast for ${dmg}!`
+        ? `CRITICAL! You strike the Drift Beast for ${dmg}!`
         : `You strike the Drift Beast for ${dmg}.`,
       crit ? "#fcd34d" : "#e7c873",
     );
@@ -192,6 +226,17 @@ export class CombatManager {
         "#e7c873",
       );
       if (leveledTo) store.pushLog(`Combat is now level ${leveledTo}!`, "#e7c873");
+      return;
+    }
+
+    if (mob.kind === "raider") {
+      const gold = 5 + Math.floor(Math.random() * 6);
+      store.addGold(gold);
+      const { leveledTo } = store.addXp("combat", mob.xpReward);
+      play("kill");
+      store.pushLog(`The raider falls. You loot ${gold}g from the body.`, "#e7c873");
+      if (leveledTo) store.pushLog(`Combat is now level ${leveledTo}!`, "#e7c873");
+      this.onRaiderKill?.();
       return;
     }
 

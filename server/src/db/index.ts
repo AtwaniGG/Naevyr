@@ -29,7 +29,9 @@ export async function initDb(): Promise<Db> {
     db = drizzlePg(new Pool({ connectionString: process.env.DATABASE_URL }));
     console.log("DB: postgres via DATABASE_URL");
   } else {
-    const dataDir = fileURLToPath(new URL("../../.data/driftlands", import.meta.url));
+    // DRIFT_DATA_DIR lets verify scripts boot an isolated throwaway instance
+    const dataDir = process.env.DRIFT_DATA_DIR ??
+      fileURLToPath(new URL("../../.data/driftlands", import.meta.url));
     mkdirSync(dirname(dataDir), { recursive: true });
     db = drizzlePglite(new PGlite(dataDir));
     console.log("DB: embedded pglite (server/.data/driftlands)");
