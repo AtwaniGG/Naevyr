@@ -278,7 +278,40 @@ export class Game {
     this.drawGround(ctx);
     this.drawClickMarker(ctx);
     this.drawEntities(ctx);
+    this.drawAmbientFx(ctx);
 
+    ctx.restore();
+  }
+
+  // Ambient drift motes + ash drifting across the viewport. Screen-space and
+  // camera-independent (mirrors the DS world preview) — cheap atmosphere that
+  // makes the Drift feel alive. Denser as corruption deepens.
+  private drawAmbientFx(ctx: CanvasRenderingContext2D) {
+    const W = this.camera.viewW;
+    const H = this.camera.viewH;
+    const t = performance.now() / 1000;
+    const drift = useGame.getState().driftPct;
+    const count = 22 + Math.round((drift / 100) * 22); // 22 → 44 with corruption
+
+    ctx.save();
+    for (let i = 0; i < count; i++) {
+      const isMote = i % 4 === 0;
+      const speed = 0.3 + (i % 3) * 0.2;
+      const mx = (i * 97 + t * speed * 18) % W;
+      const my = (i * 53 + Math.sin(t * 0.6 + i) * 18 + t * 9) % H;
+      const x = W - mx;
+      const y = my;
+      if (isMote) {
+        // purple drift mote with a faint glow
+        ctx.fillStyle = "rgba(168,85,247,0.8)";
+        ctx.fillRect(x, y, 2, 2);
+        ctx.fillStyle = "rgba(216,180,254,0.35)";
+        ctx.fillRect(x, y - 1, 1, 1);
+      } else {
+        ctx.fillStyle = "rgba(216,207,224,0.22)";
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
     ctx.restore();
   }
 
