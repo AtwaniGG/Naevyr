@@ -6,6 +6,26 @@ type Events = {
   chat: string;
   /** player triggered an emote, e.g. "waves" */
   emote: string;
+  /** toggle stake-a-claim mode (next ground click claims) */
+  stake: boolean;
+  /** put items up for sale on the market */
+  marketList: { item: string; qty: number; price: number };
+  /** buy a listing by id */
+  marketBuy: number;
+  /** cancel your own listing by id */
+  marketUnlist: number;
+  /** vault: positive = deposit, negative = withdraw */
+  bank: number;
+  /** spin the Wheel (client pays up front) */
+  spin: boolean;
+  /** donate to the Shrine */
+  donate: number;
+  /** bought a furnishing — arm placement mode (client already paid) */
+  placeProp: string;
+  /** challenge a player to a Pit duel */
+  challenge: { target: string; wager: number };
+  /** accept the pending duel challenge */
+  duelAccept: boolean;
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

@@ -36,9 +36,29 @@ for (const kind of Object.keys(BEAST_SPECS) as BeastKind[]) {
   }
 }
 
+// town buildings
+import { makeBuildingSprite, BuildingSpriteKey } from "../game/render/sprites";
+const BUILDINGS: BuildingSpriteKey[] = [
+  "dyeworks", "vault", "wheel", "lantern", "furnisher", "menagerie", "shrine", "pit",
+];
+for (const key of BUILDINGS) {
+  try {
+    const g = makeBuildingSprite(key);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (px < 300) {
+      failures++;
+      console.error(`FAIL building ${key}: only ${px} pixels`);
+    }
+  } catch (e) {
+    failures++;
+    console.error(`THROW building ${key}:`, e);
+  }
+}
+
 console.log(
   failures === 0
-    ? `All ${frames} beast frames generated cleanly.`
-    : `${failures}/${frames} frames FAILED.`,
+    ? `All ${frames} sprites (beasts + buildings) generated cleanly.`
+    : `${failures}/${frames} sprites FAILED.`,
 );
 process.exit(failures === 0 ? 0 : 1);

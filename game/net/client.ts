@@ -15,6 +15,15 @@ export interface NetPlayer {
   dye: string;
   eye: string;
   title: string;
+  aura: string;
+  pet: string;
+}
+
+export interface NetProp {
+  id: number;
+  x: number;
+  y: number;
+  kind: string;
 }
 
 export interface NetNode {
@@ -24,6 +33,22 @@ export interface NetNode {
   gy: number;
   amount: number;
   alive: boolean;
+}
+
+export interface NetClaim {
+  id: number;
+  x: number;
+  y: number;
+  integrity: number;
+  ownerName: string;
+}
+
+export interface NetListing {
+  id: number;
+  item: string;
+  qty: number;
+  price: number;
+  sellerName: string;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -37,10 +62,14 @@ export class NetClient {
   }
 
   /** Join the shared world; resolves null if the server can't be reached. */
-  static async connect(url: string, timeoutMs: number): Promise<NetClient | null> {
+  static async connect(
+    url: string,
+    timeoutMs: number,
+    token: string,
+  ): Promise<NetClient | null> {
     try {
       const room = await withTimeout(
-        new Client(url).joinOrCreate<AnyState>("drift"),
+        new Client(url).joinOrCreate<AnyState>("drift", { token }),
         timeoutMs,
       );
       // wait for the initial full state (map dims arrive with the first patch)
@@ -99,22 +128,109 @@ export class NetClient {
     (this.room.state.nodes as Map<string, NetNode>).forEach((n) => fn(n));
   }
 
+  forEachClaim(fn: (c: NetClaim) => void) {
+    (this.room.state.claims as Map<string, NetClaim>).forEach((c) => fn(c));
+  }
+
+  forEachListing(fn: (l: NetListing) => void) {
+    (this.room.state.listings as Map<string, NetListing>).forEach((l) => fn(l));
+  }
+
+  forEachProp(fn: (p: NetProp) => void) {
+    (this.room.state.props as Map<string, NetProp>).forEach((p) => fn(p));
+  }
+
+  get shrinePot(): number {
+    return this.room.state.shrinePot ?? 0;
+  }
+  get shrineGoal(): number {
+    return this.room.state.shrineGoal ?? 500;
+  }
+
   // ---- intents -----------------------------------------------------------------
+  // every send is guarded: a dying socket must never throw into the game loop
+
+  private safeSend(type: string, payload?: unknown) {
+    try {
+      this.room.send(type, payload);
+    } catch {
+      // connection is closing/closed — onDrop will switch us offline
+    }
+  }
 
   sendMove(x: number, y: number) {
-    this.room.send("move", { x, y });
+    this.safeSend("move", { x, y });
   }
 
   sendGather(nodeId: number, speedMult: number) {
-    this.room.send("gather", { nodeId, speedMult });
+    this.safeSend("gather", { nodeId, speedMult });
   }
 
   sendRespawn() {
-    this.room.send("respawn");
+    this.safeSend("respawn");
   }
 
-  sendIdentity(id: { name: string; dye: string; eye: string; title: string }) {
-    this.room.send("identity", id);
+  sendIdentity(id: {
+    name: string; dye: string; eye: string; title: string;
+    aura: string; pet: string;
+  }) {
+    this.safeSend("identity", id);
+  }
+
+  sendBank(delta: number) {
+    this.safeSend("bank", { delta });
+  }
+
+  sendSpin() {
+    this.safeSend("spin");
+  }
+
+  sendDonate(amount: number) {
+    this.safeSend("donate", { amount });
+  }
+
+  sendPlaceProp(kind: string, x: number, y: number) {
+    this.safeSend("placeProp", { kind, x, y });
+  }
+
+  sendChallenge(target: string, wager: number) {
+    this.safeSend("challenge", { target, wager });
+  }
+
+  sendAcceptDuel(from: string, wager: number) {
+    this.safeSend("acceptDuel", { from, wager });
+  }
+
+  sendDuelHit(dmg: number) {
+    this.safeSend("duelHit", { dmg });
+  }
+
+  sendChat(text: string, kind: "say" | "emote") {
+    this.safeSend("chat", { text, kind });
+  }
+
+  sendClaim(x: number, y: number) {
+    this.safeSend("claim", { x, y });
+  }
+
+  sendList(item: string, qty: number, price: number) {
+    this.safeSend("list", { item, qty, price });
+  }
+
+  sendUnlist(id: number) {
+    this.safeSend("unlist", { id });
+  }
+
+  sendBuy(id: number) {
+    this.safeSend("buy", { id });
+  }
+
+  requestProfile() {
+    this.safeSend("getProfile");
+  }
+
+  sendSave(snapshot: unknown) {
+    this.safeSend("save", { snapshot });
   }
 
   // ---- lifecycle -----------------------------------------------------------------

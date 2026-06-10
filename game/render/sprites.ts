@@ -1006,7 +1006,338 @@ function drawRaider(facing: IsoFacing, anim: string, f: number): Grid {
   return g;
 }
 
-// ─── tombstone: dropped-gold grave marker ─────────────────────────────────────
+// ─── the Waystation: town buildings ───────────────────────────────────────────
+// One parametric iso house + special-cased shrine and arena ring. All sprites
+// are bottom-center anchored on the building's center tile.
+
+export type BuildingSpriteKey =
+  | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
+  | 'furnisher' | 'menagerie' | 'shrine' | 'pit';
+
+interface HouseStyle {
+  wall: readonly string[];
+  roof: readonly string[];
+  accent: readonly string[];
+  /** small prop drawn by the door */
+  prop: (g: Grid, bx: number, by: number) => void;
+}
+
+function drawHouse(style: HouseStyle): Grid {
+  const g = makeGrid(96, 88);
+  const wl = style.wall, rf = style.roof, ac = style.accent;
+  const cx = 48;
+  const baseY = 84;       // ground line
+  const wallH = 26;       // wall height
+  const halfW = 30;       // half footprint width (screen px)
+  const halfD = 15;       // half footprint depth (rows)
+
+  // ---- two visible walls (iso box) ----
+  // left wall: from west corner (cx-halfW, baseY-halfD) to south corner (cx, baseY)
+  for (let k = 0; k <= halfW; k++) {
+    const x = cx - halfW + k;
+    const yb = baseY - halfD + Math.round((k / halfW) * halfD);
+    for (let y = yb - wallH; y <= yb; y++) {
+      let c = wl[1];
+      if (y === yb - wallH) c = wl[0];
+      if (k < 2) c = wl[0];
+      if (hash2(x, y, 301) < 0.05) c = wl[2];
+      P(g, x, y, c);
+    }
+  }
+  // right wall (darker)
+  for (let k = 0; k <= halfW; k++) {
+    const x = cx + k;
+    const yb = baseY - Math.round((k / halfW) * halfD);
+    for (let y = yb - wallH; y <= yb; y++) {
+      let c = wl[2];
+      if (y === yb - wallH) c = wl[1];
+      if (k > halfW - 2) c = wl[3];
+      if (hash2(x, y, 302) < 0.05) c = wl[3];
+      P(g, x, y, c);
+    }
+  }
+
+  // ---- roof: shallow iso pyramid ----
+  const ridgeY = baseY - halfD - wallH - 14;
+  for (let row = 0; row <= 16; row++) {
+    const t = row / 16;
+    const hw = Math.round(4 + t * (halfW + 4));
+    const y = ridgeY + row;
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      let c = x < cx ? rf[0] : rf[1];
+      if (row >= 15) c = rf[2];
+      if (hash2(x, y, 303) < 0.07) c = rf[2]; // shingle texture
+      // skip pixels that would float beside the walls
+      P(g, x, y + Math.round(Math.abs(x - cx) / 4), c);
+    }
+  }
+  P(g, cx, ridgeY - 1, ac[0]); // ridge finial
+
+  // ---- door (south face, on the left wall) + window ----
+  const doorX = cx - 8;
+  const doorYb = baseY - halfD + Math.round(((doorX - (cx - halfW)) / halfW) * halfD);
+  for (let y = doorYb - 12; y <= doorYb; y++) {
+    for (let x = doorX - 3; x <= doorX + 3; x++) {
+      P(g, x, y, y === doorYb - 12 ? RAMP.dirt[0] : RAMP.void);
+    }
+  }
+  P(g, doorX + 2, doorYb - 6, ac[1]); // handle
+  // window on right wall, warm glow
+  const winX = cx + 12;
+  const winYb = baseY - Math.round((12 / halfW) * halfD) - 14;
+  for (let y = winYb - 4; y <= winYb; y++)
+    for (let x = winX - 3; x <= winX + 3; x++)
+      P(g, x, y, hash2(x, y, 305) < 0.25 ? ac[0] : ac[1]);
+
+  // sign plaque above the door
+  for (let x = doorX - 5; x <= doorX + 5; x++) P(g, x, doorYb - 16, RAMP.dirt[1]);
+  P(g, doorX - 1, doorYb - 17, ac[0]); P(g, doorX + 1, doorYb - 17, ac[0]);
+
+  style.prop(g, cx - 26, baseY - 2);
+
+  outline(g);
+  return g;
+}
+
+// (exported for the headless smoke test)
+export function makeBuildingSprite(key: BuildingSpriteKey): Grid {
+  const st = RAMP.stone, dr = RAMP.drift, em = RAMP.ember, gd = RAMP.gold;
+  const bn = RAMP.bone, gr = RAMP.grass, dt = RAMP.dirt, wa = RAMP.water, bl = RAMP.blood;
+
+  switch (key) {
+    case 'dyeworks':
+      return drawHouse({
+        wall: bn, roof: [dr[2], dr[3], RAMP.drift[4] ?? dr[3]], accent: [dr[1], dr[2]],
+        prop: (g, x, y) => {
+          // dye vats with colored spills
+          const pots: [number, readonly string[]][] = [[0, dr], [7, em], [14, wa]];
+          for (const [ox, ramp] of pots) {
+            fillRect(g, x + ox, y - 4, 5, 4, st[1]);
+            fillRect(g, x + ox + 1, y - 5, 3, 1, ramp[1]);
+            P(g, x + ox + 2, y, ramp[1]); P(g, x + ox + 3, y + 1, ramp[2]);
+          }
+        },
+      });
+    case 'vault':
+      return drawHouse({
+        wall: st, roof: [st[0], st[1], st[2]], accent: [gd[0], gd[1]],
+        prop: (g, x, y) => {
+          // strongbox
+          fillRect(g, x + 4, y - 5, 8, 5, st[2]);
+          fillRect(g, x + 5, y - 4, 6, 1, gd[1]);
+          P(g, x + 7, y - 2, gd[0]);
+        },
+      });
+    case 'wheel':
+      return drawHouse({
+        wall: dt, roof: [bl[1], bl[2], bl[3]], accent: [gd[0], gd[1]],
+        prop: (g, x, y) => {
+          // the wheel itself, leaning on the wall
+          const colors = [dr[1], em[1], gd[1], wa[0], bl[0], gr[0]];
+          for (let i = 0; i < 12; i++) {
+            const a = (i / 12) * Math.PI * 2;
+            P(g, x + 8 + Math.round(Math.cos(a) * 6), y - 7 + Math.round(Math.sin(a) * 6), colors[i % 6]);
+          }
+          P(g, x + 8, y - 7, bn[0]);
+        },
+      });
+    case 'lantern':
+      return drawHouse({
+        wall: dt, roof: [dt[0], dt[1], dt[2]], accent: [em[0], em[1]],
+        prop: (g, x, y) => {
+          // hanging lantern + barrel
+          P(g, x + 2, y - 14, dt[2]); P(g, x + 2, y - 13, dt[2]);
+          fillRect(g, x + 1, y - 12, 3, 3, em[1]);
+          P(g, x + 2, y - 11, em[0]);
+          fillRect(g, x + 8, y - 5, 6, 5, dt[1]);
+          fillRect(g, x + 8, y - 3, 6, 1, dt[3]);
+        },
+      });
+    case 'furnisher':
+      return drawHouse({
+        wall: dt, roof: [gr[1], gr[2], gr[3]], accent: [bn[0], bn[1]],
+        prop: (g, x, y) => {
+          // stacked crates
+          fillRect(g, x + 2, y - 5, 6, 5, dt[1]);
+          fillRect(g, x + 9, y - 5, 6, 5, dt[2]);
+          fillRect(g, x + 5, y - 10, 6, 5, dt[0]);
+          P(g, x + 7, y - 8, dt[3]);
+        },
+      });
+    case 'menagerie':
+      return drawHouse({
+        wall: st, roof: [wa[1], wa[2], wa[3]], accent: [dr[0], dr[1]],
+        prop: (g, x, y) => {
+          // a small cage with a glowing wisp inside
+          for (let i = 0; i <= 8; i += 2) {
+            for (let yy = y - 8; yy <= y; yy++) P(g, x + 2 + i, yy, bn[2]);
+          }
+          for (let xx = x + 2; xx <= x + 10; xx++) P(g, xx, y - 8, bn[1]);
+          P(g, x + 6, y - 4, dr[0]); P(g, x + 5, y - 4, dr[1]); P(g, x + 7, y - 4, dr[1]);
+        },
+      });
+    case 'shrine': {
+      // not a house: a stone altar with the Pale Flame
+      const g = makeGrid(72, 64);
+      const cx = 36, baseY = 60;
+      // stepped dais
+      for (let s = 0; s < 3; s++) {
+        const hw = 26 - s * 7;
+        for (let y = baseY - s * 5 - 4; y <= baseY - s * 5; y++) {
+          for (let x = cx - hw; x <= cx + hw; x++) {
+            let c = st[1];
+            if (y === baseY - s * 5 - 4) c = st[0];
+            if (x > cx + hw - 3) c = st[2];
+            if (hash2(x, y, 311) < 0.06) c = st[3];
+            P(g, x, y, c);
+          }
+        }
+      }
+      // altar pillar
+      for (let y = baseY - 30; y <= baseY - 14; y++)
+        for (let x = cx - 4; x <= cx + 4; x++) {
+          let c = st[1];
+          if (x < cx - 2) c = st[0];
+          if (x > cx + 2) c = st[2];
+          P(g, x, y, c);
+        }
+      // the Pale Flame (bone-white fire with a drift core)
+      const fl = [bn[0], bn[1], dr[1]];
+      for (let k = 0; k < 12; k++) {
+        const fy = baseY - 32 - k;
+        const w = Math.max(1, 5 - (k >> 1));
+        for (let x = cx - w; x <= cx + w; x++) {
+          if (hash2(x, fy, 313) < 0.75 - k * 0.04) P(g, x, fy, fl[k < 3 ? 2 : k < 8 ? 1 : 0]);
+        }
+      }
+      P(g, cx, baseY - 33, dr[0]);
+      // votive candles
+      P(g, cx - 18, baseY - 10, em[1]); P(g, cx - 18, baseY - 11, em[0]);
+      P(g, cx + 18, baseY - 10, em[1]); P(g, cx + 18, baseY - 11, em[0]);
+      outline(g);
+      return g;
+    }
+    case 'pit': {
+      // flat arena: ring of standing stones + blood-stained sand (drawn under entities)
+      const g = makeGrid(176, 96);
+      const cx = 88, cy = 50;
+      // sand floor (dithered ellipse)
+      ell(g, cx, cy, 70, 35, (x, y, d) => {
+        if (d > 0.92) return;
+        const h = hash2(x, y, 321);
+        let c = dt[0];
+        if (h < 0.22) c = dt[1];
+        if (h < 0.05) c = bn[2];
+        if (d < 0.5 && h > 0.97) c = bl[2]; // old blood
+        P(g, x, y, c);
+      });
+      // standing stones around the rim
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        const sx = cx + Math.round(Math.cos(a) * 66);
+        const sy = cy + Math.round(Math.sin(a) * 33);
+        const h = 8 + (i % 3) * 3;
+        for (let y = sy - h; y <= sy; y++)
+          for (let x = sx - 2; x <= sx + 2; x++) {
+            let c = st[1];
+            if (x < sx - 1) c = st[0];
+            if (x > sx + 1) c = st[2];
+            P(g, x, y, c);
+          }
+        P(g, sx, sy - h - 1, dr[2]); // drift-touched tips
+      }
+      outline(g, RAMP.void);
+      return g;
+    }
+  }
+}
+
+// ─── pets: small followers (2 frames each) ────────────────────────────────────
+
+export type PetSpriteKey = 'wisp' | 'crow' | 'emberling';
+
+function makePet(kind: PetSpriteKey, f: number): Grid {
+  const g = makeGrid(14, 14);
+  const dr = RAMP.drift, bn = RAMP.bone, em = RAMP.ember;
+  const bob = f === 1 ? 1 : 0;
+  if (kind === 'wisp') {
+    ell(g, 7, 7 - bob, 3, 3, (x, y, d) => {
+      if (hash2(x, y, 401) < 0.15) return;
+      P(g, x, y, d < 0.3 ? dr[0] : d < 0.7 ? dr[1] : dr[2]);
+    });
+    P(g, 7 + (f ? 2 : -2), 11, dr[2]); // trailing mote
+  } else if (kind === 'crow') {
+    // hunched black bird with a bone beak
+    ell(g, 7, 8 - bob, 3, 2.4, (x, y, d) => P(g, x, y, d < 0.5 ? RAMP.stone[2] : RAMP.stone[3]));
+    P(g, 7, 5 - bob, RAMP.stone[2]); P(g, 7, 4 - bob, RAMP.stone[2]); // head
+    P(g, 9, 4 - bob, bn[1]); // beak
+    P(g, 8, 4 - bob, dr[1]); // eye
+    P(g, 4 + (f ? 1 : 0), 7 - bob, RAMP.stone[1]); // wing hint
+    P(g, 6, 11, RAMP.void); P(g, 8, 11, RAMP.void); // feet
+  } else {
+    // emberling: a hot coal with flame licks
+    ell(g, 7, 9, 2.6, 2.2, (x, y, d) => P(g, x, y, d < 0.4 ? em[0] : d < 0.8 ? em[1] : em[2]));
+    P(g, 6, 6 - bob, em[1]); P(g, 8, 5 - bob + (f ? 1 : 0), em[0]);
+    P(g, 7, 4 - bob, em[0]);
+    P(g, 7, 12, em[3]); // scorch
+  }
+  outline(g);
+  return g;
+}
+
+// ─── claim props (the Furnisher's wares) ──────────────────────────────────────
+
+export type PropSpriteKey = 'campfire' | 'banner' | 'driftlamp' | 'statue';
+
+function makeProp(kind: PropSpriteKey, f: number): Grid {
+  const g = makeGrid(20, 26);
+  const dt = RAMP.dirt, st = RAMP.stone, dr = RAMP.drift, em = RAMP.ember, gd = RAMP.gold;
+  const base = 24;
+  if (kind === 'campfire') {
+    // log ring + flame (2 frames)
+    for (let x = 5; x <= 15; x++) P(g, x, base, dt[1]);
+    P(g, 4, base, dt[2]); P(g, 16, base, dt[2]);
+    fillRect(g, 7, base - 2, 7, 2, dt[0]);
+    const lick = f === 1 ? 1 : 0;
+    for (let k = 0; k < 6 + lick; k++) {
+      const w = Math.max(1, 3 - (k >> 1));
+      for (let x = 10 - w; x <= 10 + w; x++) {
+        if (hash2(x, base - 3 - k, 411 + f) < 0.8) {
+          P(g, x, base - 3 - k, k < 2 ? em[0] : k < 4 ? em[1] : em[2]);
+        }
+      }
+    }
+  } else if (kind === 'banner') {
+    for (let y = base - 20; y <= base; y++) P(g, 6, y, dt[0]); // pole
+    P(g, 6, base - 21, gd[1]); // finial
+    for (let y = base - 19; y <= base - 11; y++) {
+      const sway = f === 1 && y > base - 15 ? 1 : 0;
+      for (let x = 7; x <= 14 - ((y - (base - 19)) >> 2); x++) {
+        P(g, x + sway, y, x < 9 ? dr[1] : dr[2]);
+      }
+    }
+    P(g, 9, base - 16, gd[0]); P(g, 10, base - 15, gd[0]); // sigil
+  } else if (kind === 'driftlamp') {
+    for (let y = base - 14; y <= base; y++) P(g, 10, y, st[1]);
+    fillRect(g, 8, base - 18, 5, 4, st[0]);
+    P(g, 10, base - 16, f === 1 ? dr[0] : dr[1]); // crystal pulses
+    P(g, 9, base - 16, dr[2]); P(g, 11, base - 16, dr[2]);
+    fillRect(g, 8, base - 1, 5, 1, st[2]);
+  } else {
+    // statue: a small stone wanderer on a plinth
+    fillRect(g, 6, base - 3, 9, 3, st[1]);
+    fillRect(g, 7, base - 4, 7, 1, st[0]);
+    for (let y = base - 14; y <= base - 4; y++) {
+      const t = (y - (base - 14)) / 10;
+      const hw = Math.round(1.5 + t * 1.5);
+      for (let x = 10 - hw; x <= 10 + hw; x++) P(g, x, y, x < 10 ? st[0] : st[2]);
+    }
+    ell(g, 10, base - 16, 2, 2, (x, y) => P(g, x, y, st[1]));
+    P(g, 9, base - 16, dr[2]); P(g, 11, base - 16, dr[2]); // stone eyes, faintly lit
+  }
+  outline(g);
+  return g;
+}
 
 function makeTombstone(): Grid {
   const g = makeGrid(16, 18);
@@ -1112,6 +1443,9 @@ export class SpriteCache {
   private doodads  = new Map<string, OffscreenCanvas>();
   private glow!: OffscreenCanvas;
   private tombstone!: OffscreenCanvas;
+  private buildings = new Map<BuildingSpriteKey, OffscreenCanvas>();
+  private pets = new Map<string, OffscreenCanvas>();   // `${kind}-${frame}`
+  private props = new Map<string, OffscreenCanvas>();  // `${kind}-${frame}`
   private treeNorm!: OffscreenCanvas;
   private treeDep!:  OffscreenCanvas;
   private rockNorm!: OffscreenCanvas;
@@ -1152,6 +1486,21 @@ export class SpriteCache {
     // soft corruption glow (screen-space atmosphere, drawn additively)
     this.glow = makeGlowCanvas();
     this.tombstone = gridToCanvas(makeTombstone());
+    // the Waystation
+    for (const k of [
+      'dyeworks', 'vault', 'wheel', 'lantern',
+      'furnisher', 'menagerie', 'shrine', 'pit',
+    ] as BuildingSpriteKey[]) {
+      this.buildings.set(k, gridToCanvas(makeBuildingSprite(k)));
+    }
+    for (const k of ['wisp', 'crow', 'emberling'] as PetSpriteKey[]) {
+      this.pets.set(`${k}-0`, gridToCanvas(makePet(k, 0)));
+      this.pets.set(`${k}-1`, gridToCanvas(makePet(k, 1)));
+    }
+    for (const k of ['campfire', 'banner', 'driftlamp', 'statue'] as PropSpriteKey[]) {
+      this.props.set(`${k}-0`, gridToCanvas(makeProp(k, 0)));
+      this.props.set(`${k}-1`, gridToCanvas(makeProp(k, 1)));
+    }
     // nodes
     this.treeNorm = gridToCanvas(makeTree(false));
     this.treeDep  = gridToCanvas(makeTree(true));
@@ -1235,6 +1584,45 @@ export class SpriteCache {
     ctx.imageSmoothingEnabled = false;
     const cv = this.doodads.get(`${kind}-${variant % 2}`);
     if (cv) ctx.drawImage(cv, sx - 8 * z, sy - 11 * z, 16 * z, 12 * z);
+  }
+
+  /** town building, bottom-center anchored on its center tile */
+  drawBuilding(
+    ctx: CanvasRenderingContext2D,
+    key: BuildingSpriteKey,
+    sx: number,
+    sy: number,
+    z: number,
+  ) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.buildings.get(key);
+    if (!cv) return;
+    // pit is flat ground decor; houses stand on the south edge of their tile
+    const yOff = key === 'pit' ? cv.height / 2 + 16 : cv.height - 16;
+    ctx.drawImage(
+      cv,
+      sx - (cv.width / 2) * z,
+      sy - yOff * z,
+      cv.width * z,
+      cv.height * z,
+    );
+  }
+
+  /** little follower, bottom-center anchored */
+  drawPet(ctx: CanvasRenderingContext2D, kind: string, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.pets.get(`${kind}-${frame % 2}`);
+    if (cv) ctx.drawImage(cv, sx - 7 * z, sy - 13 * z, 14 * z, 14 * z);
+  }
+
+  /** claim furniture, bottom-center anchored */
+  drawProp(ctx: CanvasRenderingContext2D, kind: string, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.props.get(`${kind}-${frame % 2}`);
+    if (cv) ctx.drawImage(cv, sx - 10 * z, sy - 25 * z, 20 * z, 26 * z);
   }
 
   /** grave marker for dropped gold, bottom-center anchored */

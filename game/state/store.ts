@@ -11,6 +11,7 @@ import {
   SKILL_META,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
+import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG } from "@/game/types";
 import { play } from "@/game/audio/sound";
 
 // Zustand holds only HUD-facing state. The live world/player simulation lives
@@ -42,6 +43,10 @@ export interface Cosmetics {
   name: string;
   dye: DyeKey;
   eye: EyeKey;
+  /** equipped aura ("" = none) */
+  aura: AuraKey | "";
+  /** equipped pet ("" = none) */
+  pet: PetKey | "";
 }
 
 /** lightweight world snapshot pushed by the engine ~2×/sec for the minimap */
@@ -54,6 +59,8 @@ export interface MinimapSnap {
   mobs: { x: number; y: number; boss: boolean }[];
   /** your unclaimed grave, if any */
   tomb: { x: number; y: number } | null;
+  /** land claims (3×3 plots, by center) */
+  claims: { x: number; y: number; mine: boolean }[];
 }
 
 /** lifetime tallies (persisted) — feeds the stats panel + future titles */
@@ -63,13 +70,34 @@ export interface LifetimeStats {
   crits: number;
   goldEarned: number;
   driftfalls: number;
+  /** gold given to the Shrine of the Pale Flame */
+  donated: number;
 }
 
-/** who else shares the Drift right now (display only) */
+/** an active duel as the HUD sees it */
+export interface DuelState {
+  oppName: string;
+  myHp: number;
+  oppHp: number;
+  wager: number;
+}
+
+/** who else shares the Drift right now */
 export interface RosterEntry {
+  id: string;
   name: string;
   title: string;
   self: boolean;
+}
+
+/** a marketplace offer as the HUD sees it */
+export interface MarketListing {
+  id: number;
+  item: ItemKey;
+  qty: number;
+  price: number;
+  sellerName: string;
+  mine: boolean;
 }
 
 /** Earned title, best first. Derived — never stored. */
@@ -79,6 +107,7 @@ export function currentTitle(s: {
   stats?: LifetimeStats;
 }): string {
   if (s.kills >= 50) return "Beastbane";
+  if (s.stats && s.stats.donated >= 500) return "Flamekeeper";
   if (s.stats && s.stats.goldEarned >= 1000) return "Gilded";
   if (s.stats && s.stats.crits >= 50) return "Deathblow";
   if (s.skills.combat.level >= 5) return "Warbrand";
@@ -111,6 +140,27 @@ interface GameState {
   stats: LifetimeStats;
   minimap: MinimapSnap | null;
   roster: RosterEntry[];
+  /** connected to the shared world (claims need it) */
+  online: boolean;
+  /** armed: next ground click stakes a claim */
+  claimMode: boolean;
+  /** how many claims you currently hold */
+  myClaims: number;
+  listings: MarketListing[];
+  /** which town building's panel is open (null = none) */
+  openShop: string | null;
+  // ---- the Waystation ----
+  ownedDyes: DyeKey[];
+  ownedEyes: EyeKey[];
+  ownedAuras: AuraKey[];
+  ownedPets: PetKey[];
+  /** active drink buffs: expiry timestamps (ms) */
+  buffs: { gather: number; damage: number; sight: number };
+  /** gold stored safely in the Vault (server-held; display copy) */
+  banked: number;
+  shrine: { pot: number; goal: number };
+  duel: DuelState | null;
+  duelChallenge: { from: string; name: string; wager: number } | null;
 
   setDriftPct: (pct: number) => void;
   setSeason: (season: number) => void;
@@ -120,6 +170,18 @@ interface GameState {
   bumpStat: (key: keyof LifetimeStats, n?: number) => void;
   setMinimap: (m: MinimapSnap) => void;
   setRoster: (r: RosterEntry[]) => void;
+  setOnline: (b: boolean) => void;
+  setClaimMode: (b: boolean) => void;
+  setMyClaims: (n: number) => void;
+  setListings: (l: MarketListing[]) => void;
+  setOpenShop: (k: string | null) => void;
+  /** record ownership of a bought cosmetic (gold is spent by the caller) */
+  grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet", key: string) => void;
+  drink: (kind: DrinkKey) => boolean;
+  setBanked: (n: number) => void;
+  setShrine: (s: { pot: number; goal: number }) => void;
+  setDuel: (d: DuelState | null) => void;
+  setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
 
   addGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
@@ -193,11 +255,25 @@ export const useGame = create<GameState>((set, get) => ({
   driftSeason: 1,
   driftPct: 0,
   playersOnline: 1,
-  cosmetics: { name: "Wanderer", dye: "stone", eye: "drift" },
+  cosmetics: { name: "Wanderer", dye: "stone", eye: "drift", aura: "", pet: "" },
   kills: 0,
-  stats: { deaths: 0, gathered: 0, crits: 0, goldEarned: 0, driftfalls: 0 },
+  stats: { deaths: 0, gathered: 0, crits: 0, goldEarned: 0, driftfalls: 0, donated: 0 },
   minimap: null,
   roster: [],
+  online: false,
+  claimMode: false,
+  myClaims: 0,
+  listings: [],
+  openShop: null,
+  ownedDyes: ["stone"],
+  ownedEyes: ["drift"],
+  ownedAuras: [],
+  ownedPets: [],
+  buffs: { gather: 0, damage: 0, sight: 0 },
+  banked: 0,
+  shrine: { pot: 0, goal: 500 },
+  duel: null,
+  duelChallenge: null,
 
   setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
   setSeason: (season) => set({ driftSeason: season }),
@@ -217,6 +293,37 @@ export const useGame = create<GameState>((set, get) => ({
     set((s) => ({ stats: { ...s.stats, [key]: s.stats[key] + n } })),
   setMinimap: (m) => set({ minimap: m }),
   setRoster: (r) => set({ roster: r }),
+  setOnline: (b) => set({ online: b }),
+  setClaimMode: (b) => set({ claimMode: b }),
+  setMyClaims: (n) => set({ myClaims: n }),
+  setListings: (l) => set({ listings: l }),
+  setOpenShop: (k) => set({ openShop: k }),
+  grantCosmetic: (kind, key) =>
+    set((s) => {
+      if (kind === "dye" && !s.ownedDyes.includes(key as DyeKey))
+        return { ownedDyes: [...s.ownedDyes, key as DyeKey] };
+      if (kind === "eye" && !s.ownedEyes.includes(key as EyeKey))
+        return { ownedEyes: [...s.ownedEyes, key as EyeKey] };
+      if (kind === "aura" && !s.ownedAuras.includes(key as AuraKey))
+        return { ownedAuras: [...s.ownedAuras, key as AuraKey] };
+      if (kind === "pet" && !s.ownedPets.includes(key as PetKey))
+        return { ownedPets: [...s.ownedPets, key as PetKey] };
+      return {};
+    }),
+  drink: (kind) => {
+    const meta = DRINK_CATALOG[kind];
+    if (!get().spendGold(meta.price)) return false;
+    play("eat");
+    set((s) => ({
+      buffs: { ...s.buffs, [meta.buff]: Date.now() + meta.ms },
+    }));
+    get().pushLog(`You drink ${meta.label}. ${meta.desc}.`, "#e9a86b");
+    return true;
+  },
+  setBanked: (n) => set({ banked: n }),
+  setShrine: (s) => set({ shrine: s }),
+  setDuel: (d) => set({ duel: d }),
+  setDuelChallenge: (c) => set({ duelChallenge: c }),
 
   addGold: (amount) =>
     set((s) => ({

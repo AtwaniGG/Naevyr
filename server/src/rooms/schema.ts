@@ -20,6 +20,15 @@ export class PlayerState extends Schema {
   @type("string") dye = "stone";
   @type("string") eye = "drift";
   @type("string") title = "Drifter";
+  @type("string") aura = "";
+  @type("string") pet = "";
+}
+
+export class PropState extends Schema {
+  @type("number") id = 0;
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("string") kind = "campfire";
 }
 
 export class NodeState extends Schema {
@@ -31,12 +40,33 @@ export class NodeState extends Schema {
   @type("boolean") alive = true;
 }
 
+export class ClaimState extends Schema {
+  @type("number") id = 0;
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("number") integrity = 100;
+  @type("string") ownerName = "";
+}
+
+export class ListingState extends Schema {
+  @type("number") id = 0;
+  @type("string") item = "";
+  @type("number") qty = 0;
+  @type("number") price = 0;
+  @type("string") sellerName = "";
+}
+
 export class DriftRoomState extends Schema {
   @type("number") w = 0;
   @type("number") h = 0;
   @type(["uint8"]) tiles = new ArraySchema<number>();
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type({ map: NodeState }) nodes = new MapSchema<NodeState>();
+  @type({ map: ClaimState }) claims = new MapSchema<ClaimState>();
+  @type({ map: ListingState }) listings = new MapSchema<ListingState>();
+  @type({ map: PropState }) props = new MapSchema<PropState>();
+  @type("number") shrinePot = 0;
+  @type("number") shrineGoal = 500;
   @type("number") season = 1;
   @type("number") driftPct = 0;
 }

@@ -1,12 +1,22 @@
 import { Camera } from "@/game/render/camera";
 import { gridToIso, TILE_H, TILE_W, isoToGrid } from "@/game/render/iso";
-import { World } from "@/game/world/tilemap";
+import {
+  World,
+  buildingAt,
+  townProtected,
+  TOWN_BUILDINGS,
+  TownBuilding,
+  BuildingKey,
+} from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import { startGathering, applyGatherLoot } from "@/game/systems/gathering";
-import { gatherSpeedMultiplier, damageReduction } from "@/game/systems/crafting";
-import { Cell, ResourceKind, ResourceNode, codeToTile } from "@/game/types";
+import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/systems/crafting";
+import {
+  Cell, ResourceKind, ResourceNode, codeToTile,
+  CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PROP_CATALOG, PropKey, AuraKey,
+} from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
 import { Mob } from "@/game/entities/mob";
@@ -17,6 +27,12 @@ import {
   DyeKey, EyeKey,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
+import {
+  applySnapshot,
+  buildSnapshot,
+  getDeviceToken,
+  SaveData,
+} from "@/game/state/persistence";
 import { bus } from "@/game/state/bus";
 import { tileToCode } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
@@ -77,6 +93,21 @@ export class Game {
   private storm: { until: number } | null = null;
   private nextStormAt = performance.now() + 180_000 + Math.random() * 180_000;
   private stepAcc = 0;
+  /** seconds since the last progress push to the server */
+  private netSaveT = 0;
+  /** ids of land claims this player owns */
+  private myClaimIds = new Set<number>();
+  /** shop to open when we arrive at its door */
+  private pendingShop: TownBuilding | null = null;
+  /** furnishing armed for placement (already paid; refunded on failure) */
+  private propPlaceKind: PropKey | null = null;
+  /** opponent sessionId while dueling */
+  private duelOpp: string | null = null;
+  private duelLastSwing = 0;
+  /** ids of market listings this player owns */
+  private myListingIds = new Set<number>();
+  /** gold already deducted for an in-flight buy (refunded on failure) */
+  private pendingBuyPrice = 0;
 
   private cleanupFns: Array<() => void> = [];
 
@@ -97,6 +128,8 @@ export class Game {
       useGame.getState().pushLog(`A ${kind} re-forms somewhere in the Drift…`, "#7c6f93");
     // offline driftfall (online: the server's Drift fires and broadcasts)
     this.drift.onDriftfall = (cell) => this.announceDriftfall(cell.x, cell.y);
+    // the Waystation never falls to the Drift (offline sim; server has its own)
+    this.drift.isProtected = (x, y) => townProtected(x, y);
     this.drift.onSeason = () => {
       const store = useGame.getState();
       store.bumpSeason();
@@ -128,7 +161,80 @@ export class Game {
     useGame.getState().pushLog("You awaken in the Driftlands.", "#d8cfe0");
     this.cleanupFns.push(bus.on("chat", (text) => this.handleChatInput(text)));
     this.cleanupFns.push(bus.on("emote", (e) => this.handleChatInput(`/${e}`)));
+    this.cleanupFns.push(bus.on("stake", () => this.toggleClaimMode()));
+    this.cleanupFns.push(bus.on("marketList", (m) => this.marketList(m)));
+    this.cleanupFns.push(bus.on("marketBuy", (id) => this.marketBuy(id)));
+    this.cleanupFns.push(bus.on("marketUnlist", (id) => this.net?.sendUnlist(id)));
+    this.cleanupFns.push(bus.on("bank", (delta) => this.net?.sendBank(delta)));
+    this.cleanupFns.push(bus.on("spin", () => this.net?.sendSpin()));
+    this.cleanupFns.push(bus.on("donate", (amt) => this.net?.sendDonate(amt)));
+    this.cleanupFns.push(
+      bus.on("placeProp", (kind) => {
+        this.propPlaceKind = kind as PropKey;
+        useGame.getState().pushLog("Choose a spot on your claim.", "#e7c873");
+        useGame.getState().setOpenShop(null);
+      }),
+    );
+    this.cleanupFns.push(
+      bus.on("challenge", (c) => this.net?.sendChallenge(c.target, c.wager)),
+    );
+    this.cleanupFns.push(
+      bus.on("duelAccept", () => {
+        const store = useGame.getState();
+        const ch = store.duelChallenge;
+        if (!ch) return;
+        store.setDuelChallenge(null);
+        if (store.gold < ch.wager) {
+          store.pushLog(`You can't cover the ${ch.wager}g wager.`, "#6f6781");
+          return;
+        }
+        this.net?.sendAcceptDuel(ch.from, ch.wager);
+      }),
+    );
     void this.connect();
+  }
+
+  // ---- marketplace (items/gold move client-side; server is the ledger) ---------
+
+  private marketList(m: { item: string; qty: number; price: number }) {
+    const store = useGame.getState();
+    if (!this.net) {
+      store.pushLog("The market needs the shared world (server offline).", "#6f6781");
+      return;
+    }
+    if (!store.removeItem(m.item as never, m.qty)) {
+      store.pushLog("You don't carry that much.", "#6f6781");
+      return;
+    }
+    this.net.sendList(m.item, m.qty, m.price);
+  }
+
+  private marketBuy(id: number) {
+    const store = useGame.getState();
+    const ls = store.listings.find((l) => l.id === id);
+    if (!this.net || !ls) return;
+    if (!store.spendGold(ls.price)) {
+      store.pushLog(`That costs ${ls.price}g — you carry ${store.gold}g.`, "#6f6781");
+      return;
+    }
+    this.pendingBuyPrice = ls.price;
+    this.net.sendBuy(id);
+  }
+
+  private toggleClaimMode() {
+    const store = useGame.getState();
+    if (!this.net) {
+      store.pushLog("Land can only be staked in the shared world (server offline).", "#6f6781");
+      return;
+    }
+    if (!store.claimMode && store.gold < CLAIM_COST) {
+      store.pushLog(`Staking a claim costs ${CLAIM_COST}g — you carry ${store.gold}g.`, "#6f6781");
+      return;
+    }
+    store.setClaimMode(!store.claimMode);
+    if (useGame.getState().claimMode) {
+      store.pushLog("Choose your ground — click to stake a 3×3 claim.", "#e7c873");
+    }
   }
 
   // ---- chat & emotes -----------------------------------------------------------
@@ -152,7 +258,7 @@ export class Game {
       text = verb;
     }
     if (this.net) {
-      this.net.room.send("chat", { text, kind });
+      this.net.sendChat(text, kind);
       return; // bubble + log arrive via the broadcast (everyone incl. us)
     }
     this.showChat(this.player, useGame.getState().cosmetics.name, text, kind === "emote");
@@ -179,7 +285,7 @@ export class Game {
   /** Try to join the shared world; on failure the local sim keeps running. */
   private async connect() {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
-    const net = await NetClient.connect(url, 2500);
+    const net = await NetClient.connect(url, 2500, getDeviceToken());
     if (!net) {
       useGame.getState().pushLog("No shared world found — wandering offline.", "#6f6781");
       return;
@@ -238,6 +344,227 @@ export class Game {
     net.onMessage<{ x: number; y: number }>("driftfall", (m) =>
       this.announceDriftfall(m.x, m.y),
     );
+    // server-stored progress: apply it, or seed the server with local progress
+    net.onMessage<{
+      snapshot: SaveData | null;
+      myClaims?: number[];
+      myListings?: number[];
+      escrowGold?: number;
+      banked?: number;
+    }>("profile", (m) => {
+      const store = useGame.getState();
+      if (m.snapshot) {
+        applySnapshot(m.snapshot);
+        this.sentIdentity = ""; // re-push identity from the restored cosmetics
+        store.pushLog("Your story continues where it left off.", "#a99fb8");
+      } else {
+        net.sendSave(buildSnapshot());
+      }
+      this.myClaimIds = new Set(m.myClaims ?? []);
+      store.setMyClaims(this.myClaimIds.size);
+      this.myListingIds = new Set(m.myListings ?? []);
+      if (typeof m.banked === "number") store.setBanked(m.banked);
+      if (m.escrowGold && m.escrowGold > 0) {
+        store.addGold(m.escrowGold);
+        play("coin");
+        store.pushLog(
+          `Your market stall earned ${m.escrowGold}g while you wandered.`,
+          "#e7c873",
+        );
+      }
+    });
+    net.requestProfile();
+
+    // ---- marketplace ----
+    net.onMessage<{ ok: boolean; id?: number; reason?: string; item?: string; qty?: number }>(
+      "listResult",
+      (m) => {
+        const store = useGame.getState();
+        if (m.ok && m.id != null) {
+          this.myListingIds.add(m.id);
+          store.pushLog("Your offer is on the market.", "#e7c873");
+        } else {
+          if (m.item && m.qty) store.addItem(m.item as never, m.qty); // return escrowed items
+          store.pushLog(`Listing refused: ${m.reason ?? "the market balks"}.`, "#dc2626");
+        }
+      },
+    );
+    net.onMessage<{ ok: boolean; item?: string; qty?: number }>("unlistResult", (m) => {
+      const store = useGame.getState();
+      if (m.ok && m.item && m.qty) {
+        store.addItem(m.item as never, m.qty);
+        store.pushLog("Offer withdrawn — goods returned to your satchel.", "#a99fb8");
+      }
+    });
+    net.onMessage<{ ok: boolean; item?: string; qty?: number; price?: number; reason?: string }>(
+      "buyResult",
+      (m) => {
+        const store = useGame.getState();
+        if (m.ok && m.item && m.qty) {
+          store.addItem(m.item as never, m.qty);
+          play("coin");
+          store.pushLog(`Bought ${m.qty}× for ${m.price}g.`, "#e7c873");
+        } else {
+          if (this.pendingBuyPrice > 0) store.addGold(this.pendingBuyPrice); // refund
+          store.pushLog(`Purchase failed: ${m.reason ?? "offer gone"}. Gold returned.`, "#dc2626");
+        }
+        this.pendingBuyPrice = 0;
+      },
+    );
+    net.onMessage<{ item: string; qty: number; gold: number; buyer: string }>("sold", (m) => {
+      const store = useGame.getState();
+      store.addGold(m.gold);
+      play("coin");
+      store.pushLog(`${m.buyer} bought your ${m.qty}× listing — +${m.gold}g.`, "#e7c873");
+    });
+
+    // ---- the Waystation ----
+    net.onMessage<{ ok: boolean; banked: number; delta?: number; reason?: string }>(
+      "bankResult",
+      (m) => {
+        const store = useGame.getState();
+        if (m.ok) {
+          store.setBanked(m.banked);
+          if (m.delta && m.delta < 0) {
+            const gross = -m.delta;
+            const net2 = Math.floor(gross * 0.98);
+            store.addGold(net2);
+            store.pushLog(`Withdrew ${gross}g (${gross - net2}g handling fee).`, "#e7c873");
+          } else if (m.delta && m.delta > 0) {
+            store.pushLog(`${m.delta}g locked safely in the Vault.`, "#a99fb8");
+          }
+          play("coin");
+        } else {
+          // deposit that failed → give the gold back
+          store.pushLog(`The Vault refuses: ${m.reason ?? "?"}.`, "#dc2626");
+        }
+      },
+    );
+    net.onMessage<{ gold: number; shards: number; label: string }>("spinResult", (m) => {
+      const store = useGame.getState();
+      if (m.gold > 0) store.addGold(m.gold);
+      if (m.shards > 0) store.addItem("driftshard", m.shards);
+      play(m.gold >= 500 ? "levelup" : m.gold > 0 || m.shards > 0 ? "coin" : "ui");
+      store.pushLog(`The Wheel: ${m.label}`, m.gold >= 500 ? "#fcd34d" : "#d8cfe0");
+    });
+    net.onMessage<{ count: number; driftPct: number }>("cleansing", (m) => {
+      const store = useGame.getState();
+      store.setDriftPct(m.driftPct);
+      this.banner = { name: "THE PALE FLAME BURNS", t0: performance.now() };
+      play("levelup");
+      store.pushLog(
+        `The Shrine fires — ${m.count} corrupted tiles burn clean.`,
+        "#efe9f4",
+      );
+      this.applyNetTiles();
+    });
+    net.onMessage<{ ok: boolean; kind?: string; reason?: string }>("propResult", (m) => {
+      const store = useGame.getState();
+      if (m.ok) {
+        play("craft");
+        store.pushLog("Your furnishing stands.", "#e7c873");
+      } else {
+        const price = PROP_CATALOG[(m.kind ?? "") as PropKey]?.price ?? 0;
+        if (price > 0) store.addGold(price);
+        store.pushLog(`Can't place it: ${m.reason ?? "?"}. Gold returned.`, "#dc2626");
+      }
+    });
+
+    // ---- the Pit ----
+    net.onMessage<{ from: string; name: string; wager: number }>("challenged", (m) => {
+      useGame.getState().setDuelChallenge(m);
+      play("boss");
+      useGame
+        .getState()
+        .pushLog(`${m.name} challenges you to the Pit (${m.wager}g wager)!`, "#dc2626");
+    });
+    net.onMessage<{ a: string; b: string; nameA: string; nameB: string; wager: number }>(
+      "duelStart",
+      (m) => {
+        const store = useGame.getState();
+        const meId = net.sessionId;
+        if (m.a === meId || m.b === meId) {
+          store.spendGold(m.wager); // both stake the pot
+          this.duelOpp = m.a === meId ? m.b : m.a;
+          store.setDuel({
+            oppName: m.a === meId ? m.nameB : m.nameA,
+            myHp: 100,
+            oppHp: 100,
+            wager: m.wager,
+          });
+          this.banner = { name: "TO THE PIT", t0: performance.now() };
+        }
+        play("boss");
+        store.pushLog(`${m.nameA} and ${m.nameB} enter the Pit (${m.wager}g pot).`, "#dc2626");
+      },
+    );
+    net.onMessage<{ a: string; b: string; hpA: number; hpB: number }>("duelHp", (m) => {
+      const store = useGame.getState();
+      const meId = net.sessionId;
+      if (m.a !== meId && m.b !== meId) return;
+      const d = store.duel;
+      if (!d) return;
+      store.setDuel({
+        ...d,
+        myHp: m.a === meId ? m.hpA : m.hpB,
+        oppHp: m.a === meId ? m.hpB : m.hpA,
+      });
+    });
+    net.onMessage<{ a: string; b: string; winner: string | null; pot: number; winnerName: string | null }>(
+      "duelEnd",
+      (m) => {
+        const store = useGame.getState();
+        const meId = net.sessionId;
+        if (m.a === meId || m.b === meId) {
+          if (m.winner === meId) {
+            store.addGold(m.pot);
+            play("levelup");
+            this.banner = { name: "VICTORY", t0: performance.now() };
+            store.pushLog(`You win the duel — ${m.pot}g pot.`, "#e7c873");
+          } else if (m.winner === null) {
+            store.addGold(m.pot / 2); // draw: stake returned
+            store.pushLog("The duel ends in a draw. Stakes returned.", "#a99fb8");
+          } else {
+            play("death");
+            this.banner = { name: "DEFEATED", t0: performance.now() };
+            store.pushLog("You are beaten. The Pit remembers.", "#dc2626");
+          }
+          store.setDuel(null);
+          this.duelOpp = null;
+        } else if (m.winnerName) {
+          store.pushLog(`${m.winnerName} wins the duel (${m.pot}g).`, "#a99fb8");
+        }
+      },
+    );
+
+    // ---- land claims ----
+    net.onMessage<{ ok: boolean; reason?: string; id?: number }>("claimResult", (m) => {
+      const store = useGame.getState();
+      if (m.ok && m.id != null) {
+        this.myClaimIds.add(m.id);
+        store.setMyClaims(this.myClaimIds.size);
+        play("reclaim");
+        store.pushLog("You stake your claim. This ground is yours — for now.", "#e7c873");
+      } else {
+        store.addGold(CLAIM_COST); // refund
+        store.pushLog(`Claim refused: ${m.reason ?? "the Drift resists"}. Gold returned.`, "#dc2626");
+      }
+    });
+    net.onMessage<{ x: number; y: number; name: string }>("claimPlaced", (m) =>
+      useGame.getState().pushLog(`${m.name} stakes a claim.`, "#a99fb8"),
+    );
+    net.onMessage<{ id: number; x: number; y: number; name: string }>("claimFallen", (m) => {
+      const store = useGame.getState();
+      if (this.myClaimIds.delete(m.id)) {
+        store.setMyClaims(this.myClaimIds.size);
+        play("death");
+        this.banner = { name: "Your claim has fallen", t0: performance.now() };
+        store.pushLog("Your claim's warding breaks — the Drift swallows your land.", "#dc2626");
+      } else {
+        store.pushLog(`${m.name}'s claim falls to the Drift…`, "#a855f7");
+      }
+      this.applyNetTiles();
+    });
     net.onMessage<{ season: number; driftPct: number }>("season", (m) => {
       const s = useGame.getState();
       s.setSeason(m.season);
@@ -252,9 +579,12 @@ export class Game {
       this.gatherVis = null;
       const s = useGame.getState();
       s.setPlayersOnline(1);
+      s.setOnline(false);
+      s.setClaimMode(false);
       s.pushLog("Connection to the shared Drift lost — wandering offline.", "#dc2626");
     });
 
+    store.setOnline(true);
     store.pushLog("You step into the shared Drift.", "#a855f7");
   }
 
@@ -403,7 +733,7 @@ export class Game {
     this.lastLevels = levels;
   }
 
-  /** push name/dye/eye/title to the server whenever they change */
+  /** push name/dye/eye/title/aura/pet to the server whenever they change */
   private pushIdentity(net: NetClient) {
     const s = useGame.getState();
     const id = {
@@ -411,8 +741,10 @@ export class Game {
       dye: s.cosmetics.dye,
       eye: s.cosmetics.eye,
       title: currentTitle(s),
+      aura: s.cosmetics.aura,
+      pet: s.cosmetics.pet,
     };
-    const sig = `${id.name}|${id.dye}|${id.eye}|${id.title}`;
+    const sig = `${id.name}|${id.dye}|${id.eye}|${id.title}|${id.aura}|${id.pet}`;
     if (sig !== this.sentIdentity) {
       this.sentIdentity = sig;
       net.sendIdentity(id);
@@ -469,6 +801,10 @@ export class Game {
     const cell = this.cellUnderCursor(sx, sy);
     if (!this.world.inBounds(cell.x, cell.y)) return;
     this.clickMarker = { x: cell.x, y: cell.y, t: performance.now() };
+
+    // town buildings open their shop (walk over first if we're far)
+    const building = buildingAt(cell.x, cell.y);
+    if (building && this.handleBuildingClick(building)) return;
 
     if (this.net) {
       this.handleClickOnline(cell);
@@ -537,9 +873,57 @@ export class Game {
     }
   }
 
+  /** click on a town building: open if close, otherwise walk to its door */
+  private handleBuildingClick(b: TownBuilding): boolean {
+    if (b.key === "pit" && useGame.getState().claimMode) return false;
+    const dist = Math.max(Math.abs(this.player.cell.x - b.x), Math.abs(this.player.cell.y - b.y));
+    if (dist <= b.r + 2) {
+      useGame.getState().setOpenShop(b.key);
+      play("ui");
+      return true;
+    }
+    // walk to the nearest walkable cell at the building's skirt
+    const adj = adjacentWalkable(
+      this.world,
+      this.player.cell,
+      { x: b.x, y: b.y + b.r }, // approach the south face
+    );
+    if (!adj) return true;
+    this.pendingShop = b;
+    this.pendingNode = null;
+    this.pendingMob = null;
+    if (this.net) {
+      this.net.sendMove(adj.x, adj.y);
+    } else {
+      const path = findPath(this.world, this.player.cell, adj);
+      if (path) this.player.setPath(path);
+    }
+    return true;
+  }
+
   /** Online: clicks become server intents. Mobs are still local (Phase 3). */
   private handleClickOnline(cell: Cell) {
     const net = this.net!;
+
+    // furnishing placement (already paid at the shop; refunded on rejection)
+    if (this.propPlaceKind) {
+      const kind = this.propPlaceKind;
+      this.propPlaceKind = null;
+      net.sendPlaceProp(kind, cell.x, cell.y);
+      return;
+    }
+
+    // claim mode: this click stakes (gold deducted now, refunded on rejection)
+    const store = useGame.getState();
+    if (store.claimMode) {
+      store.setClaimMode(false);
+      if (!store.spendGold(CLAIM_COST)) {
+        store.pushLog(`Staking a claim costs ${CLAIM_COST}g.`, "#6f6781");
+        return;
+      }
+      net.sendClaim(cell.x, cell.y);
+      return;
+    }
 
     const mob = this.combat.mobAtCell(cell);
     if (mob) {
@@ -608,6 +992,23 @@ export class Game {
         chebyshev(this.player.cell, { x: node.gx, y: node.gy }) === 1
       ) {
         startGathering(this.world, this.player, this.drift, node);
+      }
+    }
+
+    // arrival -> open the shop we were walking toward
+    if (
+      this.pendingShop &&
+      this.player.action !== "walk" &&
+      this.player.path.length === 0
+    ) {
+      const b = this.pendingShop;
+      const dist = Math.max(Math.abs(this.player.cell.x - b.x), Math.abs(this.player.cell.y - b.y));
+      if (dist <= b.r + 2) {
+        useGame.getState().setOpenShop(b.key);
+        play("ui");
+        this.pendingShop = null;
+      } else if (this.player.action === "idle") {
+        this.pendingShop = null; // couldn't get there
       }
     }
 
@@ -750,12 +1151,49 @@ export class Game {
         .filter((m) => m.state !== "dead")
         .map((m) => ({ x: m.px, y: m.py, boss: m.kind === "colossus" })),
       tomb: this.tomb ? { x: this.tomb.x, y: this.tomb.y } : null,
+      claims: (() => {
+        const out: { x: number; y: number; mine: boolean }[] = [];
+        this.net?.forEachClaim((c) =>
+          out.push({ x: c.x, y: c.y, mine: this.myClaimIds.has(c.id) }),
+        );
+        return out;
+      })(),
     });
 
-    // who's here (for the roster panel)
+    // shrine progress for the HUD
+    if (this.net) {
+      const cur = store.shrine;
+      if (cur.pot !== this.net.shrinePot || cur.goal !== this.net.shrineGoal) {
+        store.setShrine({ pot: this.net.shrinePot, goal: this.net.shrineGoal });
+      }
+    }
+
+    // market listings for the HUD
+    if (this.net) {
+      const ls: import("@/game/state/store").MarketListing[] = [];
+      this.net.forEachListing((l) =>
+        ls.push({
+          id: l.id,
+          item: l.item as never,
+          qty: l.qty,
+          price: l.price,
+          sellerName: l.sellerName,
+          mine: this.myListingIds.has(l.id),
+        }),
+      );
+      store.setListings(ls);
+    }
+
+    // who's here (for the roster panel + Pit challenges)
     const roster = [
-      { name: store.cosmetics.name, title: currentTitle(store), self: true },
-      ...[...this.remotes.values()].map((r) => ({
+      {
+        id: this.net?.sessionId ?? "self",
+        name: store.cosmetics.name,
+        title: currentTitle(store),
+        self: true,
+      },
+      ...[...this.remotes.entries()].map(([id, r]) => ({
+        id,
         name: r.name || "Wanderer",
         title: r.title,
         self: false,
@@ -808,7 +1246,36 @@ export class Game {
       if (self.action !== "gather") this.gatherVis = null;
     }
 
+    // ---- duel: auto-swing while adjacent to your opponent --------------------
+    if (this.duelOpp && useGame.getState().duel) {
+      const opp = this.remotes.get(this.duelOpp);
+      const now2 = performance.now();
+      if (opp) {
+        const dist = Math.hypot(opp.px - this.player.px, opp.py - this.player.py);
+        if (dist <= 1.8) {
+          this.player.action = "attack";
+          this.player.updateIsoFacing(opp.px - this.player.px, opp.py - this.player.py);
+        }
+        if (dist <= 1.6 && now2 - this.duelLastSwing > 1100) {
+          this.duelLastSwing = now2;
+          const crit = Math.random() < 0.12;
+          const dmg = Math.floor((6 + Math.random() * 6 + weaponBonus()) * (crit ? 2 : 1));
+          net.sendDuelHit(dmg);
+          play(crit ? "crit" : "hit");
+          this.spawnFloater(opp.px, opp.py, crit ? `CRIT ${dmg}` : `${dmg}`, crit ? "#fcd34d" : "#e7c873");
+          this.spawnSparks(opp.px, opp.py, "#dc2626", crit ? 10 : 6);
+        }
+      }
+    }
+
     this.pushIdentity(net);
+
+    // ---- periodic progress push (server persists it) -------------------------
+    this.netSaveT += dt;
+    if (this.netSaveT >= 8) {
+      this.netSaveT = 0;
+      net.sendSave(buildSnapshot());
+    }
 
     // ---- other wanderers ----------------------------------------------------
     const store = useGame.getState();
@@ -826,6 +1293,8 @@ export class Game {
       r.dye = p.dye;
       r.eye = p.eye;
       r.title = p.title;
+      r.aura = p.aura;
+      r.pet = p.pet;
       const dx = p.x - r.px;
       const dy = p.y - r.py;
       r.px += dx * k;
@@ -907,6 +1376,7 @@ export class Game {
     ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
 
     this.drawGround(ctx);
+    this.drawClaims(ctx);
     this.drawClickMarker(ctx);
     this.drawEntities(ctx);
     this.drawJuice(ctx);
@@ -1209,6 +1679,85 @@ export class Game {
     for (const d of doodads) spriteCache.drawDoodad(ctx, d.kind, d.v, d.sx, d.sy, z);
   }
 
+  /** stroke the iso outline of a 3×3 plot centered on (cx, cy) */
+  private plotPath(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
+    const z = this.camera.zoom;
+    const hw = (TILE_W / 2) * z;
+    const hh = (TILE_H / 2) * z;
+    const n = this.tileScreen(cx - 1, cy - 1);
+    const e = this.tileScreen(cx + 1, cy - 1);
+    const s = this.tileScreen(cx + 1, cy + 1);
+    const w = this.tileScreen(cx - 1, cy + 1);
+    ctx.beginPath();
+    ctx.moveTo(n.x, n.y - hh);
+    ctx.lineTo(e.x + hw, e.y);
+    ctx.lineTo(s.x, s.y + hh);
+    ctx.lineTo(w.x - hw, w.y);
+    ctx.closePath();
+  }
+
+  /** land claim borders + the staking preview */
+  private drawClaims(ctx: CanvasRenderingContext2D) {
+    const z = this.camera.zoom;
+    const now = performance.now();
+
+    if (this.net) {
+      this.net.forEachClaim((c) => {
+        const mine = this.myClaimIds.has(c.id);
+        const failing = c.integrity <= 30;
+        ctx.save();
+        if (failing) ctx.globalAlpha = 0.6 + Math.sin(now / 250) * 0.35;
+        ctx.strokeStyle = failing ? "#dc2626" : mine ? "#e7c873" : "#7c6f93";
+        ctx.lineWidth = Math.max(1.5, 2 * z);
+        ctx.setLineDash(mine ? [] : [6 * z, 4 * z]);
+        this.plotPath(ctx, c.x, c.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // owner tag + integrity at the north corner
+        const n = this.tileScreen(c.x - 1, c.y - 1);
+        ctx.textAlign = "center";
+        ctx.font = `${7.5 * z}px ui-sans-serif`;
+        ctx.fillStyle = mine ? "rgba(231,200,115,0.85)" : "rgba(216,207,224,0.55)";
+        ctx.fillText(
+          `${c.ownerName}${mine ? ` · ${Math.max(0, Math.round(c.integrity))}%` : ""}`,
+          n.x,
+          n.y - (TILE_H / 2 + 6) * z,
+        );
+        ctx.textAlign = "left";
+        ctx.restore();
+      });
+    }
+
+    // staking preview under the cursor
+    if (useGame.getState().claimMode && this.hover) {
+      const { x, y } = this.hover;
+      let valid = true;
+      for (let dy = -1; dy <= 1 && valid; dy++) {
+        for (let dx = -1; dx <= 1 && valid; dx++) {
+          if (!this.world.inBounds(x + dx, y + dy)) valid = false;
+          else {
+            const t = this.world.tile(x + dx, y + dy);
+            if (t === "water" || t === "corrupt") valid = false;
+          }
+        }
+      }
+      this.net?.forEachClaim((c) => {
+        if (Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) < 3) valid = false;
+      });
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = valid ? "#4d7c4d" : "#dc2626";
+      ctx.lineWidth = 2.5 * z;
+      this.plotPath(ctx, x, y);
+      ctx.stroke();
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = valid ? "#4d7c4d" : "#dc2626";
+      this.plotPath(ctx, x, y);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   private drawClickMarker(ctx: CanvasRenderingContext2D) {
     if (!this.clickMarker) return;
     const age = performance.now() - this.clickMarker.t;
@@ -1239,6 +1788,26 @@ export class Game {
       const depth = node.gx + node.gy;
       draws.push({ depth, fn: () => this.drawNode(ctx, node) });
     }
+    for (const b of TOWN_BUILDINGS) {
+      // pit floor draws under everything; houses depth-sort on their south edge
+      const depth = b.key === "pit" ? -1000 : b.x + b.y + b.r;
+      draws.push({
+        depth,
+        fn: () => {
+          const s = this.tileScreen(b.x, b.y + (b.key === "pit" ? 0 : b.r));
+          spriteCache.drawBuilding(ctx, b.key, s.x, s.y, this.camera.zoom);
+          // label floats above the building
+          if (b.key !== "pit") {
+            const top = this.tileScreen(b.x, b.y);
+            ctx.textAlign = "center";
+            ctx.font = `${7.5 * this.camera.zoom}px ui-sans-serif`;
+            ctx.fillStyle = "rgba(216,207,224,0.5)";
+            ctx.fillText(b.label, top.x, top.y - 74 * this.camera.zoom);
+            ctx.textAlign = "left";
+          }
+        },
+      });
+    }
     for (const mob of this.combat.mobs) {
       // freshly dead beasts play their crumble animation before vanishing
       if (mob.state === "dead" && mob.deathT > 1.2) continue;
@@ -1260,6 +1829,40 @@ export class Game {
         },
       });
     }
+    // claim furnishings (campfires flicker)
+    this.net?.forEachProp((p) => {
+      draws.push({
+        depth: p.x + p.y,
+        fn: () => {
+          const s = this.tileScreen(p.x, p.y);
+          const frame = Math.floor(performance.now() / 350) % 2;
+          spriteCache.drawProp(ctx, p.kind, frame, s.x, s.y, this.camera.zoom);
+        },
+      });
+    });
+    // pets trail their wanderers
+    const petFor = (p: Player, isSelf: boolean) => {
+      const key = isSelf ? useGame.getState().cosmetics.pet : p.pet;
+      if (!key) return;
+      if (Number.isNaN(p.petX)) {
+        p.petX = p.px - 0.7;
+        p.petY = p.py + 0.35;
+      }
+      p.petX += (p.px - 0.7 - p.petX) * 0.06;
+      p.petY += (p.py + 0.35 - p.petY) * 0.06;
+      draws.push({
+        depth: p.petX + p.petY,
+        fn: () => {
+          const s = this.tileScreen(p.petX, p.petY);
+          spriteCache.drawPet(
+            ctx, key, Math.floor(performance.now() / 350) % 2,
+            s.x, s.y, this.camera.zoom,
+          );
+        },
+      });
+    };
+    petFor(this.player, true);
+    for (const r of this.remotes.values()) petFor(r, false);
     const pd = this.player.px + this.player.py;
     draws.push({
       depth: pd + 0.01,
@@ -1279,11 +1882,11 @@ export class Game {
     spriteCache.drawNode(ctx, node.kind as 'tree' | 'rock' | 'fish', depleted, s.x, s.y, z, fishF);
 
     // hover: charge pips so you can size up a node before committing
+    // (Driftgin lets you see them everywhere)
     if (
       !depleted &&
-      this.hover &&
-      this.hover.x === node.gx &&
-      this.hover.y === node.gy
+      ((this.hover && this.hover.x === node.gx && this.hover.y === node.gy) ||
+        useGame.getState().buffs.sight > Date.now())
     ) {
       const top = node.kind === "tree" ? 58 : node.kind === "rock" ? 33 : 16;
       const pw = 5 * z;
@@ -1369,6 +1972,24 @@ export class Game {
     }
 
     spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, s.x, s.y, z, equip, look);
+
+    // aura: orbiting motes
+    const auraKey = (isSelf ? state.cosmetics.aura : p.aura) as AuraKey | "";
+    if (auraKey && AURA_CATALOG[auraKey]) {
+      const col = AURA_CATALOG[auraKey].color;
+      const t = performance.now() / 700;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = col;
+      for (let i = 0; i < 3; i++) {
+        const a = t + (i * Math.PI * 2) / 3;
+        ctx.fillRect(
+          s.x + Math.cos(a) * 14 * z,
+          s.y - 18 * z + Math.sin(a) * 7 * z,
+          2 * z, 2 * z,
+        );
+      }
+      ctx.globalAlpha = 1;
+    }
 
     // name + earned title; your own tag is dimmer
     ctx.textAlign = "center";

@@ -3,7 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame, xpForLevel, currentTitle, QuestState } from "@/game/state/store";
 import {
+  AURA_CATALOG,
+  CLAIM_COST,
+  CLAIM_MAX,
+  DRINK_CATALOG,
+  DYE_PRICE,
+  DrinkKey,
+  EYE_PRICE,
   EquipSlot,
+  PET_CATALOG,
+  PROP_CATALOG,
+  PetKey,
+  PropKey,
+  SPIN_COST,
   INVENTORY_ORDER,
   ITEM_META,
   ItemKey,
@@ -81,10 +93,624 @@ export default function Hud() {
       <SkillsPanel />
       <ActivityPanel />
       <HotbarDock />
+      <RightRail />
+      <ShopModal />
+      <DuelOverlay />
+      <ChallengePrompt />
+    </div>
+  );
+}
+
+// ─── the Waystation: shop panels ──────────────────────────────────────────────
+
+const SHOP_TITLES: Record<string, { kicker: string; title: string }> = {
+  dyeworks:  { kicker: "The Waystation", title: "The Dyeworks" },
+  vault:     { kicker: "The Waystation", title: "The Vault" },
+  wheel:     { kicker: "The Waystation", title: "Wheel of the Drift" },
+  lantern:   { kicker: "The Waystation", title: "The Last Lantern" },
+  furnisher: { kicker: "The Waystation", title: "The Furnisher" },
+  menagerie: { kicker: "The Waystation", title: "The Menagerie" },
+  shrine:    { kicker: "The Waystation", title: "Shrine of the Pale Flame" },
+  pit:       { kicker: "The Waystation", title: "The Pit" },
+};
+
+function ShopModal() {
+  const openShop = useGame((s) => s.openShop);
+  const setOpenShop = useGame((s) => s.setOpenShop);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenShop(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setOpenShop]);
+  if (!openShop) return null;
+  const meta = SHOP_TITLES[openShop];
+  if (!meta) return null;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 30 }}
+    >
+      <Panel kicker={meta.kicker} title={meta.title} style={{ width: 340, maxHeight: "70vh", overflowY: "auto" }}>
+        <div style={{ position: "absolute", top: 10, right: 12 }}>
+          <Button size="sm" variant="ghost" onClick={() => setOpenShop(null)}>✕</Button>
+        </div>
+        {openShop === "dyeworks" && <DyeworksPanel />}
+        {openShop === "vault" && <VaultPanel />}
+        {openShop === "wheel" && <WheelPanel />}
+        {openShop === "lantern" && <LanternPanel />}
+        {openShop === "furnisher" && <FurnisherPanel />}
+        {openShop === "menagerie" && <MenageriePanel />}
+        {openShop === "shrine" && <ShrinePanel />}
+        {openShop === "pit" && <PitPanel />}
+      </Panel>
+    </div>
+  );
+}
+
+function shopRow(
+  label: string,
+  sub: string,
+  right: React.ReactNode,
+  swatch?: string,
+) {
+  return (
+    <div className="drift-well" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 9px", marginBottom: 5 }}>
+      {swatch && <span style={{ width: 14, height: 14, background: swatch, boxShadow: "var(--bevel-slot)" }} />}
+      <span style={{ flex: 1 }}>
+        <span style={{ display: "block", font: "600 12px/1.2 var(--font-ui)", color: "var(--text-primary)" }}>{label}</span>
+        <span style={{ font: "400 9.5px/1.3 var(--font-ui)", color: "var(--text-muted)" }}>{sub}</span>
+      </span>
+      {right}
+    </div>
+  );
+}
+
+function DyeworksPanel() {
+  const s = useGame();
+  const buy = (kind: "dye" | "eye" | "aura", key: string, price: number) => {
+    if (!s.spendGold(price)) return;
+    s.grantCosmetic(kind, key);
+    s.pushLog("The Dyeworks remembers your taste.", "#d8b4fe");
+  };
+  return (
+    <>
+      <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>Cloak dyes · {DYE_PRICE}g</label>
+      {Object.entries(DYE_SWATCH).map(([k, c]) => {
+        const owned = s.ownedDyes.includes(k as never);
+        const worn = s.cosmetics.dye === k;
+        return shopRow(k, owned ? "owned" : `${DYE_PRICE}g`, (
+          <Button size="sm" variant={worn ? "primary" : "ghost"}
+            onClick={() => owned ? s.setCosmetics({ dye: k as never }) : buy("dye", k, DYE_PRICE)}>
+            {worn ? "Worn" : owned ? "Wear" : "Buy"}
+          </Button>
+        ), c);
+      })}
+      <label className="drift-label" style={{ fontSize: 9, display: "block", margin: "8px 0 4px" }}>Eye glow · {EYE_PRICE}g</label>
+      {Object.entries(EYE_SWATCH).map(([k, c]) => {
+        const owned = s.ownedEyes.includes(k as never);
+        const worn = s.cosmetics.eye === k;
+        return shopRow(k, owned ? "owned" : `${EYE_PRICE}g`, (
+          <Button size="sm" variant={worn ? "primary" : "ghost"}
+            onClick={() => owned ? s.setCosmetics({ eye: k as never }) : buy("eye", k, EYE_PRICE)}>
+            {worn ? "Worn" : owned ? "Wear" : "Buy"}
+          </Button>
+        ), c);
+      })}
+      <label className="drift-label" style={{ fontSize: 9, display: "block", margin: "8px 0 4px" }}>Auras</label>
+      {Object.entries(AURA_CATALOG).map(([k, meta]) => {
+        const owned = s.ownedAuras.includes(k as never);
+        const worn = s.cosmetics.aura === k;
+        return shopRow(meta.label, owned ? "owned" : `${meta.price}g`, (
+          <Button size="sm" variant={worn ? "primary" : "ghost"}
+            onClick={() => owned
+              ? s.setCosmetics({ aura: worn ? "" : (k as never) })
+              : buy("aura", k, meta.price)}>
+            {worn ? "Doff" : owned ? "Don" : "Buy"}
+          </Button>
+        ), meta.color);
+      })}
+    </>
+  );
+}
+
+function VaultPanel() {
+  const s = useGame();
+  const [amt, setAmt] = useState(100);
+  if (!s.online) return <OfflineNote what="The Vault" />;
+  const deposit = () => {
+    const a = Math.min(amt, s.gold);
+    if (a <= 0) return;
+    s.spendGold(a);
+    bus.emit("bank", a);
+  };
+  const withdraw = () => {
+    const a = Math.min(amt, s.banked);
+    if (a <= 0) return;
+    bus.emit("bank", -a);
+  };
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        Banked gold never drops at your tombstone. Withdrawals pay a 2% handling fee.
+      </div>
+      {shopRow("In the vault", "safe from the Drift and your own mistakes",
+        <b style={{ color: "var(--text-value)", font: "700 14px/1 var(--font-num, monospace)" }}>{s.banked}g</b>)}
+      {shopRow("Carried", "drops half at death",
+        <b style={{ color: "var(--text-value)", font: "700 14px/1 var(--font-num, monospace)" }}>{s.gold}g</b>)}
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        <input type="number" min={1} value={amt}
+          onChange={(e) => setAmt(Math.max(1, Number(e.target.value) | 0))}
+          className="drift-well"
+          style={{ width: 80, border: 0, outline: "none", padding: "6px 8px", font: "400 12px/1 var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }} />
+        <Button size="sm" variant="primary" onClick={deposit}>Deposit</Button>
+        <Button size="sm" variant="ghost" onClick={withdraw}>Withdraw</Button>
+      </div>
+    </>
+  );
+}
+
+function WheelPanel() {
+  const s = useGame();
+  if (!s.online) return <OfflineNote what="The Wheel" />;
+  const spin = () => {
+    if (!s.spendGold(SPIN_COST)) {
+      s.pushLog(`A spin costs ${SPIN_COST}g.`, "#6f6781");
+      return;
+    }
+    bus.emit("spin", true);
+  };
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        {SPIN_COST}g a spin. Gold, shards, or nothing — the Drift decides.
+        Jackpot: <b style={{ color: "var(--drift-gold)" }}>500g</b>.
+      </div>
+      <Button variant="primary" size="md" onClick={spin} iconLeft={<Icon name="coin" size={16} glow />}>
+        Spin · {SPIN_COST}g
+      </Button>
+      <div style={{ font: "400 9.5px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 8 }}>
+        Results land in your activity log. The house always keeps a sliver.
+      </div>
+    </>
+  );
+}
+
+function LanternPanel() {
+  const s = useGame();
+  const now = Date.now();
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        Warm light, bad stools, good drink. Effects last 5 minutes.
+      </div>
+      {(Object.entries(DRINK_CATALOG) as [DrinkKey, (typeof DRINK_CATALOG)[DrinkKey]][]).map(([k, d]) => {
+        const active = s.buffs[d.buff] > now;
+        return shopRow(d.label, d.desc, (
+          <Button size="sm" variant={active ? "primary" : "ghost"} onClick={() => s.drink(k)}>
+            {active ? "Refill" : `${d.price}g`}
+          </Button>
+        ));
+      })}
+    </>
+  );
+}
+
+function FurnisherPanel() {
+  const s = useGame();
+  if (!s.online) return <OfflineNote what="The Furnisher" />;
+  const buy = (k: PropKey) => {
+    const price = PROP_CATALOG[k].price;
+    if (s.myClaims === 0) {
+      s.pushLog("Furnishings need a claim to stand on. Stake land first.", "#6f6781");
+      return;
+    }
+    if (!s.spendGold(price)) return;
+    bus.emit("placeProp", k);
+  };
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        Goods for the landed. Buy, then click a tile on your own claim to place.
+        If the claim falls, the furniture falls with it.
+      </div>
+      {(Object.keys(PROP_CATALOG) as PropKey[]).map((k) =>
+        shopRow(PROP_CATALOG[k].label, `${PROP_CATALOG[k].price}g`, (
+          <Button size="sm" variant="ghost" onClick={() => buy(k)}>Buy & place</Button>
+        )),
+      )}
+    </>
+  );
+}
+
+function MenageriePanel() {
+  const s = useGame();
+  const buy = (k: PetKey) => {
+    if (!s.spendGold(PET_CATALOG[k].price)) return;
+    s.grantCosmetic("pet", k);
+    s.pushLog("It follows you now. It chose you, really.", "#d8b4fe");
+  };
+  return (
+    <>
+      {(Object.keys(PET_CATALOG) as PetKey[]).map((k) => {
+        const owned = s.ownedPets.includes(k);
+        const active = s.cosmetics.pet === k;
+        return shopRow(PET_CATALOG[k].label, owned ? PET_CATALOG[k].flavor : `${PET_CATALOG[k].price}g`, (
+          <Button size="sm" variant={active ? "primary" : "ghost"}
+            onClick={() => owned
+              ? s.setCosmetics({ pet: active ? "" : k })
+              : buy(k)}>
+            {active ? "Dismiss" : owned ? "Summon" : "Buy"}
+          </Button>
+        ));
+      })}
+    </>
+  );
+}
+
+function ShrinePanel() {
+  const s = useGame();
+  if (!s.online) return <OfflineNote what="The Shrine" />;
+  const donate = (amount: number) => {
+    const a = Math.min(amount, s.gold);
+    if (a <= 0) return;
+    s.spendGold(a);
+    s.bumpStat("donated", a);
+    bus.emit("donate", a);
+    s.pushLog(`You feed ${a}g to the Pale Flame.`, "#efe9f4");
+  };
+  const pct = Math.min(100, Math.round((s.shrine.pot / Math.max(1, s.shrine.goal)) * 100));
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        When the pot fills, the Pale Flame fires and burns the corruption nearest
+        the Waystation clean. Every coin counts toward everyone's survival.
+      </div>
+      <div className="drift-well" style={{ padding: 8, marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", font: "600 11px/1 var(--font-ui)", color: "var(--text-primary)", marginBottom: 5 }}>
+          <span>Communal pot</span>
+          <span style={{ color: "var(--text-value)" }}>{Math.round(s.shrine.pot)} / {Math.round(s.shrine.goal)}g</span>
+        </div>
+        <div style={{ height: 8, background: "var(--void-60)" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #a99fb8, #efe9f4)" }} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {[25, 100, 500].map((a) => (
+          <Button key={a} size="sm" variant="ghost" onClick={() => donate(a)}>+{a}g</Button>
+        ))}
+      </div>
+      <div style={{ font: "400 9.5px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 8 }}>
+        Donate 500g lifetime to earn the title <b style={{ color: "var(--drift-corrupt)" }}>Flamekeeper</b>.
+      </div>
+    </>
+  );
+}
+
+function PitPanel() {
+  const s = useGame();
+  const [wager, setWager] = useState(50);
+  if (!s.online) return <OfflineNote what="The Pit" />;
+  const others = s.roster.filter((r) => !r.self);
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        Honorable violence. Both fighters stake the wager; the winner takes the pot.
+        No tombstones, no grudges. (Some grudges.)
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
+        <input type="number" min={0} max={5000} value={wager}
+          onChange={(e) => setWager(Math.max(0, Math.min(5000, Number(e.target.value) | 0)))}
+          className="drift-well"
+          style={{ width: 70, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }} />
+        <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>gold each</span>
+      </div>
+      {others.length === 0 && (
+        <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+          No one else walks the Drift right now. The sand waits.
+        </div>
+      )}
+      {others.map((r) =>
+        shopRow(r.name, r.title, (
+          <Button size="sm" variant="ghost"
+            style={s.gold < wager ? { opacity: 0.45 } : undefined}
+            onClick={() => {
+              if (s.gold < wager) return;
+              bus.emit("challenge", { target: r.id, wager });
+              s.pushLog(`You challenge ${r.name} (${wager}g).`, "#dc2626");
+            }}>
+            Challenge
+          </Button>
+        )),
+      )}
+    </>
+  );
+}
+
+function OfflineNote({ what }: { what: string }) {
+  return (
+    <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-muted)" }}>
+      {what} only opens in the shared world — start the game server and rejoin.
+    </div>
+  );
+}
+
+// ─── duel overlay + challenge prompt + buff chips ─────────────────────────────
+
+function DuelOverlay() {
+  const duel = useGame((s) => s.duel);
+  const name = useGame((s) => s.cosmetics.name);
+  if (!duel) return null;
+  const bar = (label: string, hp: number, color: string) => (
+    <div style={{ flex: 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", font: "600 10px/1 var(--font-ui)", color: "var(--text-primary)", marginBottom: 3 }}>
+        <span>{label}</span><span>{Math.max(0, hp)}</span>
+      </div>
+      <div style={{ height: 7, background: "var(--void-60)" }}>
+        <div style={{ height: "100%", width: `${Math.max(0, hp)}%`, background: color }} />
+      </div>
+    </div>
+  );
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ top: 70, left: "50%", transform: "translateX(-50%)", zIndex: 25, width: 380 }}
+    >
+      <Panel padded={false} corners={false} style={{ padding: "10px 14px" }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          {bar(name, duel.myHp, "#4d7c4d")}
+          <span className="drift-label" style={{ fontSize: 10, color: "var(--drift-blood)" }}>VS</span>
+          {bar(duel.oppName, duel.oppHp, "#dc2626")}
+        </div>
+        <div style={{ font: "400 9px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 5, textAlign: "center" }}>
+          Stand beside your opponent — your wanderer swings on its own. Pot: {duel.wager * 2}g
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function ChallengePrompt() {
+  const ch = useGame((s) => s.duelChallenge);
+  const setCh = useGame((s) => s.setDuelChallenge);
+  if (!ch) return null;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ top: "32%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 35 }}
+    >
+      <Panel kicker="The Pit" title="A challenge!" style={{ width: 280 }}>
+        <div style={{ font: "400 12px/1.5 var(--font-ui)", color: "var(--text-primary)", marginBottom: 10 }}>
+          <b>{ch.name}</b> wants your blood on the sand.
+          Wager: <b style={{ color: "var(--drift-gold)" }}>{ch.wager}g</b> each.
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="primary" size="md" onClick={() => bus.emit("duelAccept", true)}>
+            Fight
+          </Button>
+          <Button variant="ghost" size="md" onClick={() => setCh(null)}>
+            Decline
+          </Button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function BuffChips() {
+  const buffs = useGame((s) => s.buffs);
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const now = Date.now();
+  const chips: { label: string; left: number }[] = [];
+  if (buffs.gather > now) chips.push({ label: "Emberwine", left: buffs.gather - now });
+  if (buffs.damage > now) chips.push({ label: "Boneale", left: buffs.damage - now });
+  if (buffs.sight > now) chips.push({ label: "Driftgin", left: buffs.sight - now });
+  if (chips.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 5 }}>
+      {chips.map((c) => (
+        <span key={c.label} className="drift-well" style={{ padding: "3px 7px", font: "600 9px/1 var(--font-ui)", color: "var(--drift-ember)" }}>
+          {c.label} {Math.ceil(c.left / 1000)}s
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** right-edge stack: Forge, You, minimap — one column so nothing overlaps */
+function RightRail() {
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{
+        right: "var(--hud-edge)",
+        top: "50%",
+        transform: "translateY(-50%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: 10,
+      }}
+    >
       <ForgeDock />
+      <MarketDock />
       <IdentityDock />
+      <StakeButton />
       <MinimapPanel />
     </div>
+  );
+}
+
+// ---- right rail: player marketplace ---------------------------------------------
+
+function MarketDock() {
+  const [open, setOpen] = useState(false);
+  const online = useGame((s) => s.online);
+  const listings = useGame((s) => s.listings);
+  const inventory = useGame((s) => s.inventory);
+  const gold = useGame((s) => s.gold);
+  const [sellItem, setSellItem] = useState<ItemKey>("wood");
+  const [sellQty, setSellQty] = useState(1);
+  const [sellPrice, setSellPrice] = useState(10);
+
+  const carried = INVENTORY_ORDER.filter((k) => inventory[k] > 0);
+  const mine = listings.filter((l) => l.mine);
+  const offers = listings.filter((l) => !l.mine);
+
+  return (
+    <div>
+      <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen((o) => !o)}
+          iconLeft={<Icon name="coin" size={16} glow={open} />}
+        >
+          Market
+        </Button>
+
+        {open && (
+          <Panel kicker="The Exchange" title="Market" style={{ width: 312 }}>
+            {!online && (
+              <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+                The market opens when you're in the shared world.
+              </div>
+            )}
+            {online && (
+              <>
+                {/* offers from other wanderers */}
+                <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+                  Offers
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto", marginBottom: 10 }}>
+                  {offers.length === 0 && (
+                    <span style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+                      No offers — the stalls stand empty.
+                    </span>
+                  )}
+                  {offers.map((l) => (
+                    <div key={l.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
+                      <Icon name={ITEM_ICON[l.item]} size={16} />
+                      <span style={{ font: "600 11px/1 var(--font-ui)", color: "var(--text-primary)" }}>
+                        {l.qty}× {ITEM_META[l.item].label}
+                      </span>
+                      <span style={{ flex: 1, font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)", textAlign: "right" }}>
+                        {l.sellerName}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => bus.emit("marketBuy", l.id)}
+                        style={gold < l.price ? { opacity: 0.45 } : undefined}
+                      >
+                        {l.price}g
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* your stall */}
+                <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+                  Your stall ({mine.length}/6)
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                  {mine.length === 0 && (
+                    <span style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+                      Nothing listed.
+                    </span>
+                  )}
+                  {mine.map((l) => (
+                    <div key={l.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
+                      <Icon name={ITEM_ICON[l.item]} size={16} />
+                      <span style={{ flex: 1, font: "600 11px/1 var(--font-ui)", color: "var(--text-primary)" }}>
+                        {l.qty}× · {l.price}g
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => bus.emit("marketUnlist", l.id)}>
+                        Withdraw
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* list something */}
+                <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+                  Sell
+                </label>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  <select
+                    value={sellItem}
+                    onChange={(e) => setSellItem(e.target.value as ItemKey)}
+                    className="drift-well"
+                    style={{ flex: 1, border: 0, outline: "none", padding: "5px 6px", font: "400 11px/1 var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+                  >
+                    {(carried.length ? carried : INVENTORY_ORDER).map((k) => (
+                      <option key={k} value={k}>
+                        {ITEM_META[k].label} ({inventory[k]})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number" min={1} max={inventory[sellItem] || 1} value={sellQty}
+                    onChange={(e) => setSellQty(Math.max(1, Number(e.target.value) | 0))}
+                    className="drift-well"
+                    style={{ width: 44, border: 0, outline: "none", padding: "5px 6px", font: "400 11px/1 var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+                    title="Quantity"
+                  />
+                  <input
+                    type="number" min={1} value={sellPrice}
+                    onChange={(e) => setSellPrice(Math.max(1, Number(e.target.value) | 0))}
+                    className="drift-well"
+                    style={{ width: 56, border: 0, outline: "none", padding: "5px 6px", font: "400 11px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }}
+                    title="Total price (gold)"
+                  />
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => bus.emit("marketList", { item: sellItem, qty: sellQty, price: sellPrice })}
+                    style={inventory[sellItem] < sellQty || mine.length >= 6 ? { opacity: 0.45 } : undefined}
+                  >
+                    List
+                  </Button>
+                </div>
+              </>
+            )}
+          </Panel>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** stake a 3×3 land claim (online only; gold cost, eroded by seasons) */
+function StakeButton() {
+  const online = useGame((s) => s.online);
+  const claimMode = useGame((s) => s.claimMode);
+  const myClaims = useGame((s) => s.myClaims);
+  const gold = useGame((s) => s.gold);
+  const blocked = !online || myClaims >= CLAIM_MAX || (!claimMode && gold < CLAIM_COST);
+  return (
+    <Button
+      variant={claimMode ? "primary" : "ghost"}
+      size="md"
+      onClick={() => bus.emit("stake", true)}
+      iconLeft={<Icon name="sigil" size={16} glow={claimMode} />}
+      style={blocked && !claimMode ? { opacity: 0.55 } : undefined}
+      title={
+        !online
+          ? "Join the shared world to stake land"
+          : myClaims >= CLAIM_MAX
+            ? `You hold the maximum of ${CLAIM_MAX} claims`
+            : `Stake a 3×3 claim for ${CLAIM_COST}g — claimed land repels corruption and draws nodes`
+      }
+    >
+      {claimMode ? "Choose ground…" : `Stake · ${myClaims}/${CLAIM_MAX}`}
+    </Button>
   );
 }
 
@@ -107,6 +733,8 @@ function IdentityDock() {
   const skills = useGame((s) => s.skills);
   const kills = useGame((s) => s.kills);
   const stats = useGame((s) => s.stats);
+  const ownedDyes = useGame((s) => s.ownedDyes);
+  const ownedEyes = useGame((s) => s.ownedEyes);
   const title = currentTitle({ skills, kills, stats });
 
   const swatchBtn = (
@@ -133,10 +761,7 @@ function IdentityDock() {
   );
 
   return (
-    <div
-      className="absolute pointer-events-auto"
-      style={{ right: "var(--hud-edge)", top: "calc(50% + 52px)", transform: "translateY(-50%)" }}
-    >
+    <div>
       <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
         <Button
           variant={open ? "primary" : "ghost"}
@@ -174,23 +799,27 @@ function IdentityDock() {
                 — earned through deeds
               </span>
             </div>
-            {/* cloak dye */}
+            {/* cloak dye (owned only — the Dyeworks sells more) */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
-              Cloak dye
+              Cloak dye <span style={{ color: "var(--text-muted)" }}>· more at the Dyeworks</span>
             </label>
             <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
-              {Object.entries(DYE_SWATCH).map(([k, c]) =>
-                swatchBtn(c, cosmetics.dye === k, () => setCosmetics({ dye: k as never }), k),
-              )}
+              {Object.entries(DYE_SWATCH)
+                .filter(([k]) => ownedDyes.includes(k as never))
+                .map(([k, c]) =>
+                  swatchBtn(c, cosmetics.dye === k, () => setCosmetics({ dye: k as never }), k),
+                )}
             </div>
             {/* eye glow */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
               Eye glow
             </label>
             <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
-              {Object.entries(EYE_SWATCH).map(([k, c]) =>
-                swatchBtn(c, cosmetics.eye === k, () => setCosmetics({ eye: k as never }), k),
-              )}
+              {Object.entries(EYE_SWATCH)
+                .filter(([k]) => ownedEyes.includes(k as never))
+                .map(([k, c]) =>
+                  swatchBtn(c, cosmetics.eye === k, () => setCosmetics({ eye: k as never }), k),
+                )}
             </div>
             {/* lifetime deeds */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
@@ -252,6 +881,7 @@ function TopLeft() {
       <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
       <OnlineBadge />
       <Vitals />
+      <BuffChips />
       <QuestBoard />
     </div>
   );
@@ -643,6 +1273,11 @@ function MinimapPanel() {
       const r = m.boss ? 2.5 : 1.5;
       ctx.fillRect(m.x * px - r, m.y * px - r, r * 2, r * 2);
     }
+    for (const c of snap.claims ?? []) {
+      ctx.strokeStyle = c.mine ? "#e7c873" : "#7c6f93";
+      ctx.lineWidth = 1;
+      ctx.strokeRect((c.x - 1.5) * px, (c.y - 1.5) * px, 3 * px, 3 * px);
+    }
     if (snap.tomb) {
       ctx.fillStyle = "#efe9f4";
       ctx.fillRect(snap.tomb.x * px - 1, snap.tomb.y * px - 2.5, 2, 5);
@@ -656,19 +1291,14 @@ function MinimapPanel() {
 
   if (!snap) return null;
   return (
-    <div
-      className="absolute pointer-events-auto"
-      style={{ top: 360, right: "var(--hud-edge)" }}
-    >
-      <Panel padded={false} corners={false} style={{ padding: 6 }} title={undefined}>
-        <canvas
-          ref={ref}
-          width={144}
-          height={144}
-          style={{ display: "block", width: 144, height: 144, imageRendering: "pixelated" }}
-        />
-      </Panel>
-    </div>
+    <Panel padded={false} corners={false} style={{ padding: 6 }} title={undefined}>
+      <canvas
+        ref={ref}
+        width={144}
+        height={144}
+        style={{ display: "block", width: 144, height: 144, imageRendering: "pixelated" }}
+      />
+    </Panel>
   );
 }
 
@@ -707,10 +1337,7 @@ function ForgeDock() {
   void skills;
 
   return (
-    <div
-      className="absolute pointer-events-auto"
-      style={{ right: "var(--hud-edge)", top: "50%", transform: "translateY(-50%)" }}
-    >
+    <div>
       <div style={{ display: "flex", flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
         <Button
           variant={open ? "primary" : "ghost"}

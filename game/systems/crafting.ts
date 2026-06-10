@@ -49,13 +49,17 @@ export function craft(recipe: Recipe): boolean {
 // ---- equipment effects (read by combat & gathering) -------------------------
 
 export function weaponBonus(): number {
-  return useGame.getState().equipment.weapon?.power ?? 0;
+  const s = useGame.getState();
+  const boneale = s.buffs.damage > Date.now() ? 1 : 0;
+  return (s.equipment.weapon?.power ?? 0) + boneale;
 }
 
 /** multiplier applied to gather action time (lower = faster) */
 export function gatherSpeedMultiplier(): number {
-  const pct = useGame.getState().equipment.tool?.power ?? 0;
-  return 1 / (1 + pct / 100);
+  const s = useGame.getState();
+  const pct = s.equipment.tool?.power ?? 0;
+  const emberwine = s.buffs.gather > Date.now() ? 0.85 : 1;
+  return (1 / (1 + pct / 100)) * emberwine;
 }
 
 export function damageReduction(): number {

@@ -2,6 +2,54 @@ import { ResourceKind, ResourceNode, TileType } from "@/game/types";
 
 // The world grid: tiles + resource nodes. Owns walkability used by pathfinding.
 
+// ─── The Waystation: the town at Wanderer's Rest ──────────────────────────────
+// Shared by client and server so pathfinding and placement always agree.
+
+export type BuildingKey =
+  | "dyeworks" | "vault" | "wheel" | "lantern"
+  | "furnisher" | "menagerie" | "shrine" | "pit";
+
+export interface TownBuilding {
+  key: BuildingKey;
+  label: string;
+  x: number;
+  y: number;
+  /** chebyshev footprint radius (r=1 → 3×3) */
+  r: number;
+  /** pit floor is enterable; everything else blocks */
+  walkable?: boolean;
+}
+
+export const TOWN_CENTER = { x: 20, y: 20 };
+/** no resource nodes inside this euclidean radius of town */
+export const TOWN_NODE_FREE_RADIUS = 8;
+
+export const TOWN_BUILDINGS: TownBuilding[] = [
+  { key: "shrine",    label: "Shrine of the Pale Flame", x: 20, y: 13, r: 1 },
+  { key: "dyeworks",  label: "The Dyeworks",             x: 15, y: 16, r: 1 },
+  { key: "vault",     label: "The Vault",                x: 25, y: 16, r: 1 },
+  { key: "furnisher", label: "The Furnisher",            x: 14, y: 21, r: 1 },
+  { key: "menagerie", label: "The Menagerie",            x: 26, y: 21, r: 1 },
+  { key: "wheel",     label: "Wheel of the Drift",       x: 16, y: 25, r: 1 },
+  { key: "lantern",   label: "The Last Lantern",         x: 24, y: 25, r: 1 },
+  { key: "pit",       label: "The Pit",                  x: 20, y: 28, r: 2, walkable: true },
+];
+
+export function buildingAt(x: number, y: number): TownBuilding | null {
+  for (const b of TOWN_BUILDINGS) {
+    if (Math.max(Math.abs(x - b.x), Math.abs(y - b.y)) <= b.r) return b;
+  }
+  return null;
+}
+
+/** cells the Drift may never corrupt: buildings + a 1-tile skirt */
+export function townProtected(x: number, y: number): boolean {
+  for (const b of TOWN_BUILDINGS) {
+    if (Math.max(Math.abs(x - b.x), Math.abs(y - b.y)) <= b.r + 1) return true;
+  }
+  return false;
+}
+
 export class World {
   readonly w: number;
   readonly h: number;
@@ -38,10 +86,12 @@ export class World {
     return this.nodeAt.get(this.idx(x, y));
   }
 
-  /** A cell blocks movement if it is water or holds a live resource node. */
+  /** A cell blocks movement if it is water, a building, or a live node. */
   isWalkable(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return false;
     if (this.tile(x, y) === "water") return false;
+    const b = buildingAt(x, y);
+    if (b && !b.walkable) return false;
     const n = this.nodeAt.get(this.idx(x, y));
     if (n && n.regrowIn <= 0) return false; // live node blocks; depleted does not
     return true;
@@ -53,7 +103,12 @@ export class World {
       const x = (rng() * this.w) | 0;
       const y = (rng() * this.h) | 0;
       const t = this.tile(x, y);
-      if ((t === "grass" || t === "dirt") && !this.nodeAt.has(this.idx(x, y))) {
+      if (
+        (t === "grass" || t === "dirt") &&
+        !this.nodeAt.has(this.idx(x, y)) &&
+        !buildingAt(x, y) &&
+        Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) >= TOWN_NODE_FREE_RADIUS
+      ) {
         return { x, y };
       }
     }
@@ -168,8 +223,9 @@ export class World {
         if (this.tile(x, y) === "water") continue;
         if (this.nodeAt.has(this.idx(x, y))) continue;
         if (nearWater && !this.adjacentToWater(x, y)) continue;
-        // keep a clear spawn area in the center
-        if (Math.hypot(x - this.w / 2, y - this.h / 2) < 2.2) continue;
+        // keep the town clear of nodes
+        if (buildingAt(x, y)) continue;
+        if (Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) < TOWN_NODE_FREE_RADIUS) continue;
         this.addNode(kind, x, y);
         placed++;
       }

@@ -1,14 +1,18 @@
 import { useGame, rollDailyQuests, QuestState } from "@/game/state/store";
 import { QUEST_POOL } from "@/game/types";
 
-// Lightweight localStorage persistence. Quest defs hold functions, so quests
-// are saved in a lite form ({id, progress, claimed}) and rehydrated against
-// QUEST_POOL; a saved board from a previous day is discarded and rerolled.
+// Progress snapshots. Offline they live in localStorage; online the same
+// snapshot is pushed to the game server (Postgres) every few seconds and
+// handed back on join — the server copy wins when both exist.
+// Quest defs hold functions, so quests are saved in a lite form
+// ({id, progress, claimed}) and rehydrated against QUEST_POOL; a saved board
+// from a previous day is discarded and rerolled.
 
 const KEY = "driftlands-save-v1";
+const DEVICE_KEY = "driftlands-device";
 const SAVE_THROTTLE_MS = 1500;
 
-interface SaveData {
+export interface SaveData {
   day: number;
   inventory: unknown;
   skills: unknown;
@@ -17,6 +21,10 @@ interface SaveData {
   cosmetics?: unknown;
   kills?: number;
   stats?: unknown;
+  ownedDyes?: string[];
+  ownedEyes?: string[];
+  ownedAuras?: string[];
+  ownedPets?: string[];
   gold: number;
   driftSeason: number;
   driftPct?: number;
@@ -25,37 +33,90 @@ interface SaveData {
 
 const today = () => Math.floor(Date.now() / 86_400_000);
 
+/** the browser-held guest identity for the game server (created on demand) */
+export function getDeviceToken(): string {
+  if (typeof window === "undefined") return "";
+  let t = localStorage.getItem(DEVICE_KEY);
+  if (!t) {
+    t = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, t);
+  }
+  return t;
+}
+
+/** capture the full progress snapshot from the store */
+export function buildSnapshot(): SaveData {
+  const s = useGame.getState();
+  return {
+    day: today(),
+    inventory: s.inventory,
+    skills: s.skills,
+    vitals: s.vitals,
+    equipment: s.equipment,
+    cosmetics: s.cosmetics,
+    kills: s.kills,
+    stats: s.stats,
+    ownedDyes: s.ownedDyes,
+    ownedEyes: s.ownedEyes,
+    ownedAuras: s.ownedAuras,
+    ownedPets: s.ownedPets,
+    gold: s.gold,
+    driftSeason: s.driftSeason,
+    driftPct: s.driftPct,
+    quests: s.quests.map((q) => ({
+      id: q.def.id,
+      progress: q.progress,
+      claimed: q.claimed,
+    })),
+  };
+}
+
+/** restore a snapshot into the store (quests rehydrated; stale boards reroll) */
+export function applySnapshot(data: SaveData) {
+  const quests: QuestState[] =
+    data.day === today() && Array.isArray(data.quests)
+      ? data.quests.flatMap((q) => {
+          const def = QUEST_POOL.find((d) => d.id === q.id);
+          return def
+            ? [{ def, progress: q.progress, claimed: q.claimed }]
+            : [];
+        })
+      : rollDailyQuests();
+  // grandfather old saves: whatever is equipped counts as owned
+  const cos = (data.cosmetics ?? {}) as { dye?: string; eye?: string };
+  const ownedDyes = [...new Set(["stone", ...(data.ownedDyes ?? []), ...(cos.dye ? [cos.dye] : [])])];
+  const ownedEyes = [...new Set(["drift", ...(data.ownedEyes ?? []), ...(cos.eye ? [cos.eye] : [])])];
+
+  useGame.setState({
+    ...(data.inventory ? { inventory: data.inventory as never } : {}),
+    ...(data.skills ? { skills: data.skills as never } : {}),
+    ...(data.vitals ? { vitals: data.vitals as never } : {}),
+    ...(data.equipment ? { equipment: data.equipment as never } : {}),
+    ...(data.cosmetics
+      ? { cosmetics: { ...useGame.getState().cosmetics, ...(data.cosmetics as object) } as never }
+      : {}),
+    ownedDyes: ownedDyes as never,
+    ownedEyes: ownedEyes as never,
+    ownedAuras: (data.ownedAuras ?? []) as never,
+    ownedPets: (data.ownedPets ?? []) as never,
+    ...(data.stats
+      ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never }
+      : {}),
+    kills: data.kills ?? 0,
+    gold: data.gold ?? 0,
+    driftSeason: data.driftSeason ?? 1,
+    driftPct: data.driftPct ?? 0,
+    quests,
+  });
+}
+
 export function initPersistence() {
   if (typeof window === "undefined") return;
 
   // ---- load -----------------------------------------------------------------
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const data = JSON.parse(raw) as SaveData;
-      const quests: QuestState[] =
-        data.day === today()
-          ? data.quests.flatMap((q) => {
-              const def = QUEST_POOL.find((d) => d.id === q.id);
-              return def
-                ? [{ def, progress: q.progress, claimed: q.claimed }]
-                : [];
-            })
-          : rollDailyQuests();
-      useGame.setState({
-        ...(data.inventory ? { inventory: data.inventory as never } : {}),
-        ...(data.skills ? { skills: data.skills as never } : {}),
-        ...(data.vitals ? { vitals: data.vitals as never } : {}),
-        ...(data.equipment ? { equipment: data.equipment as never } : {}),
-        ...(data.cosmetics ? { cosmetics: data.cosmetics as never } : {}),
-        ...(data.stats ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never } : {}),
-        kills: data.kills ?? 0,
-        gold: data.gold ?? 0,
-        driftSeason: data.driftSeason ?? 1,
-        driftPct: data.driftPct ?? 0,
-        quests,
-      });
-    }
+    if (raw) applySnapshot(JSON.parse(raw) as SaveData);
   } catch {
     // corrupt save — start fresh rather than crash
     localStorage.removeItem(KEY);
@@ -67,27 +128,8 @@ export function initPersistence() {
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
-      const s = useGame.getState();
-      const data: SaveData = {
-        day: today(),
-        inventory: s.inventory,
-        skills: s.skills,
-        vitals: s.vitals,
-        equipment: s.equipment,
-        cosmetics: s.cosmetics,
-        kills: s.kills,
-        stats: s.stats,
-        gold: s.gold,
-        driftSeason: s.driftSeason,
-        driftPct: s.driftPct,
-        quests: s.quests.map((q) => ({
-          id: q.def.id,
-          progress: q.progress,
-          claimed: q.claimed,
-        })),
-      };
       try {
-        localStorage.setItem(KEY, JSON.stringify(data));
+        localStorage.setItem(KEY, JSON.stringify(buildSnapshot()));
       } catch {
         // storage full/blocked — skip silently
       }

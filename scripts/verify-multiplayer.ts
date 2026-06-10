@@ -21,8 +21,10 @@ function muteMessages(room: Room<any>) {
 }
 
 async function main() {
-  const a = await new Client(URL).joinOrCreate<any>("drift");
-  const b = await new Client(URL).joinOrCreate<any>("drift");
+  const a = await new Client(URL).joinOrCreate<any>("drift", { token: `verify-a-${Date.now()}` });
+  const b = await new Client(URL).joinOrCreate<any>("drift", { token: `verify-b-${Date.now()}` });
+  a.onMessage("profile", () => {});
+  b.onMessage("profile", () => {});
   muteMessages(b);
   await wait(600); // let initial patches land
 

@@ -13,6 +13,51 @@ export const TILE_CODES: readonly TileType[] = [
 export const tileToCode = (t: TileType) => TILE_CODES.indexOf(t);
 export const codeToTile = (c: number): TileType => TILE_CODES[c] ?? "grass";
 
+// land claims (3×3 plots; staked online, eroded by the Drift each season)
+export const CLAIM_COST = 250;
+export const CLAIM_MAX = 3;
+
+// ─── the Waystation catalogs ───────────────────────────────────────────────────
+
+export type AuraKey = "driftmote" | "emberwake" | "goldhalo";
+export const AURA_CATALOG: Record<AuraKey, { label: string; price: number; color: string }> = {
+  driftmote: { label: "Driftmote Orbit", price: 1000, color: "#a855f7" },
+  emberwake: { label: "Emberwake", price: 1000, color: "#f59e0b" },
+  goldhalo:  { label: "Gilded Halo", price: 1500, color: "#e7c873" },
+};
+
+export type PetKey = "wisp" | "crow" | "emberling";
+export const PET_CATALOG: Record<PetKey, { label: string; price: number; flavor: string }> = {
+  wisp:      { label: "Drift Wisp", price: 750, flavor: "a curious scrap of the Drift that chose you" },
+  crow:      { label: "Bone Crow", price: 750, flavor: "it remembers where everything died" },
+  emberling: { label: "Emberling", price: 900, flavor: "a coal that refuses to go out" },
+};
+
+export type DrinkKey = "emberwine" | "boneale" | "driftgin";
+export const DRINK_CATALOG: Record<
+  DrinkKey,
+  { label: string; price: number; desc: string; buff: "gather" | "damage" | "sight"; ms: number }
+> = {
+  emberwine: { label: "Emberwine", price: 30, desc: "+15% gather speed, 5 min", buff: "gather", ms: 300_000 },
+  boneale:   { label: "Boneale", price: 40, desc: "+1 damage, 5 min", buff: "damage", ms: 300_000 },
+  driftgin:  { label: "Driftgin", price: 35, desc: "see node charges at a glance, 5 min", buff: "sight", ms: 300_000 },
+};
+
+export type PropKey = "campfire" | "banner" | "driftlamp" | "statue";
+export const PROP_CATALOG: Record<PropKey, { label: string; price: number }> = {
+  campfire:  { label: "Campfire", price: 100 },
+  banner:    { label: "Claim Banner", price: 150 },
+  driftlamp: { label: "Drift Lamp", price: 200 },
+  statue:    { label: "Wanderer Statue", price: 300 },
+};
+
+export const DYE_PRICE = 200;
+export const EYE_PRICE = 350;
+export const SPIN_COST = 50;
+export const VAULT_FEE = 0.02; // withdrawal fee
+export const DUEL_MIN_WAGER = 0;
+export const DUEL_MAX_WAGER = 5000;
+
 export type ResourceKind = "tree" | "rock" | "fish";
 
 export type SkillKey = "woodcutting" | "mining" | "fishing" | "combat";

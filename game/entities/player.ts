@@ -43,6 +43,11 @@ export class Player {
   dye = "stone";
   eye = "drift";
   title = "";
+  aura = "";
+  pet = "";
+  /** lagged follower position (NaN until the pet first appears) */
+  petX = NaN;
+  petY = NaN;
   /** active chat/emote bubble, drawn above the name tag */
   bubble: { text: string; t0: number; emote: boolean } | null = null;
 

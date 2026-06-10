@@ -29,6 +29,18 @@ A dark-fantasy, browser-based isometric play-to-earn MMO — built in the spirit
 - **Offline fallback:** no server running → the entire game runs as a local sim, exactly as before
 - Loot/XP/inventory still apply client-side (server persistence is Phase 4); mobs/combat are per-client until the creature design package lands
 
+### The Waystation (town at Wanderer's Rest)
+Eight buildings, each a real economic system — walk up and click to enter:
+- **The Dyeworks** — buy cloak dyes (200g), eye glows (350g), and **auras** (orbiting motes, 1000g+); cosmetics are owned, persisted, and visible to everyone
+- **The Vault** — bank gold so tombstones can't touch it; 2% withdrawal fee; server-held
+- **Wheel of the Drift** — 50g a spin, server-rolled prizes up to a 500g jackpot (the Phase 5 burn-to-spin wheel, in gold form)
+- **The Last Lantern** — drink buffs: Emberwine (+15% gather speed), Boneale (+1 damage), Driftgin (see node charges everywhere), 5 min each
+- **The Furnisher** — claim furniture: campfires, banners, drift lamps, statues; placed on your land, synced to all, falls when your claim falls
+- **The Menagerie** — pets that trail you (Drift Wisp, Bone Crow, Emberling), multiplayer-visible
+- **Shrine of the Pale Flame** — a communal pot; when it fills, a cleansing fires and burns back the corruption nearest town (community-scale recurring sink → Phase 5 community burn)
+- **The Pit** — wagered PvP duels: challenge from the roster, both stake gold, server referees, winner takes the pot, no tombstone for the loser
+The town blocks corruption, claims, and nodes — a permanent safe harbor in a decaying world.
+
 ### Identity & social
 - **Name, cloak dyes (8), eye glow (5), earned titles** — all in the "You" panel, all synced so other players see your look. Titles come from deeds: *Stonebreaker*, *Beastbane*, *Gilded*, *Thrice-fallen*…
 - **Chat & emotes** — press Enter, type, see pixel speech bubbles over heads; `/wave /sit /point /dance`. Server relays with your name; works offline too

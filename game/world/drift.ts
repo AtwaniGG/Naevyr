@@ -26,6 +26,10 @@ export class Drift {
   onSeason: (() => void) | null = null;
   onRelocate: ((kind: string) => void) | null = null;
   onDriftfall: ((cell: Cell) => void) | null = null;
+  /** claimed ground resists corruption (server wires this to live claims) */
+  isProtected: ((x: number, y: number) => boolean) | null = null;
+  /** relocation bias: claimed land draws nodes toward it (returns a free cell) */
+  preferRelocationCell: (() => Cell | null) | null = null;
 
   update(world: World, dt: number) {
     const ms = dt * 1000;
@@ -53,7 +57,10 @@ export class Drift {
       if (node.regrowIn > 0) {
         node.regrowIn -= ms;
         if (node.regrowIn <= 0) {
-          const cell = world.randomEmptyCell(this.rng);
+          // 30% of relocations are pulled toward claimed land (yield perk)
+          const preferred =
+            this.rng() < 0.3 ? this.preferRelocationCell?.() ?? null : null;
+          const cell = preferred ?? world.randomEmptyCell(this.rng);
           if (cell) {
             world.relocateNode(node, cell);
             this.onRelocate?.(node.kind);
@@ -134,7 +141,11 @@ export class Drift {
           const ny = y + dy;
           if (!world.inBounds(nx, ny)) continue;
           const t = world.tile(nx, ny);
-          if ((t === "grass" || t === "dirt") && this.rng() < 0.18) {
+          if (
+            (t === "grass" || t === "dirt") &&
+            this.rng() < 0.18 &&
+            !this.isProtected?.(nx, ny)
+          ) {
             additions.push({ x: nx, y: ny });
           }
         }
