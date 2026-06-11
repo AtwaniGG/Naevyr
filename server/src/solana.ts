@@ -24,6 +24,18 @@ const BALANCE_TTL_MS = 60_000;
 let conn: Connection | null = null;
 const cache = new Map<string, { bal: number; at: number }>();
 
+/** web3.js has NO request timeout — a stalling RPC (devnet throttles by
+ *  hanging, not just 429ing) would hang wallet links, profiles and gate
+ *  joins forever. Every read gets a hard deadline instead. */
+function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("rpc deadline")), ms),
+    ),
+  ]);
+}
+
 export function tokenMint(): string {
   return MINT;
 }
@@ -35,9 +47,14 @@ export async function getTokenBalance(wallet: string): Promise<number> {
   if (hit && Date.now() - hit.at < BALANCE_TTL_MS) return hit.bal;
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
-    const res = await conn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
-      mint: new PublicKey(MINT),
-    });
+    // links, profiles and gate joins all wait on this — fail over to the
+    // cached value fast rather than hold a door shut on a slow chain
+    const res = await withDeadline(
+      conn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
+        mint: new PublicKey(MINT),
+      }),
+      3500,
+    );
     let bal = 0;
     for (const acc of res.value) {
       bal += acc.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0;
@@ -118,7 +135,7 @@ export async function buildBurnTx(
       ),
     );
     tx.feePayer = payer.publicKey;
-    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+    tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
     tx.partialSign(payer);
     return { ok: true, tx: tx.serialize({ requireAllSignatures: false }).toString("base64") };
   } catch (e) {
@@ -140,10 +157,13 @@ export async function verifyBurn(
   let lastError = "";
   for (let i = 0; i < 15; i++) {
     try {
-      const tx = await conn.getParsedTransaction(sig, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      });
+      const tx = await withDeadline(
+        conn.getParsedTransaction(sig, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        }),
+        6000,
+      );
       if (tx) {
         if (tx.meta?.err) return { ok: false, reason: "The burn failed on-chain" };
         for (const ix of tx.transaction.message.instructions) {

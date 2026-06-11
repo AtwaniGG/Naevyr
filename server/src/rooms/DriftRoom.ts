@@ -303,6 +303,14 @@ interface PlayerSim {
   invSeeded: boolean;
   /** rolling per-minute budgets for client-trusted gold/item delta reasons */
   deltaWindow: Map<string, { start: number; sum: number }>;
+  /** Phase 6 hardening: per-message-type rate windows (see allow()) */
+  rates: Map<string, { n: number; resetAt: number }>;
+  /**
+   * combat level from the last snapshot — bounds the per-swing damage the
+   * client may report against mobs (cross-checked trust, not proof; real
+   * rolls come with server XP)
+   */
+  combatLevel: number;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -401,6 +409,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("move", (client, msg: { x: number; y: number }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim || typeof msg?.x !== "number" || typeof msg?.y !== "number") return;
+      if (!this.allow(sim, "move", 12, 1000)) return;
       const goal = { x: Math.round(msg.x), y: Math.round(msg.y) };
       if (!this.world.inBounds(goal.x, goal.y)) return;
       const path = findPath(this.world, this.cellOf(sim), goal);
@@ -418,6 +427,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         const sim = this.sims.get(client.sessionId);
         const node = this.world.nodes.find((n) => n.id === msg?.nodeId);
         if (!sim || !node || node.regrowIn > 0 || node.amount <= 0) return;
+        if (!this.allow(sim, "gather", 6, 1000)) return;
         sim.speedMult = clamp(msg.speedMult ?? 1, 0.4, 1.5);
         const from = this.cellOf(sim);
         if (chebyshev(from, { x: node.gx, y: node.gy }) === 1) {
@@ -440,6 +450,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("chat", (client, msg: { text?: string; kind?: string }) => {
       const ps = this.state.players.get(client.sessionId);
       if (!ps || typeof msg?.text !== "string") return;
+      const simC = this.sims.get(client.sessionId);
+      if (!simC || !this.allow(simC, "chat", 4, 3000)) return;
       const text = msg.text.trim().slice(0, 120);
       if (!text) return;
       const kind = msg.kind === "emote" ? "emote" : "say";
@@ -455,6 +467,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       }) => {
         const ps = this.state.players.get(client.sessionId);
         if (!ps || !msg) return;
+        const simI = this.sims.get(client.sessionId);
+        if (!simI || !this.allow(simI, "identity", 6, 5000)) return;
         if (typeof msg.name === "string") {
           const clean = msg.name.trim().slice(0, 16);
           if (clean) ps.name = clean;
@@ -471,6 +485,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("bank", async (client, msg: { delta?: number }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "bank", 5, 2000)) return;
       const delta = Math.floor(Number(msg?.delta ?? 0));
       if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 1_000_000) return;
       const row = await loadOrCreatePlayer(sim.token);
@@ -530,6 +545,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("donate", async (client, msg: { amount?: number; burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "donate", 4, 2000)) return;
       let amount = Math.floor(Number(msg?.amount ?? 0));
       if (msg?.burnSig) {
         const err = await this.consumeBurn(sim, String(msg.burnSig), "cleanse");
@@ -560,6 +576,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         const fail = (reason: string) =>
           client.send("propResult", { ok: false, reason, kind: msg?.kind });
         if (!sim) return;
+        if (!this.allow(sim, "placeProp", 4, 2000)) return;
         const kind = String(msg?.kind ?? "");
         const x = Math.round(Number(msg?.x));
         const y = Math.round(Number(msg?.y));
@@ -594,6 +611,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const target = this.sims.get(String(msg?.target ?? ""));
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
       if (!sim || !me || !target || target === sim) return;
+      if (!this.allow(sim, "challenge", 3, 5000)) return;
       if (this.inDuel(client.sessionId) || this.inDuel(target.client.sessionId)) return;
       target.client.send("challenged", {
         from: client.sessionId,
@@ -607,6 +625,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const b = this.sims.get(client.sessionId);        // acceptor
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
       if (!a || !b || this.inDuel(a.client.sessionId) || this.inDuel(b.client.sessionId)) return;
+      if (!this.allow(b, "acceptDuel", 3, 5000)) return;
       // both stakes leave the ledgers up front; the pot pays out at the end
       if (wager > 0) {
         if (a.gold < wager || b.gold < wager) {
@@ -644,7 +663,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       });
     });
 
-    this.onMessage("duelHit", (client, msg: { dmg?: number }) => {
+    this.onMessage("duelHit", (client) => {
       const duel = this.duels.find(
         (d) => d.a === client.sessionId || d.b === client.sessionId,
       );
@@ -653,7 +672,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       const isA = duel.a === client.sessionId;
       const last = isA ? duel.lastHitA : duel.lastHitB;
       if (now - last < 900) return; // server-side swing speed cap
-      const dmg = Math.max(1, Math.min(25, Math.floor(Number(msg?.dmg ?? 0))));
+      // the house rolls Pit damage now: 6-12, 12% crit doubles (max 24).
+      // wagered gold can't ride on a client-reported number.
+      const crit = Math.random() < 0.12;
+      const dmg = Math.floor((6 + Math.random() * 7) * (crit ? 2 : 1));
       if (isA) {
         duel.lastHitA = now;
         duel.hpB -= dmg;
@@ -673,6 +695,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("walletNonce", (client) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "walletNonce", 6, 10_000)) return;
       sim.walletNonce = randomBytes(16).toString("hex");
       sim.walletNonceAt = Date.now();
       client.send("walletNonce", { nonce: sim.walletNonce });
@@ -685,6 +708,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         const fail = (reason: string) =>
           client.send("walletResult", { ok: false, reason });
         if (!sim) return;
+        if (!this.allow(sim, "linkWallet", 5, 10_000)) return;
         const nonce = sim.walletNonce;
         sim.walletNonce = undefined; // one-shot
         if (!nonce || Date.now() - (sim.walletNonceAt ?? 0) > 5 * 60_000) {
@@ -731,6 +755,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const fail = (reason: string) =>
         client.send("burnQuote", { ok: false, action, reason });
       if (!sim) return;
+      if (!this.allow(sim, "burnQuote", 4, 10_000)) return;
       const cost = BURN_COSTS[action];
       if (!cost) return fail("Unknown rite");
       const row = await loadOrCreatePlayer(sim.token);
@@ -746,6 +771,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       async (client, msg: { key?: string; burnSig?: string }) => {
         const sim = this.sims.get(client.sessionId);
         if (!sim) return;
+        if (!this.allow(sim, "buyAura", 4, 10_000)) return;
         const key = String(msg?.key ?? "");
         if (!AURA_KEYS.includes(key) || key === "") {
           return client.send("auraResult", { ok: false, reason: "Unknown aura" });
@@ -760,6 +786,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("obeliskBurn", async (client, msg: { burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "obeliskBurn", 4, 10_000)) return;
       const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "obelisk");
       client.send("burnResult", err
         ? { ok: false, action: "obelisk", reason: err }
@@ -769,6 +796,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("unlinkWallet", async (client) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "unlinkWallet", 3, 10_000)) return;
       await setWalletAddress(sim.token, null).catch(() => {});
       client.send("walletResult", { ok: true, address: null });
     });
@@ -780,6 +808,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("getProfile", async (client) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "getProfile", 4, 10_000)) return;
       const myClaims = [...this.claimOwner]
         .filter(([, t]) => t === sim.token)
         .map(([id]) => id);
@@ -820,6 +849,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         const fail = (reason: string) =>
           client.send("listResult", { ok: false, reason, item: msg?.item, qty: msg?.qty });
         if (!sim) return;
+        if (!this.allow(sim, "list", 6, 5000)) return;
         const item = String(msg?.item ?? "");
         const qty = Math.floor(Number(msg?.qty ?? 0));
         const price = Math.floor(Number(msg?.price ?? 0));
@@ -846,6 +876,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const sim = this.sims.get(client.sessionId);
       const ls = this.state.listings.get(String(msg?.id));
       if (!sim || !ls) return;
+      if (!this.allow(sim, "unlist", 6, 5000)) return;
       if (this.listingOwner.get(ls.id) !== sim.token) return;
       this.state.listings.delete(String(ls.id));
       this.listingOwner.delete(ls.id);
@@ -861,6 +892,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const fail = (reason: string) =>
         client.send("buyResult", { ok: false, reason });
       if (!sim) return;
+      if (!this.allow(sim, "buy", 6, 3000)) return;
       if (!ls) return fail("That offer is gone");
       const sellerToken = this.listingOwner.get(ls.id);
       if (sellerToken === sim.token) return fail("That's your own stall");
@@ -894,6 +926,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const fail = (reason: string) =>
         client.send("claimResult", { ok: false, reason });
       if (!sim || typeof msg?.x !== "number" || typeof msg?.y !== "number") return;
+      if (!this.allow(sim, "claim", 6, 3000)) return;
       const x = Math.round(msg.x);
       const y = Math.round(msg.y);
 
@@ -957,6 +990,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         void persistInv(sim.token, sim.inv).catch(() => {});
         this.syncInv(sim);
       }
+      sim.combatLevel = snapCombatLevel(msg.snapshot);
       void savePlayer(sim.token, {
         snapshot: msg.snapshot,
         lastX: sim.px,
@@ -969,6 +1003,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("goldDelta", (client, msg: { amount?: number; reason?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "goldDelta", 30, 1000)) return;
       const amount = Math.trunc(Number(msg?.amount ?? 0));
       const reason = String(msg?.reason ?? "");
       if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1_000_000) return;
@@ -1013,6 +1048,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("itemDelta", (client, msg: { item?: string; qty?: number; reason?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "itemDelta", 30, 1000)) return;
       const item = String(msg?.item ?? "") as ItemKey;
       const qty = Math.trunc(Number(msg?.qty ?? 0));
       const reason = String(msg?.reason ?? "");
@@ -1044,6 +1080,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("cook", (client, msg: { qty?: number }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "cook", 4, 2000)) return;
       const qty = Math.trunc(Number(msg?.qty ?? 0));
       if (!Number.isFinite(qty) || qty <= 0 || qty > 999) return;
       const n = Math.min(qty, sim.inv.fish ?? 0);
@@ -1059,6 +1096,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("craft", (client, msg: { id?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "craft", 5, 2000)) return;
       const recipe = RECIPES.find((r) => r.result.id === String(msg?.id ?? ""));
       if (!recipe) return;
       this.debitItems(
@@ -1072,6 +1110,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const sim = this.sims.get(client.sessionId);
       const mob = this.mobSims.find((m) => m.id === Number(msg?.id));
       if (!sim || !mob || mob.state === "dead") return;
+      if (!this.allow(sim, "engage", 8, 1000)) return;
       if (chebyshev(this.cellOf(sim), mob.cell) > 1) return;
       mob.engagedBy = client.sessionId;
       mob.lastEngagedAt = Date.now();
@@ -1087,7 +1126,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (now - (sim.lastMobAttackAt ?? 0) < ATTACK_RATE_MS) return; // swing cap
       if (chebyshev(this.cellOf(sim), mob.cell) > 1) return;
       sim.lastMobAttackAt = now;
-      const dmg = Math.max(1, Math.min(ATTACK_MAX_DMG, Math.floor(Number(msg?.dmg ?? 0))));
+      // clamp to the best swing the player's last-saved combat level could
+      // legitimately roll: crit × (3 + lvl/2 + weapon 7 + rand 3) ≈ 26 + lvl
+      const maxDmg = Math.min(ATTACK_MAX_DMG, 26 + sim.combatLevel);
+      const dmg = Math.max(1, Math.min(maxDmg, Math.floor(Number(msg?.dmg ?? 0))));
       mob.engagedBy = client.sessionId;
       mob.lastEngagedAt = now;
       if (mob.state !== "engaged") {
@@ -1141,6 +1183,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage("respawn", (client) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
+      if (!this.allow(sim, "respawn", 4, 5000)) return;
       const spawn = this.findSpawn();
       sim.px = spawn.x;
       sim.py = spawn.y;
@@ -1211,6 +1254,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       inv,
       invSeeded,
       deltaWindow: new Map(),
+      rates: new Map(),
+      combatLevel: snapCombatLevel(row.snapshot),
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -1547,6 +1592,25 @@ export class DriftRoom extends Room<DriftRoomState> {
       sim.action = "idle";
     }
     this.broadcast("realmReset", { season: this.state.season });
+  }
+
+  // ---- Phase 6 hardening: the rate limiter -----------------------------------------
+
+  /**
+   * Per-session token bucket: at most `n` messages of `key` per `windowMs`.
+   * Budgets are generous for honest clients and verify suites; a flood gets
+   * silently dropped (no response — spammers don't deserve feedback).
+   */
+  private allow(sim: PlayerSim, key: string, n: number, windowMs: number): boolean {
+    const now = Date.now();
+    let r = sim.rates.get(key);
+    if (!r || now > r.resetAt) {
+      r = { n: 0, resetAt: now + windowMs };
+      sim.rates.set(key, r);
+    }
+    if (r.n >= n) return false;
+    r.n += 1;
+    return true;
   }
 
   // ---- Phase 6: the gold ledger ----------------------------------------------------
@@ -2172,6 +2236,15 @@ export class DriftRoom extends Room<DriftRoomState> {
 
 function chebyshev(a: Cell, b: Cell) {
   return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+/** combat level out of an untrusted snapshot blob (1..60, default 1) */
+function snapCombatLevel(snapshot: unknown): number {
+  const lvl = Number(
+    (snapshot as { skills?: { combat?: { level?: unknown } } } | null)
+      ?.skills?.combat?.level ?? 1,
+  );
+  return Number.isFinite(lvl) ? Math.min(60, Math.max(1, Math.round(lvl))) : 1;
 }
 
 /** coerce an untrusted blob into clean item counts (known keys, ints ≥ 0) */

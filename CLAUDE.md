@@ -27,6 +27,7 @@ cd server && npx tsc --noEmit -p tsconfig.json     # server typecheck
 ./server/node_modules/.bin/tsx scripts/verify-burns.ts         # SELF-HOSTED (port 2595): REAL devnet burns end-to-end (spin/cleanse/replay)
 ./server/node_modules/.bin/tsx scripts/verify-night.ts         # SELF-HOSTED (port 2594): Long Night survive→dawn + fail→realm reset
 ./server/node_modules/.bin/tsx scripts/verify-gate.ts          # SELF-HOSTED (port 2591): token ENTRY gate (/gate + onAuth, real devnet mint)
+./server/node_modules/.bin/tsx scripts/verify-limits.ts        # Phase 6: rate limits, server-rolled duel damage, level-scaled swing clamp
 ./server/node_modules/.bin/tsx scripts/verify-ledger.ts        # Phase 6: gold + inventory ledgers (seeding, caps, cook/craft, persistence)
 ./server/node_modules/.bin/tsx scripts/verify-mobs.ts          # SELF-HOSTED (port 2592): shared mobs + den + Colossus kill/loot/respawn
 ```
@@ -256,7 +257,7 @@ center-anchored ground decor.
 ### PHASE 6 — IN PROGRESS
 Goal: production-harden, then deploy, then (on explicit go-ahead only) mainnet.
 
-**Slice 1 DONE: the server gold ledger** (built, all suites green, uncommitted):
+**Slice 1 DONE: the server gold ledger** (built, all suites green, committed):
 `players.gold` column is the authoritative pocket balance, held in
 `PlayerSim.gold` (write-through via db `setGold`, seeded on first join from the
 old snapshot's gold; a brand-new row waits for the client's FIRST snapshot push
@@ -277,7 +278,7 @@ never re-seed a live ledger (no minting). Offline mode unchanged (local sim;
 bus forwarder no-ops). Verify suites were adapted: fresh tokens seed their
 purse via the first-save rail (`room.send("save", {snapshot:{gold:N}})`).
 
-**Slice 2 DONE: the inventory ledger** (all suites green, uncommitted):
+**Slice 2 DONE: the inventory ledger** (all suites green, committed):
 `players.inv` jsonb mirrors the gold rail exactly (`PlayerSim.inv`,
 `creditItem`/`debitItems`, `invSync` after every change, same seed-once
 migration via `sim.invSeeded`). Server-granted: gather loot (the server rolls
@@ -292,7 +293,7 @@ zero. Ordering rule: any message paired with an invSync must NOT addItem
 client-side (the sync precedes it — double-count then snap-back otherwise).
 
 **Slice 3 DONE: shared server-side mobs** (ambient + den; all suites green,
-uncommitted): ambient Drift Beasts (8, lv1-3) and the Husk Den elite pack
+committed): ambient Drift Beasts (8, lv1-3) and the Husk Den elite pack
 (5× lv5, reseeds 15 min after the last falls; env `MOB_COUNT`/`DEN_RESEED_S`)
 live in `ServerMob` sims inside DriftRoom — same wander-and-retaliate behavior
 as the old client sim, synced via `MobState` schema map. Client mirrors them as
@@ -308,7 +309,7 @@ client-local (capped deltas) but gates on the SHARED pack. Offline: the local
 CombatManager sim is unchanged (puppets only exist online).
 
 **Slice 4 DONE: ALL mobs are shared** (raiders + Colossus converted; all
-suites green, uncommitted): caravan-ambush waves and the Long Night horde are
+suites green, committed): caravan-ambush waves and the Long Night horde are
 server-spawned raider `ServerMob`s (`eventTag` "ambush"/"night"); the
 `raiderKill` intent is GONE — the attack handler counts REAL raider deaths
 into `waveKills`/`nightKills` and pays raider gold (5-10g) on the killer's
@@ -322,7 +323,7 @@ take real walking). verify-caravan/night now WALK to each raider and kill it
 via attack intents; verify-mobs is self-hosted (port 2592, BOSS_PCTS=0) and
 covers the Colossus end-to-end.
 
-**Token ENTRY GATE + landing page DONE** (Kintara-style door; uncommitted):
+**Token ENTRY GATE + landing page DONE** (Kintara-style door; committed):
 the app now opens on `components/Landing.tsx` (full-screen, DS-styled:
 wordmark → tagline → PLAY NOW; `app/page.tsx` only mounts GameCanvas/Hud
 after the gate). Flow: PLAY → GET `/gate` on the game server (HTTP endpoint
@@ -359,24 +360,58 @@ hero landing; PLAY NOW links to `/play`, which auto-runs the gate flow
 `body.app-locked` in globals.css, toggled by /play only while the engine is
 mounted — every other page scrolls and selects like a normal site.
 
-1. **Anti-cheat — move remaining trusted client systems server-side.** Still
-   client-trusted: XP/levels, duel damage amounts (server rate-caps swings),
-   quest progress (rewards capped via goldDelta "quest"), cosmetics purchases
-   (gold ones; spends can't mint), buff application, equipment/gear (incl.
-   ward reduction vs mobHit and the dmg the client reports per swing, clamped
-   at 50), player vitals/death, mine veins, den chest/lost-tomb gold (capped
-   deltas), and the MAGNITUDE of capped income. Server-authoritative:
-   movement, gather timers + loot grants, gold + inventory ledgers, ALL
-   overworld mobs (ambient/den/raiders/Colossus: hp, deaths, loot, quotas),
-   claims, market escrow (gold AND goods), vault, wheel, shrine pot, duels'
-   gold, token burns (on-chain). Next: duel damage rolls server-side, or
-   start item 2 (rate limits + validation hardening across all handlers).
-2. **Rate limits + validation hardening** on every message handler (some have
-   ad-hoc caps: save 4s, spin 2.5s, duelHit 900ms, goldDelta budgets; most
-   handlers still have none).
-3. **Economy tuning pass** now that gold is server-held (faucets: mine veins,
-   den chest, lost tombs, caravan pay, night reward; caps in
-   `GOLD_DELTA_CAPS` are deliberately generous — tighten with data).
+1. **Anti-cheat — mostly DONE.** Still client-trusted (accepted until server
+   XP exists): XP/levels, quest progress (rewards capped via goldDelta
+   "quest"), cosmetics purchases (gold ones; spends can't mint), buff
+   application, equipment/gear (ward reduction vs mobHit; per-swing mob dmg
+   client-reported but clamped to min(50, 26 + last-saved combat level)),
+   player vitals/death, mine veins / den chest / lost-tomb gold (capped
+   deltas). Server-authoritative: movement, gather timers + loot grants,
+   gold + inventory ledgers, ALL overworld mobs (hp/deaths/loot/quotas),
+   claims, market escrow (gold AND goods), vault, wheel, shrine pot, Pit
+   damage rolls AND wagers, token burns (on-chain), the entry gate.
+2. **Rate limits + validation hardening — DONE.** Every message handler runs
+   through `allow(sim, key, n, windowMs)` (per-session token buckets on
+   `PlayerSim.rates`; floods are silently dropped). Budgets are generous for
+   honest play AND for the verify suites (suites send bursts — keep that in
+   mind before tightening any). Existing ad-hoc caps stayed (save 4s, spin
+   2.5s, duelHit 900ms, attack 900ms, delta budgets). Pit damage is
+   SERVER-ROLLED now (6-12, 12% crit ×2, max 24; the duelHit payload is
+   dead — client floaters are cosmetic approximations). Mob swing damage
+   clamps to `min(50, 26 + sim.combatLevel)` where combatLevel comes from
+   the last snapshot (cross-checked trust until server XP). RPC robustness:
+   solana.ts wraps every read in `withDeadline` (balance 3.5s → cached/0,
+   burn-tx build 8s, verifyBurn polls 6s each) because the public devnet RPC
+   throttles by HANGING, which used to stall walletResult/profile/gate joins
+   forever.
+3. **Economy tuning pass — NEXT UP (start here).** Gold is fully server-held
+   now; balance the faucets against each other and the sinks, then tighten
+   the anti-cheat budgets to "just above legit maximums". The audit data:
+   - FAUCETS (gold/hr-ish): Mine veins 3+lvl/2+rand(3) per ~1.8s swing, 7
+     veins × 3 charges, 60s regrow (`VEIN_CHARGES`/`VEIN_REGROW_MS`,
+     game.ts) — likely the richest camp; Husk Den chest 60-100g + 2 shards
+     per 15min reseed; lost tombstones 30-80g per 6-10min; raiders 5-10g
+     each (ambushes spawn waveNeed=3/5/7…, nights spawn need×1.3); caravan
+     pool 120 + 3×corruption% per ~6min run, pro-rata; night reward 250g
+     per defender; Colossus 50g+5 shards per threshold; quests 25-60g/day
+     ×3; vendor sells (ITEM_META sellValue: wood 2, stone 3, fish 3,
+     cooked 6, hide 8, shard 15); Wheel EV ≈ 42.5g gold + 0.16 shards per
+     50g spin (house edge ~10-15% — it IS a sink, verified math).
+   - SINKS: claims 250g, dyes 200, eyes 350, auras (AURA_CATALOG), pets,
+     drinks 30-40, brews 50-80 + materials, props 100-300, obelisk 75/60,
+     vault fee 2%, death drops (half the purse), duel losses. A rich
+     veteran runs out of sinks fast — consider scaling sinks or new ones.
+   - METHOD: compute gold/hr per archetype (vein-camper vs caravan escort
+     vs beast farmer vs fisher-seller), flatten outliers via the tunables
+     (all live near their features: DriftRoom consts, game.ts vein consts,
+     types.ts catalogs), then tighten `GOLD_DELTA_CAPS`/`ITEM_DELTA_CAPS`
+     (DriftRoom) to just above the new legit maximums. The verify suites
+     SEED purses via first-save and send delta bursts — re-run everything
+     after tightening (several suites assume specific costs: town seeds
+     5000/100, claims 1000, market 200; update seeds if costs change).
+   - The leaderboard (`/leaderboard`) + players table show the live wealth
+     distribution; the user playtests on localhost:2567 and their "feels
+     too rich/poor" calls outrank the spreadsheet.
 4. **Deploy:** client → Vercel; server → Railway/Fly (`NEXT_PUBLIC_GAME_SERVER`
    ws URL env, `DATABASE_URL` → Neon, `TOKEN_MINT`/`SOLANA_RPC` envs; the
    devnet authority keypair lives in server/.data and must move to a secret).
@@ -423,6 +458,9 @@ mounted — every other page scrolls and selects like a normal site.
   it's this class of corruption: stop dev, rm -rf .next.nosync, restart.
   It also ate the live PGlite cluster (2026-06-11; corpse backed up at
   `~/driftlands-db-corrupt-backup-2026-06-11`) — hence the *.nosync data dir.
+  It also EVICTS .git object files: `git push` then dies with "fatal: mmap
+  failed: Operation timed out". Fix: materialize and retry —
+  `find .git -type f -exec cat {} + > /dev/null`.
   The devnet keypair JSONs in server/.data are still unprotected (small,
   static, lower risk — but check them if mint features go dormant).
   Long-term fix: move the repo out of Desktop.
