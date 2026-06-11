@@ -1,0 +1,60 @@
+{
+  "image": "wilds/ash_obelisk.svg",
+  "cell": {
+    "w": 64,
+    "h": 112
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 32,
+    "y": 111
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "ash_obelisk_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    },
+    "ash_obelisk_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    },
+    "ash_obelisk_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "ash_obelisk_00",
+        "ash_obelisk_01",
+        "ash_obelisk_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

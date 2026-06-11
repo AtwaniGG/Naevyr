@@ -1,0 +1,58 @@
+{
+  "image": "interiors/gold_vein.svg",
+  "cell": {
+    "w": 28,
+    "h": 26
+  },
+  "anchor": {
+    "x": 14,
+    "y": 23
+  },
+  "labelClearTop": 6,
+  "states": [
+    "rich",
+    "spent"
+  ],
+  "frames": {
+    "gold_vein-rich_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 26,
+      "anchor": {
+        "x": 14,
+        "y": 23
+      }
+    },
+    "gold_vein-rich_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 26,
+      "anchor": {
+        "x": 14,
+        "y": 23
+      }
+    },
+    "gold_vein-spent": {
+      "x": 56,
+      "y": 0,
+      "w": 28,
+      "h": 26,
+      "anchor": {
+        "x": 14,
+        "y": 23
+      }
+    }
+  },
+  "animations": {
+    "sparkle": {
+      "frames": [
+        "gold_vein-rich_00",
+        "gold_vein-rich_01"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

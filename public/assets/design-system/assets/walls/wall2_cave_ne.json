@@ -1,0 +1,63 @@
+{
+  "image": "walls/wall2_cave_ne.svg",
+  "cell": {
+    "w": 32,
+    "h": 72
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "side": "ne",
+  "material": "cave",
+  "variant": "plain",
+  "geometry": {
+    "faceHeight": 48,
+    "topCap": 6,
+    "bottomDrop": 16,
+    "slope": "2:1",
+    "corners": {
+      "bottomLeft": [
+        0,
+        55
+      ],
+      "bottomRight": [
+        31,
+        71
+      ],
+      "topRight": [
+        31,
+        23
+      ],
+      "topLeft": [
+        0,
+        7
+      ]
+    }
+  },
+  "anchor": {
+    "x": 0,
+    "y": 55
+  },
+  "tiling": {
+    "step": {
+      "x": 32,
+      "y": 16
+    },
+    "note": "place adjacent segments at +32x,+16y; textures continue seamlessly"
+  },
+  "accentColorable": false,
+  "labelClearTop": 6,
+  "frames": {
+    "wall2_cave_ne": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 0,
+        "y": 55
+      }
+    }
+  }
+}

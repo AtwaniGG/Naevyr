@@ -35,11 +35,11 @@ function findPlots(state: any, count: number, taken: { x: number; y: number }[])
         }
       const all = [...out, ...taken];
       if (all.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.y - y)) < 4)) continue;
-      let claimClash = false;
+      let clash = false;
       state.claims.forEach((c: any) => {
-        if (Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) < 3) claimClash = true;
+        if (Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) < 3) clash = true;
       });
-      if (!claimClash) out.push({ x, y });
+      if (!clash) out.push({ x, y });
     }
   }
   return out;

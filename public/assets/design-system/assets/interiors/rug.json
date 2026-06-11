@@ -1,0 +1,25 @@
+{
+  "image": "interiors/rug.svg",
+  "cell": {
+    "w": 56,
+    "h": 30
+  },
+  "anchor": {
+    "x": 28,
+    "y": 15
+  },
+  "drawUnderEntities": true,
+  "accentColorable": true,
+  "frames": {
+    "rug": {
+      "x": 0,
+      "y": 0,
+      "w": 56,
+      "h": 30,
+      "anchor": {
+        "x": 28,
+        "y": 15
+      }
+    }
+  }
+}

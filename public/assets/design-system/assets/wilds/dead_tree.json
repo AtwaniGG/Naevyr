@@ -1,0 +1,35 @@
+{
+  "image": "wilds/dead_tree.svg",
+  "cell": {
+    "w": 28,
+    "h": 40
+  },
+  "anchor": {
+    "x": 13,
+    "y": 39
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "dead_tree_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 40,
+      "anchor": {
+        "x": 13,
+        "y": 39
+      }
+    },
+    "dead_tree_v1": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 40,
+      "anchor": {
+        "x": 13,
+        "y": 39
+      }
+    }
+  },
+  "variants": 2
+}

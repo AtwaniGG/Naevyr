@@ -1,0 +1,29 @@
+{
+  "image": "wilds/mirewife_hut.svg",
+  "cell": {
+    "w": 120,
+    "h": 116
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 58,
+    "y": 115
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "mirewife_hut": {
+      "x": 0,
+      "y": 0,
+      "w": 120,
+      "h": 116,
+      "anchor": {
+        "x": 58,
+        "y": 115
+      }
+    }
+  }
+}

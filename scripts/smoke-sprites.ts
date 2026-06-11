@@ -41,6 +41,8 @@ import { makeBuildingSprite, BuildingSpriteKey, SHRINE_FRAMES } from "../game/re
 const CELLS: Record<BuildingSpriteKey, [number, number]> = {
   dyeworks: [144, 152], vault: [144, 152], wheel: [144, 152], lantern: [144, 152],
   furnisher: [144, 152], menagerie: [144, 152], shrine: [112, 128], pit: [240, 120],
+  mine: [144, 120],
+  huskden: [120, 88], obelisk: [64, 112], mirehut: [120, 116],
 };
 for (const key of Object.keys(CELLS) as BuildingSpriteKey[]) {
   const nFrames = key === "shrine" ? SHRINE_FRAMES : 1;
@@ -84,9 +86,82 @@ if (JSON.stringify(makeWagon(0).d) === JSON.stringify(makeWagon(1).d)) {
   if (a === b) { failures++; console.error("FAIL shrine: frames 0 and 1 are identical"); }
 }
 
+// interior set (DS port): floors × styles × seeds, walls × registry, fixtures
+import {
+  makeInteriorFloor, makeFixture, makeWallSegment,
+  FixtureSpriteKind, InteriorFloorStyle, WallSide, WallMatKind, WallVariant,
+} from "../game/render/sprites";
+for (const style of ["wood", "stone", "cave"] as InteriorFloorStyle[]) {
+  for (let v = 1; v <= 3; v++) {
+    try {
+      const g = makeInteriorFloor(style, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (px < 500) { failures++; console.error(`FAIL floor ${style}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW floor ${style}#${v}:`, e); }
+  }
+}
+const WALL_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
+  ["nw", "timber", "plain"], ["ne", "timber", "plain"], ["nw", "timber", "window"], ["nw", "timber", "banner"],
+  ["nw", "block", "plain"], ["ne", "block", "plain"], ["nw", "block", "window"], ["nw", "block", "banner"],
+  ["nw", "cave", "plain"], ["ne", "cave", "plain"], ["nw", "cave", "seam"], ["nw", "cave", "lantern"],
+];
+for (const [side, mat, variant] of WALL_COMBOS) {
+  try {
+    const g = makeWallSegment(side, mat, variant);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 64 || g.h !== 56) { failures++; console.error(`FAIL wall ${side}/${mat}/${variant}: grid ${g.w}×${g.h}`); }
+    else if (px < 500) { failures++; console.error(`FAIL wall ${side}/${mat}/${variant}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW wall ${side}/${mat}/${variant}:`, e); }
+}
+const FIXTURES: [FixtureSpriteKind, number][] = [
+  ["counter", 1], ["vat", 1], ["shelf", 1], ["table", 1], ["barrel", 1],
+  ["cage", 1], ["anvil", 1], ["rug", 1], ["wheelDisc", 1],
+  ["goldVein", 2], ["goldVeinEmpty", 1], ["hearth", 3], ["oreCart", 1],
+];
+for (const [kind, nFrames] of FIXTURES) {
+  for (let f = 0; f < nFrames; f++) {
+    try {
+      const g = makeFixture(kind, "#a855f7", f);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (px < 60) { failures++; console.error(`FAIL fixture ${kind}#${f}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW fixture ${kind}#${f}:`, e); }
+  }
+}
+// wall2: skewed segments + corners (DS walls.js port)
+import { makeWall2, makeWall2Corner } from "../game/render/sprites";
+const WALL2_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
+  ["nw", "timber", "plain"], ["ne", "timber", "plain"], ["nw", "timber", "window"], ["ne", "timber", "banner"],
+  ["nw", "block", "plain"], ["ne", "block", "plain"], ["nw", "block", "window"], ["ne", "block", "banner"],
+  ["nw", "cave", "plain"], ["ne", "cave", "plain"], ["nw", "cave", "seam"], ["ne", "cave", "lantern"],
+];
+for (const [side, mat, variant] of WALL2_COMBOS) {
+  try {
+    const g = makeWall2(side, mat, variant);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 32 || g.h !== 72) { failures++; console.error(`FAIL wall2 ${side}/${mat}/${variant}: grid ${g.w}×${g.h}`); }
+    else if (px < 400) { failures++; console.error(`FAIL wall2 ${side}/${mat}/${variant}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW wall2 ${side}/${mat}/${variant}:`, e); }
+}
+for (const mat of ["timber", "block", "cave"] as WallMatKind[]) {
+  try {
+    const g = makeWall2Corner(mat);
+    frames++;
+    if (g.w !== 16 || g.h !== 72) { failures++; console.error(`FAIL wall2 corner ${mat}`); }
+  } catch (e) { failures++; console.error(`THROW wall2 corner ${mat}:`, e); }
+}
+
+// animated fixtures must actually animate
+if (JSON.stringify(makeFixture("hearth", "", 0).d) === JSON.stringify(makeFixture("hearth", "", 1).d)) {
+  failures++; console.error("FAIL hearth: frames 0 and 1 are identical");
+}
+
 console.log(
   failures === 0
-    ? `All ${frames} sprites (beasts + buildings) generated cleanly.`
+    ? `All ${frames} sprites (beasts + buildings + interiors) generated cleanly.`
     : `${failures}/${frames} sprites FAILED.`,
 );
 process.exit(failures === 0 ? 0 : 1);

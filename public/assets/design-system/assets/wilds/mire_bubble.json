@@ -1,0 +1,44 @@
+{
+  "image": "wilds/mire_bubble.svg",
+  "cell": {
+    "w": 10,
+    "h": 8
+  },
+  "anchor": {
+    "x": 5,
+    "y": 7
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "mire_bubble_00": {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 8,
+      "anchor": {
+        "x": 5,
+        "y": 7
+      }
+    },
+    "mire_bubble_01": {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 8,
+      "anchor": {
+        "x": 5,
+        "y": 7
+      }
+    }
+  },
+  "animations": {
+    "bubble": {
+      "frames": [
+        "mire_bubble_00",
+        "mire_bubble_01"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

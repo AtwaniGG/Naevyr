@@ -160,6 +160,16 @@ export class NetClient {
     return (this.room.state.caravan as NetCaravan) ?? null;
   }
 
+  get night(): { active: boolean; kills: number; need: number; endsIn: number } {
+    const s = this.room.state;
+    return {
+      active: !!s.nightActive,
+      kills: s.nightKills ?? 0,
+      need: s.nightNeed ?? 0,
+      endsIn: s.nightEndsIn ?? 0,
+    };
+  }
+
   get shrinePot(): number {
     return this.room.state.shrinePot ?? 0;
   }
@@ -201,12 +211,24 @@ export class NetClient {
     this.safeSend("bank", { delta });
   }
 
-  sendSpin() {
-    this.safeSend("spin");
+  sendSpin(burnSig?: string) {
+    this.safeSend("spin", burnSig ? { burnSig } : undefined);
   }
 
-  sendDonate(amount: number) {
-    this.safeSend("donate", { amount });
+  sendDonate(amount: number, burnSig?: string) {
+    this.safeSend("donate", burnSig ? { burnSig } : { amount });
+  }
+
+  sendBurnQuote(action: string) {
+    this.safeSend("burnQuote", { action });
+  }
+
+  sendBuyAura(key: string, burnSig: string) {
+    this.safeSend("buyAura", { key, burnSig });
+  }
+
+  sendObeliskBurn(burnSig: string) {
+    this.safeSend("obeliskBurn", { burnSig });
   }
 
   sendPlaceProp(kind: string, x: number, y: number) {
@@ -229,12 +251,24 @@ export class NetClient {
     this.safeSend("raiderKill");
   }
 
+  requestWalletNonce() {
+    this.safeSend("walletNonce");
+  }
+
+  sendLinkWallet(address: string, signatureHex: string) {
+    this.safeSend("linkWallet", { address, signature: signatureHex });
+  }
+
+  sendUnlinkWallet() {
+    this.safeSend("unlinkWallet");
+  }
+
   sendChat(text: string, kind: "say" | "emote") {
     this.safeSend("chat", { text, kind });
   }
 
-  sendClaim(x: number, y: number) {
-    this.safeSend("claim", { x, y });
+  sendClaim(x: number, y: number, burnSig?: string) {
+    this.safeSend("claim", burnSig ? { x, y, burnSig } : { x, y });
   }
 
   sendList(item: string, qty: number, price: number) {

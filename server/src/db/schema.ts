@@ -83,6 +83,13 @@ export const props = pgTable("props", {
 
 export type PropRow = typeof props.$inferSelect;
 
+// Phase 5: consumed burn-tx signatures (replay protection for token burns).
+export const burns = pgTable("burns", {
+  sig: text("sig").primaryKey(),
+  token: text("token").notNull(),
+  action: text("action").notNull(),
+});
+
 // The Shrine of the Pale Flame: one communal pot (single row, id=1).
 export const shrine = pgTable("shrine", {
   id: serial("id").primaryKey(),

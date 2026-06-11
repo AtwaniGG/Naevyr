@@ -1,0 +1,32 @@
+{
+  "image": "interiors/wall_timber_ne.svg",
+  "cell": {
+    "w": 64,
+    "h": 56
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "side": "ne",
+  "material": "timber",
+  "variant": "plain",
+  "accentColorable": false,
+  "anchor": {
+    "x": 32,
+    "y": 55
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "wall_timber_ne": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 56,
+      "anchor": {
+        "x": 32,
+        "y": 55
+      }
+    }
+  }
+}

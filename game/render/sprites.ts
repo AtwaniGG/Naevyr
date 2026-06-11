@@ -1015,7 +1015,8 @@ function drawRaider(facing: IsoFacing, anim: string, f: number): Grid {
 
 export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
-  | 'furnisher' | 'menagerie' | 'shrine' | 'pit';
+  | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine'
+  | 'huskden' | 'obelisk' | 'mirehut';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
 
@@ -1582,6 +1583,215 @@ function drawPit(): Grid {
   return g;
 }
 
+// THE MINE entrance — DS port (_gen/interiors.js drawMine, 144×120)
+function drawMine(): Grid {
+  const g = makeGrid(144, 120);
+  const cx = 72, baseY = 100;
+  foundation(g, cx, baseY + 6, 56, {});
+  // rocky mound — low, broad, FLAT-topped dome, irregular silhouette
+  const maxH = 46;
+  for (let yy = 0; yy <= maxH; yy++) {
+    const t = yy / maxH;
+    let hw = Math.round(66 * Math.pow(1 - Math.pow(t, 3), 0.42));  // stays wide, flat top
+    hw += Math.round((hash2(yy, 0, 95) - 0.5) * 6);   // rocky bumps
+    if (yy > maxH - 6) hw = Math.max(hw, 10 - (maxH - yy) * 1.5);  // rounded flat cap
+    const top = baseY - yy;
+    for (let xx = -hw; xx <= hw; xx++) {
+      const h = hash2(cx + xx, top, 91);
+      let c = RAMP.stone[1];
+      if (xx < -hw + 6) c = RAMP.stone[0];          // moonlit left
+      else if (xx > hw - 6) c = RAMP.stone[3];      // shadow right
+      else if (h < 0.10) c = RAMP.stone[2];
+      else if (h < 0.13) c = RAMP.stone[0];
+      if (h < 0.02) c = RAMP.stone[3];
+      P(g, cx + xx, top, c);
+    }
+  }
+  // gold seams glinting across the rock
+  const rng = mulberry(913);
+  for (let s = 0; s < 7; s++) {
+    let x = cx - 40 + Math.floor(rng() * 80), y = baseY - 8 - Math.floor(rng() * 46);
+    const dx = rng() < 0.5 ? 1 : -1;
+    for (let k = 0; k < 10 + Math.floor(rng() * 8); k++) {
+      if (G(g, x, y)) { P(g, x, y, RAMP.gold[1]); if (rng() < 0.5) P(g, x, y + 1, RAMP.gold[2]); if (rng() < 0.3) P(g, x, y - 1, RAMP.gold[0]); }
+      x += dx * (rng() < 0.4 ? 1 : 0) + (rng() < 0.3 ? 1 : 0); y += rng() < 0.5 ? 1 : -1;
+    }
+  }
+  // timber-framed dark adit on the south face
+  const ax = cx, abot = baseY, aw = 30, ah = 30;
+  for (let j = 0; j < ah; j++) for (let i = -aw / 2; i <= aw / 2; i++) {
+    const t = Math.abs(i) / (aw / 2);
+    if (j < ah * 0.45 * t) continue;                // arched top
+    P(g, ax + i, abot - j, RAMP.void);
+  }
+  // arch interior depth hint (dither toward lighter at top)
+  for (let j = 0; j < 6; j++) for (let i = -aw / 2 + 3; i <= aw / 2 - 3; i++) if ((i + j) % 2 === 0 && Math.abs(i) < (aw / 2 - 3)) P(g, ax + i, abot - ah + 6 + j, RAMP.stone[3]);
+  // timber frame (posts + lintel)
+  for (let j = 0; j <= ah; j++) { fillRect(g, ax - aw / 2 - 3, abot - j, 3, 1, RAMP.dirt[1]); fillRect(g, ax + aw / 2, abot - j, 3, 1, RAMP.dirt[2]); }
+  for (let i = -aw / 2 - 3; i <= aw / 2 + 3; i++) { const t = Math.abs(i) / (aw / 2 + 3); const ly = abot - ah - 2 + Math.round(t * 5); P(g, ax + i, ly, RAMP.dirt[1]); P(g, ax + i, ly - 1, RAMP.dirt[0]); P(g, ax + i, ly - 2, RAMP.dirt[3]); }
+  // cross-brace
+  for (let k = 0; k < aw + 6; k++) P(g, ax - aw / 2 - 3 + k, abot - ah + 2 + Math.round(Math.sin(k / (aw + 6) * Math.PI) * -2), RAMP.dirt[3]);
+  // cart rails running out of the mouth (south, toward camera)
+  for (let k = 0; k < 22; k++) {
+    const ry = abot + k, spread = 4 + Math.floor(k * 0.5);
+    P(g, ax - spread, ry, RAMP.stone[3]); P(g, ax - spread + 1, ry, RAMP.stone[2]);
+    P(g, ax + spread, ry, RAMP.stone[3]); P(g, ax + spread - 1, ry, RAMP.stone[2]);
+    if (k % 3 === 0) for (let i = -spread; i <= spread; i++) P(g, ax + i, ry, RAMP.dirt[3]); // tie
+  }
+  // a few raw ore chunks by the mouth
+  ([[ax - 22, abot + 2], [ax + 20, abot + 5]] as [number, number][]).forEach(([ox, oy]) => { P(g, ox, oy, RAMP.gold[1]); P(g, ox + 1, oy, RAMP.gold[2]); P(g, ox, oy - 1, RAMP.gold[0]); P(g, ox - 1, oy, RAMP.stone[2]); });
+  // hung ember lantern by the entrance (on the left post)
+  const lx = ax - aw / 2 - 6, ly = abot - ah + 6;
+  P(g, lx + 2, ly - 4, RAMP.dirt[3]); for (let i = 0; i < 4; i++) P(g, lx + 2 + i, ly - 4, RAMP.dirt[3]);
+  for (let j = 0; j < 8; j++) for (let i = -3; i <= 3; i++) { let c = RAMP.ember[1]; if (j === 0 || j === 7) c = RAMP.dirt[3]; else if (i <= -2) c = RAMP.ember[0]; else if (i >= 2) c = RAMP.ember[2]; P(g, lx + i, ly + j, c); }
+  P(g, lx, ly + 3, RAMP.ember[0]);
+  for (let yy = -4; yy <= 5; yy++) for (let xx = -5; xx <= 5; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 4 && d < 8 && (xx + yy) % 2 === 0) P(g, lx + xx, ly + 2 + yy, RAMP.ember[2]); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ─── WILD STRUCTURES (hand-built placeholders until the next design pack) ────
+
+// the Husk Den: a corrupted burrow-mound ringed with old bones (Ashen Flats)
+function drawHuskDen(): Grid {
+  const g = makeGrid(120, 88);
+  const cx = 60, baseY = 70;
+  foundation(g, cx, baseY + 6, 46, {});
+  // low dark mound, drift-tinged
+  for (let yy = 0; yy <= 26; yy++) {
+    const t = yy / 26;
+    let hw = Math.round(46 * Math.sqrt(Math.max(0, 1 - t * t)));
+    hw += Math.round((rnd2(yy, 0, 401) - 0.5) * 5);
+    for (let xx = -hw; xx <= hw; xx++) {
+      const h = rnd2(cx + xx, baseY - yy, 402);
+      let c = RAMP.stone[2];
+      if (xx < -hw + 5) c = RAMP.stone[1];
+      else if (xx > hw - 5) c = RAMP.stone[3];
+      if (h < 0.07) c = RAMP.drift[3];
+      else if (h < 0.1) c = RAMP.stone[3];
+      P(g, cx + xx, baseY - yy, c);
+    }
+  }
+  // burrow mouth (south)
+  for (let j = 0; j < 14; j++) for (let i = -9; i <= 9; i++) {
+    const t = Math.abs(i) / 9;
+    if (j < 8 * t * t) continue;
+    P(g, cx + i, baseY - j, RAMP.void);
+  }
+  P(g, cx - 3, baseY - 5, RAMP.drift[1]); P(g, cx + 4, baseY - 7, RAMP.drift[2]); // eyes in the dark
+  // ring of jutting bone spikes
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const sx = cx + Math.round(Math.cos(a) * 42);
+    const sy = baseY + 4 + Math.round(Math.sin(a) * 9) - (Math.sin(a) < 0 ? 26 : 0);
+    const h = 7 + ((i * 5) % 7);
+    for (let k = 0; k < h; k++) {
+      P(g, sx + Math.round(k * 0.2), sy - k, k > h - 3 ? RAMP.bone[0] : RAMP.bone[1]);
+      if (k < h - 2) P(g, sx + 1 + Math.round(k * 0.2), sy - k, RAMP.bone[2]);
+    }
+  }
+  // scattered bones
+  for (let i = 0; i < 10; i++) {
+    const bx = cx - 40 + Math.floor(rnd2(i, 1, 403) * 80);
+    const by = baseY + 2 + Math.floor(rnd2(i, 2, 403) * 8);
+    if (rnd2(i, 3, 403) < 0.6) { P(g, bx, by, RAMP.bone[2]); P(g, bx + 1, by, RAMP.bone[3]); }
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// the Ash Obelisk: a drift-touched monolith with glowing runes (Ashen Flats)
+function drawObelisk(): Grid {
+  const g = makeGrid(64, 112);
+  const cx = 32, baseY = 96;
+  foundation(g, cx, baseY + 6, 26, {});
+  // tapered monolith
+  for (let yy = 0; yy <= 78; yy++) {
+    const t = yy / 78;
+    const hw = Math.round(11 * (1 - t * 0.55));
+    for (let xx = -hw; xx <= hw; xx++) {
+      let c = RAMP.stone[1];
+      if (xx < -hw + 2) c = RAMP.stone[0];
+      else if (xx > hw - 2) c = RAMP.stone[2];
+      if (rnd2(cx + xx, baseY - yy, 404) < 0.06) c = RAMP.stone[2];
+      P(g, cx + xx, baseY - yy, c);
+    }
+  }
+  // capstone shard
+  for (let k = 0; k < 7; k++) {
+    for (let xx = -Math.max(0, 4 - k); xx <= Math.max(0, 4 - k); xx++) {
+      P(g, cx + xx, baseY - 78 - k, k > 4 ? RAMP.drift[1] : RAMP.stone[0]);
+    }
+  }
+  P(g, cx, baseY - 86, RAMP.drift[0]);
+  // glowing runes down the face
+  for (let i = 0; i < 6; i++) {
+    const ry = baseY - 12 - i * 11;
+    const rx = cx + ((i % 2) ? -2 : 1);
+    P(g, rx, ry, RAMP.drift[1]); P(g, rx + 1, ry, RAMP.drift[2]);
+    P(g, rx, ry - 1, RAMP.drift[2]); P(g, rx - 1, ry, RAMP.drift[3]);
+    P(g, rx, ry + 1, RAMP.drift[0]);
+  }
+  // dither glow halo
+  for (let yy = -40; yy <= 0; yy++) for (let xx = -10; xx <= 10; xx++) {
+    const d = Math.abs(xx) + Math.abs((yy + 20) * 0.5);
+    if (d > 11 && d < 14 && (xx + yy) % 2 === 0) P(g, cx + xx, baseY - 40 + yy, RAMP.drift[2]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// the Mirewife's Hut: a crooked stilted hut hung with charms (Hollowmere Reach)
+function drawMireHut(): Grid {
+  const g = makeGrid(120, 116);
+  const cx = 60, baseY = 96;
+  foundation(g, cx, baseY + 6, 48, {});
+  // stilts
+  for (const sx of [-26, -8, 10, 26]) {
+    for (let k = 0; k < 12; k++) { P(g, cx + sx, baseY - k, RAMP.dirt[3]); P(g, cx + sx + 1, baseY - k, RAMP.dirt[2]); }
+  }
+  // hut body (timber, slightly skewed)
+  for (let y = 0; y <= 34; y++) for (let x = -30; x <= 30; x++) {
+    const skew = Math.round(y * 0.12);
+    let c = RAMP.dirt[1];
+    if (x < -26) c = RAMP.dirt[0];
+    else if (x > 26) c = RAMP.dirt[2];
+    if (y % 4 === 0) c = RAMP.dirt[2];
+    if (rnd2(x, y, 405) < 0.05) c = RAMP.dirt[3];
+    P(g, cx + x + skew, baseY - 12 - y, c);
+  }
+  // mossy reed roof
+  for (let y = 0; y <= 18; y++) {
+    const t = y / 18;
+    const hw = Math.round((36 - 30 * t));
+    for (let x = -hw; x <= hw; x++) {
+      let c = RAMP.grass[1];
+      if (x < -hw + 3) c = RAMP.grass[0];
+      else if (x > hw - 3) c = RAMP.grass[2];
+      if (y % 3 === 0) c = RAMP.grass[2];
+      if (rnd2(x, y, 406) < 0.07) c = RAMP.grass[3];
+      P(g, cx + x + Math.round((18 - y) * 0.12), baseY - 46 - y + 18, c);
+    }
+  }
+  // door + warm window
+  door(g, cx - 6, baseY - 12, 10, 18, RAMP.dirt);
+  litWindow(g, cx + 12, baseY - 36, 8, 7, { noCross: true });
+  // hanging charms under the eave
+  for (let i = 0; i < 5; i++) {
+    const hx = cx - 22 + i * 11;
+    P(g, hx, baseY - 44, RAMP.bone[3]);
+    P(g, hx, baseY - 43, RAMP.bone[2]);
+    P(g, hx, baseY - 42, i % 2 ? RAMP.drift[2] : RAMP.bone[1]);
+  }
+  // a rickety stoop down the front
+  for (let k = 0; k < 4; k++) {
+    for (let i = -7; i <= 1; i++) P(g, cx + i - 4 + k, baseY - 8 + k * 2, RAMP.dirt[2]);
+    for (let i = -7; i <= 1; i++) P(g, cx + i - 4 + k, baseY - 7 + k * 2, RAMP.dirt[3]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
 export const SHRINE_FRAMES = 3;
 
 // (exported for the headless smoke test; frame only matters for the shrine)
@@ -1595,6 +1805,10 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'menagerie': return drawMenagerie();
     case 'shrine':    return drawShrine(frame % SHRINE_FRAMES);
     case 'pit':       return drawPit();
+    case 'mine':      return drawMine();
+    case 'huskden':   return drawHuskDen();
+    case 'obelisk':   return drawObelisk();
+    case 'mirehut':   return drawMireHut();
   }
 }
 
@@ -1779,6 +1993,563 @@ export function makeWagon(f: number): Grid {
   return g;
 }
 
+// ─── interiors.js — INTERIOR SET + THE MINE (DS port) ─────────────────────────
+// Faithful port of _gen/interiors.js. Floors 64×36 (tiles.js format), walls
+// 64×56 (bottom-center anchor), fixtures bottom-center anchored.
+
+export type InteriorFloorStyle = 'wood' | 'stone' | 'cave';
+
+/** map a room accent hex to its RAMP ramp (banner/rug/vat tinting) */
+const ACCENT_RAMP: Record<string, readonly string[]> = {
+  '#a855f7': RAMP.drift, '#f59e0b': RAMP.ember, '#4a7fa0': RAMP.water,
+  '#dc2626': RAMP.blood, '#4d7c4d': RAMP.grass, '#e7c873': RAMP.gold,
+  '#d8cfe0': RAMP.bone,
+};
+const ACCENT_LIQUID: Record<string, string> = {
+  '#a855f7': 'drift', '#f59e0b': 'ember', '#4a7fa0': 'water',
+  '#dc2626': 'blood', '#4d7c4d': 'grass', '#e7c873': 'gold',
+};
+const RAMP_BY_NAME: Record<string, readonly string[]> = {
+  drift: RAMP.drift, ember: RAMP.ember, water: RAMP.water,
+  blood: RAMP.blood, grass: RAMP.grass, gold: RAMP.gold,
+};
+
+export function makeInteriorFloor(style: InteriorFloorStyle, seedN: number): Grid {
+  const g = makeGrid(64, 36);
+  const rows = diamondRows();
+  const ramp = style === 'wood' ? RAMP.dirt : RAMP.stone;
+  const face = ramp[1], hi = ramp[0], sh = ramp[2], dp = ramp[3];
+
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) P(g, x, y, face);
+  // 3px south lip
+  for (let x = 0; x < 64; x++) { const my = contourMaxY(rows, x); if (my >= 0) for (let k = 1; k <= 3; k++) P(g, x, my + k, sh); }
+  // 1px void north edge
+  for (let x = 0; x < 64; x++) for (let y = 0; y < 32; y++) if (inDiamond(rows, x, y)) { P(g, x, y, RAMP.void); break; }
+
+  if (style === 'wood') {
+    // plank seams run NW→SE (parallel to top-left edge): constant (x+2y)
+    for (let y = 1; y < 31; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+      if ((x + 2 * y) % 10 === 0) P(g, x, y, dp);                      // board seam
+      else if ((x + 2 * y) % 10 === 1) P(g, x, y, hi);                 // plank highlight edge
+      if (hash2(x, y, seedN) < 0.015) { P(g, x, y, dp); P(g, x + 1, y, sh); } // knot
+      else if (hash2(x, y, seedN + 5) < 0.03) P(g, x, y, sh);          // grain
+    }
+    // board END caps (cross seams) every few rows
+    for (let y = 1; y < 31; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++)
+      if ((x - 2 * y + 64) % 26 === (seedN * 7) % 26) P(g, x, y, dp);
+  } else if (style === 'stone') {
+    // flagstone courses (blocky), hairline cracks
+    for (let y = 1; y < 31; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+      const bx = Math.floor((x + 2 * y) / 12), by = Math.floor((x - 2 * y + 128) / 12);
+      if ((x + 2 * y) % 12 === 0 || (x - 2 * y + 128) % 12 === 0) P(g, x, y, dp);   // joints
+      else if (hash2(bx, by, seedN) < 0.18 && hash2(x, y, seedN + 1) < 0.5) P(g, x, y, hash2(x, y, seedN + 2) < 0.5 ? hi : sh);
+      if (hash2(x, y, seedN + 7) < 0.012) P(g, x, y, dp);             // hairline crack
+    }
+  } else { // cave
+    for (let y = 1; y < 31; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+      const h = hash2(x, y, seedN);
+      if (h < 0.08) P(g, x, y, sh);
+      else if (h < 0.11) P(g, x, y, dp);
+      else if (h < 0.135) P(g, x, y, hi);
+      if (hash2(x, y, seedN + 9) < 0.012) { P(g, x, y, RAMP.gold[1]); if (hash2(x, y, seedN + 10) < 0.4) P(g, x + 1, y, RAMP.gold[2]); } // gold fleck
+      if (hash2(x, y, seedN + 11) < 0.02) P(g, x, y, dp);             // rubble speck
+    }
+  }
+  return g;
+}
+
+// ── wall segments (64×56): flat face + sheared iso top cap ────────────────────
+export type WallSide = 'nw' | 'ne';
+export type WallMatKind = 'timber' | 'block' | 'cave';
+export type WallVariant = 'plain' | 'window' | 'banner' | 'seam' | 'lantern';
+
+export function makeWallSegment(
+  side: WallSide,
+  mat: WallMatKind,
+  variant: WallVariant,
+  opt: { accent?: readonly string[] } = {},
+): Grid {
+  const g = makeGrid(64, 56);
+  const lit = side === 'nw';
+  const ramp = mat === 'timber' ? RAMP.dirt : RAMP.stone;
+  // base/face brightness shift by side
+  const cBase = lit ? ramp[1] : ramp[2];
+  const cHi = lit ? ramp[0] : ramp[1];
+  const cSh = lit ? ramp[2] : ramp[3];
+  const faceTop = 14, faceBot = 53;
+
+  // ---- top cap (iso thickness), sheared toward the far corner ----
+  for (let x = 0; x < 64; x++) {
+    // NW recedes up-right → cap rises to the right; NE mirror
+    const sx = lit ? x : 63 - x;
+    const capLift = Math.floor(sx / 8);             // 0..7 px
+    for (let k = 0; k < 6; k++) P(g, x, faceTop - 1 - k - capLift, k < 2 ? RAMP.stone[lit ? 1 : 2] : (mat === 'timber' ? RAMP.dirt[3] : RAMP.stone[3]));
+    // void cap edge
+    P(g, x, faceTop - 6 - capLift, RAMP.void);
+  }
+
+  // ---- face ----
+  for (let y = faceTop; y <= faceBot; y++) for (let x = 0; x < 64; x++) {
+    let c = cBase;
+    if (x < 3) c = lit ? cHi : ramp[1];             // left edge lightest
+    else if (x > 60) c = cSh;
+    // material texture
+    if (mat === 'timber') {
+      if ((y - faceTop) % 4 === 0) c = cSh;          // plank seams
+      if (hash2(x, y, 71) < 0.04) c = cSh;
+    } else if (mat === 'block') {
+      const course = Math.floor((y - faceTop) / 6);
+      if ((y - faceTop) % 6 === 0) c = cSh;          // course line
+      if ((x + (course % 2) * 6) % 12 === 0) c = cSh; // vertical joints (staggered)
+      if (hash2(x, y, 72) < 0.03) c = lit ? ramp[1] : ramp[3];
+    } else { // cave — raw rock
+      const h = hash2(x, y, 73);
+      if (h < 0.10) c = cSh;
+      else if (h < 0.14) c = cHi;
+      if (hash2(x, y, 74) < 0.02) c = ramp[3];
+    }
+    P(g, x, y, c);
+  }
+  // baseboard
+  for (let x = 0; x < 64; x++) { P(g, x, faceBot, ramp[3]); P(g, x, faceBot - 1, cSh); }
+
+  // ---- variants ----
+  if (variant === 'window') {
+    const wx = 24, wy = 24, ww = 16, wh = 14;
+    for (let j = 0; j < wh; j++) for (let i = 0; i < ww; i++) {
+      let c = RAMP.ember[1];
+      if (i === 0 || j === 0 || i === ww - 1 || j === wh - 1) c = RAMP.ember[0];
+      if ((i + j) % 2 === 0 && hash2(i, j, 75) < 0.25) c = RAMP.ember[0];
+      P(g, wx + i, wy + j, c);
+    }
+    // bone frame + mullions
+    for (let i = -1; i <= ww; i++) { P(g, wx + i, wy - 1, RAMP.bone[2]); P(g, wx + i, wy + wh, RAMP.bone[3]); }
+    for (let j = -1; j <= wh; j++) { P(g, wx - 1, wy + j, RAMP.bone[2]); P(g, wx + ww, wy + j, RAMP.bone[3]); }
+    for (let j = 0; j < wh; j++) P(g, wx + (ww >> 1), wy + j, RAMP.bone[3]);
+    for (let i = 0; i < ww; i++) P(g, wx + i, wy + (wh >> 1), RAMP.bone[3]);
+    // warm spill
+    for (let i = -2; i < ww + 2; i++) P(g, wx + i, wy + wh + 1, RAMP.ember[2]);
+  } else if (variant === 'banner') {
+    const acc = opt.accent || RAMP.drift;
+    const bx = 26, by = faceTop + 2, bw = 12, bh = 30;
+    for (let j = 0; j < bh; j++) for (let i = 0; i < bw; i++) {
+      let c = acc[2];
+      if (i === 0) c = acc[1]; if (i === bw - 1) c = acc[3];
+      P(g, bx + i, by + j, c);
+    }
+    for (let i = -1; i <= bw; i++) P(g, bx + i, by - 1, RAMP.dirt[3]);   // rod
+    // pennant tail (notched bottom)
+    for (let i = 0; i < bw; i++) { const t = Math.abs(i - (bw - 1) / 2) / ((bw - 1) / 2); for (let k = 0; k < Math.round((1 - t) * 5); k++) P(g, bx + i, by + bh + k, acc[3]); }
+    // emblem
+    P(g, bx + (bw >> 1), by + 10, acc[0]); P(g, bx + (bw >> 1) - 1, by + 11, acc[0]); P(g, bx + (bw >> 1) + 1, by + 11, acc[0]); P(g, bx + (bw >> 1), by + 12, acc[1]);
+  } else if (variant === 'seam') {
+    // glinting gold seam across raw rock
+    let x = 8, y = faceTop + 6;
+    for (let k = 0; k < 40; k++) {
+      P(g, x, y, RAMP.gold[1]); if (hash2(x, y, 76) < 0.5) P(g, x, y + 1, RAMP.gold[2]);
+      if (hash2(x, y, 77) < 0.3) P(g, x, y - 1, RAMP.gold[0]);          // glint
+      x += 1 + (hash2(k, 1, 78) < 0.4 ? 1 : 0); y += hash2(k, 2, 78) < 0.5 ? 1 : (hash2(k, 3, 78) < 0.5 ? -1 : 0);
+      if (x > 58) break;
+      y = Math.max(faceTop + 2, Math.min(faceBot - 3, y));
+    }
+  } else if (variant === 'lantern') {
+    // hanging miner's lantern (ember)
+    const lx = 32, ly = faceTop + 6;
+    for (let k = 0; k < 5; k++) P(g, lx, faceTop - 1 - k < 0 ? 0 : faceTop - 1 + k, RAMP.dirt[3]); // bracket down
+    P(g, lx, ly - 3, RAMP.dirt[3]);
+    for (let j = 0; j < 8; j++) for (let i = -3; i <= 3; i++) {
+      let c = RAMP.ember[1]; if (j === 0 || j === 7) c = RAMP.dirt[3]; else if (i <= -2) c = RAMP.ember[0]; else if (i >= 2) c = RAMP.ember[2];
+      if ((j === 1 || j === 6) && Math.abs(i) === 3) c = RAMP.dirt[3];
+      P(g, lx + i, ly + j, c);
+    }
+    P(g, lx, ly + 3, RAMP.ember[0]);
+    // glow dither
+    for (let yy = -4; yy <= 5; yy++) for (let xx = -5; xx <= 5; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 4 && d < 8 && (xx + yy) % 2 === 0) P(g, lx + xx, ly + 2 + yy, RAMP.ember[2]); }
+  }
+
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ── wall set v2: skewed parallelogram faces (DS walls.js port) ─────────────────
+// One segment = one floor tile's back edge: 32 wide, bottom drops 16 across.
+// Face 48 tall + 6px cap + 1px void cap edge; cell 32×72. Sides have NO
+// outline so segments tile seamlessly at +32x,±16y along the iso diagonal.
+
+const W2 = { W: 32, H: 72, B: 55, FACE: 48, CAP: 6 };
+
+function wall2BottomY(side: WallSide, x: number): number {
+  return side === 'ne'
+    ? W2.B + Math.round((x * 16) / 31)
+    : W2.B + Math.round(((31 - x) * 16) / 31);
+}
+
+/** place a wall-relative feature pixel: h = rows up from the sloped bottom */
+function wfP(g: Grid, side: WallSide, x: number, h: number, c: string) {
+  if (x < 0 || x > 31) return;
+  P(g, x, wall2BottomY(side, x) - h, c);
+}
+
+export function makeWall2(
+  side: WallSide,
+  mat: WallMatKind,
+  variant: WallVariant,
+  opt: { accent?: readonly string[] } = {},
+): Grid {
+  const g = makeGrid(W2.W, W2.H);
+  const lit = side === 'nw';
+  const ramp = mat === 'timber' ? RAMP.dirt : RAMP.stone;
+  const base = lit ? ramp[1] : ramp[2];
+  const hi = lit ? ramp[0] : ramp[1];
+  const sh = lit ? ramp[2] : ramp[3];
+  const dk = ramp[3];
+
+  for (let x = 0; x < 32; x++) {
+    const by = wall2BottomY(side, x);
+    for (let h = 0; h < W2.FACE; h++) {
+      const y = by - h;
+      let c = base;
+      // gentle ambient top-light (h-based → continuous across seams)
+      if (h > W2.FACE - 5) c = hi;
+      if (mat === 'timber') {
+        if (h % 4 === 0) c = sh;                              // plank seams (wall-relative)
+        if (hash2(x, h, 201) < 0.04) c = sh;                  // grain (periodic mod 32 in x)
+      } else if (mat === 'block') {
+        const course = Math.floor(h / 6), off = (course % 2) * 4;
+        if (h % 6 === 0) c = sh;                              // course mortar
+        else if ((x + off) % 8 === 0) c = sh;                 // staggered vertical joints
+        if (hash2(x, h, 202) < 0.03) c = lit ? ramp[1] : ramp[3];
+      } else { // cave — raw rock
+        const hh = hash2(x, h, 203);
+        if (hh < 0.10) c = sh; else if (hh < 0.14) c = hi;
+        if (hash2(x, h, 204) < 0.02) c = dk;                  // rubble speck
+      }
+      P(g, x, y, c);
+    }
+    // top cap (follows the slope), then 1px void cap edge
+    const topRow = by - (W2.FACE - 1);
+    for (let k = 1; k <= W2.CAP; k++) P(g, x, topRow - k, k < 2 ? (lit ? RAMP.stone[1] : RAMP.stone[2]) : (mat === 'timber' ? RAMP.dirt[3] : RAMP.stone[3]));
+    P(g, x, topRow - W2.CAP - 1, RAMP.void);
+    // baseboard trim
+    P(g, x, by, dk);
+  }
+
+  // ---- feature variants (sit on a single segment; need not tile) ----
+  if (variant === 'window') {
+    const x0 = 8, x1 = 23, h0 = 20, h1 = 33;
+    for (let x = x0; x <= x1; x++) for (let h = h0; h <= h1; h++) {
+      let c = RAMP.ember[1];
+      if (x === x0 || x === x1 || h === h0 || h === h1) c = RAMP.ember[0];
+      if ((x + h) % 2 === 0 && hash2(x, h, 205) < 0.25) c = RAMP.ember[0];
+      wfP(g, side, x, h, c);
+    }
+    for (let x = x0 - 1; x <= x1 + 1; x++) { wfP(g, side, x, h1 + 1, RAMP.bone[2]); wfP(g, side, x, h0 - 1, RAMP.bone[3]); }
+    for (let h = h0 - 1; h <= h1 + 1; h++) { wfP(g, side, x0 - 1, h, RAMP.bone[2]); wfP(g, side, x1 + 1, h, RAMP.bone[3]); }
+    for (let h = h0; h <= h1; h++) wfP(g, side, 15, h, RAMP.bone[3]);            // mullion V
+    for (let x = x0; x <= x1; x++) wfP(g, side, x, 26, RAMP.bone[3]);            // mullion H
+    for (let x = x0 - 1; x <= x1 + 1; x++) wfP(g, side, x, h0 - 2, RAMP.ember[2]); // warm spill below
+  } else if (variant === 'banner') {
+    const acc = opt.accent || RAMP.drift;
+    const bx0 = 12, bx1 = 19, hTop = 41, hBot = 14;
+    for (let x = bx0 - 1; x <= bx1 + 1; x++) wfP(g, side, x, hTop + 1, RAMP.dirt[3]);   // rod
+    for (let x = bx0; x <= bx1; x++) for (let h = hBot; h <= hTop; h++) {
+      let c = acc[2]; if (x === bx0) c = acc[1]; if (x === bx1) c = acc[3];
+      wfP(g, side, x, h, c);
+    }
+    // notched pennant tail
+    for (let x = bx0; x <= bx1; x++) { const t = Math.abs(x - (bx0 + bx1) / 2) / ((bx1 - bx0) / 2); for (let k = 0; k < Math.round((1 - t) * 5); k++) wfP(g, side, x, hBot - 1 - k, acc[3]); }
+    // emblem
+    const ex = (bx0 + bx1) >> 1; wfP(g, side, ex, 30, acc[0]); wfP(g, side, ex - 1, 29, acc[0]); wfP(g, side, ex + 1, 29, acc[0]); wfP(g, side, ex, 28, acc[1]);
+  } else if (variant === 'seam') {
+    let x = 3, h = 8;
+    const rng = mulberry(206);
+    for (let k = 0; k < 44; k++) {
+      wfP(g, side, x, h, RAMP.gold[1]);
+      if (rng() < 0.5) wfP(g, side, x, h - 1, RAMP.gold[2]);
+      if (rng() < 0.3) wfP(g, side, x, h + 1, RAMP.gold[0]);         // glint
+      x += 1; h += rng() < 0.5 ? 1 : (rng() < 0.5 ? -1 : 0);
+      if (x > 29) break;
+      h = Math.max(4, Math.min(W2.FACE - 5, h));
+    }
+  } else if (variant === 'lantern') {
+    const lx = 16, lh = 30;
+    for (let k = 0; k < 6; k++) wfP(g, side, lx, lh + 4 + k, RAMP.dirt[3]);   // bracket up
+    for (let h = 0; h < 8; h++) for (let i = -3; i <= 3; i++) {
+      let c = RAMP.ember[1]; if (h === 0 || h === 7) c = RAMP.dirt[3]; else if (i <= -2) c = RAMP.ember[2]; else if (i >= 2) c = RAMP.ember[0];
+      if ((h === 1 || h === 6) && Math.abs(i) === 3) c = RAMP.dirt[3];
+      wfP(g, side, lx + i, lh + h, c);
+    }
+    wfP(g, side, lx, lh, RAMP.ember[0]);
+    for (let yy = -4; yy <= 5; yy++) for (let xx = -5; xx <= 5; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 4 && d < 8 && (xx + yy) % 2 === 0) wfP(g, side, lx + xx, lh + 3 - yy, RAMP.ember[2]); }
+  }
+
+  // NO global outline (left/right must stay open to tile)
+  return g;
+}
+
+/** corner wedge (16×72): caps the north junction where nw & ne meet */
+export function makeWall2Corner(mat: WallMatKind): Grid {
+  const g = makeGrid(16, 72);
+  const ramp = mat === 'timber' ? RAMP.dirt : RAMP.stone;
+  const by = W2.B;                       // flat high bottom at the corner
+  for (let x = 0; x < 16; x++) {
+    const litCol = x < 8;
+    const base = litCol ? ramp[1] : ramp[2];
+    const hi = litCol ? ramp[0] : ramp[1];
+    const sh = litCol ? ramp[2] : ramp[3];
+    for (let h = 0; h < W2.FACE; h++) {
+      const y = by - h;
+      let c = base;
+      if (x === 7) c = ramp[0];           // corner edge highlight (moonlit seam)
+      if (x === 8) c = ramp[3];           // shadow turn
+      if (h > W2.FACE - 5) c = hi;
+      if (mat === 'timber') { if (h % 4 === 0) c = sh; }
+      else if (mat === 'block') { const course = Math.floor(h / 6), off = (course % 2) * 4; if (h % 6 === 0) c = sh; else if ((x + off) % 8 === 0) c = sh; }
+      else { const hh = hash2(x, h, 207); if (hh < 0.10) c = sh; else if (hh < 0.14) c = hi; }
+      P(g, x, y, c);
+    }
+    const topRow = by - (W2.FACE - 1);
+    for (let k = 1; k <= W2.CAP; k++) P(g, x, topRow - k, k < 2 ? RAMP.stone[1] : (mat === 'timber' ? RAMP.dirt[3] : RAMP.stone[3]));
+    P(g, x, topRow - W2.CAP - 1, RAMP.void);
+    P(g, x, by, ramp[3]);
+  }
+  return g;
+}
+
+// ── fixtures ───────────────────────────────────────────────────────────────────
+export type FixtureSpriteKind =
+  | 'counter' | 'vat' | 'shelf' | 'table' | 'barrel'
+  | 'cage' | 'anvil' | 'rug' | 'wheelDisc'
+  | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart';
+
+// generic iso cuboid: front (lit) + right side (shadow) + top
+function isoCuboid(g: Grid, x0: number, baseY: number, w: number, h: number, dep: number, ramp: readonly string[]) {
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {           // front
+    let c = ramp[1]; if (x < 1) c = ramp[0]; if (x > w - 2) c = ramp[2];
+    P(g, x0 + x, baseY - y, c);
+  }
+  for (let d = 1; d <= dep; d++) for (let y = 0; y < h; y++) {        // right side
+    P(g, x0 + w - 1 + d, baseY - y - Math.floor(d / 2), d >= dep - 1 ? ramp[3] : ramp[2]);
+  }
+  for (let d = 0; d <= dep; d++) for (let x = 0; x < w; x++) {        // top
+    P(g, x0 + x + d, baseY - h - Math.floor(d / 2), d === 0 || x === 0 ? ramp[0] : ramp[1]);
+  }
+}
+
+function fxCounter(): Grid {
+  const g = makeGrid(48, 32); const r = RAMP.dirt; const baseY = 29, x0 = 3;
+  isoCuboid(g, x0, baseY, 38, 16, 6, r);
+  // top surface lighter plank
+  for (let d = 0; d <= 6; d++) for (let x = 0; x < 38; x++) if ((x + d) % 6 === 0) P(g, x0 + x + d, baseY - 16 - Math.floor(d / 2), r[2]);
+  // gold till glint
+  P(g, x0 + 30, baseY - 17, RAMP.gold[0]); P(g, x0 + 31, baseY - 18, RAMP.gold[1]); P(g, x0 + 30, baseY - 16, RAMP.gold[2]);
+  // panel seams on front
+  for (let x = 8; x < 38; x += 10) for (let y = 0; y < 15; y++) P(g, x0 + x, baseY - y, r[3]);
+  outline(g, RAMP.void); return g;
+}
+
+function fxShelf(): Grid {
+  const g = makeGrid(40, 40); const r = RAMP.dirt; const x0 = 4, top = 8;
+  // frame
+  for (let j = 0; j < 28; j++) { P(g, x0, top + j, r[2]); P(g, x0 + 30, top + j, r[3]); }
+  for (const sy of [top, top + 9, top + 18, top + 27]) for (let i = 0; i <= 30; i++) P(g, x0 + i, sy, r[3]);
+  // bottles (top shelf)
+  ([[RAMP.drift, 6], [RAMP.ember, 11], [RAMP.water, 16], [RAMP.grass, 21]] as [readonly string[], number][]).forEach(([col, bx]) => {
+    P(g, x0 + bx, top + 3, col[1]); P(g, x0 + bx, top + 4, col[2]); P(g, x0 + bx, top + 5, col[2]); P(g, x0 + bx, top + 2, RAMP.bone[2]);
+  });
+  // coffer (mid)
+  for (let j = 0; j < 6; j++) for (let i = 0; i < 12; i++) { let c = RAMP.dirt[1]; if (i === 0) c = RAMP.dirt[0]; if (i === 11) c = RAMP.dirt[2]; if (j === 0) c = RAMP.gold[2]; P(g, x0 + 8 + i, top + 11 + j, c); }
+  P(g, x0 + 14, top + 13, RAMP.gold[0]);
+  // cloth bolts (lower)
+  ([[RAMP.blood, 6], [RAMP.drift, 13], [RAMP.gold, 20]] as [readonly string[], number][]).forEach(([col, bx]) => {
+    for (let j = 0; j < 6; j++) { P(g, x0 + bx, top + 20 + j, col[1]); P(g, x0 + bx + 1, top + 20 + j, col[2]); }
+  });
+  outline(g, RAMP.void); return g;
+}
+
+function fxTable(): Grid {
+  const g = makeGrid(40, 32); const r = RAMP.dirt; const cx = 20, ty = 16;
+  // round top (iso ellipse)
+  for (let yy = -5; yy <= 5; yy++) for (let xx = -13; xx <= 13; xx++) { if ((xx / 13) ** 2 + (yy / 5) ** 2 > 1) continue; let c = r[1]; if (yy < -1) c = r[0]; if (yy > 2) c = r[2]; P(g, cx + xx, ty + yy, c); }
+  for (let xx = -13; xx <= 13; xx++) { const t = 1 - Math.abs(xx) / 13; const ey = ty + Math.round(5 * t); for (let k = 1; k <= 3; k++) P(g, cx + xx, ey + k, r[3]); } // rim
+  // legs
+  P(g, cx - 8, ty + 8, r[3]); P(g, cx - 8, ty + 9, r[3]); P(g, cx + 8, ty + 8, r[3]); P(g, cx + 8, ty + 9, r[3]); P(g, cx, ty + 11, r[3]); P(g, cx, ty + 12, r[3]);
+  // mug
+  P(g, cx + 3, ty - 2, RAMP.dirt[2]); P(g, cx + 3, ty - 3, RAMP.dirt[1]); fillRect(g, cx + 2, ty - 4, 3, 2, RAMP.dirt[1]); P(g, cx + 5, ty - 3, RAMP.dirt[2]); P(g, cx + 3, ty - 5, RAMP.bone[1]);
+  outline(g, RAMP.void); return g;
+}
+
+function fxBarrel(): Grid {
+  const g = makeGrid(20, 28); const r = RAMP.dirt; const x0 = 3, baseY = 25;
+  for (let j = 0; j < 22; j++) for (let i = 0; i < 12; i++) { const t = Math.abs(i - 5.5) / 6; let c = r[1]; if (i <= 1) c = r[0]; if (i >= 9) c = r[2]; if (t > 0.85) c = r[3]; if (j === 0 || j === 21) c = r[3]; if (j === 5 || j === 16) c = r[3]; P(g, x0 + i, baseY - 21 + j, c); }
+  // top rim ellipse
+  for (let xx = 0; xx < 12; xx++) { const t = Math.abs(xx - 5.5) / 6; if (t < 0.92) P(g, x0 + xx, baseY - 21 - Math.round((1 - t) * 2), r[2]); }
+  P(g, x0 + 5, baseY - 24, r[1]);
+  outline(g, RAMP.void); return g;
+}
+
+function fxVat(liquid: string): Grid {
+  const g = makeGrid(28, 28); const r = RAMP.dirt; const lr = RAMP_BY_NAME[liquid] ?? RAMP.drift; const cx = 14, baseY = 25;
+  // wooden tub
+  for (let j = 0; j < 16; j++) for (let i = -10; i <= 10; i++) { const t = Math.abs(i) / 10; if (t > 0.95 - j * 0.005) continue; let c = r[1]; if (i < -7) c = r[0]; if (i > 7) c = r[2]; if (j % 6 === 5) c = r[3]; if (Math.abs(i) >= 9) c = r[3]; P(g, cx + i, baseY - j, c); }
+  // liquid surface (iso ellipse) near top
+  for (let yy = -3; yy <= 3; yy++) for (let xx = -8; xx <= 8; xx++) { if ((xx / 8) ** 2 + (yy / 3) ** 2 > 1) continue; let c = lr[2] || lr[1]; if (yy < -1) c = lr[1]; if (yy <= -2) c = lr[0]; if ((xx + yy) % 3 === 0 && yy > 0) c = lr[3] || lr[2]; P(g, cx + xx, baseY - 14 + yy, c); }
+  // steam
+  P(g, cx - 2, baseY - 18, RAMP.bone[3]); P(g, cx + 1, baseY - 20, RAMP.bone[3]); P(g, cx - 1, baseY - 22, RAMP.bone[3]);
+  // rim
+  for (let xx = -9; xx <= 9; xx++) { const t = Math.abs(xx) / 9; if (t < 0.96) P(g, cx + xx, baseY - 16 - Math.round((1 - t) * 1), r[2]); }
+  outline(g, RAMP.void); return g;
+}
+
+function fxCage(): Grid {
+  const g = makeGrid(26, 32); const r = RAMP.stone; const x0 = 3, top = 6, w = 18, h = 22;
+  // base
+  for (let i = 0; i < w; i++) { P(g, x0 + i, top + h, r[3]); P(g, x0 + i, top + h - 1, r[2]); }
+  // dome top
+  for (let xx = 0; xx < w; xx++) { const t = Math.abs(xx - (w - 1) / 2) / ((w - 1) / 2); const yy = top - Math.round((1 - t) * 4); for (let k = yy; k < top + 1; k++) P(g, x0 + xx, k, r[2]); }
+  P(g, x0 + (w >> 1), top - 5, r[3]); P(g, x0 + (w >> 1), top - 6, r[3]); // ring
+  // vertical bars
+  for (let i = 0; i <= w; i += 3) for (let j = top; j < top + h; j++) P(g, x0 + i, j, r[3]);
+  for (let i = 0; i < w; i++) { P(g, x0 + i, top, r[3]); P(g, x0 + i, top + Math.round(h / 2), r[3]); }
+  // glowing wisp inside
+  const wx = x0 + (w >> 1), wy = top + 12;
+  P(g, wx, wy, RAMP.drift[0]); P(g, wx - 1, wy, RAMP.drift[1]); P(g, wx + 1, wy, RAMP.drift[1]); P(g, wx, wy - 1, RAMP.drift[1]); P(g, wx, wy + 1, RAMP.drift[2]);
+  for (let yy = -3; yy <= 3; yy++) for (let xx = -3; xx <= 3; xx++) if (Math.abs(xx) + Math.abs(yy) === 3 && (xx + yy) % 2 === 0) P(g, wx + xx, wy + yy, RAMP.drift[2]);
+  outline(g, RAMP.void); return g;
+}
+
+function fxAnvil(): Grid {
+  const g = makeGrid(28, 24); const r = RAMP.stone; const baseY = 21, cx = 14;
+  // stump
+  for (let j = 0; j < 7; j++) for (let i = -5; i <= 5; i++) { let c = RAMP.dirt[1]; if (i < -3) c = RAMP.dirt[0]; if (i > 3) c = RAMP.dirt[2]; P(g, cx + i, baseY - j, c); }
+  // anvil body
+  for (let i = -6; i <= 6; i++) P(g, cx + i, baseY - 9, r[1]);            // base top
+  for (let i = -4; i <= 4; i++) P(g, cx + i, baseY - 8, r[2]);           // waist
+  for (let i = -7; i <= 9; i++) { let c = r[1]; if (i < -5) c = r[0]; if (i > 6) c = r[2]; P(g, cx + i, baseY - 12, c); P(g, cx + i, baseY - 11, c); } // top face + horn
+  for (let i = 7; i <= 11; i++) P(g, cx + i, baseY - 11, r[2]);          // horn taper
+  // gold spark
+  P(g, cx + 2, baseY - 14, RAMP.gold[0]); P(g, cx + 3, baseY - 15, RAMP.gold[1]); P(g, cx + 1, baseY - 15, RAMP.ember[0]);
+  outline(g, RAMP.void); return g;
+}
+
+function fxWheelStand(): Grid {
+  const g = makeGrid(34, 40); const cx = 17, wy = 14, R = 12;
+  const seg = [RAMP.blood[1], RAMP.ember[1], RAMP.gold[1], RAMP.water[0], RAMP.drift[2], RAMP.grass[1]];
+  // stand post + feet
+  for (let j = 0; j < 14; j++) { P(g, cx, wy + R + j, RAMP.dirt[2]); P(g, cx + 1, wy + R + j, RAMP.dirt[3]); }
+  for (let i = -6; i <= 6; i++) P(g, cx + i, wy + R + 13, RAMP.dirt[3]);
+  // wheel
+  for (let yy = -R; yy <= R; yy++) for (let xx = -R; xx <= R; xx++) { const d = Math.sqrt(xx * xx + yy * yy); if (d > R) continue; if (d > R - 2) { P(g, cx + xx, wy + yy, RAMP.dirt[3]); continue; } const ang = (Math.atan2(yy, xx) + Math.PI) / (Math.PI * 2); P(g, cx + xx, wy + yy, seg[Math.floor(ang * 6) % 6]); }
+  P(g, cx, wy, RAMP.bone[1]);                                 // hub
+  P(g, cx, wy - R - 1, RAMP.bone[0]); P(g, cx, wy - R, RAMP.bone[1]);   // pointer
+  outline(g, RAMP.void); return g;
+}
+
+function fxHearth(frame = 0): Grid {
+  const g = makeGrid(36, 36); const r = RAMP.stone; const cx = 18, baseY = 33;
+  // stone surround
+  for (let j = 0; j < 28; j++) for (let i = -15; i <= 15; i++) {
+    const inner = Math.abs(i) <= 9 && j < 18;
+    if (inner) continue;
+    if (Math.abs(i) > 15 || j > 27) continue;
+    let c = r[1]; if (i < -11) c = r[0]; if (i > 11) c = r[2];
+    if ((j % 6 === 0) || ((i + (Math.floor(j / 6) % 2) * 5) % 10 === 0)) c = r[3];
+    P(g, cx + i, baseY - j, c);
+  }
+  // dark firebox
+  for (let j = 0; j < 16; j++) for (let i = -8; i <= 8; i++) if (Math.abs(i) <= 8 && j < 16) P(g, cx + i, baseY - j, RAMP.void);
+  // logs
+  for (let i = -6; i <= 6; i++) P(g, cx + i, baseY - 1, RAMP.dirt[3]);
+  P(g, cx - 4, baseY - 2, RAMP.dirt[2]); P(g, cx + 4, baseY - 2, RAMP.dirt[2]);
+  // ember fire (flicker)
+  const sway = [0, 1, -1][frame], tall = [0, 1, 2][frame];
+  for (let yy = 0; yy <= 12 + tall; yy++) { const t = yy / (12 + tall); const hw = Math.round((1 - t) * 6); const sx = cx + Math.round(Math.sin(yy * 0.5 + frame) * 1.1) + Math.round(sway * t); for (let xx = -hw; xx <= hw; xx++) { let c = RAMP.ember[1]; if (Math.abs(xx) >= hw - 1) c = RAMP.ember[2]; if (yy < 5 && Math.abs(xx) < 2) c = RAMP.ember[0]; P(g, sx + xx, baseY - 2 - yy, c); } }
+  for (let yy = 2; yy <= 7 + tall; yy++) { const hw = Math.max(0, Math.round((1 - yy / (8 + tall)) * 2)); for (let xx = -hw; xx <= hw; xx++) P(g, cx + xx, baseY - 4 - yy, RAMP.gold[0]); }
+  // spark + glow
+  if (frame !== 1) P(g, cx + sway, baseY - 16 - tall, RAMP.ember[0]);
+  for (let yy = -10; yy <= 2; yy++) for (let xx = -10; xx <= 10; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 7 && d < 10 && (xx + yy + frame) % 2 === 0 && baseY - 4 + yy > 14) P(g, cx + xx, baseY - 6 + yy, RAMP.ember[2]); }
+  outline(g, RAMP.void); return g;
+}
+
+function fxRug(accent: readonly string[]): Grid {
+  const g = makeGrid(56, 30); const cx = 28, cy = 15; const acc = accent || RAMP.drift;
+  for (let yy = -13; yy <= 13; yy++) for (let xx = -26; xx <= 26; xx++) {
+    if ((xx / 26) ** 2 + (yy / 13) ** 2 > 1) continue;
+    const e = (xx / 26) ** 2 + (yy / 13) ** 2;
+    let c = RAMP.dirt[2];
+    if (e > 0.78) c = acc[2];                       // accent border
+    else if (e > 0.66) c = acc[3];
+    else if (e < 0.18) c = acc[3];                  // center medallion
+    else if (e < 0.28) c = RAMP.dirt[1];
+    if ((xx + yy) % 6 === 0 && e < 0.6 && e > 0.3) c = RAMP.dirt[1]; // weave
+    P(g, cx + xx, cy + yy, c);
+  }
+  // fringe
+  for (let xx = -26; xx <= 26; xx += 3) { P(g, cx + xx, cy + Math.round(13 * Math.sqrt(Math.max(0, 1 - (xx / 26) ** 2))) + 1, RAMP.dirt[3]); }
+  outline(g, RAMP.void); return g;
+}
+
+function fxGoldVein(state: 'rich0' | 'rich1' | 'spent'): Grid {
+  const g = makeGrid(28, 26); const r = RAMP.stone; const cx = 14, baseY = 23;
+  for (let yy = 0; yy <= 18; yy++) for (let xx = -11; xx <= 11; xx++) {
+    const t = yy / 18; const hw = Math.round(11 * (1 - Math.abs(t - 0.5) * 0.7));
+    if (Math.abs(xx) > hw) continue;
+    let c = r[1]; if (xx < -hw + 2) c = r[0]; if (xx > hw - 2) c = r[3]; if (yy > 14) c = r[3];
+    if (hash2(cx + xx, baseY - yy, 81) < 0.08) c = r[2];
+    P(g, cx + xx, baseY - yy, c);
+  }
+  if (state === 'spent') {
+    // hollowed dark pockets, no gold
+    ([[-4, 10], [3, 7], [0, 13], [-6, 6], [5, 12]] as [number, number][]).forEach(([ox, oy]) => { for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) P(g, cx + ox + xx, baseY - oy + yy, RAMP.void); P(g, cx + ox, baseY - oy, RAMP.stone[3]); });
+  } else {
+    const spark = state === 'rich1';
+    // bright gold seams
+    const seams: [number, number, number, number][] = [[-7, 4, 1, 1], [-2, 6, 1, -1], [4, 5, 1, 1], [-5, 11, 1, 0], [2, 12, 1, 1]];
+    seams.forEach(([sx, sy, dx, dy], i) => { let x = cx + sx, y = baseY - sy; for (let k = 0; k < 6; k++) { P(g, x, y, RAMP.gold[1]); if (k % 2 === 0) P(g, x, y + 1, RAMP.gold[2]); if (spark && (i + k) % 4 === 0) P(g, x, y - 1, RAMP.gold[0]); x += dx; y -= dy * (k % 2); } });
+    // a couple of bright nuggets with glint
+    P(g, cx - 3, baseY - 8, RAMP.gold[0]); P(g, cx - 2, baseY - 8, RAMP.gold[1]); if (spark) P(g, cx - 3, baseY - 9, RAMP.bone[0]);
+    P(g, cx + 5, baseY - 10, RAMP.gold[0]); if (spark) P(g, cx + 6, baseY - 11, RAMP.bone[0]);
+  }
+  outline(g, RAMP.void); return g;
+}
+
+function fxOreCart(): Grid {
+  const g = makeGrid(36, 28); const r = RAMP.dirt; const baseY = 25, x0 = 4;
+  // rails under
+  for (let i = 0; i < 36; i++) { P(g, i, baseY, RAMP.stone[3]); P(g, i, baseY - 1, RAMP.stone[2]); }
+  for (let i = 2; i < 36; i += 5) P(g, i, baseY + 1, RAMP.dirt[3]);       // ties
+  // wheels
+  ([[x0 + 6, baseY - 2], [x0 + 22, baseY - 2]] as [number, number][]).forEach(([wx, wy]) => { for (let yy = -2; yy <= 2; yy++) for (let xx = -2; xx <= 2; xx++) if (xx * xx + yy * yy <= 5) P(g, wx + xx, wy + yy, RAMP.stone[3]); P(g, wx, wy, RAMP.stone[2]); });
+  // cart body (trapezoid bucket)
+  for (let j = 0; j < 12; j++) { const w = 26 - j; const sx = x0 + 2 + Math.floor((26 - w) / 2); for (let i = 0; i < w; i++) { let c = r[1]; if (i < 1) c = r[0]; if (i > w - 2) c = r[2]; if (j === 0) c = r[2]; P(g, sx + i, baseY - 6 - j, c); } }
+  // band + rivets
+  for (let i = 0; i < 26; i++) P(g, x0 + 2 + i, baseY - 12, RAMP.dirt[3]);
+  // raw gold ore heaped on top
+  for (let i = 0; i < 9; i++) { const ox = x0 + 6 + i * 2, oy = baseY - 18 - (i % 2); P(g, ox, oy, RAMP.gold[1]); P(g, ox + 1, oy, RAMP.gold[2]); P(g, ox, oy - 1, RAMP.gold[0]); }
+  for (let i = 0; i < 5; i++) P(g, x0 + 9 + i * 3, baseY - 20, RAMP.stone[2]);
+  outline(g, RAMP.void); return g;
+}
+
+/** dispatch by engine fixture kind (accent hex → DS liquid/ramp; frame for
+ *  animated kinds: goldVein sparkle 2f, hearth flame 3f) */
+export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0): Grid {
+  switch (kind) {
+    case 'counter':       return fxCounter();
+    case 'shelf':         return fxShelf();
+    case 'table':         return fxTable();
+    case 'barrel':        return fxBarrel();
+    case 'vat':           return fxVat(ACCENT_LIQUID[accent] ?? 'drift');
+    case 'cage':          return fxCage();
+    case 'anvil':         return fxAnvil();
+    case 'wheelDisc':     return fxWheelStand();
+    case 'rug':           return fxRug(ACCENT_RAMP[accent] ?? RAMP.drift);
+    case 'goldVein':      return fxGoldVein(frame % 2 ? 'rich1' : 'rich0');
+    case 'goldVeinEmpty': return fxGoldVein('spent');
+    case 'hearth':        return fxHearth(frame % 3);
+    case 'oreCart':       return fxOreCart();
+  }
+}
+
 // kind → cell dims, anim table (generic name → [sheet anim, frames]) and
 // hurt-flash tint, all per the design package's beasts metadata.
 // (exported for the headless smoke test — engine code goes through SpriteCache)
@@ -1860,6 +2631,10 @@ export class SpriteCache {
   private glow!: OffscreenCanvas;
   private tombstone!: OffscreenCanvas;
   private wagon: OffscreenCanvas[] = [];
+  // interiors: floors keyed `${style}-${variant}`, fixtures `${kind}-${accent}` (lazy)
+  private floors = new Map<string, OffscreenCanvas>();
+  private fixtures = new Map<string, OffscreenCanvas>();
+  private walls = new Map<string, OffscreenCanvas>();
   private buildings = new Map<string, OffscreenCanvas>(); // key (+ `-${frame}` for shrine)
   private pets = new Map<string, OffscreenCanvas>();   // `${kind}-${frame}`
   private props = new Map<string, OffscreenCanvas>();  // `${kind}-${frame}`
@@ -1907,7 +2682,8 @@ export class SpriteCache {
     // the Waystation
     for (const k of [
       'dyeworks', 'vault', 'wheel', 'lantern',
-      'furnisher', 'menagerie', 'pit',
+      'furnisher', 'menagerie', 'pit', 'mine',
+      'huskden', 'obelisk', 'mirehut',
     ] as BuildingSpriteKey[]) {
       this.buildings.set(k, gridToCanvas(makeBuildingSprite(k)));
     }
@@ -2007,7 +2783,8 @@ export class SpriteCache {
     if (cv) ctx.drawImage(cv, sx - 8 * z, sy - 11 * z, 16 * z, 12 * z);
   }
 
-  /** town building, bottom-center anchored on its south tile (frame: shrine flicker) */
+  /** town building, bottom-center anchored on its south tile (frame: shrine
+   *  flicker; mirror flips east-side houses so they lean toward town) */
   drawBuilding(
     ctx: CanvasRenderingContext2D,
     key: BuildingSpriteKey,
@@ -2015,6 +2792,7 @@ export class SpriteCache {
     sy: number,
     z: number,
     frame = 0,
+    mirror = false,
   ) {
     if (!this.ready) return;
     ctx.imageSmoothingEnabled = false;
@@ -2022,6 +2800,14 @@ export class SpriteCache {
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
     const yOff = key === 'pit' ? cv.height / 2 + 16 : cv.height - 16;
+    if (mirror) {
+      ctx.save();
+      ctx.translate(sx, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(cv, -(cv.width / 2) * z, sy - yOff * z, cv.width * z, cv.height * z);
+      ctx.restore();
+      return;
+    }
     ctx.drawImage(
       cv,
       sx - (cv.width / 2) * z,
@@ -2051,6 +2837,102 @@ export class SpriteCache {
     ctx.imageSmoothingEnabled = false;
     const cv = this.props.get(`${kind}-${frame % 2}`);
     if (cv) ctx.drawImage(cv, sx - 10 * z, sy - 25 * z, 20 * z, 26 * z);
+  }
+
+  /** interior floor tile, same alignment contract as drawTile */
+  drawFloor(ctx: CanvasRenderingContext2D, style: InteriorFloorStyle, variant: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    // DS floor variants are seeded 1..3
+    const seed = (variant % 3) + 1;
+    const k = `${style}-${seed}`;
+    let cv = this.floors.get(k);
+    if (!cv) {
+      cv = gridToCanvas(makeInteriorFloor(style, seed));
+      this.floors.set(k, cv);
+    }
+    ctx.drawImage(cv, sx - 32 * z, sy - 15 * z, 64 * z, 36 * z);
+  }
+
+  /** interior furniture, bottom-center anchored (rug: flat, center-anchored).
+   *  Animated kinds flicker internally: goldVein sparkle 2f, hearth flame 3f. */
+  drawFixture(ctx: CanvasRenderingContext2D, kind: FixtureSpriteKind, accent: string, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const frame =
+      kind === 'hearth' ? Math.floor(performance.now() / 250) % 3 :
+      kind === 'goldVein' ? Math.floor(performance.now() / 500) % 2 : 0;
+    const k = `${kind}-${accent}-${frame}`;
+    let cv = this.fixtures.get(k);
+    if (!cv) {
+      cv = gridToCanvas(makeFixture(kind, accent, frame));
+      this.fixtures.set(k, cv);
+    }
+    if (kind === 'rug') {
+      ctx.drawImage(cv, sx - (cv.width / 2) * z, sy - (cv.height / 2) * z, cv.width * z, cv.height * z);
+    } else {
+      ctx.drawImage(cv, sx - (cv.width / 2) * z, sy - (cv.height - 1) * z, cv.width * z, cv.height * z);
+    }
+  }
+
+  /** skewed wall segment (32×72) — anchor: bottom-LEFT corner of the sloped
+   *  bottom edge (ne: the tile's north corner; nw: the tile's west corner) */
+  drawWall2(
+    ctx: CanvasRenderingContext2D,
+    side: WallSide,
+    mat: WallMatKind,
+    variant: WallVariant,
+    accent: string,
+    sx: number,
+    sy: number,
+    z: number,
+  ) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `2-${side}-${mat}-${variant}-${accent}`;
+    let cv = this.walls.get(k);
+    if (!cv) {
+      cv = gridToCanvas(makeWall2(side, mat, variant, { accent: ACCENT_RAMP[accent] }));
+      this.walls.set(k, cv);
+    }
+    // ne anchor (0,55); nw anchor (0,71)
+    const ay = side === 'ne' ? 55 : 71;
+    ctx.drawImage(cv, sx, sy - ay * z, 32 * z, 72 * z);
+  }
+
+  /** corner wedge capping the nw/ne junction (anchor: bottom-center, y=55) */
+  drawWall2Corner(ctx: CanvasRenderingContext2D, mat: WallMatKind, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `2c-${mat}`;
+    let cv = this.walls.get(k);
+    if (!cv) {
+      cv = gridToCanvas(makeWall2Corner(mat));
+      this.walls.set(k, cv);
+    }
+    ctx.drawImage(cv, sx - 8 * z, sy - 55 * z, 16 * z, 72 * z);
+  }
+
+  /** interior wall segment, bottom-center anchored (64×56) */
+  drawWall(
+    ctx: CanvasRenderingContext2D,
+    side: WallSide,
+    mat: WallMatKind,
+    variant: WallVariant,
+    accent: string,
+    sx: number,
+    sy: number,
+    z: number,
+  ) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `${side}-${mat}-${variant}-${accent}`;
+    let cv = this.walls.get(k);
+    if (!cv) {
+      cv = gridToCanvas(makeWallSegment(side, mat, variant, { accent: ACCENT_RAMP[accent] }));
+      this.walls.set(k, cv);
+    }
+    ctx.drawImage(cv, sx - 32 * z, sy - 55 * z, 64 * z, 56 * z);
   }
 
   /** the caravan wagon, bottom-center anchored (frame alternates while rolling) */

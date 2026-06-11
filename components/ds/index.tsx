@@ -20,6 +20,8 @@ export interface PanelProps extends Omit<React.HTMLAttributes<HTMLElement>, "tit
   corners?: boolean;
   glow?: boolean;
   padded?: boolean;
+  /** flex-column panel whose content area fills + clips (scrollable insides) */
+  fill?: boolean;
 }
 
 export function Panel({
@@ -29,6 +31,7 @@ export function Panel({
   corners = true,
   glow = false,
   padded = true,
+  fill = false,
   className = "",
   style = {},
   children,
@@ -50,6 +53,7 @@ export function Panel({
         boxShadow: glow
           ? "var(--frame-shadow), 0 0 0 3px var(--corrupt-16)"
           : "var(--frame-shadow)",
+        ...(fill ? { display: "flex", flexDirection: "column" } : {}),
         ...style,
       }}
       {...rest}
@@ -81,7 +85,14 @@ export function Panel({
           {accessory}
         </header>
       )}
-      <div style={{ padding: padded ? "12px 14px" : 0 }}>{children}</div>
+      <div
+        style={{
+          padding: padded ? "12px 14px" : 0,
+          ...(fill ? { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } : {}),
+        }}
+      >
+        {children}
+      </div>
     </section>
   );
 }

@@ -1,0 +1,31 @@
+{
+  "image": "walls/wall2_block_corner.svg",
+  "cell": {
+    "w": 16,
+    "h": 72
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "material": "block",
+  "variant": "corner",
+  "note": "caps the north junction where nw & ne walls meet",
+  "anchor": {
+    "x": 8,
+    "y": 55
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "wall2_block_corner": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 72,
+      "anchor": {
+        "x": 8,
+        "y": 55
+      }
+    }
+  }
+}

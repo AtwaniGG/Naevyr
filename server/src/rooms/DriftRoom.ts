@@ -1,4 +1,7 @@
 import { Room, Client } from "colyseus";
+import { randomBytes } from "node:crypto";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 import {
   loadOrCreatePlayer,
   savePlayer,
@@ -12,6 +15,8 @@ import {
   addEscrow,
   takeEscrow,
   setBankGold,
+  setWalletAddress,
+  findPlayerByWallet,
   loadShrinePot,
   setShrinePot,
   loadProps,
@@ -19,10 +24,14 @@ import {
   deletePropsForClaim,
   PlayerRow,
 } from "../db";
+import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn } from "../solana";
+import { tryInsertBurn, deleteBurn } from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
-import { RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode } from "@/game/types";
+import {
+  RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode, walletLinkMessage,
+} from "@/game/types";
 import {
   DriftRoomState,
   PlayerState,
@@ -65,6 +74,31 @@ const CARAVAN_BASE_POOL = 120; // gold pool at 0% corruption; +3g per corruption
 const CARAVAN_MIN_ROUTE = 18;  // tiles; gates closer than this don't count
 const CARAVAN_ESCORT_RANGE = 12; // kills count only this close to the wagon
 
+// ---- Phase 5: token burn costs (devnet) -------------------------------------
+// Holders can pay these rites with on-chain burns instead of gold.
+const BURN_COSTS: Record<string, number> = {
+  spin: 1,     // a Wheel spin
+  claim: 5,    // staking a 3×3 claim
+  aura: 3,     // any Dyeworks aura
+  cleanse: 2,  // feeds the Shrine pot
+  obelisk: 1,  // the Ash Obelisk rewrites the day's quests
+};
+const CLEANSE_BURN_POT = 150; // gold-equivalent added to the pot per cleanse burn
+
+// ---- THE LONG NIGHT: terminal-corruption endgame ------------------------------
+// At LONG_NIGHT_PCT the realm makes its stand at the Waystation: a kill quota
+// shared across everyone online, on a timer. Hold it → dawn burns corruption
+// back to DAWN_TARGET_PCT + rewards. Fail (or hit the failsafe) → realm reset.
+// Env overrides exist so the verify script can compress the timeline.
+const SEASON_MS            = Number(process.env.SEASON_MS ?? 45_000);
+const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 90);
+const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
+const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
+const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
+const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
+const RESET_FAILSAFE_PCT   = 97;   // theoretical max is ~92 (town/claims/water immune)
+const NIGHT_DEFENSE_RANGE  = 16;   // kills count only this close to the Waystation
+
 // the Wheel (server-rolled; client pays 50g up front)
 const WHEEL: { p: number; gold: number; shards: number; label: string }[] = [
   { p: 0.40, gold: 0,   shards: 0, label: "The Drift takes your coin." },
@@ -105,6 +139,9 @@ interface PlayerSim {
   /** stored progress, served on request (client asks once handlers are wired) */
   profileSnapshot: unknown;
   lastSpinAt?: number;
+  /** one-shot challenge for the wallet-link signature (Phase 5) */
+  walletNonce?: string;
+  walletNonceAt?: number;
 }
 
 export class DriftRoom extends Room<DriftRoomState> {
@@ -126,19 +163,21 @@ export class DriftRoom extends Room<DriftRoomState> {
   private caravanThresholds: number[] = [];
   private caravanContrib = new Map<string, { name: string; kills: number }>();
 
+  /** Long Night bookkeeping (server-side only) */
+  private nightUntil = 0;
+  private nightDone = false;
+
   async onCreate() {
     this.setState(new DriftRoomState());
     this.world = new World(40, 40);
-    this.drift = new Drift();
+    this.drift = new Drift(SEASON_MS);
 
     // persisted land claims
     for (const row of await loadClaims()) {
       const owner = await loadOrCreatePlayer(row.token);
       this.addClaim(row.id, row.token, row.x, row.y, row.integrity, owner.name);
     }
-    this.drift.isProtected = (x, y) =>
-      townProtected(x, y) || this.claimAt(x, y) !== null;
-    this.drift.preferRelocationCell = () => this.randomClaimFreeCell();
+    this.wireDrift();
 
     // persisted marketplace listings
     for (const row of await loadListings()) {
@@ -177,20 +216,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       ns.alive = true;
       this.state.nodes.set(String(node.id), ns);
     }
-
-    this.drift.onRelocate = (kind) => this.broadcast("relocate", { kind });
-    this.drift.onDriftfall = (cell) =>
-      this.broadcast("driftfall", { x: cell.x, y: cell.y });
-    this.drift.onSeason = () => {
-      this.state.season += 1;
-      this.erodeClaims();
-      this.syncTiles();
-      this.state.driftPct = this.corruptionPct();
-      this.broadcast("season", {
-        season: this.state.season,
-        driftPct: this.state.driftPct,
-      });
-    };
 
     this.onMessage("move", (client, msg: { x: number; y: number }) => {
       const sim = this.sims.get(client.sessionId);
@@ -276,13 +301,17 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("bankResult", { ok: true, banked: next, delta });
     });
 
-    // ---- the Wheel: server-rolled spin (client paid 50g already) ---------------
-    this.onMessage("spin", (client) => {
+    // ---- the Wheel: server-rolled spin (client paid 50g, OR a token burn) -------
+    this.onMessage("spin", async (client, msg: { burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       const now = Date.now();
       if (now - (sim.lastSpinAt ?? 0) < 2500) return;
       sim.lastSpinAt = now;
+      if (msg?.burnSig) {
+        const err = await this.consumeBurn(sim, String(msg.burnSig), "spin");
+        if (err) return client.send("burnResult", { ok: false, action: "spin", reason: err });
+      }
       let roll = Math.random();
       let prize = WHEEL[0];
       for (const seg of WHEEL) {
@@ -292,11 +321,17 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("spinResult", { gold: prize.gold, shards: prize.shards, label: prize.label });
     });
 
-    // ---- the Shrine: communal donations toward a cleansing ---------------------
-    this.onMessage("donate", async (client, msg: { amount?: number }) => {
+    // ---- the Shrine: communal donations toward a cleansing (gold or burn) -------
+    this.onMessage("donate", async (client, msg: { amount?: number; burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
-      const amount = Math.floor(Number(msg?.amount ?? 0));
+      let amount = Math.floor(Number(msg?.amount ?? 0));
+      if (msg?.burnSig) {
+        const err = await this.consumeBurn(sim, String(msg.burnSig), "cleanse");
+        if (err) return client.send("burnResult", { ok: false, action: "cleanse", reason: err });
+        amount = CLEANSE_BURN_POT;
+        client.send("burnResult", { ok: true, action: "cleanse", pot: amount });
+      }
       if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000) return;
       this.state.shrinePot += amount;
       if (this.state.shrinePot >= this.state.shrineGoal) {
@@ -359,8 +394,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
       if (!a || !b || this.inDuel(a.client.sessionId) || this.inDuel(b.client.sessionId)) return;
       // both fighters step into the Pit
-      a.px = 18; a.py = 28; a.path = []; a.action = "idle";
-      b.px = 22; b.py = 28; b.path = []; b.action = "idle";
+      a.px = 18; a.py = 32; a.path = []; a.action = "idle";
+      b.px = 22; b.py = 32; b.path = []; b.action = "idle";
       this.cancelGather(a);
       this.cancelGather(b);
       this.duels.push({
@@ -404,11 +439,124 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
     });
 
-    // ---- Caravans: escorts report raider kills during an ambush ----------------
+    // ---- Phase 5: wallet linking (devnet) -----------------------------------------
+    // Two-step: client asks for a nonce, wallet signs the canonical message,
+    // server verifies the ed25519 signature and binds wallet ↔ guest token.
+    this.onMessage("walletNonce", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      sim.walletNonce = randomBytes(16).toString("hex");
+      sim.walletNonceAt = Date.now();
+      client.send("walletNonce", { nonce: sim.walletNonce });
+    });
+
+    this.onMessage(
+      "linkWallet",
+      async (client, msg: { address?: string; signature?: string }) => {
+        const sim = this.sims.get(client.sessionId);
+        const fail = (reason: string) =>
+          client.send("walletResult", { ok: false, reason });
+        if (!sim) return;
+        const nonce = sim.walletNonce;
+        sim.walletNonce = undefined; // one-shot
+        if (!nonce || Date.now() - (sim.walletNonceAt ?? 0) > 5 * 60_000) {
+          return fail("The link offer expired. Try again.");
+        }
+        const address = String(msg?.address ?? "");
+        const sigHex = String(msg?.signature ?? "");
+        let pubkey: Uint8Array;
+        try {
+          pubkey = bs58.decode(address);
+        } catch {
+          return fail("That is not a Solana address.");
+        }
+        if (pubkey.length !== 32 || !/^[0-9a-f]{128}$/i.test(sigHex)) {
+          return fail("Malformed signature.");
+        }
+        const message = new TextEncoder().encode(walletLinkMessage(address, nonce));
+        const signature = Uint8Array.from(Buffer.from(sigHex, "hex"));
+        if (!nacl.sign.detached.verify(message, signature, pubkey)) {
+          return fail("Signature does not match the wallet.");
+        }
+        const existing = await findPlayerByWallet(address).catch(() => null);
+        if (existing && existing.token !== sim.token) {
+          return fail("That wallet already belongs to another wanderer.");
+        }
+        await setWalletAddress(sim.token, address).catch(() => {});
+        const tokenBalance = await getTokenBalance(address);
+        client.send("walletResult", {
+          ok: true,
+          address,
+          tokenBalance,
+          holder: tokenBalance >= 1,
+          mint: tokenMint() || null,
+        });
+      },
+    );
+
+    // ---- Phase 5: token burns ---------------------------------------------------
+    // Quote: server builds + fee-pays a partial-signed burn tx for the wallet
+    // to countersign. The follow-up action message carries the tx signature.
+    this.onMessage("burnQuote", async (client, msg: { action?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      const action = String(msg?.action ?? "");
+      const fail = (reason: string) =>
+        client.send("burnQuote", { ok: false, action, reason });
+      if (!sim) return;
+      const cost = BURN_COSTS[action];
+      if (!cost) return fail("Unknown rite");
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first");
+      const built = await buildBurnTx(row.walletAddress, cost);
+      if (!built.ok) return fail(built.reason);
+      client.send("burnQuote", { ok: true, action, amount: cost, tx: built.tx });
+    });
+
+    // a Dyeworks aura bought with a burn (gold purchases stay client-side)
+    this.onMessage(
+      "buyAura",
+      async (client, msg: { key?: string; burnSig?: string }) => {
+        const sim = this.sims.get(client.sessionId);
+        if (!sim) return;
+        const key = String(msg?.key ?? "");
+        if (!AURA_KEYS.includes(key) || key === "") {
+          return client.send("auraResult", { ok: false, reason: "Unknown aura" });
+        }
+        const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "aura");
+        if (err) return client.send("auraResult", { ok: false, reason: err });
+        client.send("auraResult", { ok: true, key });
+      },
+    );
+
+    // the Ash Obelisk: a verified burn rewrites the day's quests (client state)
+    this.onMessage("obeliskBurn", async (client, msg: { burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "obelisk");
+      client.send("burnResult", err
+        ? { ok: false, action: "obelisk", reason: err }
+        : { ok: true, action: "obelisk" });
+    });
+
+    this.onMessage("unlinkWallet", async (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      await setWalletAddress(sim.token, null).catch(() => {});
+      client.send("walletResult", { ok: true, address: null });
+    });
+
+    // ---- raider kills: Long Night defense, or caravan-ambush escorts -----------
     this.onMessage("raiderKill", (client) => {
       const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      // the Long Night takes priority: kills near the Waystation hold the line
+      if (this.state.nightActive) {
+        if (Math.hypot(sim.px - TOWN_CENTER.x, sim.py - TOWN_CENTER.y) > NIGHT_DEFENSE_RANGE) return;
+        this.state.nightKills += 1;
+        return;
+      }
       const c = this.state.caravan;
-      if (!sim || c.phase !== "ambushed") return;
+      if (c.phase !== "ambushed") return;
       // only escorts actually at the wagon count
       if (Math.hypot(sim.px - c.x, sim.py - c.y) > CARAVAN_ESCORT_RANGE) return;
       c.waveKills += 1;
@@ -436,12 +584,19 @@ export class DriftRoom extends Room<DriftRoomState> {
         .map(([id]) => id);
       const escrowGold = await takeEscrow(sim.token).catch(() => 0);
       const row = await loadOrCreatePlayer(sim.token);
+      const tokenBalance = row.walletAddress
+        ? await getTokenBalance(row.walletAddress)
+        : 0;
       client.send("profile", {
         snapshot: sim.profileSnapshot,
         myClaims,
         myListings,
         escrowGold,
         banked: row.bankGold,
+        wallet: row.walletAddress ?? null,
+        tokenBalance,
+        holder: tokenBalance >= 1,
+        mint: tokenMint() || null,
       });
     });
 
@@ -515,8 +670,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
     });
 
-    // stake a 3×3 land claim (gold is deducted client-side; trusted until Phase 6)
-    this.onMessage("claim", async (client, msg: { x?: number; y?: number }) => {
+    // stake a 3×3 land claim (gold deducted client-side, OR a verified token burn)
+    this.onMessage("claim", async (client, msg: { x?: number; y?: number; burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       const ps = this.state.players.get(client.sessionId);
       const fail = (reason: string) =>
@@ -545,6 +700,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       const owned = [...this.claimOwner.values()].filter((t) => t === sim.token).length;
       if (owned >= MAX_CLAIMS_PER_PLAYER) {
         return fail(`You already hold ${MAX_CLAIMS_PER_PLAYER} claims`);
+      }
+      if (msg?.burnSig) {
+        const err = await this.consumeBurn(sim, String(msg.burnSig), "claim");
+        if (err) return fail(err);
       }
 
       const row = await insertClaim(sim.token, x, y);
@@ -664,6 +823,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.drift.update(this.world, dt);
     this.syncNodes();
     this.stepCaravan(dt);
+    this.stepNight();
 
     // duel timeouts → draw, both refunded client-side
     const now = Date.now();
@@ -795,6 +955,164 @@ export class DriftRoom extends Room<DriftRoomState> {
       pot: duel.wager * 2,
       winnerName: winner ? this.state.players.get(winner)?.name ?? "?" : null,
     });
+  }
+
+  // ---- the Drift wiring (re-applied after a realm reset) ---------------------------
+
+  private wireDrift() {
+    this.drift.isProtected = (x, y) =>
+      townProtected(x, y) || this.claimAt(x, y) !== null;
+    this.drift.preferRelocationCell = () => this.randomClaimFreeCell();
+    this.drift.onRelocate = (kind) => this.broadcast("relocate", { kind });
+    this.drift.onDriftfall = (cell) =>
+      this.broadcast("driftfall", { x: cell.x, y: cell.y });
+    this.drift.onSeason = () => {
+      this.state.season += 1;
+      this.erodeClaims();
+      this.syncTiles();
+      const pct = this.corruptionPct();
+      this.state.driftPct = pct;
+      this.broadcast("season", { season: this.state.season, driftPct: pct });
+      // a cleansed realm may face the Long Night again
+      if (pct < 50) this.nightDone = false;
+      if (pct >= RESET_FAILSAFE_PCT) return void this.realmReset();
+      if (pct >= LONG_NIGHT_PCT && !this.nightDone && !this.state.nightActive) {
+        this.startLongNight();
+      }
+    };
+  }
+
+  // ---- THE LONG NIGHT ----------------------------------------------------------------
+
+  private startLongNight() {
+    const defenders = Math.max(1, this.sims.size);
+    this.state.nightActive = true;
+    this.state.nightKills = 0;
+    this.state.nightNeed = LONG_NIGHT_BASE_KILLS + (defenders - 1) * 8;
+    this.nightUntil = Date.now() + LONG_NIGHT_MS;
+    this.state.nightEndsIn = Math.round(LONG_NIGHT_MS / 1000);
+    this.broadcast("longNight", {
+      durationMs: LONG_NIGHT_MS,
+      need: this.state.nightNeed,
+      level: 3 + Math.floor(this.corruptionPct() / 25),
+    });
+  }
+
+  private stepNight() {
+    if (!this.state.nightActive) return;
+    const leftS = Math.max(0, Math.round((this.nightUntil - Date.now()) / 1000));
+    if (leftS !== this.state.nightEndsIn) this.state.nightEndsIn = leftS;
+    if (leftS > 0) return;
+
+    const survived = this.state.nightKills >= this.state.nightNeed;
+    this.state.nightActive = false;
+    if (survived) {
+      this.nightDone = true;
+      this.dawnCleanse();
+      this.broadcast("nightEnd", { survived: true, driftPct: this.state.driftPct });
+      for (const sim of this.sims.values()) {
+        sim.client.send("nightReward", { gold: LONG_NIGHT_REWARD });
+      }
+    } else {
+      this.broadcast("nightEnd", { survived: false, driftPct: this.state.driftPct });
+      void this.realmReset();
+    }
+  }
+
+  /** dawn burns outward from the Waystation until the realm breathes again */
+  private dawnCleanse() {
+    const corrupt: { x: number; y: number; d: number }[] = [];
+    let land = 0;
+    for (let y = 0; y < this.world.h; y++) {
+      for (let x = 0; x < this.world.w; x++) {
+        const t = this.world.tile(x, y);
+        if (t === "water") continue;
+        land++;
+        if (t === "corrupt") {
+          corrupt.push({ x, y, d: Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) });
+        }
+      }
+    }
+    corrupt.sort((a, b) => a.d - b.d);
+    let remaining = corrupt.length;
+    for (const c of corrupt) {
+      if ((remaining / Math.max(1, land)) * 100 <= DAWN_TARGET_PCT) break;
+      this.world.setTile(c.x, c.y, "grass");
+      remaining--;
+    }
+    this.syncTiles();
+    this.state.driftPct = this.corruptionPct();
+  }
+
+  /** the Drift takes the realm: fresh world, season 1; banked/cosmetic/wallet persist */
+  private async realmReset() {
+    this.state.nightActive = false;
+    // claims and their furnishings fall with the old realm
+    for (const [key, cs] of [...this.state.claims.entries()]) {
+      this.state.claims.delete(key);
+      this.claimOwner.delete(cs.id);
+      void deleteClaim(cs.id).catch(() => {});
+      void deletePropsForClaim(cs.id).catch(() => {});
+    }
+    for (const key of [...this.state.props.keys()]) this.state.props.delete(key);
+    this.propOwner.clear();
+
+    // a fresh realm under a fresh Drift
+    this.world = new World(40, 40);
+    this.drift = new Drift(SEASON_MS);
+    this.wireDrift();
+    this.state.season = 1;
+    this.state.driftPct = 0;
+    this.nightDone = false;
+    this.syncTiles();
+    this.state.nodes.clear();
+    for (const node of this.world.nodes) {
+      const ns = new NodeState();
+      ns.id = node.id;
+      ns.kind = node.kind;
+      ns.gx = node.gx;
+      ns.gy = node.gy;
+      ns.amount = node.amount;
+      ns.alive = true;
+      this.state.nodes.set(String(node.id), ns);
+    }
+    this.resetCaravan();
+
+    // everyone wakes at the spawn of the new realm
+    for (const sim of this.sims.values()) {
+      const spawn = this.findSpawn();
+      sim.px = spawn.x;
+      sim.py = spawn.y;
+      sim.path = [];
+      sim.pendingNode = null;
+      this.cancelGather(sim);
+      sim.action = "idle";
+    }
+    this.broadcast("realmReset", { season: this.state.season });
+  }
+
+  // ---- Phase 5: burns ------------------------------------------------------------
+
+  /** validate + spend a burn signature exactly once; null = ok, else reason */
+  private async consumeBurn(
+    sim: PlayerSim,
+    burnSig: string,
+    action: string,
+  ): Promise<string | null> {
+    // a Solana tx signature is 64 bytes → 86-88 base58 chars
+    if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(burnSig)) return "Malformed burn signature";
+    const row = await loadOrCreatePlayer(sim.token);
+    if (!row.walletAddress) return "No wallet linked";
+    // insert-first so a signature can never be spent twice, even concurrently
+    if (!(await tryInsertBurn(burnSig, sim.token, action))) {
+      return "That burn was already spent";
+    }
+    const v = await verifyBurn(burnSig, row.walletAddress, BURN_COSTS[action] ?? 1);
+    if (!v.ok) {
+      await deleteBurn(burnSig).catch(() => {}); // free it for a retry
+      return v.reason ?? "The burn could not be verified";
+    }
+    return null;
   }
 
   // ---- Caravans ---------------------------------------------------------------------
@@ -957,7 +1275,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
   /** the Pale Flame fires: purge the corrupt tiles nearest the shrine */
   private cleanse() {
-    const shrineXY = { x: 20, y: 13 };
+    const shrineXY = { x: 17, y: 13 };
     const corrupt: { x: number; y: number; d: number }[] = [];
     for (let y = 0; y < this.world.h; y++) {
       for (let x = 0; x < this.world.w; x++) {

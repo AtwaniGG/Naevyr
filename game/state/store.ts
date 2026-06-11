@@ -158,6 +158,16 @@ interface GameState {
   buffs: { gather: number; damage: number; sight: number };
   /** gold stored safely in the Vault (server-held; display copy) */
   banked: number;
+  /** linked Solana wallet address (devnet), null when unlinked */
+  wallet: string | null;
+  /** game-token balance of the linked wallet (devnet; 0 when no mint/wallet) */
+  tokenBalance: number;
+  /** token gate: holds >= 1 whole token */
+  holder: boolean;
+  /** THE LONG NIGHT: live defense status (null when no night) */
+  night: { kills: number; need: number; endsIn: number } | null;
+  /** which right-rail popout is open (one at a time) */
+  openDock: "forge" | "market" | "you" | "trade" | null;
   shrine: { pot: number; goal: number };
   duel: DuelState | null;
   duelChallenge: { from: string; name: string; wager: number } | null;
@@ -179,6 +189,10 @@ interface GameState {
   grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet", key: string) => void;
   drink: (kind: DrinkKey) => boolean;
   setBanked: (n: number) => void;
+  setWallet: (a: string | null) => void;
+  setTokenStatus: (balance: number, holder: boolean) => void;
+  setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
+  setOpenDock: (d: "forge" | "market" | "you" | "trade" | null) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
@@ -191,6 +205,10 @@ interface GameState {
   equip: (item: EquipmentItem) => void;
   addItem: (item: ItemKey, qty: number) => void;
   removeItem: (item: ItemKey, qty: number) => boolean;
+  /** Mirewife brews / Obelisk blessings: set a buff for an arbitrary duration */
+  applyBuff: (buff: "gather" | "damage" | "sight", ms: number) => void;
+  /** the Ash Obelisk: trade coin for a fresh set of dailies */
+  rerollQuests: () => void;
   addXp: (skill: SkillKey, xp: number) => { leveledTo: number | null };
   setHp: (hp: number) => void;
   damage: (amount: number) => number; // returns remaining hp
@@ -271,6 +289,11 @@ export const useGame = create<GameState>((set, get) => ({
   ownedPets: [],
   buffs: { gather: 0, damage: 0, sight: 0 },
   banked: 0,
+  wallet: null,
+  tokenBalance: 0,
+  holder: false,
+  night: null,
+  openDock: null,
   shrine: { pot: 0, goal: 500 },
   duel: null,
   duelChallenge: null,
@@ -321,6 +344,10 @@ export const useGame = create<GameState>((set, get) => ({
     return true;
   },
   setBanked: (n) => set({ banked: n }),
+  setWallet: (a) => set({ wallet: a }),
+  setTokenStatus: (tokenBalance, holder) => set({ tokenBalance, holder }),
+  setNight: (night) => set({ night }),
+  setOpenDock: (openDock) => set({ openDock }),
   setShrine: (s) => set({ shrine: s }),
   setDuel: (d) => set({ duel: d }),
   setDuelChallenge: (c) => set({ duelChallenge: c }),
@@ -382,6 +409,8 @@ export const useGame = create<GameState>((set, get) => ({
   addItem: (item, qty) =>
     set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] + qty } })),
 
+  applyBuff: (buff, ms) => set((s) => ({ buffs: { ...s.buffs, [buff]: Date.now() + ms } })),
+  rerollQuests: () => set({ quests: rollDailyQuests() }),
   removeItem: (item, qty) => {
     if (get().inventory[item] < qty) return false;
     set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] - qty } }));

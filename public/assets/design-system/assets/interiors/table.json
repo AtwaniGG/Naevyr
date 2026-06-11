@@ -1,0 +1,24 @@
+{
+  "image": "interiors/table.svg",
+  "cell": {
+    "w": 40,
+    "h": 32
+  },
+  "anchor": {
+    "x": 20,
+    "y": 31
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "table": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 32,
+      "anchor": {
+        "x": 20,
+        "y": 31
+      }
+    }
+  }
+}

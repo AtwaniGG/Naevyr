@@ -31,6 +31,8 @@ export class Mob {
   /** seconds since death — drives the death animation */
   deathT = 0;
   speed = 1.4;
+  /** den-pack elites don't respawn on their own; the den re-seeds them */
+  persistDeath = false;
   bob = 0;
   phase = Math.random() * Math.PI * 2;
   hurtFlash = 0;
@@ -68,7 +70,7 @@ export class Mob {
     this.deathT = 0;
     // a slain Colossus stays slain; raiders die with their ambush; beasts respawn
     this.respawnIn =
-      this.kind === "colossus" || this.kind === "raider"
+      this.kind === "colossus" || this.kind === "raider" || this.persistDeath
         ? Number.POSITIVE_INFINITY
         : 6000 + Math.random() * 4000;
   }

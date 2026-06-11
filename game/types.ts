@@ -317,3 +317,15 @@ export const SEASON_NAMES = [
 export function seasonName(season: number): string {
   return SEASON_NAMES[(season - 1) % SEASON_NAMES.length];
 }
+
+// ─── Phase 5: Solana wallet link (devnet) ─────────────────────────────────────
+// The exact text a wallet signs to bind itself to a guest token. Client builds
+// it for signMessage; the server rebuilds it verbatim to verify the signature.
+export function walletLinkMessage(address: string, nonce: string): string {
+  return [
+    "Driftlands (devnet)",
+    "Link this wallet to your wanderer.",
+    `Wallet: ${address}`,
+    `Nonce: ${nonce}`,
+  ].join("\n");
+}

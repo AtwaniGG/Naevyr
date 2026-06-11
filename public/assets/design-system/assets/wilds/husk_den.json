@@ -1,0 +1,49 @@
+{
+  "image": "wilds/husk_den.svg",
+  "cell": {
+    "w": 120,
+    "h": 88
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 60,
+    "y": 87
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "husk_den_00": {
+      "x": 0,
+      "y": 0,
+      "w": 120,
+      "h": 88,
+      "anchor": {
+        "x": 60,
+        "y": 87
+      }
+    },
+    "husk_den_01": {
+      "x": 120,
+      "y": 0,
+      "w": 120,
+      "h": 88,
+      "anchor": {
+        "x": 60,
+        "y": 87
+      }
+    }
+  },
+  "animations": {
+    "eyes": {
+      "frames": [
+        "husk_den_00",
+        "husk_den_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

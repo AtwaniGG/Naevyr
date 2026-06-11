@@ -7,7 +7,8 @@ import { ResourceKind, ResourceNode, TileType } from "@/game/types";
 
 export type BuildingKey =
   | "dyeworks" | "vault" | "wheel" | "lantern"
-  | "furnisher" | "menagerie" | "shrine" | "pit";
+  | "furnisher" | "menagerie" | "shrine" | "pit" | "mine"
+  | "huskden" | "obelisk" | "mirehut";
 
 export interface TownBuilding {
   key: BuildingKey;
@@ -24,22 +25,49 @@ export const TOWN_CENTER = { x: 20, y: 20 };
 /** no resource nodes inside this euclidean radius of town */
 export const TOWN_NODE_FREE_RADIUS = 8;
 
+// Organic scatter with one hard rule: no building may stand close enough
+// south of another to cover its door. In iso terms, for any pair with
+// depth gap Δ(x+y) in (0, 8], the screen-column gap |Δ(x-y)| must exceed 4.
+// The Mine sits apart in the south-east rocks.
 export const TOWN_BUILDINGS: TownBuilding[] = [
-  { key: "shrine",    label: "Shrine of the Pale Flame", x: 20, y: 13, r: 1 },
-  { key: "dyeworks",  label: "The Dyeworks",             x: 15, y: 16, r: 1 },
-  { key: "vault",     label: "The Vault",                x: 25, y: 16, r: 1 },
-  { key: "furnisher", label: "The Furnisher",            x: 14, y: 21, r: 1 },
-  { key: "menagerie", label: "The Menagerie",            x: 26, y: 21, r: 1 },
-  { key: "wheel",     label: "Wheel of the Drift",       x: 16, y: 25, r: 1 },
-  { key: "lantern",   label: "The Last Lantern",         x: 24, y: 25, r: 1 },
-  { key: "pit",       label: "The Pit",                  x: 20, y: 28, r: 2, walkable: true },
+  { key: "shrine",    label: "Shrine of the Pale Flame", x: 17, y: 13, r: 1 },
+  { key: "dyeworks",  label: "The Dyeworks",             x: 12, y: 17, r: 1 },
+  { key: "vault",     label: "The Vault",                x: 24, y: 16, r: 1 },
+  { key: "lantern",   label: "The Last Lantern",         x: 21, y: 22, r: 1 },
+  { key: "menagerie", label: "The Menagerie",            x: 28, y: 22, r: 1 },
+  { key: "furnisher", label: "The Furnisher",            x: 14, y: 24, r: 1 },
+  { key: "wheel",     label: "Wheel of the Drift",       x: 13, y: 29, r: 1 },
+  { key: "pit",       label: "The Pit",                  x: 20, y: 32, r: 2, walkable: true },
+  { key: "mine",      label: "The Mine",                 x: 31, y: 29, r: 1 },
 ];
 
 export function buildingAt(x: number, y: number): TownBuilding | null {
-  for (const b of TOWN_BUILDINGS) {
+  for (const b of ALL_STRUCTURES) {
     if (Math.max(Math.abs(x - b.x), Math.abs(y - b.y)) <= b.r) return b;
   }
   return null;
+}
+
+// ─── Wild structures: out in the quadrants, NOT Drift-immune ─────────────────
+// Unlike the Waystation these have no corruption protection: the Drift can
+// press right up against them. Same footprint/door rules as town buildings.
+export const WILD_STRUCTURES: TownBuilding[] = [
+  // the Ashen Flats (NW): the war quadrant
+  { key: "huskden", label: "The Husk Den",   x: 8,  y: 8,  r: 1 },
+  { key: "obelisk", label: "The Ash Obelisk", x: 15, y: 5,  r: 1 },
+  // Hollowmere Reach (SW): the witch's marsh
+  { key: "mirehut", label: "The Mirewife's Hut", x: 5, y: 24, r: 1 },
+];
+
+export const ALL_STRUCTURES: TownBuilding[] = [...TOWN_BUILDINGS, ...WILD_STRUCTURES];
+
+/** building footprint + a visual buffer: sprites are ~2 tiles wider than
+ *  their footprint, so nodes this close clip into walls/roofs */
+export function nearBuilding(x: number, y: number, pad = 2): boolean {
+  for (const b of ALL_STRUCTURES) {
+    if (Math.max(Math.abs(x - b.x), Math.abs(y - b.y)) <= b.r + pad) return true;
+  }
+  return false;
 }
 
 /** cells the Drift may never corrupt: buildings + a 1-tile skirt */
@@ -106,7 +134,7 @@ export class World {
       if (
         (t === "grass" || t === "dirt") &&
         !this.nodeAt.has(this.idx(x, y)) &&
-        !buildingAt(x, y) &&
+        !nearBuilding(x, y) &&
         Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) >= TOWN_NODE_FREE_RADIUS
       ) {
         return { x, y };
@@ -198,11 +226,17 @@ export class World {
     // a small water pool toward one corner
     const poolCx = Math.floor(this.w * 0.72);
     const poolCy = Math.floor(this.h * 0.28);
+    // …and the Hollowmere itself, deep in the south-west corner
+    const mereCx = Math.floor(this.w * 0.18);
+    const mereCy = Math.floor(this.h * 0.86);
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
         const d = Math.hypot(x - poolCx, y - poolCy);
         if (d < 3.2) this.setTile(x, y, "water");
         else if (d < 4.4) this.setTile(x, y, "dirt");
+        const m = Math.hypot(x - mereCx, y - mereCy);
+        if (m < 2.8) this.setTile(x, y, "water");
+        else if (m < 4.2) this.setTile(x, y, "dirt");
       }
     }
     // scatter a few dirt patches for texture
@@ -223,8 +257,8 @@ export class World {
         if (this.tile(x, y) === "water") continue;
         if (this.nodeAt.has(this.idx(x, y))) continue;
         if (nearWater && !this.adjacentToWater(x, y)) continue;
-        // keep the town clear of nodes
-        if (buildingAt(x, y)) continue;
+        // keep the town clear of nodes (buffer included: sprites overhang)
+        if (nearBuilding(x, y)) continue;
         if (Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) < TOWN_NODE_FREE_RADIUS) continue;
         this.addNode(kind, x, y);
         placed++;
@@ -233,6 +267,18 @@ export class World {
     place("tree", 22);
     place("rock", 14);
     place("fish", 8, true);
+    // the Hollowmere is the realm's best fishing: extra schools on its banks
+    let mereFish = 0;
+    let guard = 0;
+    while (mereFish < 4 && guard++ < 400) {
+      const x = mereCx - 5 + ((rng() * 11) | 0);
+      const y = mereCy - 5 + ((rng() * 11) | 0);
+      if (!this.inBounds(x, y) || this.tile(x, y) === "water") continue;
+      if (this.nodeAt.has(this.idx(x, y)) || nearBuilding(x, y)) continue;
+      if (!this.adjacentToWater(x, y)) continue;
+      this.addNode("fish", x, y);
+      mereFish++;
+    }
   }
 
   private adjacentToWater(x: number, y: number) {

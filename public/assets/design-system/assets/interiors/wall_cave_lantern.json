@@ -1,0 +1,32 @@
+{
+  "image": "interiors/wall_cave_lantern.svg",
+  "cell": {
+    "w": 64,
+    "h": 56
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "side": "nw",
+  "material": "cave",
+  "variant": "lantern",
+  "accentColorable": false,
+  "anchor": {
+    "x": 32,
+    "y": 55
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "wall_cave_lantern": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 56,
+      "anchor": {
+        "x": 32,
+        "y": 55
+      }
+    }
+  }
+}

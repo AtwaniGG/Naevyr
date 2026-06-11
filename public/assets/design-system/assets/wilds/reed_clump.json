@@ -1,0 +1,35 @@
+{
+  "image": "wilds/reed_clump.svg",
+  "cell": {
+    "w": 12,
+    "h": 18
+  },
+  "anchor": {
+    "x": 6,
+    "y": 17
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "reed_clump_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 18,
+      "anchor": {
+        "x": 6,
+        "y": 17
+      }
+    },
+    "reed_clump_v1": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 18,
+      "anchor": {
+        "x": 6,
+        "y": 17
+      }
+    }
+  },
+  "variants": 2
+}

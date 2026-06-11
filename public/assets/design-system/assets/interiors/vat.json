@@ -1,0 +1,82 @@
+{
+  "image": "interiors/vat.svg",
+  "cell": {
+    "w": 28,
+    "h": 28
+  },
+  "anchor": {
+    "x": 14,
+    "y": 27
+  },
+  "labelClearTop": 6,
+  "liquids": [
+    "drift",
+    "ember",
+    "water",
+    "blood",
+    "grass",
+    "gold"
+  ],
+  "frames": {
+    "vat_drift": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "vat_ember": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "vat_water": {
+      "x": 56,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "vat_blood": {
+      "x": 84,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "vat_grass": {
+      "x": 112,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "vat_gold": {
+      "x": 140,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    }
+  }
+}

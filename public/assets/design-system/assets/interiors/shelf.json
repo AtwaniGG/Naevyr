@@ -1,0 +1,24 @@
+{
+  "image": "interiors/shelf.svg",
+  "cell": {
+    "w": 40,
+    "h": 40
+  },
+  "anchor": {
+    "x": 20,
+    "y": 39
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "shelf": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40,
+      "anchor": {
+        "x": 20,
+        "y": 39
+      }
+    }
+  }
+}

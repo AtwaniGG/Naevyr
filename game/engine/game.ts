@@ -5,17 +5,23 @@ import {
   buildingAt,
   townProtected,
   TOWN_BUILDINGS,
+  ALL_STRUCTURES,
+  WILD_STRUCTURES,
+  TOWN_CENTER,
   TownBuilding,
   BuildingKey,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { Drift } from "@/game/world/drift";
+import { interiorFor, interiorNav, InteriorSpec } from "@/game/world/interior";
+import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import { startGathering, applyGatherLoot } from "@/game/systems/gathering";
 import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/systems/crafting";
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PROP_CATALOG, PropKey, AuraKey,
+  walletLinkMessage,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -36,6 +42,18 @@ import {
 import { bus } from "@/game/state/bus";
 import { tileToCode } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
+import { Transaction } from "@solana/web3.js";
+
+/** the slice of a browser Solana wallet (Phantom/Solflare/Backpack) we use */
+interface WalletProvider {
+  connect?: () => Promise<{ publicKey?: { toString(): string } } | undefined>;
+  signMessage?: (
+    message: Uint8Array,
+    encoding?: string,
+  ) => Promise<{ signature?: Uint8Array }>;
+  signAndSendTransaction?: (tx: unknown) => Promise<{ signature?: string }>;
+  publicKey?: { toString(): string };
+}
 
 export class Game {
   canvas: HTMLCanvasElement;
@@ -122,6 +140,7 @@ export class Game {
     spriteCache.init();
 
     this.combat.spawn(this.world, 8);
+    this.spawnDenPack();
     this.wireCombat();
 
     this.drift.onRelocate = (kind) =>
@@ -179,6 +198,16 @@ export class Game {
       bus.on("challenge", (c) => this.net?.sendChallenge(c.target, c.wager)),
     );
     this.cleanupFns.push(
+      bus.on("walletLink", (link) => {
+        if (link) void this.startWalletLink();
+        else this.net?.sendUnlinkWallet();
+      }),
+    );
+    this.cleanupFns.push(bus.on("spinBurn", () => this.startBurn("spin")));
+    this.cleanupFns.push(bus.on("cleanseBurn", () => this.startBurn("cleanse")));
+    this.cleanupFns.push(bus.on("auraBurn", (key) => this.startBurn("aura", { key })));
+    this.cleanupFns.push(bus.on("obeliskBurn", () => this.startBurn("obelisk")));
+    this.cleanupFns.push(
       bus.on("duelAccept", () => {
         const store = useGame.getState();
         const ch = store.duelChallenge;
@@ -192,6 +221,119 @@ export class Game {
       }),
     );
     void this.connect();
+  }
+
+  // ---- Phase 5: Solana wallet link (devnet) -------------------------------------
+  // Browser wallet (Phantom/Solflare/Backpack) signs a server nonce; the server
+  // verifies and binds wallet ↔ guest token. No chain calls yet — just identity.
+
+  /** wallet provider + address held between nonce request and signature */
+  private pendingWallet: { provider: WalletProvider; address: string } | null = null;
+
+  /** the injected browser wallet, if any */
+  private detectWallet(): WalletProvider | undefined {
+    const w = window as unknown as Record<string, WalletProvider | { solana?: WalletProvider } | undefined>;
+    return (
+      (w.phantom as { solana?: WalletProvider } | undefined)?.solana ??
+      (w.solana as WalletProvider | undefined) ??
+      (w.solflare as WalletProvider | undefined) ??
+      (w.backpack as WalletProvider | undefined)
+    );
+  }
+
+  private async startWalletLink() {
+    const store = useGame.getState();
+    if (!this.net) {
+      store.pushLog("Wallets link in the shared world. Start the server first.", "#6f6781");
+      return;
+    }
+    const provider = this.detectWallet();
+    if (!provider?.connect || !provider.signMessage) {
+      store.pushLog("No Solana wallet found. Install Phantom, then retry.", "#6f6781");
+      return;
+    }
+    try {
+      const resp = await provider.connect();
+      const address =
+        resp?.publicKey?.toString?.() ?? provider.publicKey?.toString?.() ?? "";
+      if (!address) {
+        store.pushLog("The wallet gave no address. Strange winds.", "#6f6781");
+        return;
+      }
+      this.pendingWallet = { provider, address };
+      this.net.requestWalletNonce();
+    } catch {
+      store.pushLog("The wallet declined. No link was made.", "#6f6781");
+    }
+  }
+
+  private async signWalletNonce(nonce: string) {
+    const store = useGame.getState();
+    const pending = this.pendingWallet;
+    this.pendingWallet = null;
+    if (!pending || !this.net) return;
+    try {
+      const message = new TextEncoder().encode(
+        walletLinkMessage(pending.address, nonce),
+      );
+      const result = await pending.provider.signMessage!(message, "utf8");
+      const sig: Uint8Array = result.signature ?? (result as unknown as Uint8Array);
+      const hex = Array.from(sig, (b) => b.toString(16).padStart(2, "0")).join("");
+      this.net.sendLinkWallet(pending.address, hex);
+    } catch {
+      store.pushLog("Signing was declined. No link was made.", "#6f6781");
+    }
+  }
+
+  // ---- Phase 5: token burns (devnet) ----------------------------------------------
+  // quote → wallet countersigns the server-built burn tx → action message
+  // carries the tx signature → server verifies the burn on-chain.
+
+  private pendingBurn: { action: string; x?: number; y?: number; key?: string } | null = null;
+
+  private startBurn(
+    action: "spin" | "claim" | "aura" | "cleanse" | "obelisk",
+    extra: { x?: number; y?: number; key?: string } = {},
+  ) {
+    const store = useGame.getState();
+    if (!this.net || !store.wallet) {
+      store.pushLog("Burn rites need a linked wallet in the shared world.", "#6f6781");
+      return;
+    }
+    this.pendingBurn = { action, ...extra };
+    this.net.sendBurnQuote(action);
+  }
+
+  private async signBurnQuote(txB64: string) {
+    const store = useGame.getState();
+    const pending = this.pendingBurn;
+    this.pendingBurn = null;
+    if (!pending || !this.net) return;
+    const provider = this.detectWallet();
+    if (!provider?.signAndSendTransaction) {
+      store.pushLog("No Solana wallet found to sign the burn.", "#6f6781");
+      return;
+    }
+    try {
+      await provider.connect?.();
+      const raw = Uint8Array.from(atob(txB64), (c) => c.charCodeAt(0));
+      const tx = Transaction.from(raw);
+      const { signature } = await provider.signAndSendTransaction(tx);
+      if (!signature) throw new Error("no signature");
+      store.pushLog("The tokens burn. Awaiting the chain's word…", "#d8b4fe");
+      switch (pending.action) {
+        case "spin":    this.net.sendSpin(signature); break;
+        case "cleanse": this.net.sendDonate(0, signature); break;
+        case "aura":    this.net.sendBuyAura(pending.key ?? "", signature); break;
+        case "claim":   this.net.sendClaim(pending.x ?? 0, pending.y ?? 0, signature); break;
+        case "obelisk": this.net.sendObeliskBurn(signature); break;
+      }
+    } catch {
+      store.pushLog(
+        "The burn was declined or failed. Nothing was taken. (Is your wallet on devnet?)",
+        "#6f6781",
+      );
+    }
   }
 
   // ---- marketplace (items/gold move client-side; server is the ledger) ---------
@@ -227,13 +369,19 @@ export class Game {
       store.pushLog("Land can only be staked in the shared world (server offline).", "#6f6781");
       return;
     }
-    if (!store.claimMode && store.gold < CLAIM_COST) {
+    const burning = !!(store.wallet && store.holder); // holders stake with burns
+    if (!store.claimMode && !burning && store.gold < CLAIM_COST) {
       store.pushLog(`Staking a claim costs ${CLAIM_COST}g. You carry ${store.gold}g.`, "#6f6781");
       return;
     }
     store.setClaimMode(!store.claimMode);
     if (useGame.getState().claimMode) {
-      store.pushLog("Choose your ground. Click to stake a 3×3 claim.", "#e7c873");
+      store.pushLog(
+        burning
+          ? "Choose your ground. Staking burns 5 tokens (Holder rite)."
+          : "Choose your ground. Click to stake a 3×3 claim.",
+        "#e7c873",
+      );
     }
   }
 
@@ -306,6 +454,8 @@ export class Game {
     this.combat = new CombatManager();
     this.combat.spawn(this.world, 8);
     this.wireCombat();
+    this.den.packIds = [];
+    this.spawnDenPack();
 
     const self = net.self();
     if (self) {
@@ -405,6 +555,148 @@ export class Game {
         "#e7c873",
       );
     });
+    // ---- wallet link (devnet) ----
+    net.onMessage<{ nonce: string }>("walletNonce", (m) => {
+      void this.signWalletNonce(m.nonce);
+    });
+    net.onMessage<{
+      ok: boolean; address?: string | null; reason?: string;
+      tokenBalance?: number; holder?: boolean; mint?: string | null;
+    }>("walletResult", (m) => {
+      const store = useGame.getState();
+      if (!m.ok) {
+        store.pushLog(m.reason ?? "The wallet link failed.", "#6f6781");
+        return;
+      }
+      store.setWallet(m.address ?? null);
+      store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
+      store.pushLog(
+        m.address
+          ? `Wallet bound: ${m.address.slice(0, 4)}…${m.address.slice(-4)}. Your wanderer is yours on devnet.`
+          : "Wallet unbound. You walk as a guest again.",
+        "#e7c873",
+      );
+      if (m.address && m.mint) {
+        store.pushLog(
+          m.holder
+            ? `The token knows you. Holder confirmed (${m.tokenBalance} held).`
+            : "No game tokens in this wallet yet. The gate stays shut.",
+          m.holder ? "#d8b4fe" : "#6f6781",
+        );
+      }
+    });
+
+    // ---- THE LONG NIGHT + realm reset ----
+    net.onMessage<{ durationMs: number; need: number; level: number }>("longNight", (m) => {
+      const store = useGame.getState();
+      play("boss");
+      this.shakeUntil = performance.now() + 600;
+      this.shakeMag = 5;
+      // the horde closes on the Waystation from three sides
+      const { x, y } = TOWN_CENTER;
+      const per = Math.ceil((m.need * 1.3) / 3);
+      this.combat.spawnRaiders(this.world, x - 6, y, per, m.level);
+      this.combat.spawnRaiders(this.world, x + 6, y, per, m.level);
+      this.combat.spawnRaiders(this.world, x, y + 7, per, m.level);
+      store.pushLog(
+        `THE LONG NIGHT FALLS. Hold the Waystation: ${m.need} raiders must die before the dark wins.`,
+        "#dc2626",
+      );
+    });
+    net.onMessage<{ survived: boolean; driftPct: number }>("nightEnd", (m) => {
+      const store = useGame.getState();
+      this.combat.clearRaiders();
+      if (m.survived) {
+        store.pushLog(
+          "DAWN. The horde breaks and the corruption burns back. The realm holds.",
+          "#e7c873",
+        );
+        store.setDriftPct(m.driftPct);
+        setTimeout(() => this.applyNetTiles(), 600);
+      } else {
+        store.pushLog("The dark takes the Waystation…", "#dc2626");
+      }
+    });
+    net.onMessage<{ gold: number }>("nightReward", (m) => {
+      const store = useGame.getState();
+      store.addGold(m.gold);
+      play("levelup");
+      store.pushLog(`You stood through the Long Night. ${m.gold}g for the dawn.`, "#e7c873");
+    });
+    net.onMessage<{ season: number }>("realmReset", (m) => {
+      const store = useGame.getState();
+      play("death");
+      store.pushLog(
+        "THE DRIFT TAKES THE REALM. All claims fall. A new land rises from the ash…",
+        "#a855f7",
+      );
+      this.tomb = null;
+      this.propPlaceKind = null;
+      store.setClaimMode(false);
+      store.setSeason(m.season);
+      store.setDriftPct(0);
+      store.setMyClaims(0);
+      this.myClaimIds.clear();
+      // adopt the new world once the fresh schema patch lands
+      setTimeout(() => {
+        this.applyNetWorld();
+        this.combat = new CombatManager();
+        this.combat.spawn(this.world, 8);
+        this.wireCombat();
+        this.den.packIds = [];
+        this.spawnDenPack();
+        this.lostTomb = null;
+        const self = this.net?.self();
+        if (self) {
+          this.player.px = self.x;
+          this.player.py = self.y;
+          this.player.setPath([]);
+          const iso = gridToIso(self.x, self.y);
+          this.camera.snapTo(iso.x, iso.y);
+        }
+      }, 700);
+    });
+
+    // ---- token burns (devnet) ----
+    net.onMessage<{ ok: boolean; action: string; amount?: number; tx?: string; reason?: string }>(
+      "burnQuote",
+      (m) => {
+        if (!m.ok || !m.tx) {
+          this.pendingBurn = null;
+          useGame.getState().pushLog(m.reason ?? "The rite refused you.", "#6f6781");
+          return;
+        }
+        void this.signBurnQuote(m.tx);
+      },
+    );
+    net.onMessage<{ ok: boolean; action: string; reason?: string; pot?: number }>(
+      "burnResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok) {
+          store.pushLog(m.reason ?? "The burn was rejected.", "#dc2626");
+          return;
+        }
+        if (m.action === "cleanse") {
+          store.pushLog(`The Pale Flame drinks the burn: +${m.pot}g to the pot.`, "#efe9f4");
+        }
+        if (m.action === "obelisk") {
+          store.rerollQuests();
+          store.pushLog("THE ASH ACCEPTS. The day's tasks are rewritten.", "#d8b4fe");
+        }
+      },
+    );
+    net.onMessage<{ ok: boolean; key?: string; reason?: string }>("auraResult", (m) => {
+      const store = useGame.getState();
+      if (!m.ok || !m.key) {
+        store.pushLog(m.reason ?? "The aura burn failed.", "#dc2626");
+        return;
+      }
+      store.grantCosmetic("aura", m.key);
+      store.setCosmetics({ aura: m.key as AuraKey });
+      store.pushLog("The Dyeworks takes your burned tokens. The aura clings to you.", "#d8b4fe");
+    });
+
     // server-stored progress: apply it, or seed the server with local progress
     net.onMessage<{
       snapshot: SaveData | null;
@@ -412,6 +704,9 @@ export class Game {
       myListings?: number[];
       escrowGold?: number;
       banked?: number;
+      wallet?: string | null;
+      tokenBalance?: number;
+      holder?: boolean;
     }>("profile", (m) => {
       const store = useGame.getState();
       if (m.snapshot) {
@@ -425,6 +720,8 @@ export class Game {
       store.setMyClaims(this.myClaimIds.size);
       this.myListingIds = new Set(m.myListings ?? []);
       if (typeof m.banked === "number") store.setBanked(m.banked);
+      store.setWallet(m.wallet ?? null);
+      store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
       if (m.escrowGold && m.escrowGold > 0) {
         store.addGold(m.escrowGold);
         play("coin");
@@ -862,12 +1159,19 @@ export class Game {
   private handleClick(sx: number, sy: number) {
     initAudio(); // browsers unlock audio on the first user gesture
     const cell = this.cellUnderCursor(sx, sy);
+    if (this.interior) {
+      this.handleInteriorClick(cell);
+      return;
+    }
     if (!this.world.inBounds(cell.x, cell.y)) return;
     this.clickMarker = { x: cell.x, y: cell.y, t: performance.now() };
 
     // town buildings open their shop (walk over first if we're far)
     const building = buildingAt(cell.x, cell.y);
     if (building && this.handleBuildingClick(building)) return;
+
+    // a lost tombstone in the Drowned Field gives up its gold when close
+    if (this.tryReclaimLostTomb(cell)) return;
 
     if (this.net) {
       this.handleClickOnline(cell);
@@ -941,8 +1245,7 @@ export class Game {
     if (b.key === "pit" && useGame.getState().claimMode) return false;
     const dist = Math.max(Math.abs(this.player.cell.x - b.x), Math.abs(this.player.cell.y - b.y));
     if (dist <= b.r + 2) {
-      useGame.getState().setOpenShop(b.key);
-      play("ui");
+      this.enterInterior(b.key);
       return true;
     }
     // walk to the nearest walkable cell at the building's skirt
@@ -976,10 +1279,15 @@ export class Game {
       return;
     }
 
-    // claim mode: this click stakes (gold deducted now, refunded on rejection)
+    // claim mode: this click stakes. Holders burn tokens; guests pay gold
+    // (deducted now, refunded on rejection).
     const store = useGame.getState();
     if (store.claimMode) {
       store.setClaimMode(false);
+      if (store.wallet && store.holder) {
+        void this.startBurn("claim", { x: cell.x, y: cell.y });
+        return;
+      }
       if (!store.spendGold(CLAIM_COST)) {
         store.pushLog(`Staking a claim costs ${CLAIM_COST}g.`, "#6f6781");
         return;
@@ -1032,6 +1340,12 @@ export class Game {
   };
 
   private update(dt: number) {
+    // inside a building: local room sim only; the world (and our server
+    // position) waits at the door until we step back out
+    if (this.interior) {
+      this.updateInterior(dt);
+      return;
+    }
     if (this.net) {
       this.updateOnline(dt);
     } else {
@@ -1067,8 +1381,7 @@ export class Game {
       const b = this.pendingShop;
       const dist = Math.max(Math.abs(this.player.cell.x - b.x), Math.abs(this.player.cell.y - b.y));
       if (dist <= b.r + 2) {
-        useGame.getState().setOpenShop(b.key);
-        play("ui");
+        this.enterInterior(b.key);
         this.pendingShop = null;
       } else if (this.player.action === "idle") {
         this.pendingShop = null; // couldn't get there
@@ -1090,6 +1403,7 @@ export class Game {
 
     this.watchLevelUps();
     this.watchBoss();
+    this.updateWildQuadrants();
     this.updateWorldFeel(dt);
 
     // minimap snapshot ~2×/sec
@@ -1189,7 +1503,8 @@ export class Game {
   private regionAt(x: number, y: number): string {
     const cx = this.world.w / 2;
     const cy = this.world.h / 2;
-    if (Math.hypot(x - cx, y - cy) < 6) return "Wanderer's Rest";
+    // the Rest covers the whole spread-out town (the Mine sits in the wilds)
+    if (Math.hypot(x - cx, y - cy) < 13) return "Wanderer's Rest";
     if (x >= cx && y < cy) return "Palewater";
     if (x < cx && y < cy) return "The Ashen Flats";
     if (x < cx && y >= cy) return "Hollowmere Reach";
@@ -1386,6 +1701,17 @@ export class Game {
     const count = net.playerCount();
     if (store.playersOnline !== count) store.setPlayersOnline(count);
 
+    // ---- the Long Night (schema-synced; HUD banner reads the store) ----------
+    const night = net.night;
+    const sn = store.night;
+    if (night.active) {
+      if (!sn || sn.kills !== night.kills || sn.endsIn !== night.endsIn || sn.need !== night.need) {
+        store.setNight({ kills: night.kills, need: night.need, endsIn: night.endsIn });
+      }
+    } else if (sn) {
+      store.setNight(null);
+    }
+
     // ---- nodes (authoritative mirror) ---------------------------------------
     net.forEachNode((n) =>
       this.world.syncNetNode({
@@ -1398,6 +1724,520 @@ export class Game {
       }),
     );
     for (const node of this.world.nodes) node.phase += dt;
+  }
+
+  // ---- building interiors (client-local scenes behind each town door) ----------
+
+  private interior: {
+    spec: InteriorSpec;
+    nav: ReturnType<typeof interiorNav>;
+    /** overworld position to restore on exit */
+    outX: number;
+    outY: number;
+    /** what to do when the current walk finishes */
+    pending: "shop" | "exit" | null;
+    /** vein index to start mining on arrival (the Mine) */
+    pendingVein: number | null;
+    /** keeper speech bubble (door reactions + idle small talk) */
+    bubble: { text: string; until: number } | null;
+    nextTalkAt: number;
+    /** live vein state: charges deplete per strike, regrow on a timer */
+    veins: { x: number; y: number; charges: number; regrowAt: number }[];
+  } | null = null;
+
+  private static readonly VEIN_CHARGES = 3;
+  private static readonly VEIN_REGROW_MS = 60_000;
+
+  private enterInterior(key: BuildingKey) {
+    if (key === "huskden") {
+      this.denInteract();
+      return;
+    }
+    const spec = interiorFor(key);
+    if (!spec) {
+      // shrine + pit + obelisk are open-air: their panels/dialogues open directly
+      useGame.getState().setOpenShop(key);
+      play("ui");
+      return;
+    }
+    this.combat.disengage(this.player);
+    this.pendingNode = null;
+    this.pendingMob = null;
+    this.pendingShop = null;
+    this.gatherVis = null;
+    this.interior = {
+      spec,
+      nav: interiorNav(spec),
+      outX: this.player.px,
+      outY: this.player.py,
+      pending: null,
+      pendingVein: null,
+      bubble: null,
+      nextTalkAt: performance.now() + 9_000 + Math.random() * 6_000,
+      veins: (spec.veins ?? []).map((v) => ({
+        x: v.x, y: v.y, charges: Game.VEIN_CHARGES, regrowAt: 0,
+      })),
+    };
+    // the keeper notices you come in
+    const talkLines = KEEPER_TALK[spec.key];
+    if (spec.keeper && talkLines) {
+      this.interior.bubble = {
+        text: pickLine(talkLines.enter),
+        until: performance.now() + 4_200,
+      };
+    }
+    this.player.px = spec.door.x;
+    this.player.py = spec.door.y;
+    this.player.setPath([]);
+    this.player.action = "idle";
+    this.player.updateIsoFacing(0, -1); // face into the room
+    const iso = gridToIso(spec.door.x, spec.door.y);
+    this.camera.snapTo(iso.x, iso.y);
+    play("ui");
+    useGame.getState().pushLog(`You step into ${spec.title}.`, "#a99fb8");
+  }
+
+  private exitInterior() {
+    if (!this.interior) return;
+    const { outX, outY } = this.interior;
+    this.interior = null;
+    useGame.getState().setOpenShop(null);
+    this.player.px = outX;
+    this.player.py = outY;
+    this.player.setPath([]);
+    this.player.action = "idle";
+    const iso = gridToIso(outX, outY);
+    this.camera.snapTo(iso.x, iso.y);
+    play("ui");
+  }
+
+  private updateInterior(dt: number) {
+    const room = this.interior!;
+    this.player.update(dt);
+    const iso = gridToIso(this.player.px, this.player.py);
+    this.camera.follow(iso.x, iso.y);
+    this.camera.update(dt);
+
+    // keeper chatter: expire the current line, mutter a new one now and then
+    const now = performance.now();
+    if (room.bubble && now > room.bubble.until) room.bubble = null;
+    const talkLines = KEEPER_TALK[room.spec.key];
+    if (
+      room.spec.keeper && talkLines && !room.bubble &&
+      now >= room.nextTalkAt &&
+      useGame.getState().openShop !== room.spec.key // not while you're talking
+    ) {
+      room.bubble = { text: pickLine(talkLines.idle), until: now + 4_500 };
+      room.nextTalkAt = now + 10_000 + Math.random() * 8_000;
+    }
+
+    // spent veins glitter again after a while
+    for (const v of room.veins) {
+      if (v.charges <= 0 && v.regrowAt > 0 && now >= v.regrowAt) {
+        v.charges = Game.VEIN_CHARGES;
+        v.regrowAt = 0;
+      }
+    }
+
+    if (this.player.action === "idle" && this.player.path.length === 0) {
+      const cell = this.player.cell;
+      // standing on the doormat always leads out
+      if (cell.x === room.spec.door.x && cell.y === room.spec.door.y && room.pending === "exit") {
+        room.pending = null;
+        this.exitInterior();
+        return;
+      }
+      if (room.pending === "shop") {
+        room.pending = null;
+        const talk = room.spec.counter ?? room.spec.keeper;
+        if (talk && chebyshev(cell, talk) <= 1) {
+          useGame.getState().setOpenShop(room.spec.key);
+          play("ui");
+        }
+      }
+      if (room.pendingVein !== null) {
+        const i = room.pendingVein;
+        room.pendingVein = null;
+        const v = room.veins[i];
+        if (v && v.charges > 0 && chebyshev(cell, v) <= 1) this.startVeinMining(i);
+      }
+    }
+  }
+
+  // ---- the Mine: swing at a gold vein until it gives out ------------------------
+
+  private startVeinMining(i: number) {
+    const room = this.interior;
+    const v = room?.veins[i];
+    if (!room || !v || v.charges <= 0) return;
+    this.player.updateIsoFacing(v.x - this.player.px, v.y - this.player.py);
+    this.player.facing = v.x >= this.player.px ? 1 : -1;
+    this.player.action = "gather";
+    this.player.gatherMs = 0;
+    this.player.gatherTotal = 1800 * gatherSpeedMultiplier();
+    this.player.onGatherDone = () => this.onVeinStrike(i);
+  }
+
+  private onVeinStrike(i: number) {
+    const room = this.interior;
+    const v = room?.veins[i];
+    if (!room || !v || v.charges <= 0) return;
+    const store = useGame.getState();
+    v.charges -= 1;
+    const gold = 3 + Math.floor(store.skills.mining.level / 2) + Math.floor(Math.random() * 3);
+    store.addGold(gold);
+    const { leveledTo } = store.addXp("mining", 6);
+    play("mine");
+    this.spawnFloater(v.x, v.y, `+${gold}g`, "#e7c873");
+    if (leveledTo) store.pushLog(`Mining is now level ${leveledTo}!`, "#e7c873");
+    if (v.charges > 0) {
+      // keep swinging while the seam holds
+      if (chebyshev(this.player.cell, v) <= 1) this.startVeinMining(i);
+    } else {
+      v.regrowAt = performance.now() + Game.VEIN_REGROW_MS;
+      store.pushLog("The vein is spent. Give it time; gold grows back in the dark.", "#a99fb8");
+    }
+  }
+
+  private handleInteriorClick(cell: Cell) {
+    const room = this.interior!;
+    const { spec, nav } = room;
+    this.clickMarker = { x: cell.x, y: cell.y, t: performance.now() };
+
+    // a gold vein: walk up and start swinging
+    const veinIdx = room.veins.findIndex((v) => v.x === cell.x && v.y === cell.y);
+    if (veinIdx >= 0) {
+      const v = room.veins[veinIdx];
+      if (v.charges <= 0) {
+        useGame.getState().pushLog("Bare rock. The seam needs time.", "#6f6781");
+        return;
+      }
+      if (chebyshev(this.player.cell, v) <= 1) {
+        this.startVeinMining(veinIdx);
+        return;
+      }
+      const adj = this.interiorAdjacent(v);
+      if (adj) {
+        const path = findPath(nav as unknown as World, this.player.cell, adj);
+        if (path) {
+          this.player.setPath(path);
+          room.pendingVein = veinIdx;
+          room.pending = null;
+        }
+      }
+      return;
+    }
+
+    // the counter (or the keeper) is the business end: walk up and talk
+    const talk = spec.counter ?? spec.keeper;
+    const clickedTalk =
+      (spec.counter && cell.x === spec.counter.x && cell.y === spec.counter.y) ||
+      (spec.keeper && cell.x === spec.keeper.x && cell.y === spec.keeper.y);
+    if (clickedTalk && talk) {
+      if (chebyshev(this.player.cell, talk) <= 1) {
+        useGame.getState().setOpenShop(spec.key);
+        play("ui");
+        return;
+      }
+      const adj = this.interiorAdjacent(talk);
+      if (adj) {
+        const path = findPath(nav as unknown as World, this.player.cell, adj);
+        if (path) {
+          this.player.setPath(path);
+          room.pending = "shop";
+        }
+      }
+      return;
+    }
+
+    // the door (or anywhere beyond the room) leads back outside
+    const isDoor = cell.x === spec.door.x && cell.y === spec.door.y;
+    if (isDoor || !nav.inBounds(cell.x, cell.y)) {
+      if (this.player.cell.x === spec.door.x && this.player.cell.y === spec.door.y) {
+        this.exitInterior();
+        return;
+      }
+      const path = findPath(nav as unknown as World, this.player.cell, spec.door);
+      if (path) {
+        this.player.setPath(path);
+        room.pending = "exit";
+      }
+      return;
+    }
+
+    // plain stroll
+    if (nav.isWalkable(cell.x, cell.y)) {
+      const path = findPath(nav as unknown as World, this.player.cell, cell);
+      if (path) {
+        this.player.setPath(path);
+        room.pending = null;
+      }
+    }
+  }
+
+  /** nearest walkable cell adjacent to an interior target */
+  private interiorAdjacent(target: Cell): Cell | null {
+    const nav = this.interior!.nav;
+    let best: Cell | null = null;
+    let bestD = Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const x = target.x + dx;
+        const y = target.y + dy;
+        if (!nav.isWalkable(x, y)) continue;
+        const d = Math.hypot(x - this.player.px, y - this.player.py);
+        if (d < bestD) {
+          bestD = d;
+          best = { x, y };
+        }
+      }
+    }
+    return best;
+  }
+
+  private drawInterior(ctx: CanvasRenderingContext2D) {
+    const { spec } = this.interior!;
+    const z = this.camera.zoom;
+
+    // back walls first (the floor laps over their base)
+    this.drawInteriorWalls(ctx, spec);
+
+    // floor
+    for (let y = 0; y < spec.h; y++) {
+      for (let x = 0; x < spec.w; x++) {
+        const s = this.tileScreen(x, y);
+        spriteCache.drawFloor(ctx, spec.floor, (x * 7 + y * 13) % 3, s.x, s.y, z);
+      }
+    }
+
+    // doormat glow (the way out)
+    const ds = this.tileScreen(spec.door.x, spec.door.y);
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 400) * 0.15;
+    ctx.strokeStyle = "#e7c873";
+    ctx.lineWidth = Math.max(1, 1.5 * z);
+    ctx.beginPath();
+    ctx.moveTo(ds.x, ds.y - 14 * z);
+    ctx.lineTo(ds.x + 28 * z, ds.y);
+    ctx.lineTo(ds.x, ds.y + 14 * z);
+    ctx.lineTo(ds.x - 28 * z, ds.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+
+    // rugs lie flat under everything
+    for (const f of spec.fixtures) {
+      if (f.kind !== "rug") continue;
+      const s = this.tileScreen(f.x, f.y);
+      spriteCache.drawFixture(ctx, "rug", f.accent ?? spec.accent, s.x, s.y, z);
+    }
+
+    // depth-sorted: fixtures + keeper + you
+    const draws: { d: number; fn: () => void }[] = [];
+    for (const f of spec.fixtures) {
+      if (f.kind === "rug") continue;
+      draws.push({
+        d: f.x + f.y,
+        fn: () => {
+          const s = this.tileScreen(f.x, f.y);
+          spriteCache.drawFixture(ctx, f.kind, f.accent ?? spec.accent, s.x, s.y, z);
+        },
+      });
+    }
+    // gold veins (the Mine): rich or spent
+    for (const v of this.interior!.veins) {
+      draws.push({
+        d: v.x + v.y,
+        fn: () => {
+          const s = this.tileScreen(v.x, v.y);
+          spriteCache.drawFixture(
+            ctx, v.charges > 0 ? "goldVein" : "goldVeinEmpty", spec.accent, s.x, s.y, z,
+          );
+        },
+      });
+    }
+    if (spec.keeper) {
+      const keeper = spec.keeper;
+      draws.push({
+        d: keeper.x + keeper.y,
+        fn: () => {
+          const s = this.tileScreen(keeper.x, keeper.y);
+          const frame = Math.floor(performance.now() / 700) % 2;
+          spriteCache.drawChar(
+            ctx, "s", false, "idle", frame, s.x, s.y, z,
+            undefined,
+            { dye: (spec.keeperDye ?? "stone") as DyeKey, eye: "ember" },
+          );
+        },
+      });
+    }
+    draws.push({
+      d: this.player.px + this.player.py,
+      fn: () => this.drawWandererEntity(ctx, this.player, true),
+    });
+    draws.sort((a, b) => a.d - b.d).forEach((d) => d.fn());
+
+    // keeper speech bubble (door reactions + small talk)
+    const bubble = this.interior!.bubble;
+    if (bubble && spec.keeper) {
+      const ks = this.tileScreen(spec.keeper.x, spec.keeper.y);
+      const bx = ks.x;
+      const by = ks.y - 50 * z;
+      ctx.font = `${8 * z}px ui-sans-serif`;
+      const tw = ctx.measureText(bubble.text).width;
+      const pad = 5 * z;
+      const fade = Math.min(1, (bubble.until - performance.now()) / 400);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+      ctx.fillStyle = "rgba(10,8,16,0.88)";
+      ctx.strokeStyle = "rgba(169,159,184,0.55)";
+      ctx.lineWidth = Math.max(1, z);
+      ctx.beginPath();
+      ctx.rect(bx - tw / 2 - pad, by - 11 * z, tw + pad * 2, 15 * z);
+      ctx.fill();
+      ctx.stroke();
+      // little tail toward the keeper
+      ctx.beginPath();
+      ctx.moveTo(bx - 3 * z, by + 4 * z);
+      ctx.lineTo(bx, by + 8 * z);
+      ctx.lineTo(bx + 3 * z, by + 4 * z);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#e7e1ee";
+      ctx.textAlign = "center";
+      ctx.fillText(bubble.text, bx, by);
+      ctx.textAlign = "left";
+      ctx.restore();
+    }
+
+    // floaters (mining gold pops) ride the same screen-space pipeline
+    this.drawJuice(ctx);
+
+    // room title floats over the back wall
+    const top = this.tileScreen(Math.floor(spec.w / 2), 0);
+    ctx.textAlign = "center";
+    ctx.font = `${8 * z}px ui-sans-serif`;
+    ctx.fillStyle = "rgba(216,207,224,0.6)";
+    ctx.fillText(spec.title, top.x, top.y - 52 * z);
+    ctx.font = `${6.5 * z}px ui-sans-serif`;
+    ctx.fillStyle = "rgba(167,159,184,0.45)";
+    ctx.fillText(
+      spec.veins?.length
+        ? "swing at the glittering veins · the lit doorway leads out"
+        : "walk to the counter to trade · the lit doorway leads out",
+      top.x, top.y - 42 * z,
+    );
+    ctx.textAlign = "left";
+  }
+
+  /** DS wall2 segments: skewed parallelogram faces tiled per back-edge tile.
+   *  ne segments anchor at each row-0 tile's NORTH corner; nw segments at each
+   *  column-0 tile's WEST corner; a corner wedge caps the junction. */
+  private drawInteriorWalls(ctx: CanvasRenderingContext2D, spec: InteriorSpec) {
+    const z = this.camera.zoom;
+    const mat = spec.cave ? "cave" : spec.floor === "stone" ? "block" : "timber";
+    // back-left face (column x=0, moonlit): window mid-wall (cave: gold seam)
+    for (let y = 0; y < spec.h; y++) {
+      const s = this.tileScreen(0, y);
+      const variant =
+        y === Math.floor(spec.h / 2) ? (spec.cave ? "seam" : "window") : "plain";
+      spriteCache.drawWall2(ctx, "nw", mat, variant, spec.accent, s.x - 32 * z, s.y, z);
+    }
+    // back-right face (row y=0, shadowed): banner mid-wall (cave: lantern)
+    for (let x = 0; x < spec.w; x++) {
+      const s = this.tileScreen(x, 0);
+      const variant =
+        x === Math.floor(spec.w / 2) ? (spec.cave ? "lantern" : "banner") : "plain";
+      spriteCache.drawWall2(ctx, "ne", mat, variant, spec.accent, s.x, s.y - 16 * z, z);
+    }
+    // the junction wedge at the room's north corner
+    const n = this.tileScreen(0, 0);
+    spriteCache.drawWall2Corner(ctx, mat, n.x, n.y - 16 * z, z);
+  }
+
+  // ---- the wild quadrants: Husk Den + the Drowned Field -------------------------
+
+  /** Husk Den (Ashen Flats): clear the elite pack, crack the war-chest */
+  private den = { packIds: [] as number[], looted: false, respawnAt: 0 };
+  /** Drowned Field (Hollowmere Reach): lore graves + a wandering lost tombstone */
+  private static readonly DROWNED_FIELD: Cell[] = [
+    { x: 13, y: 34 }, { x: 15, y: 35 }, { x: 17, y: 34 },
+    { x: 14, y: 36 }, { x: 16, y: 37 }, { x: 12, y: 36 },
+  ];
+  private lostTomb: { x: number; y: number; gold: number } | null = null;
+  private nextLostTombAt = performance.now() + 120_000 + Math.random() * 180_000;
+
+  private spawnDenPack() {
+    const den = WILD_STRUCTURES.find((w) => w.key === "huskden");
+    if (!den) return;
+    this.combat.removePack(this.den.packIds);
+    this.den.packIds = this.combat.spawnPackAt(this.world, den.x, den.y, 5, 5);
+    this.den.looted = false;
+    this.den.respawnAt = 0;
+  }
+
+  private denPackAlive(): boolean {
+    return this.combat.mobs.some(
+      (m) => this.den.packIds.includes(m.id) && m.state !== "dead",
+    );
+  }
+
+  private denInteract() {
+    const store = useGame.getState();
+    if (this.denPackAlive()) {
+      store.pushLog("The den seethes with husks. Clear them first.", "#a855f7");
+      return;
+    }
+    if (this.den.looted) {
+      store.pushLog("The war-chest sits empty. Something stirs below…", "#6f6781");
+      return;
+    }
+    this.den.looted = true;
+    this.den.respawnAt = performance.now() + 15 * 60_000;
+    const gold = 60 + Math.floor(Math.random() * 41);
+    store.addGold(gold);
+    store.addItem("driftshard", 2);
+    play("coin");
+    store.pushLog(`You crack the den's war-chest: ${gold}g and 2 Drift Shards.`, "#e7c873");
+  }
+
+  /** den re-seeds + lost tombstones surface, on their own clocks */
+  private updateWildQuadrants() {
+    const now = performance.now();
+    if (this.den.looted && this.den.respawnAt > 0 && now >= this.den.respawnAt) {
+      this.spawnDenPack();
+      useGame.getState().pushLog("The Husk Den stirs again in the Flats.", "#a855f7");
+    }
+    if (!this.lostTomb && now >= this.nextLostTombAt) {
+      const field = Game.DROWNED_FIELD;
+      const base = field[(Math.random() * field.length) | 0];
+      const x = base.x + ((Math.random() * 3) | 0) - 1;
+      const y = base.y + ((Math.random() * 3) | 0) - 1;
+      if (this.world.isWalkable(x, y)) {
+        this.lostTomb = { x, y, gold: 30 + Math.floor(Math.random() * 51) };
+        useGame.getState().pushLog(
+          "A lost tombstone surfaces in the Drowned Field…",
+          "#a99fb8",
+        );
+      }
+      this.nextLostTombAt = now + 360_000 + Math.random() * 240_000;
+    }
+  }
+
+  private tryReclaimLostTomb(cell: Cell): boolean {
+    const t = this.lostTomb;
+    if (!t || cell.x !== t.x || cell.y !== t.y) return false;
+    if (chebyshev(this.player.cell, t) <= 1) {
+      const store = useGame.getState();
+      store.addGold(t.gold);
+      play("reclaim");
+      store.pushLog(`The lost tombstone gives up ${t.gold}g. Rest now.`, "#e7c873");
+      this.lostTomb = null;
+    } else {
+      useGame.getState().pushLog("Old bones. Step closer.", "#6f6781");
+    }
+    return true;
   }
 
   // ---- rendering ------------------------------------------------------------
@@ -1437,6 +2277,12 @@ export class Game {
     g.addColorStop(1, "#06040b");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
+
+    if (this.interior) {
+      this.drawInterior(ctx);
+      ctx.restore();
+      return;
+    }
 
     this.drawGround(ctx);
     this.drawClaims(ctx);
@@ -1851,7 +2697,7 @@ export class Game {
       const depth = node.gx + node.gy;
       draws.push({ depth, fn: () => this.drawNode(ctx, node) });
     }
-    for (const b of TOWN_BUILDINGS) {
+    for (const b of ALL_STRUCTURES) {
       // pit floor draws under everything; houses depth-sort on their south edge
       const depth = b.key === "pit" ? -1000 : b.x + b.y + b.r;
       draws.push({
@@ -1860,13 +2706,21 @@ export class Game {
           const s = this.tileScreen(b.x, b.y + (b.key === "pit" ? 0 : b.r));
           // shrine's Pale Flame flickers at 4fps
           const frame = b.key === "shrine" ? Math.floor(performance.now() / 250) % 3 : 0;
-          spriteCache.drawBuilding(ctx, b.key, s.x, s.y, this.camera.zoom, frame);
+          // east-side houses mirror so their features lean toward town center
+          const mirror =
+            b.key !== "pit" && b.key !== "shrine" && b.x > TOWN_CENTER.x;
+          spriteCache.drawBuilding(ctx, b.key, s.x, s.y, this.camera.zoom, frame, mirror);
           // label floats above the building (sprite top is height-16 above the anchor)
           if (b.key !== "pit") {
-            const top = s.y - (spriteCache.buildingHeight(b.key) - 10) * this.camera.zoom;
+            const z = this.camera.zoom;
+            const top = s.y - (spriteCache.buildingHeight(b.key) - 8) * z;
             ctx.textAlign = "center";
-            ctx.font = `${7.5 * this.camera.zoom}px ui-sans-serif`;
-            ctx.fillStyle = "rgba(216,207,224,0.5)";
+            ctx.font = `600 ${9 * z}px ui-sans-serif`;
+            ctx.lineJoin = "round";
+            ctx.strokeStyle = "rgba(10,8,16,0.9)";
+            ctx.lineWidth = 3 * z;
+            ctx.strokeText(b.label, s.x, top);
+            ctx.fillStyle = "#e7e1ee";
             ctx.fillText(b.label, s.x, top);
             ctx.textAlign = "left";
           }
@@ -1898,6 +2752,37 @@ export class Game {
           ctx.fillStyle = cv.phase === "ambushed" ? "rgba(220,38,38,0.85)" : "rgba(216,207,224,0.5)";
           ctx.fillText(cv.phase === "ambushed" ? "AMBUSHED" : "Caravan", s.x, s.y - 52 * z);
           ctx.textAlign = "left";
+        },
+      });
+    }
+
+    // the Drowned Field: sunken lore graves + sometimes a lost tombstone
+    for (const grave of Game.DROWNED_FIELD) {
+      draws.push({
+        depth: grave.x + grave.y,
+        fn: () => {
+          const s = this.tileScreen(grave.x, grave.y);
+          ctx.save();
+          ctx.globalAlpha = 0.75;
+          spriteCache.drawTombstone(ctx, s.x, s.y, this.camera.zoom);
+          ctx.restore();
+        },
+      });
+    }
+    if (this.lostTomb) {
+      const t = this.lostTomb;
+      draws.push({
+        depth: t.x + t.y,
+        fn: () => {
+          const s = this.tileScreen(t.x, t.y);
+          const z = this.camera.zoom;
+          spriteCache.drawTombstone(ctx, s.x, s.y, z);
+          // gold shimmer marks it apart from the lore graves
+          ctx.save();
+          ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 300) * 0.25;
+          ctx.fillStyle = "#e7c873";
+          ctx.fillRect(s.x - 1.5 * z, s.y - 22 * z, 3 * z, 3 * z);
+          ctx.restore();
         },
       });
     }

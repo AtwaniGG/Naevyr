@@ -1,0 +1,55 @@
+{
+  "image": "interiors/hearth.svg",
+  "cell": {
+    "w": 36,
+    "h": 36
+  },
+  "anchor": {
+    "x": 18,
+    "y": 33
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "hearth_00": {
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 36,
+      "anchor": {
+        "x": 18,
+        "y": 33
+      }
+    },
+    "hearth_01": {
+      "x": 36,
+      "y": 0,
+      "w": 36,
+      "h": 36,
+      "anchor": {
+        "x": 18,
+        "y": 33
+      }
+    },
+    "hearth_02": {
+      "x": 72,
+      "y": 0,
+      "w": 36,
+      "h": 36,
+      "anchor": {
+        "x": 18,
+        "y": 33
+      }
+    }
+  },
+  "animations": {
+    "flicker": {
+      "frames": [
+        "hearth_00",
+        "hearth_01",
+        "hearth_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

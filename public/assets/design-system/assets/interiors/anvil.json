@@ -1,0 +1,24 @@
+{
+  "image": "interiors/anvil.svg",
+  "cell": {
+    "w": 28,
+    "h": 24
+  },
+  "anchor": {
+    "x": 14,
+    "y": 23
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "anvil": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 24,
+      "anchor": {
+        "x": 14,
+        "y": 23
+      }
+    }
+  }
+}

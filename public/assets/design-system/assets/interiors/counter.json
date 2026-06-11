@@ -1,0 +1,24 @@
+{
+  "image": "interiors/counter.svg",
+  "cell": {
+    "w": 48,
+    "h": 32
+  },
+  "anchor": {
+    "x": 24,
+    "y": 31
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "counter": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 32,
+      "anchor": {
+        "x": 24,
+        "y": 31
+      }
+    }
+  }
+}

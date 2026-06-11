@@ -47,6 +47,30 @@ export class CombatManager {
     }
   }
 
+  /** a den pack: elite beasts that hold ground and stay dead once cleared */
+  spawnPackAt(world: World, x: number, y: number, count: number, level: number): number[] {
+    const ids: number[] = [];
+    let guard = 0;
+    while (ids.length < count && guard++ < 300) {
+      const dx = ((Math.random() * 9) | 0) - 4;
+      const dy = ((Math.random() * 9) | 0) - 4;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+      const cx = x + dx;
+      const cy = y + dy;
+      if (!world.isWalkable(cx, cy)) continue;
+      const elite = new Mob(this.nextId++, cx, cy, level, "husk");
+      elite.persistDeath = true;
+      this.mobs.push(elite);
+      ids.push(elite.id);
+    }
+    return ids;
+  }
+
+  /** remove a previous pack entirely (corpses included) before re-seeding */
+  removePack(ids: number[]) {
+    this.mobs = this.mobs.filter((m) => !ids.includes(m.id));
+  }
+
   /** Raider ambush wave around the caravan wagon (per-client, like all mobs) */
   spawnRaiders(world: World, x: number, y: number, count: number, level: number): number {
     let placed = 0;

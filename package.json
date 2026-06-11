@@ -11,6 +11,7 @@
     "verify:mp": "server/node_modules/.bin/tsx scripts/verify-multiplayer.ts"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "colyseus.js": "^0.16.22",
     "next": "^15.1.6",
     "react": "^19.0.0",
@@ -22,8 +23,10 @@
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.4.20",
+    "bs58": "^6.0.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
+    "tweetnacl": "^1.0.3",
     "typescript": "^5.7.3"
   }
 }

@@ -11,7 +11,7 @@ import {
   claims, ClaimRow,
   listings, ListingRow,
   props, PropRow,
-  shrine,
+  shrine, burns,
 } from "./schema";
 
 export type { PlayerRow, ClaimRow, ListingRow, PropRow } from "./schema";
@@ -76,6 +76,13 @@ export async function initDb(): Promise<Db> {
     )
   `);
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS burns (
+      sig text PRIMARY KEY,
+      token text NOT NULL,
+      action text NOT NULL
+    )
+  `);
+  await db.execute(sql`
     INSERT INTO shrine (id, pot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING
   `);
   await db.execute(sql`
@@ -124,6 +131,39 @@ export async function savePlayer(token: string, patch: SavePatch) {
     .update(players)
     .set({ ...patch, updatedAt: new Date() } as never)
     .where(eq(players.token, token));
+}
+
+// ---- Phase 5: wallet linking --------------------------------------------------------
+
+/** bind a Solana wallet to a guest token (verified upstream); null unlinks */
+export async function setWalletAddress(token: string, address: string | null) {
+  await db
+    .update(players)
+    .set({ walletAddress: address, updatedAt: new Date() })
+    .where(eq(players.token, token));
+}
+
+/** the player row already holding this wallet, if any (wallets are unique) */
+export async function findPlayerByWallet(address: string): Promise<PlayerRow | null> {
+  const found = await db.select().from(players).where(eq(players.walletAddress, address));
+  return found[0] ?? null;
+}
+
+// ---- Phase 5: burn replay protection --------------------------------------------
+
+/** claim a burn signature exactly once; false = already spent */
+export async function tryInsertBurn(sig: string, token: string, action: string): Promise<boolean> {
+  const inserted = await db
+    .insert(burns)
+    .values({ sig, token, action })
+    .onConflictDoNothing()
+    .returning();
+  return inserted.length > 0;
+}
+
+/** release a signature whose on-chain verification failed (allows retry) */
+export async function deleteBurn(sig: string) {
+  await db.delete(burns).where(eq(burns.sig, sig));
 }
 
 // ---- land claims -----------------------------------------------------------------

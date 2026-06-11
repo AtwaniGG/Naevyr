@@ -26,6 +26,16 @@ type Events = {
   challenge: { target: string; wager: number };
   /** accept the pending duel challenge */
   duelAccept: boolean;
+  /** start the Solana wallet link flow (devnet); false = unlink */
+  walletLink: boolean;
+  /** burn-paid Wheel spin (holders only) */
+  spinBurn: boolean;
+  /** burn-paid Shrine cleanse contribution */
+  cleanseBurn: boolean;
+  /** burn-paid Dyeworks aura (payload = aura key) */
+  auraBurn: string;
+  /** burn-paid Obelisk quest reroll */
+  obeliskBurn: boolean;
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

@@ -13,8 +13,12 @@ const STANDARD_AMOUNT: Record<ResourceKind, number> = { rock: 6, tree: 5, fish: 
 export class Drift {
   private rng = mulberry32(0xc0ffee);
   private seasonTimer = 0;
-  readonly seasonLengthMs = 45_000; // a "season" tick every 45s
+  readonly seasonLengthMs: number; // a "season" tick (server: SEASON_MS env)
   readonly regrowDelayMs = 8_000;
+
+  constructor(seasonLengthMs = 900_000) { // 15 min per season (production pace)
+    this.seasonLengthMs = seasonLengthMs;
+  }
 
   // driftfall bookkeeping (internal clock; first fall 2-4 min in)
   private timeMs = 0;

@@ -1,0 +1,24 @@
+{
+  "image": "wilds/herb_rack.svg",
+  "cell": {
+    "w": 24,
+    "h": 30
+  },
+  "anchor": {
+    "x": 12,
+    "y": 29
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "herb_rack": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 30,
+      "anchor": {
+        "x": 12,
+        "y": 29
+      }
+    }
+  }
+}

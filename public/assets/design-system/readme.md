@@ -416,13 +416,38 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     `tavern` `furnisher` `menagerie` (144×152 houses, bottom-center anchor 72,151), `shrine`
     112×128 (3 pale-flame flicker frames), `pit` 240×120 (flat arena, center anchor,
     `drawUnderEntities`). Iso 2:1, 3×3-tile footprint, top 6px reserved for the name label;
-    each house has a south door, a warm lit window, and a purpose sign/feature.
+    each house has a south door, a warm lit window, and a purpose sign/feature. The **mine**
+    (`interiors/mine.svg`, 144×120) joins this set as a 9th overworld structure.
+  - `interiors/` — **building interiors** (rect-grid SVG + atlas JSON): floor tiles
+    `floor_wood/stone/cave` (64×36, 3 seed variants each); wall segments (64×56, NW lit / NE
+    shadowed) in timber / stone-block / cave, with plain / window / banner (block&timber) and
+    plain / seam / lantern (cave) variants; fixtures `counter` `shelf` `table` `barrel` `cage`
+    `anvil` `wheel_stand` `ore_cart`, plus `vat` (6 liquid variants), `hearth` (3 flame frames,
+    4fps), `gold_vein` (rich 2-frame sparkle + spent), `rug` (accent-colorable, under-entities),
+    and `mine` (the overworld structure). Bottom-center anchors + animation tables in each JSON.
+    > ⚠️ The flat `wall_*` segments here are **superseded by `walls/wall2_*`** (corrected iso
+    > geometry) — kept only for back-compat; use `wall2_*` for new rooms.
+  - `walls/` — **corrected iso wall set** (`wall2_*`): skewed parallelogram faces on the 2:1
+    slope (32×72 cell, bottom drops 16, face 48, +6 cap) that **tile seamlessly** along the
+    diagonal (place adjacent at +32x,±16y). `ne` falls / shadowed, `nw` rises / moonlit, in
+    timber / block / cave; feature variants window (lit), banner (accent-colorable, shadow),
+    cave seam & lantern; plus 16×72 `_corner` wedges per material. Each JSON carries exact
+    corner coords, the anchor (bottom-left), and the tiling step.
+  - `wilds/` — **The Wilds pack** (rect-grid SVG + atlas JSON): structures `husk_den` 120×88
+    (2-frame burrow-eye glow), `ash_obelisk` 64×112 (3-frame rune pulse), `mirewife_hut`
+    120×116 (stilts over bog); doodads `reed_clump` `dead_tree` `bone_spike` (2 variants each)
+    and `mire_bubble` (2-frame); Mirewife interior `herb_rack` + `wall_timber_charms`; and
+    `lost_tombstone` (default + sunken lore-grave states). Same conventions, 3×3 footprints for
+    the structures.
   - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
   - `creatures-preview.html` — every creature, facing & animation cycling live.
   - `town-preview.html` — all eight structures with anchor pins & label-clearance guides.
+  - `interiors-preview.html` — floors, walls, fixtures & the mine with label-clearance guides.
+  - `walls-preview.html` — corrected iso walls (`wall2_*`) tiled 4-in-a-row to prove seams.
+  - `wilds-preview.html` — wild structures, doodads, interior additions & lore graves.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
-    `character.js`, `beasts.js`, `town.js`, `fxlogo.js`) + `sheet_*.png` preview rasters;
-    re-run them to regenerate or vary any sprite.
+    `character.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
+    `fxlogo.js`) + `sheet_*.png` preview rasters; re-run them to regenerate or vary any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

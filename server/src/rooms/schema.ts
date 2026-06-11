@@ -85,6 +85,11 @@ export class DriftRoomState extends Schema {
   @type({ map: ListingState }) listings = new MapSchema<ListingState>();
   @type({ map: PropState }) props = new MapSchema<PropState>();
   @type(CaravanState) caravan = new CaravanState();
+  // THE LONG NIGHT: realm-wide assault on the Waystation at terminal corruption
+  @type("boolean") nightActive = false;
+  @type("number") nightEndsIn = 0; // seconds
+  @type("number") nightKills = 0;
+  @type("number") nightNeed = 0;
   @type("number") shrinePot = 0;
   @type("number") shrineGoal = 500;
   @type("number") season = 1;
