@@ -1,0 +1,18 @@
+# Docker build context = repo root. Keep the image lean and the secrets out.
+# (Defense in depth — the Dockerfile already copies only explicit paths.)
+**/node_modules
+server/.data
+**/.env.local
+.next.nosync
+.next
+.git
+.vercel
+**/.DS_Store
+*.log
+
+# client-only weight the server image never needs
+app
+components
+public
+scripts
+server/scripts

@@ -479,48 +479,63 @@ stale. The currency is DRIFTS in all user-facing copy.
    - The leaderboard (`/leaderboard`) + players table show the live wealth
      distribution; the user playtests on localhost:2567 and their "feels
      too rich/poor" calls outrank the spreadsheet.
-4. **DEPLOY — NEXT UP (start here in a fresh chat).** Move the whole stack off
-   the user's laptop onto real infra. Everything below is BUILT and config-ready;
-   deploy is wiring + verification, not new features. Ask the user which server
-   host (Railway = simpler, Fly = more control) and whether they have
-   Vercel/Neon accounts before starting. Order:
-   - **DB → Neon Postgres.** The code already supports it: `server/src/db`
-     uses PGlite locally and swaps to a real PG when `DATABASE_URL` is set
-     (config-only, no code change). Bootstrap is `CREATE TABLE IF NOT EXISTS` +
-     `ALTER ... ADD COLUMN IF NOT EXISTS` on boot — verify it runs clean on a
-     fresh Neon instance (no drizzle-kit migrations exist). Create a Neon
-     project, grab the pooled connection string, set `DATABASE_URL`.
-   - **Server → Railway or Fly.** Containerize `server/` (Node, `npx tsx
-     src/index.ts`; the `server/src/env.ts` loader reads `.env.local` locally
-     but prod uses the host's env vars). Secrets to set: `DATABASE_URL` (Neon),
-     `SOLANA_RPC` (the Helius key currently in server/.env.local —
-     `https://devnet.helius-rpc.com/?api-key=…`), `TOKEN_MINT`
-     (`5oEhDEBED6DYroyuB99sGpGEZLWcMF1Dh1yr4QV6CsLH`), `GATE_TOKENS=1000`,
-     `PORT` (host-injected). Expose the HTTP+ws port (one server via
-     `createServer` + `WebSocketTransport` in index.ts — `/gate` and
-     `/leaderboard` ride the same port). Confirm wss:// works behind the host's
-     TLS.
-   - **Secret: the devnet mint authority keypair** lives in
-     `server/.data/devnet-authority.json` (gitignored) on the iCloud Desktop.
-     It signs burn fee-payment + minting. Move it into the host's secret
-     manager (env var holding the JSON, or a mounted secret) — do NOT bake it
-     into the image. Same for `devnet-mint.json` (or just rely on `TOKEN_MINT`).
-   - **Client → Vercel.** Next.js App Router, `distDir: .next.nosync` (fine on
-     Vercel). Env: `NEXT_PUBLIC_GAME_SERVER=wss://<deployed-server>` and
-     `NEXT_PUBLIC_TOKEN_MINT=5oEhDEBED6DYroyuB99sGpGEZLWcMF1Dh1yr4QV6CsLH`.
-     The offline-solo invariant means the client still loads if the server is
-     unreachable; verify the gate flow hits the real server.
-   - **Verify against the deployed stack:** point the verify suites at the prod
-     ws URL (`GAME_SERVER=wss://… npx tsx scripts/verify-*.ts`) — but note
-     GATE_TOKENS=1000 will reject the guest-token suites (they join without a
-     funded wallet). Either run a temporary second instance with GATE_TOKENS=0
-     for the suite pass, or smoke-test the gated path manually with a funded
-     wallet. Then the user + friends playtest over the real internet.
-   - **Gotchas to expect:** Colyseus needs sticky sessions / a single instance
-     (in-memory room state — do NOT autoscale to >1 instance without a presence
-     backend); Neon cold-starts can be slow on the free tier (the bootstrap
-     ALTERs run every boot); the public-RPC throttle disappears with the Helius
-     key so keep it set.
+4. **DEPLOY — DONE (devnet, 2026-06-12).** The stack is LIVE on real infra:
+   - **Client → Vercel:** https://driftlands-phi.vercel.app (project
+     `atwaniggs-projects/driftlands`, Git-connected to AtwaniGG/Driftlands).
+   - **Server → Railway:** wss://driftlands-server-production.up.railway.app
+     (project `driftlands`, service `driftlands-server`, Dockerfile build).
+   - **DB → Railway Postgres** (in-project service "Postgres"; chose it over
+     Neon for one-platform simplicity). Server var
+     `DATABASE_URL=${{Postgres.DATABASE_URL}}` (Railway reference). Bootstrap
+     CREATE/ALTER ran clean on the fresh instance (verified: all 6 tables).
+   - **Gate is LOCKED in prod: `GATE_TOKENS=1000`.** Nobody enters without a
+     wallet holding 1000 devnet DRIFTS. Mint to a tester:
+     `cd server && npx tsx scripts/create-devnet-mint.ts --mint-to <addr> 1000`.
+   - **Railway server env vars** (set on `driftlands-server`): `DATABASE_URL`
+     (reference, above), `TOKEN_MINT=5oEh…CsLH`, `SOLANA_RPC` (Helius key),
+     `GATE_TOKENS=1000`, `NODE_ENV=production`, and **`AUTHORITY_KEYPAIR`** =
+     the JSON secret-key array (the mint authority). `PORT` is host-injected.
+   - **Vercel env vars** (Production scope): `NEXT_PUBLIC_GAME_SERVER=wss://
+     driftlands-server-production.up.railway.app`,
+     `NEXT_PUBLIC_TOKEN_MINT=5oEh…CsLH`.
+
+   **Deploy artifacts (committed):** `server/Dockerfile` (build context = REPO
+   ROOT, not server/ — the server imports game/types.ts + game/world/* via @/*,
+   so those ship too; copies explicit paths, never server/.data), `.dockerignore`,
+   `railway.json` (dockerfilePath → server/Dockerfile), `vercel.json`
+   (experimentalServices, auto-added by `vercel link`). Code: `feePayer()` in
+   solana.ts now reads `AUTHORITY_KEYPAIR` env first, file fallback for local.
+
+   **DEPLOY GOTCHAS (all hit + fixed — read before re-deploying):**
+   - **`distDir: ".next.nosync"` BREAKS Vercel** (its @vercel/next builder
+     hard-expects `.next` → "No serverless pages were built"). Fixed:
+     `distDir: process.env.VERCEL ? ".next" : ".next.nosync"` in next.config.mjs
+     (VERCEL=1 in every Vercel build; the .nosync is an iCloud-local hack only).
+   - **Root tsconfig pulled server-only deps into the client build.**
+     `scripts/verify-token.ts` imports `../server/src/solana`, which (via the
+     `**/*.ts` include) dragged solana.ts + `@solana/spl-token` (a server dep
+     absent from the client install) into `next build`'s type-check → "Cannot
+     find module '@solana/spl-token'". Masked locally because server/node_modules
+     exists. Fixed: added `"scripts"` to tsconfig.json `exclude` (server was
+     already excluded; TS still checks excluded files reached via an import).
+     Diagnose this class with `tsc --listFilesOnly | grep server/src` (must be 0).
+   - **`vercel env add` ignores stdin in agent/non-interactive mode** → stores
+     an EMPTY value silently (bundle then falls back to localhost). Use the
+     `--value "..."` flag: `vercel env add NAME production --force --value "..."
+     --no-sensitive`. Verify with `vercel env pull`.
+   - **Server lockfile drift:** `npm ci` failed in the linux image (ws optional
+     native deps bufferutil/utf-8-validate resolve per-platform). The Dockerfile
+     uses `npm install --omit=optional` instead (ws falls back to pure JS).
+   - **Vercel deployment protection** 401s the unique `*-projects.vercel.app`
+     deploy URLs; the production alias (driftlands-phi) is public. Test there.
+   - Still true: **Colyseus needs a SINGLE instance** (in-memory room state —
+     never autoscale >1 without a presence backend). Keep the Helius RPC set.
+   - **Verify against live:** `GATE_TOKENS=1000` rejects the guest-token suites.
+     The image itself was verified against throwaway Postgres locally
+     (persistence + multiplayer green); live was smoke-tested via /gate (nonce
+     issuance = the deployed signature hardening) + a wss join that onAuth
+     correctly rejected. For a full live suite pass, run a temp GATE_TOKENS=0
+     instance.
 5. **pump.fun mainnet launch** — REQUIRES the user's explicit go-ahead. New
    DRIFTS mint on mainnet, env swap (`TOKEN_MINT`, `SOLANA_RPC` → mainnet
    provider, `NEXT_PUBLIC_TOKEN_MINT`), real authority keypair as a managed

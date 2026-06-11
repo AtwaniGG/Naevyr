@@ -100,7 +100,15 @@ let authority: Keypair | null | undefined; // undefined = not tried yet
 
 function feePayer(): Keypair | null {
   if (authority !== undefined) return authority;
+  // Prod (Railway/host) supplies the keypair as an env var holding the JSON
+  // secret-key array — it must NEVER be baked into the image or committed.
+  // Local dev falls back to the gitignored server/.data/devnet-authority.json.
   try {
+    const fromEnv = process.env.AUTHORITY_KEYPAIR;
+    if (fromEnv && fromEnv.trim()) {
+      authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fromEnv)));
+      return authority;
+    }
     const f = fileURLToPath(new URL("../.data/devnet-authority.json", import.meta.url));
     authority = existsSync(f)
       ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(f, "utf8"))))

@@ -10,8 +10,11 @@ const nextConfig = {
   outputFileTracingRoot: __dirname,
   // the repo lives on the iCloud-synced Desktop; iCloud's sync agent (bird)
   // deletes freshly written build artifacts mid-session. iCloud skips anything
-  // named *.nosync, so the build dir hides behind that convention.
-  distDir: ".next.nosync",
+  // named *.nosync, so the build dir hides behind that convention — LOCALLY.
+  // On Vercel there is no iCloud, and its @vercel/next builder hard-expects the
+  // default ".next" (a custom distDir makes it report "No serverless pages were
+  // built"). VERCEL=1 in every Vercel build, so switch back to ".next" there.
+  distDir: process.env.VERCEL ? ".next" : ".next.nosync",
 };
 
 export default nextConfig;
