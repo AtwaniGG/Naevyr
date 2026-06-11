@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ds";
-import { useGate, gateUrl, type GateInfo } from "@/components/gate";
-import { getGateWallet } from "@/game/state/persistence";
+import { useGate, gateUrl, signGateProof, type GateInfo } from "@/components/gate";
+import { getGateWallet, getGateProof, setDoorName } from "@/game/state/persistence";
 
 // The door itself (/play): runs the gate the moment you arrive — server check
 // → wallet (if the door is warded with GATE_TOKENS) → name your wanderer →
@@ -13,19 +13,30 @@ const SAVE_KEY = "driftlands-save-v1";
 
 type Step = "checking" | "wallet" | "denied" | "name" | "offline";
 
-function hasSave(): boolean {
+/** the name on the existing save, if any */
+function savedName(): string {
   try {
-    return !!localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? String(JSON.parse(raw)?.cosmetics?.name ?? "") : "";
   } catch {
-    return false;
+    return "";
   }
 }
 
-/** a fresh wanderer's chosen name seeds the save the engine will load */
-function seedName(name: string) {
+/** the name is sworn at the door: seeds a fresh save, renames a returning one.
+ *  An empty field keeps the old name (or the default, Wanderer). */
+function writeName(name: string) {
   const clean = name.trim().slice(0, 16);
-  if (!clean || hasSave()) return;
+  if (!clean) return;
+  setDoorName(clean); // survives the server snapshot that lands after join
   try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      const save = JSON.parse(raw);
+      save.cosmetics = { ...(save.cosmetics ?? {}), name: clean };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      return;
+    }
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -41,14 +52,21 @@ function seedName(name: string) {
 }
 
 export default function Landing({ onEnter }: { onEnter: () => void }) {
-  const { info, balance, busy, connect } = useGate();
+  const { info, balance, busy, connect, disconnect } = useGate();
   const [step, setStep] = useState<Step>("checking");
+  /** the door's own gate reading; the nav's (info) can time out on slow RPC days */
+  const [door, setDoor] = useState<GateInfo | null>(null);
   const [name, setName] = useState("");
+  /** returning wanderers get a welcome-back; the input only shows on request */
+  const [renaming, setRenaming] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const started = useRef(false);
 
+  // every entry passes the naming step: the name is sworn at the door and
+  // can only be changed by leaving the realm and stepping back through
   const proceed = () => {
-    if (hasSave()) return onEnter();
+    setName(savedName());
+    setRenaming(false);
     setStep("name");
   };
 
@@ -63,13 +81,17 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       } catch {
         return setStep("offline"); // no shared world; the local sim still runs
       }
+      setDoor(gate);
       if (gate.gate === 0) return proceed();
-      // the door is token-locked: a previously cleared wallet may still pass
+      // the door is token-locked: a previously cleared wallet may still pass,
+      // but only if its stored ownership proof still verifies (the server
+      // re-checks proofOk; a restart or expiry sends us back to re-sign)
       const known = getGateWallet();
-      if (known) {
+      const proof = getGateProof();
+      if (known && proof?.address === known) {
         try {
-          const re: GateInfo = await (await fetch(gateUrl(known), { signal: AbortSignal.timeout(4000) })).json();
-          if (re.ok) return proceed();
+          const re: GateInfo = await (await fetch(gateUrl(known, proof), { signal: AbortSignal.timeout(4000) })).json();
+          if (re.ok && re.proofOk) return proceed();
         } catch {
           // fall through to a fresh connect
         }
@@ -81,16 +103,23 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
   useEffect(() => {
     if (step === "name") nameRef.current?.focus();
-  }, [step]);
+  }, [step, renaming]);
 
   const connectAtDoor = async () => {
     const g = await connect();
-    if (g?.ok) return proceed();
-    setStep("denied"); // covers "too poor" and "no wallet answered"
+    if (!g?.ok) return setStep("denied"); // covers "too poor" and "no wallet answered"
+    // the balance clears; now prove the wallet is yours (one signature,
+    // good for the day's joins and reconnects)
+    const address = getGateWallet();
+    if (g.nonce && address) {
+      const proof = await signGateProof(address, g.nonce);
+      if (!proof) return setStep("denied"); // signing declined or unsupported
+    }
+    proceed();
   };
 
   const enterNamed = () => {
-    seedName(name);
+    writeName(name);
     onEnter();
   };
 
@@ -120,7 +149,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
               <>
                 <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "var(--text-secondary)", maxWidth: 420 }}>
                   The door is warded. Connect a wallet holding at least{" "}
-                  <span style={{ color: "var(--drift-gold)" }}>{info?.gate.toLocaleString()}</span> tokens to pass.
+                  <span style={{ color: "var(--drift-gold)" }}>
+                    {(door ?? info)?.gate.toLocaleString() ?? "the required"}
+                  </span>{" "}
+                  DRIFTS to pass.
                 </div>
                 <Button size="lg" variant="gold" onClick={() => void connectAtDoor()} disabled={busy} style={{ minWidth: 230 }}>
                   {busy ? "Asking the chain…" : "Connect Wallet"}
@@ -131,9 +163,18 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
                 <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "#dc2626", maxWidth: 420 }}>
                   {balance === null
                     ? "No Solana wallet answered. Install Phantom, then try again."
-                    : `The gate stays shut. This wallet holds ${balance.toLocaleString()} of the ${info?.gate.toLocaleString()} required.`}
+                    : balance >= ((door ?? info)?.gate ?? Infinity)
+                      ? "The wallet would not sign. The gate takes proof, not promises."
+                      : `The gate stays shut. This wallet holds ${balance.toLocaleString()} of the ${(door ?? info)?.gate.toLocaleString() ?? "required"} DRIFTS required.`}
                 </div>
-                <Button size="md" variant="ghost" onClick={() => setStep("wallet")}>
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => {
+                    void disconnect(); // release the held wallet so the next connect can pick anew
+                    setStep("wallet");
+                  }}
+                >
                   Try another wallet
                 </Button>
               </>
@@ -141,10 +182,35 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           </>
         )}
 
-        {step === "name" && (
+        {step === "name" && (savedName() && !renaming ? (
           <>
             <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
-              The gate opens. What do they call you, wanderer?
+              The gate opens. Welcome back,{" "}
+              <span style={{ color: "var(--drift-gold)" }}>{savedName()}</span>.
+            </div>
+            <Button size="lg" variant="gold" onClick={enterNamed} style={{ minWidth: 230 }} autoFocus>
+              Step into the Drift
+            </Button>
+            <button
+              onClick={() => {
+                setName(savedName());
+                setRenaming(true);
+              }}
+              style={{
+                font: "400 11px/1 var(--font-ui)", color: "var(--text-muted)",
+                background: "none", border: 0, cursor: "pointer",
+                textDecoration: "underline", textUnderlineOffset: 3,
+              }}
+            >
+              take a new name
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              {savedName()
+                ? "The old name burns away. What do they call you now?"
+                : "The gate opens. What do they call you, wanderer?"}
             </div>
             <input
               ref={nameRef}
@@ -164,7 +230,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
               Step into the Drift
             </Button>
           </>
-        )}
+        ))}
 
         {step === "offline" && (
           <>

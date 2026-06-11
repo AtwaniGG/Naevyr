@@ -5,6 +5,7 @@ import LandingShell, { PageFrame } from "@/components/LandingShell";
 import {
   INVENTORY_ORDER, ITEM_META, RECIPES, DRINK_CATALOG, AURA_CATALOG,
   PET_CATALOG, PROP_CATALOG, DYE_PRICE, EYE_PRICE, SPIN_COST, CLAIM_COST,
+  BURN_COSTS, burnAmt,
   type ItemKey, type DrinkKey, type AuraKey, type PetKey, type PropKey,
 } from "@/game/types";
 import { TOWN_BUILDINGS, WILD_STRUCTURES } from "@/game/world/tilemap";
@@ -170,7 +171,7 @@ export default function IndexPage() {
                 <div key={k} style={{ ...ROW, ...odd(i) }}>
                   <span style={NAME}>{AURA_CATALOG[k].label}</span>
                   <span style={DESC}>An aura. The costly kind of beautiful.</span>
-                  <span style={VAL}>{AURA_CATALOG[k].price}g · or 3 ◆</span>
+                  <span style={VAL}>{AURA_CATALOG[k].price}g · or {burnAmt(BURN_COSTS.aura)} ◆</span>
                 </div>
               ))}
               <Section title="The Menagerie · followers" />
@@ -196,10 +197,10 @@ export default function IndexPage() {
             <Rows>
               <Section title="What things cost" />
               {[
-                ["A Wheel spin", "Gold, shards or nothing. Jackpot 500g.", `${SPIN_COST}g · or 1 ◆`],
-                ["A land claim", "3×3, resists the Drift, erodes each season.", `${CLAIM_COST}g · or 5 ◆`],
-                ["A Shrine cleansing (burn)", "Feeds the communal pot 150g-worth at once.", "2 ◆"],
-                ["Rewriting the day's quests", "The Ash Obelisk takes coin or smoke.", "75g · or 1 ◆"],
+                ["A Wheel spin", "Gold, shards or nothing. Jackpot 500g.", `${SPIN_COST}g · or ${burnAmt(BURN_COSTS.spin)} ◆`],
+                ["A land claim", "3×3, resists the Drift, erodes each season.", `${CLAIM_COST}g · or ${burnAmt(BURN_COSTS.claim)} ◆`],
+                ["A Shrine cleansing (burn)", "Feeds the communal pot 150g-worth at once.", `${burnAmt(BURN_COSTS.cleanse)} ◆`],
+                ["Rewriting the day's quests", "The Ash Obelisk takes coin or smoke.", `75g · or ${burnAmt(BURN_COSTS.obelisk)} ◆`],
                 ["Blessing of Ash", "+gather speed, 10 minutes.", "60g"],
                 ["Vault withdrawal", "The handling fee on the way out.", "2%"],
                 ["Duel wagers", "The Pit holds the pot. Winner takes both stakes.", "0-5000g"],
@@ -212,7 +213,7 @@ export default function IndexPage() {
               ))}
               <div style={{ ...ROW }}>
                 <span style={{ font: "400 11px/1.6 var(--font-ui)", color: "var(--text-muted)" }}>
-                  ◆ = the game token, burned on-chain (devnet). Burn rites are for holders; gold paths always exist where both are listed.
+                  <span className="drifts-mark" aria-label="DRIFTS" /> / ◆ = DRIFTS, the realm's coin, burned on-chain. Burn rites are for holders; gold paths always exist where both are listed.
                 </span>
               </div>
             </Rows>

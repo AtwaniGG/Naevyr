@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":3,"namespace":"DriftLandsDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/beasts.js":"4a960edc3f84","assets/_gen/character.js":"bfa95973ee9e","assets/_gen/fxlogo.js":"3f5a0b6e4d3d","assets/_gen/interiors.js":"2e10fd7f9917","assets/_gen/landing.js":"8c3c768caf1c","assets/_gen/nodes.js":"76c3d5ae0969","assets/_gen/pixlib.js":"9e04175a932b","assets/_gen/tiles.js":"22b604e5b061","assets/_gen/town.js":"e1016422c4f1","assets/_gen/walls.js":"25eb80a182bc","assets/_gen/wilds.js":"da5373598c06","components/core/Badge.jsx":"ccdd07c8772a","components/core/Button.jsx":"19a408191a59","components/core/Panel.jsx":"bd9e204398e5","components/game/ActivityLog.jsx":"9dd668351d97","components/game/Hotbar.jsx":"1dc48c13f595","components/game/Slot.jsx":"9dd86e4254ac","components/game/XPBar.jsx":"ec7638c938cb","components/icons/Icon.jsx":"807bd0992422","ui_kits/hud/Hud.jsx":"161da3666ec3","ui_kits/hud/Scene.jsx":"23d63aaee578"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"DriftLandsDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/beasts.js":"4a960edc3f84","assets/_gen/character.js":"bfa95973ee9e","assets/_gen/fxlogo.js":"3f5a0b6e4d3d","assets/_gen/interiors.js":"2e10fd7f9917","assets/_gen/landing.js":"8c3c768caf1c","assets/_gen/nodes.js":"76c3d5ae0969","assets/_gen/pixlib.js":"9e04175a932b","assets/_gen/social.js":"f49d4633a307","assets/_gen/threshold.js":"ceff51b3cd99","assets/_gen/tiles.js":"22b604e5b061","assets/_gen/town.js":"e1016422c4f1","assets/_gen/walls.js":"25eb80a182bc","assets/_gen/wilds.js":"da5373598c06","components/core/Badge.jsx":"ccdd07c8772a","components/core/Button.jsx":"19a408191a59","components/core/Panel.jsx":"bd9e204398e5","components/game/ActivityLog.jsx":"9dd668351d97","components/game/Hotbar.jsx":"1dc48c13f595","components/game/Slot.jsx":"9dd86e4254ac","components/game/XPBar.jsx":"ec7638c938cb","components/icons/Icon.jsx":"807bd0992422","ui_kits/hud/Hud.jsx":"161da3666ec3","ui_kits/hud/Scene.jsx":"23d63aaee578"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
@@ -2662,6 +2662,874 @@ Object.assign(globalThis, {
   RAMP
 });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/pixlib.js", error: String((e && e.message) || e) }); }
+
+// assets/_gen/social.js
+try { (() => {
+// DriftLands SOCIAL / LAUNCH pack — eval after pixlib.js + tiles.js + fxlogo.js.
+// Coin/pfp sigil + widescreen X banner. Rect-grid, RAMP only, 1px void feel,
+// dither not blur, deterministic. Export with nearest-neighbor integer upscale.
+
+/* ---- local circle helpers (filled / ring) ---- */
+function disc(g, cx, cy, r, fn) {
+  for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+    const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+    if (d <= r) fn(x, y, d);
+  }
+}
+function ring(g, cx, cy, r, w, c) {
+  disc(g, cx, cy, r, (x, y, d) => {
+    if (d >= r - w) P(g, x, y, c);
+  });
+}
+
+/* ============================ COIN SIGIL (square, parametric) ============================
+   The warded gate rune (triangle-in-circle door sigil) struck in gold on a
+   void/drift field, ringed by a thin gold circle like a coin face. Drift
+   corruption creeps in from the upper-left rim. Readable at 32px. */
+function drawCoinSigil(N, ticker) {
+  const g = makeGrid(N, N);
+  const cx = (N - 1) / 2,
+    cy = (N - 1) / 2;
+  const gd = RAMP.gold,
+    dr = RAMP.drift,
+    st = RAMP.stone;
+  const Rrim = N * 0.47; // coin edge
+  const Rfield = N * 0.42; // inner field
+  const Rsig = N * 0.30; // sigil ring radius
+
+  // --- coin field: dark drift-purple, dithered toward void at the rim, brightest center ---
+  disc(g, cx, cy, Rfield, (x, y, d) => {
+    const t = d / Rfield; // 0 center .. 1 rim
+    let c;
+    if (t < 0.4) c = (x + y) % 2 === 0 ? '#241038' : RAMP.void; // calm dark center (contrast)
+    else if (t < 0.72) c = (x + y) % 2 === 0 ? dr[4] : '#1a0c2c';else c = (x + y) % 2 === 0 ? dr[4] : RAMP.void;
+    P(g, x, y, c);
+  });
+
+  // --- struck coin rim: gold ring with bevel (lit top-left, dark bottom-right) ---
+  disc(g, cx, cy, Rrim, (x, y, d) => {
+    if (d < Rfield - 0.5) return;
+    const ang = Math.atan2(y - cy, x - cx);
+    const lit = Math.cos(ang + 2.4) > 0; // top-left lit
+    let c = lit ? gd[1] : gd[3];
+    if (d > Rrim - 1.2) c = RAMP.void; // outer 1px void edge
+    else if (d > Rrim - 2.4) c = lit ? gd[0] : gd[2];
+    P(g, x, y, c);
+  });
+  // inner rim hairline
+  ring(g, cx, cy, Rfield + 0.6, 1, gd[3]);
+
+  // --- the door sigil: gold ring + triangle (point up) + inner ring + center mote ---
+  ring(g, cx, cy, Rsig, Math.max(1, N * 0.012), gd[1]);
+  ring(g, cx, cy, Rsig, Math.max(1, N * 0.012), gd[1]);
+  // upward triangle inscribed in the sigil ring
+  const verts = [0, 1, 2].map(i => {
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
+    return [cx + Math.cos(a) * Rsig * 0.86, cy + Math.sin(a) * Rsig * 0.86];
+  });
+  function thickLine(x0, y0, x1, y1, c, t) {
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2;
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + (x1 - x0) * i / n,
+        y = y0 + (y1 - y0) * i / n;
+      for (let oy = 0; oy < t; oy++) for (let ox = 0; ox < t; ox++) P(g, Math.round(x) + ox, Math.round(y) + oy, c);
+    }
+  }
+  const tw = Math.max(1, Math.round(N * 0.018));
+  thickLine(verts[0][0], verts[0][1], verts[1][0], verts[1][1], gd[0], tw);
+  thickLine(verts[1][0], verts[1][1], verts[2][0], verts[2][1], gd[1], tw);
+  thickLine(verts[2][0], verts[2][1], verts[0][0], verts[0][1], gd[1], tw);
+  // inner downward triangle ring (second sigil layer, dimmer) + center
+  ring(g, cx, cy, Rsig * 0.5, 1, gd[2]);
+  disc(g, cx, cy, N * 0.04, (x, y, d) => P(g, x, y, d < N * 0.02 ? dr[0] : dr[1])); // drift-core mote
+  // vertical keyhole accent through the triangle
+  for (let yy = -Rsig * 0.5; yy <= Rsig * 0.55; yy++) P(g, Math.round(cx), Math.round(cy + yy), (cy + yy | 0) % 2 ? gd[1] : gd[2]);
+
+  // --- drift corruption creeping in from the upper-left rim ---
+  const seedN = 911;
+  disc(g, cx, cy, Rfield, (x, y, d) => {
+    if (d < Rfield - 0.5) return;
+    // only upper-left arc
+    const ang = Math.atan2(y - cy, x - cx);
+    if (Math.cos(ang + 2.4) < 0.25) return;
+    if (hash2(x, y, seedN) < 0.6) {
+      // tendrils reaching inward
+      const reach = 2 + Math.floor(hash2(x, y, seedN + 1) * (N * 0.13));
+      for (let k = 0; k < reach; k++) {
+        const px = Math.round(x + Math.cos(ang) * -k),
+          py = Math.round(y + Math.sin(ang) * -k);
+        const fade = 1 - k / reach;
+        if ((px + py) % 2 === 0 && hash2(px, py, seedN + 2) < fade * 0.8) P(g, px, py, hash2(px, py, 3) < 0.3 ? dr[1] : dr[3]);
+      }
+    }
+  });
+  // a few bright motes drifting off that rim
+  const mr = mulberry(seedN);
+  for (let i = 0; i < Math.round(N / 8); i++) {
+    const a = -Math.PI * 0.95 + mr() * 0.9;
+    const rr = Rfield * (0.7 + mr() * 0.28);
+    const x = Math.round(cx + Math.cos(a) * rr),
+      y = Math.round(cy + Math.sin(a) * rr);
+    P(g, x, y, mr() < 0.4 ? dr[0] : dr[1]);
+  }
+
+  // --- optional struck ticker legend ($DRIFTS) along the lower field ---
+  if (ticker) {
+    const tw = 4 + textWidth35('DRIFTS'); // $ (4) + DRIFTS
+    const sc = N >= 120 ? 1 : 1;
+    const tx = Math.round(cx - tw / 2),
+      ty = Math.round(cy + Rsig + N * 0.07);
+    // small darkened plinth so gold reads over the dither
+    for (let y = ty - 2; y <= ty + 7; y++) for (let x = tx - 3; x <= tx + tw + 2; x++) {
+      const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+      if (d < Rfield - 1) P(g, x, y, (x + y) % 2 === 0 ? '#160a26' : RAMP.void);
+    }
+    for (let x = tx - 3; x <= tx + tw + 2; x++) {
+      P(g, x, ty - 3, gd[3]);
+      P(g, x, ty + 8, gd[3]);
+    } // hairline rails
+    drawTicker(g, tx, ty, gd[0], RAMP.void);
+  }
+  return g;
+}
+
+/* ============================ COMPACT TAGLINE FONT (3×5) ============================ */
+const FONT35 = {
+  A: ['010', '101', '111', '101', '101'],
+  C: ['011', '100', '100', '100', '011'],
+  D: ['110', '101', '101', '101', '110'],
+  E: ['111', '100', '110', '100', '111'],
+  F: ['111', '100', '110', '100', '100'],
+  H: ['101', '101', '111', '101', '101'],
+  I: ['111', '010', '010', '010', '111'],
+  K: ['101', '110', '100', '110', '101'],
+  L: ['100', '100', '100', '100', '111'],
+  M: ['101', '111', '111', '101', '101'],
+  N: ['101', '111', '111', '111', '101'],
+  O: ['010', '101', '101', '101', '010'],
+  R: ['110', '101', '110', '101', '101'],
+  S: ['011', '100', '010', '001', '110'],
+  T: ['111', '010', '010', '010', '010'],
+  ' ': ['000', '000', '000', '000', '000'],
+  $: ['111', '110', '011', '110', '111']
+};
+// "$DRIFTS" struck in gold with a void shadow + a center keyhole bar on the $.
+function drawTicker(g, x0, y0, col, shadow) {
+  // $ glyph with a vertical bar extending 1px above & below (true dollar look)
+  const dollar = FONT35['$'];
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) if (dollar[y][x] === '1') {
+    if (shadow) P(g, x0 + x, y0 + y + 1, shadow);
+    P(g, x0 + x, y0 + y, col);
+  }
+  if (shadow) {
+    P(g, x0 + 1, y0 - 1 + 1, shadow);
+    P(g, x0 + 1, y0 + 5 + 1, shadow);
+  }
+  P(g, x0 + 1, y0 - 1, col);
+  P(g, x0 + 1, y0 + 5, col);
+  return drawText35(g, 'DRIFTS', x0 + 4, y0, col, shadow);
+}
+function textWidth35(str) {
+  let w = 0;
+  for (const ch of str.toUpperCase()) w += (FONT35[ch] ? 3 : 3) + 1;
+  return w - 1;
+}
+function drawText35(g, str, x0, y0, col, shadow) {
+  let ox = x0;
+  for (const ch of str.toUpperCase()) {
+    const gl = FONT35[ch];
+    if (gl) for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) if (gl[y][x] === '1') {
+      if (shadow) P(g, ox + x, y0 + y + 1, shadow);
+      P(g, ox + x, y0 + y, col);
+    }
+    ox += 4;
+  }
+  return ox - 1;
+}
+
+/* ============================ X BANNER (375×125, 3:1) ============================ */
+function drawBanner(centered) {
+  const W = 375,
+    H = 125,
+    g = makeGrid(W, H);
+  const dr = RAMP.drift,
+    bn = RAMP.bone,
+    st = RAMP.stone,
+    gd = RAMP.gold;
+  const horizon = 92;
+
+  // --- dusk/night sky: stepped dither bands ---
+  const bands = [[0, 24, RAMP.void, '#120f1c'], [24, 48, '#120f1c', RAMP.ash], [48, 72, RAMP.ash, '#241d33'], [72, horizon, '#241d33', '#2c2240']];
+  bands.forEach(([y0, y1, a, b]) => {
+    for (let y = y0; y < y1; y++) {
+      const t = (y - y0) / (y1 - y0);
+      for (let x = 0; x < W; x++) {
+        const dith = (x + y) % 2 === 0 ? t : t - 0.5;
+        P(g, x, y, dith > 0.5 ? b : a);
+      }
+    }
+  });
+
+  // --- pale moon, left-high ---
+  const mx = 64,
+    my = 30;
+  disc(g, mx, my, 13, (x, y, d) => {
+    let c = bn[2];
+    if (x - mx + (y - my) < -5) c = bn[1];
+    if (d > 10) c = bn[3];
+    P(g, x, y, c);
+  });
+  // scattered craters (not face-like)
+  [[-5, -3, 2], [3, -5, 1], [5, 2, 2], [-2, 4, 1], [-6, 1, 1], [1, -1, 1]].forEach(([ox, oy, r]) => disc(g, mx + ox, my + oy, r, (x, y, d) => {
+    if (d <= r) P(g, x, y, '#2c2240');
+  }));
+  // halo dither
+  disc(g, mx, my, 18, (x, y, d) => {
+    if (d > 13 && d < 18 && (x + y) % 2 === 0 && hash2(x, y, 71) < 0.4) P(g, x, y, '#2c2240');
+  });
+
+  // --- stars (dithered), skip near moon & where text sits ---
+  const sr = mulberry(720);
+  for (let i = 0; i < 150; i++) {
+    const x = Math.floor(sr() * W),
+      y = Math.floor(sr() * (horizon - 6));
+    if ((x - mx) ** 2 + (y - my) ** 2 < 360) continue;
+    P(g, x, y, sr() < 0.25 ? bn[1] : bn[3]);
+  }
+
+  // --- Waystation rooftops as a dark horizon line ---
+  for (let x = 0; x < W; x++) {
+    for (let y = horizon; y < H; y++) {
+      let c = y < horizon + 6 ? '#171221' : y < horizon + 18 ? '#100c1a' : RAMP.void;
+      P(g, x, y, c);
+    }
+  }
+  // roof silhouettes (varied pitched roofs + a couple towers), dark with rare warm window
+  function roof(bx, w, h, warm) {
+    const cxr = bx + w / 2;
+    for (let x = bx; x < bx + w; x++) {
+      const d = Math.abs(x - cxr);
+      const ry = horizon - Math.round((w / 2 - d) * h / (w / 2));
+      for (let y = ry; y <= horizon; y++) P(g, x, y, '#0d0a16');
+    }
+    // ridge highlight (faint moonlight)
+    for (let x = bx; x < bx + w; x++) {
+      const d = Math.abs(x - cxr);
+      const ry = horizon - Math.round((w / 2 - d) * h / (w / 2));
+      P(g, x, ry, '#1c1729');
+    }
+    if (warm) {
+      const wx = Math.round(cxr) - 1,
+        wy = horizon - Math.round(h * 0.4);
+      fillRect(g, wx, wy, 2, 2, RAMP.ember[1]);
+      P(g, wx, wy + 2, RAMP.ember[2]);
+    }
+  }
+  let bx = -6;
+  const roofs = [[28, 14, 1], [22, 10, 0], [30, 18, 1], [18, 9, 1], [26, 13, 0], [34, 20, 1], [20, 10, 0], [24, 12, 1], [30, 15, 0], [22, 11, 1], [28, 14, 0], [18, 9, 1], [32, 17, 1], [24, 12, 0], [40, 8, 0]];
+  roofs.forEach(([w, h, warm]) => {
+    roof(bx, w, h, warm);
+    bx += w - 2;
+  });
+  // chimneys w/ thin smoke on a couple
+  [40, 150, 250].forEach((px, i) => {
+    for (let y = horizon - 16; y < horizon - 10; y++) P(g, px, y, '#100c1a');
+    for (let k = 0; k < 6; k++) P(g, px + k % 2, horizon - 16 - k, bn[3]);
+  });
+
+  // --- Drift corruption bleeding in from BOTH side edges ---
+  function edge(side) {
+    for (let y = 18; y < H; y++) {
+      const reach = Math.round((36 + 22 * Math.sin(y * 0.06 + (side < 0 ? 0 : 1.7))) * (0.45 + 0.55 * (y / H)));
+      for (let d = 0; d < reach; d++) {
+        const x = side < 0 ? d : W - 1 - d;
+        const fade = 1 - d / reach,
+          h = hash2(x, y, 73);
+        if ((x + y) % 2 === 0 && h < fade * 0.85) P(g, x, y, h < fade * 0.28 ? dr[2] : dr[3]);else if (h < fade * 0.16) P(g, x, y, dr[1]);
+        if (d > reach - 2 && h < 0.05) P(g, x, y, dr[1]); // glowing tips
+      }
+    }
+  }
+  edge(-1);
+  edge(1);
+  // drifting motes from both edges
+  const pr = mulberry(74);
+  for (let i = 0; i < 60; i++) {
+    const fromL = i % 2 === 0;
+    let x = fromL ? pr() * 110 : W - pr() * 110;
+    let y = pr() * H;
+    const big = i % 5 === 0;
+    P(g, Math.round(x), Math.round(y), big ? dr[0] : dr[1]);
+    if (big) P(g, Math.round(x) + 1, Math.round(y), dr[2]);
+  }
+
+  // --- wordmark plate (X: slightly right of center to clear the avatar; pump.fun: dead center) ---
+  const wm = scaleGrid(wordmarkGrid(false), 2); // ~170 × 24
+  const plateW = wm.w + 26,
+    plateH = wm.h + 18;
+  const px = Math.round((centered ? W * 0.5 : W * 0.545) - plateW / 2),
+    py = 34;
+  // plate body (bone bevel, hollow center) + gold rails + drift inlay
+  for (let y = py; y < py + plateH; y++) for (let x = px; x < px + plateW; x++) {
+    const edged = Math.min(x - px, px + plateW - 1 - x, y - py, py + plateH - 1 - y);
+    let c = null;
+    if (edged < 1) c = RAMP.void;else if (edged < 3) c = y - py < plateH / 2 ? bn[1] : bn[3];else if (edged < 4) c = bn[0];else if (edged < 5) c = bn[3];
+    if (c) P(g, x, y, c);
+  }
+  for (let x = px + 5; x < px + plateW - 5; x++) {
+    P(g, x, py + 5, gd[1]);
+    P(g, x, py + plateH - 6, gd[2]);
+  }
+  for (let y = py + 5; y < py + plateH - 5; y++) {
+    P(g, px + 5, y, gd[1]);
+    P(g, px + plateW - 6, y, gd[2]);
+  }
+  for (let x = px + 10; x < px + plateW - 8; x += 12) {
+    P(g, x, py + 5, dr[1]);
+    P(g, x, py + plateH - 6, dr[1]);
+  }
+  // corner drift gems
+  [[px + 4, py + 4], [px + plateW - 5, py + 4], [px + 4, py + plateH - 5], [px + plateW - 5, py + plateH - 5]].forEach(([gx, gy]) => {
+    P(g, gx, gy, dr[0]);
+    P(g, gx + 1, gy, dr[2]);
+    P(g, gx, gy + 1, dr[2]);
+  });
+  // stamp wordmark into the hollow
+  stamp(g, wm, px + (plateW - wm.w) / 2 | 0, py + (plateH - wm.h) / 2 | 0);
+
+  // --- tagline beneath, bone ramp, above bottom 15% (H*0.85 = 106) ---
+  const tag = 'THE DRIFT TAKES THE REALM';
+  const tw = textWidth35(tag);
+  const tx = Math.round(px + plateW / 2 - tw / 2),
+    ty = py + plateH + 6;
+  drawText35(g, tag, tx, ty, bn[1], RAMP.void);
+
+  // --- $DRIFTS ticker beneath the tagline, gold on the rooftop band ---
+  const tkw = 4 + textWidth35('DRIFTS');
+  const kx = Math.round(px + plateW / 2 - tkw / 2),
+    ky = ty + 8;
+  for (let x = kx - 4; x <= kx + tkw + 3; x++) {
+    P(g, x, ky - 2, gd[3]);
+    P(g, x, ky + 7, gd[3]);
+  } // rails
+  for (let x = kx - 4; x <= kx + tkw + 3; x++) for (let y = ky - 1; y <= ky + 6; y++) if ((x + y) % 2 === 0) P(g, x, y, '#160a26'); // plinth
+  drawTicker(g, kx, ky, gd[0], RAMP.void);
+  return g;
+}
+const SOCIAL = {
+  pfp_coin: {
+    fn: () => drawCoinSigil(128, true),
+    native: [128, 128],
+    scale: 8,
+    out: [1024, 1024]
+  },
+  pfp_coin_clean: {
+    fn: () => drawCoinSigil(128, false),
+    native: [128, 128],
+    scale: 8,
+    out: [1024, 1024]
+  },
+  pfp_x: {
+    fn: () => drawCoinSigil(100, false),
+    native: [100, 100],
+    scale: 8,
+    out: [800, 800]
+  },
+  banner_x: {
+    fn: () => drawBanner(false),
+    native: [375, 125],
+    scale: 4,
+    out: [1500, 500]
+  },
+  banner_pumpfun: {
+    fn: () => drawBanner(true),
+    native: [375, 125],
+    scale: 4,
+    out: [1500, 500]
+  }
+};
+Object.assign(globalThis, {
+  disc,
+  ring,
+  drawCoinSigil,
+  drawBanner,
+  drawTicker,
+  drawText35,
+  textWidth35,
+  FONT35,
+  SOCIAL
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/social.js", error: String((e && e.message) || e) }); }
+
+// assets/_gen/threshold.js
+try { (() => {
+// DriftLands "THE THRESHOLD" tutorial micro-set — eval after pixlib.js + tiles.js.
+// Rect-grid, RAMP only, 1px void outline, dither not blur, deterministic.
+// Gate 96x128 (sealed+open, 3 rune-pulse frames each) · Gatewarden 32x40 (5
+// facings, idle 2f) · Objective beacon 64x64 (3f) + arrow pip 16x16 (2f) ·
+// Drift wall 64x96 FX (3f, seam-continuous) · ground accents 64x32 (2 variants).
+
+/* ---- local circle / triangle helpers ---- */
+function tDisc(g, cx, cy, r, fn) {
+  for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+    const d = Math.hypot(x - cx, y - cy);
+    if (d <= r) fn(x, y, d);
+  }
+}
+function tRing(g, cx, cy, r, w, c) {
+  tDisc(g, cx, cy, r, (x, y, d) => {
+    if (d >= r - w) P(g, x, y, c);
+  });
+}
+function triLine(g, x0, y0, x1, y1, c, t) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2;
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + (x1 - x0) * i / n,
+      y = y0 + (y1 - y0) * i / n;
+    for (let oy = 0; oy < t; oy++) for (let ox = 0; ox < t; ox++) P(g, Math.round(x) + ox, Math.round(y) + oy, c);
+  }
+}
+// the triangle-in-circle door sigil, centered at cx,cy radius R, gold tone set by lit
+function gateSigil(g, cx, cy, R, lit) {
+  const gd = RAMP.gold,
+    dr = RAMP.drift;
+  const hi = lit ? gd[0] : gd[3],
+    mid = lit ? gd[1] : gd[3],
+    dim = lit ? gd[2] : '#5c4a1e';
+  tRing(g, cx, cy, R, 1, mid);
+  const v = [0, 1, 2].map(i => {
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
+    return [cx + Math.cos(a) * R * 0.84, cy + Math.sin(a) * R * 0.84];
+  });
+  const tw = Math.max(1, Math.round(R * 0.12));
+  triLine(g, v[0][0], v[0][1], v[1][0], v[1][1], hi, tw);
+  triLine(g, v[1][0], v[1][1], v[2][0], v[2][1], mid, tw);
+  triLine(g, v[2][0], v[2][1], v[0][0], v[0][1], mid, tw);
+  tRing(g, cx, cy, R * 0.46, 1, dim);
+  for (let yy = -R * 0.44; yy <= R * 0.5; yy++) P(g, Math.round(cx), Math.round(cy + yy), (cy + yy | 0) % 2 ? mid : dim); // keyhole bar
+  if (lit) {
+    P(g, cx, cy, dr[0]);
+    P(g, cx, cy - 1, dr[1]);
+    P(g, cx, cy + 1, dr[1]);
+  } // drift mote in the eye
+}
+
+/* ============================ 1 · THRESHOLD GATE (96x128, sealed/open ×3f) ======== */
+function drawThresholdGate(open, frame) {
+  const g = makeGrid(96, 128);
+  const cx = 48,
+    baseY = 122;
+  const st = RAMP.stone,
+    gd = RAMP.gold,
+    dr = RAMP.drift,
+    bn = RAMP.bone;
+  // pale-stone helper: stone ramp leaned lighter with bone highlights
+  function block(x, y, lit) {
+    let c = lit ? st[0] : st[1];
+    const h = hash2(x, y, 401);
+    if (h < 0.05) c = st[2];else if (h < 0.065) c = st[0];else if (h < 0.075) c = bn[2]; // chips + sparse pale highlights
+    P(g, x, y, c);
+  }
+  // foundation slab (iso) under the arch
+  const fb = 86,
+    fh = 9;
+  for (let dy = -fh; dy <= fh; dy++) {
+    const t = 1 - Math.abs(dy) / fh,
+      w = Math.round(fb / 2 * t);
+    for (let dx = -w; dx <= w; dx++) {
+      let c = st[2];
+      if (dy < 0 && dx < 0) c = st[1];
+      if (dy > 2) c = st[3];
+      P(g, cx + dx, baseY + dy - 2, c);
+    }
+  }
+
+  // pillars
+  const pw = 16,
+    ph = 84,
+    lx0 = 12,
+    rx0 = 96 - 12 - pw;
+  for (const [x0, sideLit] of [[lx0, true], [rx0, false]]) {
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const yy = baseY - 6 - y,
+        xx = x0 + x;
+      const lit = sideLit ? x < 3 : x < 2;
+      // course seams
+      let edge = y % 10 === 0 || x === 0 || x === pw - 1;
+      block(xx, yy, lit && !edge);
+      if (edge) P(g, xx, yy, st[3]);
+    }
+    // right-side iso depth
+    for (let d = 1; d <= 6; d++) for (let y = 0; y < ph; y++) P(g, x0 + pw - 1 + d, baseY - 6 - y - Math.floor(d / 2), st[3]);
+  }
+  // arch (semicircle spanning the pillars)
+  const archCx = cx,
+    archCy = baseY - 6 - ph + 4,
+    archR = 36;
+  tDisc(g, archCx, archCy, archR, (x, y, d) => {
+    if (y > archCy) return;
+    if (d > archR || d < archR - 16) return;
+    const lit = x < archCx;
+    let edge = Math.round(d) % 10 < 2 || d > archR - 1.5 || d < archR - 14.5;
+    block(x, y, lit && !edge);
+    if (edge) P(g, x, y, st[3]);
+  });
+  // iso depth on arch
+  for (let d = 1; d <= 6; d++) tDisc(g, archCx, archCy, archR, (x, y, dd) => {
+    if (y > archCy) return;
+    if (dd > archR || dd < archR - 16) return;
+    if (x < archCx + 8) return;
+    P(g, x + d, y - Math.floor(d / 2), st[3]);
+  });
+  // keystone with the sigil
+  gateSigil(g, archCx, archCy - archR + 8, 7, open ? true : false);
+
+  // doorway interior (between pillars, under arch)
+  const dl = lx0 + pw,
+    dr_ = rx0,
+    dtop = archCy,
+    dbot = baseY - 6;
+  for (let y = dtop; y <= dbot; y++) for (let x = dl; x <= dr_; x++) {
+    const underArch = (x - archCx) ** 2 + (y - archCy) ** 2 <= (archR - 16) ** 2 || y >= archCy;
+    if (!underArch) continue;
+    if (open) {
+      // glowing drift-purple void with dither + depth
+      const t = (y - dtop) / (dbot - dtop);
+      let c = dr[4];
+      if ((x + y) % 2 === 0) c = t < 0.5 ? dr[3] : dr[4];
+      if (Math.abs(x - cx) < 10 && hash2(x, y + frame, 402) < 0.18) c = dr[2]; // shifting glow
+      if (Math.abs(x - cx) < 5 && hash2(x, y - frame * 2, 403) < 0.12) c = dr[1];
+      P(g, x, y, c);
+    } else {
+      // filled with sealed stone blocks
+      const lit = x < cx;
+      let edge = y % 9 === 0 || (x + Math.floor(y / 9) % 2 * 4) % 8 === 0;
+      block(x, y, lit && !edge);
+      if (edge) P(g, x, y, st[3]);
+    }
+  }
+  // rune ring around the doorway (pulse across frames)
+  const pulse = [0, 1, 2, 1][frame % 4] / 2; // 0 .. 1
+  const litRune = open ? true : pulse > 0.4;
+  const runeTone = open ? pulse > 0.6 ? gd[0] : gd[1] : pulse > 0.4 ? gd[2] : gd[3];
+  // runes set into the pillars + arch inner edge
+  const runeSpots = [[dl + 1, dbot - 14], [dl + 1, dbot - 34], [dr_ - 1, dbot - 14], [dr_ - 1, dbot - 34], [cx - 14, dtop + 2], [cx + 14, dtop + 2]];
+  runeSpots.forEach(([rx, ry], i) => {
+    P(g, rx, ry, runeTone);
+    P(g, rx, ry + 1, runeTone);
+    P(g, rx + (i % 2 ? 1 : -1), ry, litRune ? runeTone : st[3]);
+    P(g, rx, ry - 1, litRune ? gd[3] : st[3]);
+  });
+  // open: glow spill + escaping motes
+  if (open) {
+    for (let x = dl; x <= dr_; x++) if ((x + frame) % 3 === 0) P(g, x, dbot + 1, dr[2]);
+    const mr = mulberry(404 + frame);
+    for (let i = 0; i < 5; i++) {
+      const mx = cx + Math.round((mr() - 0.5) * 24),
+        my = dtop + Math.round(mr() * (dbot - dtop));
+      P(g, mx, my - frame, mr() < 0.4 ? dr[0] : dr[1]);
+    }
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ============================ 2 · THE GATEWARDEN (32x40, 5 facings, idle 2f) ====== */
+function drawGatewarden(facing, frame) {
+  const g = makeGrid(32, 40);
+  const cx = 16,
+    baseY = 37;
+  const bn = RAMP.bone,
+    gd = RAMP.gold,
+    dr = RAMP.drift,
+    st = RAMP.stone;
+  const dir = {
+    s: 0,
+    se: 1,
+    e: 2,
+    ne: 3,
+    n: 4
+  }[facing];
+  const off = [0, 1, 2, 1, 0][dir],
+    showFace = dir <= 2;
+  const sway = frame === 1 ? 1 : 0;
+  const top = 8;
+  // robe body (bone, tapered, gold hem)
+  for (let y = 17; y <= 36; y++) {
+    const t = (y - 17) / 19,
+      hw = Math.round(3.4 + t * 4.2);
+    const cxx = cx + Math.round(off * 0.5) + (y > 30 ? Math.round(sway * 0.5) : 0);
+    for (let x = cxx - hw; x <= cxx + hw; x++) {
+      let c = bn[1];
+      if (x <= cxx - hw + 1) c = bn[0];
+      if (x >= cxx + hw - 1) c = bn[3];
+      if (dir >= 3 && x === cxx) c = bn[2];
+      if (hash2(x, y, 411) < 0.05) c = bn[2];
+      P(g, x, y, c);
+    }
+  }
+  // gold trim down the front + hem
+  if (!(dir >= 3)) for (let y = 18; y <= 35; y += 1) P(g, cx + off, y, y % 2 ? gd[1] : gd[2]);
+  for (let x = cx + off - 6; x <= cx + off + 6; x++) {
+    const v = G(g, x, 36);
+    if (v) P(g, x, 36, gd[2]);
+  }
+  // hood
+  for (let y = top; y <= 18; y++) {
+    const hy = (y - top) / (18 - top),
+      hw = Math.round(2 + Math.sin(Math.min(1, hy * 1.25) * Math.PI * 0.55) * 3.6);
+    const cxx = cx + off;
+    for (let x = cxx - hw; x <= cxx + hw; x++) {
+      let c = bn[1];
+      if (x === cxx - hw) c = bn[0];
+      if (x >= cxx + hw - 1) c = bn[3];
+      if (y === top) c = bn[0];
+      P(g, x, y, c);
+    }
+  }
+  P(g, cx + off, top - 1, bn[1]);
+  // gold trim on hood rim
+  for (let x = cx + off - 4; x <= cx + off + 4; x++) {
+    const v = G(g, x, 17);
+    if (v) P(g, x, 17, gd[2]);
+  }
+  // hidden face + 2 gold eye glows
+  if (showFace) {
+    const fcx = cx + off + (dir === 2 ? 1 : 0),
+      w = dir === 2 ? 2 : 3;
+    for (let y = top + 4; y <= top + 8; y++) for (let x = fcx - (dir === 2 ? 0 : w - 1); x <= fcx + w - 1; x++) P(g, x, y, RAMP.void);
+    const ey = top + 6;
+    if (dir === 0) {
+      P(g, fcx - 1, ey, gd[0]);
+      P(g, fcx + 1, ey, gd[0]);
+    } else if (dir === 1) {
+      P(g, fcx, ey, gd[0]);
+      P(g, fcx + 2, ey, gd[1]);
+    } else {
+      P(g, fcx + 1, ey, gd[0]);
+    }
+  }
+  // tall iron staff with chained drift mote (mote bobs in idle)
+  const stx = cx + off + (dir >= 1 ? 6 : -6);
+  for (let y = top - 4; y <= baseY - 1; y++) P(g, stx, y, y % 6 === 0 ? st[3] : st[1]);
+  P(g, stx - 1, top - 4, st[2]);
+  P(g, stx + 1, top - 4, st[2]); // staff head crook
+  P(g, stx, top - 5, st[2]);
+  // chain + mote hanging from the head, bobs by frame
+  const moteY = top - 1 + sway * 2;
+  P(g, stx, top - 3, st[3]);
+  P(g, stx, top - 2, st[3]); // chain links
+  P(g, stx, moteY, dr[0]);
+  P(g, stx - 1, moteY, dr[1]);
+  P(g, stx + 1, moteY, dr[1]);
+  P(g, stx, moteY + 1, dr[2]);
+  P(g, stx, moteY - 1, dr[1]);
+  for (let a = 0; a < 6; a++) {
+    const ax = stx + [2, 2, -2, -2, 0, 0][a],
+      ay = moteY + [0, 1, 0, 1, 2, -2][a];
+    if (hash2(ax, ay + frame, 412) < 0.5) P(g, ax, ay, dr[2]);
+  } // faint halo
+  // feet
+  P(g, cx - 3 + (dir >= 1 ? 1 : 0), baseY, RAMP.void);
+  P(g, cx + 3 + (dir >= 1 ? 1 : 0), baseY, RAMP.void);
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ============================ 3 · OBJECTIVE BEACON (64x64, 3f) + ARROW (16x16, 2f) */
+function drawBeacon(frame) {
+  const g = makeGrid(64, 64);
+  const cx = 32,
+    cy = 48; // diamond center
+  const gd = RAMP.gold,
+    dr = RAMP.drift;
+  const rows = diamondRows();
+  // rune-scribed tile (diamond), faint dirt so it reads on grass AND dirt
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+    const gx = x,
+      gy = cy - 16 + y;
+    let c = (x + y) % 2 === 0 ? '#2a2032' : '#1b1526';
+    P(g, gx, gy, c);
+  }
+  // gold rune ring scribed on the tile
+  tRing(g, cx, cy, 13, 1, gd[2]);
+  tRing(g, cx, cy, 13, 1, gd[2]);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    P(g, Math.round(cx + Math.cos(a) * 8), Math.round(cy + Math.sin(a) * 4), gd[1]);
+  }
+  // diamond edge
+  for (let y = 0; y < 32; y++) {
+    P(g, rows[y].x0, cy - 16 + y, RAMP.void);
+    P(g, rows[y].x1, cy - 16 + y, RAMP.void);
+  }
+  // rising column of dithered gold light (rise/peak/fall)
+  const heights = [22, 34, 14],
+    H = heights[frame % 3];
+  const peak = frame === 1;
+  for (let k = 0; k < H; k++) {
+    const y = cy - 4 - k,
+      t = k / H;
+    const w = Math.max(1, Math.round((1 - t) * 6) + (peak ? 1 : 0));
+    for (let x = -w; x <= w; x++) {
+      const ax = cx + x;
+      const core = Math.abs(x) <= 1;
+      if (core) P(g, ax, y, t < 0.3 ? gd[0] : gd[1]);else if ((ax + y + frame) % 2 === 0 && hash2(ax, y, 421) < (1 - t) * 0.9) P(g, ax, y, Math.abs(x) <= 2 ? gd[1] : gd[2]);
+    }
+  }
+  // crowning mote at the peak
+  if (peak) {
+    P(g, cx, cy - 4 - H, gd[0]);
+    P(g, cx, cy - 5 - H, dr[1]);
+  }
+  return g; // no hard outline — it is light
+}
+function drawArrowPip(frame) {
+  const g = makeGrid(16, 16);
+  const cx = 8,
+    bob = frame === 1 ? 2 : 0,
+    gd = RAMP.gold;
+  // chunky down-arrow
+  const top = 3 + bob;
+  for (let y = 0; y < 5; y++) for (let x = -4 + y; x <= 4 - y; x++) P(g, cx + x, top + y, y < 1 ? gd[0] : gd[1]);
+  for (let y = 0; y < 4; y++) for (let x = -2; x <= 2; x++) P(g, cx + x, top - 1 - y, gd[2]); // stem
+  for (let x = -2; x <= 2; x++) P(g, cx + x, top - 4, gd[1]);
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ============================ 4 · DRIFT WALL FX (64x96, 3f, tiles horizontally) === */
+function drawDriftWall(frame) {
+  const W = 64,
+    H = 96,
+    g = makeGrid(W, H);
+  const dr = RAMP.drift;
+  const phase = frame * 1.15;
+  for (let x = 0; x < W; x++) {
+    // crest silhouette wobbles, PERIODIC across the 64 seam (sin of x/W*2pi)
+    const crest = Math.round(H * 0.32 + 9 * Math.sin(x / W * Math.PI * 2 + phase) + 4 * Math.sin(x / W * Math.PI * 4 - phase));
+    for (let y = crest; y < H; y++) {
+      const below = (y - crest) / (H - crest); // 0 crest .. 1 floor
+      const n = hash2(x, (y + frame * 5) % H, 431); // boil noise, scrolls up
+      const n2 = hash2(x, ((y - frame * 4) % H + H) % H, 432);
+      let c = null;
+      if (below > 0.5) {
+        // void-dark core w/ purple veins
+        c = n < 0.13 ? dr[3] : (x + y) % 2 === 0 && n2 < 0.32 ? dr[4] : RAMP.void;
+      } else {
+        // boiling purple band
+        if ((x + y + frame) % 2 === 0 && n < 0.86) c = n < 0.3 ? dr[2] : dr[3];else if (n2 < 0.22) c = dr[1]; // bright veins
+      }
+      if (below < 0.1 && n < 0.55) c = n < 0.16 ? dr[0] : dr[1]; // hot crest line
+      if (c) P(g, x, y, c);
+    }
+    // wispy tendrils boiling above the crest (dithered, fade upward)
+    for (let k = 1; k <= 9; k++) {
+      const y = crest - k;
+      if (y >= 0 && (x + y) % 2 === 0 && hash2(x, (y + frame * 6) % H, 433) < (1 - k / 9) * 0.55) P(g, x, y, k < 3 ? dr[2] : dr[3]);
+    }
+  }
+  // escaping motes (periodic seeds so they wrap across the seam)
+  for (let i = 0; i < 8; i++) {
+    const mx = i * 37 % W;
+    const my = ((i * 53 - frame * 7) % H + H) % H;
+    P(g, mx, my, i % 3 === 0 ? dr[0] : dr[1]);
+  }
+  // NOTE: no outline (tiling FX strip; an outline would create seams)
+  return g;
+}
+
+/* ============================ 5 · THRESHOLD GROUND ACCENT (64x32, 2 variants) ===== */
+function drawThresholdTile(variant) {
+  const g = makeGrid(64, 36);
+  const rows = diamondRows();
+  const st = RAMP.stone,
+    bn = RAMP.bone,
+    gd = RAMP.gold;
+  // pale flagstone face
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+    let c = (x + y) % 2 === 0 ? '#4a4660' : st[1]; // pale stone dither
+    if (y > 22) c = st[2];
+    P(g, x, y, c);
+  }
+  // 3px south lip + void north edge
+  for (let x = 0; x < 64; x++) {
+    let my = -1;
+    for (let y = 31; y >= 0; y--) if (inDiamond(rows, x, y)) {
+      my = y;
+      break;
+    }
+    if (my >= 0) for (let k = 1; k <= 3; k++) P(g, x, my + k, st[3]);
+    for (let y = 0; y < 32; y++) if (inDiamond(rows, x, y)) {
+      P(g, x, y, RAMP.void);
+      break;
+    }
+  }
+  // cracks
+  const seed = 440 + variant;
+  let cxk = 20 + variant * 16,
+    cyk = 8;
+  for (let s = 0; s < 18; s++) {
+    P(g, cxk, cyk, st[3]);
+    if (hash2(cxk, cyk, seed) < 0.5) P(g, cxk, cyk + 1, st[3]);
+    cxk += (hash2(cxk, cyk, seed + 1) < 0.5 ? 1 : 0) + 1;
+    cyk += hash2(cxk, cyk, seed + 2) < 0.5 ? 1 : 0;
+    if (!inDiamond(rows, cxk, cyk)) break;
+  }
+  // faint gold rune fragments scattered on the face
+  const frag = variant === 0 ? [[26, 12], [34, 16], [30, 20]] : [[24, 14], [38, 12], [32, 18], [28, 22]];
+  frag.forEach(([fx, fy], i) => {
+    if (!inDiamond(rows, fx, fy)) return;
+    P(g, fx, fy, gd[2]);
+    if (i % 2 === 0) {
+      P(g, fx + 1, fy, gd[3]);
+    } else {
+      P(g, fx, fy + 1, gd[3]);
+      P(g, fx + 1, fy, gd[2]);
+    }
+  });
+  return g; // accent overlay; keep its own diamond edge only
+}
+const THRESHOLD = {
+  gate: {
+    cell: [96, 128],
+    anchor: [48, 127]
+  },
+  gatewarden: {
+    cell: [32, 40],
+    anchor: [16, 39]
+  },
+  beacon: {
+    cell: [64, 64],
+    anchor: [32, 48]
+  },
+  arrow_pip: {
+    cell: [16, 16],
+    anchor: [8, 8]
+  },
+  drift_wall: {
+    cell: [64, 96],
+    anchor: [32, 95]
+  },
+  ground: {
+    cell: [64, 36],
+    anchor: [32, 16]
+  }
+};
+Object.assign(globalThis, {
+  tDisc,
+  tRing,
+  triLine,
+  gateSigil,
+  drawThresholdGate,
+  drawGatewarden,
+  drawBeacon,
+  drawArrowPip,
+  drawDriftWall,
+  drawThresholdTile,
+  THRESHOLD
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/threshold.js", error: String((e && e.message) || e) }); }
 
 // assets/_gen/tiles.js
 try { (() => {

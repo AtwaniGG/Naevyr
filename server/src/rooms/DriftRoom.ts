@@ -27,13 +27,15 @@ import {
   PlayerRow,
 } from "../db";
 import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens } from "../solana";
+import { verifyGateProof } from "../gate";
 import { tryInsertBurn, deleteBurn } from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
   RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode, walletLinkMessage,
-  CLAIM_COST, SPIN_COST, VAULT_FEE, PROP_CATALOG, PropKey, ItemKey, RECIPES,
+  CLAIM_COST, SPIN_COST, PROP_CATALOG, PropKey, ItemKey, RECIPES,
+  ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks,
 } from "@/game/types";
 import {
   DriftRoomState,
@@ -54,10 +56,10 @@ import {
 
 const TICK_MS = 50; // 20 Hz
 const PLAYER_SPEED = 3.2; // tiles/sec — mirrors client Player.speed
-const MAX_CLAIMS_PER_PLAYER = 3;
+// claim/listing caps + vault fee + rich-strike odds live in types.ts now:
+// holderPerks(balance) scales them by the linked wallet's DRIFTS (HOLDER_TIERS).
 const CLAIM_EROSION = 5; // integrity lost per season
 const CLAIM_SIEGE_EROSION = 15; // …when corruption is at the fence
-const MAX_LISTINGS_PER_PLAYER = 6;
 const VALID_ITEMS = new Set<string>(INVENTORY_ORDER);
 
 // mirror of the client's cosmetic catalogs (whitelists)
@@ -77,15 +79,10 @@ const CARAVAN_GNAW_DPS = Number(process.env.CARAVAN_GNAW ?? 3); // hp/s while sw
 const CARAVAN_BASE_POOL = 120; // gold pool at 0% corruption; +3g per corruption point
 const CARAVAN_MIN_ROUTE = 18;  // tiles; gates closer than this don't count
 
-// ---- Phase 5: token burn costs (devnet) -------------------------------------
-// Holders can pay these rites with on-chain burns instead of gold.
-const BURN_COSTS: Record<string, number> = {
-  spin: 1,     // a Wheel spin
-  claim: 5,    // staking a 3×3 claim
-  aura: 3,     // any Dyeworks aura
-  cleanse: 2,  // feeds the Shrine pot
-  obelisk: 1,  // the Ash Obelisk rewrites the day's quests
-};
+// ---- Phase 5: token burn costs -------------------------------------------------
+// Holders can pay these rites with on-chain burns instead of gold. The table
+// lives in types.ts (shared) so the HUD/codex display the same numbers we burn.
+const BURN_COSTS: Record<string, number> = SHARED_BURN_COSTS;
 const CLEANSE_BURN_POT = 150; // gold-equivalent added to the pot per cleanse burn
 
 // ---- THE LONG NIGHT: terminal-corruption endgame ------------------------------
@@ -106,24 +103,23 @@ const RESET_FAILSAFE_PCT   = 97;   // theoretical max is ~92 (town/claims/water 
 // (mobs/veins/chests are still per-client sims) arrives as "goldDelta" intents
 // and is clamped per reason: a cap per event plus a rolling per-minute budget.
 // Real validation of these events lands with server-side mobs.
+// ("mob" gold left this table: every overworld mob pays its loot on the server
+// ledger now. "sell" left too: vendor sales are a validated `sell` intent.)
 const GOLD_DELTA_CAPS: Record<string, { event: number; perMin: number }> = {
-  mob:      { event: 60,    perMin: 900 },    // colossus pays 50
-  vein:     { event: 40,    perMin: 700 },    // 3 + lvl/2 + rand per strike
-  chest:    { event: 110,   perMin: 220 },    // den war-chest 60-100, 15min reseed
-  losttomb: { event: 90,    perMin: 180 },    // lost tombstones 30-80
-  quest:    { event: 100,   perMin: 500 },    // daily rewards top out at 60
-  sell:     { event: 15000, perMin: 20000 },  // a full 999-stack of shards ≈ 15k
+  vein:     { event: 25,  perMin: 350 },   // strike = 3 + lvl/2 + rand(3); 14-strike burst
+  chest:    { event: 110, perMin: 120 },   // den war-chest 60-100, 15min reseed
+  losttomb: { event: 90,  perMin: 100 },   // lost tombstones 30-80, one per 6-10min
+  quest:    { event: 70,  perMin: 250 },   // daily rewards top out at 60
 };
 
 // Items ride the same rail (the inventory ledger). Positive client-trusted
 // reasons are capped; negatives floor at zero. Cooking/crafting/market moves
 // and gather loot are validated or granted server-side instead.
+// ("mob" items left this table: shared-mob loot is server-granted.)
 const ITEM_DELTA_CAPS: Record<string, { event: number; perMin: number; items: string[] }> = {
-  mob:   { event: 6, perMin: 60, items: ["driftshard", "hide"] }, // colossus drops 5 shards
-  chest: { event: 2, perMin: 6, items: ["driftshard"] },          // den chest, 15min reseed
+  chest: { event: 2, perMin: 6, items: ["driftshard"] }, // den chest, 15min reseed
 };
-/** chance a gather swing pays double (was a client roll; now the house rolls) */
-const RICH_STRIKE_P = 0.1;
+// (rich-strike odds: holderPerks(balance).richStrikeP — the house still rolls)
 
 // ---- Phase 6: shared ambient mobs ---------------------------------------------
 // Ambient Drift Beasts (husk/stalker) + the Husk Den elite pack live on the
@@ -156,6 +152,9 @@ class ServerMob {
   maxHp: number;
   damage: number;
   state: "wander" | "engaged" | "dead" = "wander";
+  /** true while actually stepping toward a wander target (drives the client
+   *  walk anim; synced — guessing it from lerp residue made puppets flicker) */
+  moving = false;
   /** den elites stay dead until the den re-seeds */
   persistDeath = false;
   /** which event owns this mob (its deaths feed that event's quota) */
@@ -206,6 +205,7 @@ class ServerMob {
 
   update(dt: number, world: World) {
     if (this.state === "dead") {
+      this.moving = false;
       this.respawnIn -= dt * 1000;
       if (this.respawnIn <= 0) {
         this.px = this.tx = this.spawnX;
@@ -216,16 +216,18 @@ class ServerMob {
       }
       return;
     }
-    if (this.state === "engaged") return; // hold ground while trading blows
+    if (this.state === "engaged") { this.moving = false; return; } // hold ground while trading blows
 
     const dx = this.tx - this.px;
     const dy = this.ty - this.py;
     const dist = Math.hypot(dx, dy);
     if (dist < 0.1) {
+      this.moving = false;
       this.idle -= dt;
       if (this.idle <= 0) this.pickTarget(world);
     } else {
       const step = this.speed * dt;
+      this.moving = true;
       this.px += (dx / dist) * Math.min(step, dist);
       this.py += (dy / dist) * Math.min(step, dist);
     }
@@ -311,6 +313,9 @@ interface PlayerSim {
    * rolls come with server XP)
    */
   combatLevel: number;
+  /** last known DRIFTS balance of the linked wallet (drives holder-tier perks;
+   *  refreshed on link and on every profile fetch, 0 for guests/unlinked) */
+  tokenBalance: number;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -334,7 +339,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   private caravanPath: Cell[] = [];
   private caravanTotal = 0;
   private caravanThresholds: number[] = [];
-  private caravanContrib = new Map<string, { name: string; kills: number }>();
+  private caravanContrib = new Map<string, { name: string; kills: number; weight: number }>();
 
   /** Long Night bookkeeping (server-side only) */
   private nightUntil = 0;
@@ -507,7 +512,7 @@ export class DriftRoom extends Room<DriftRoomState> {
             ok: false, banked: row.bankGold, reason: "Not that much in your box",
           });
         }
-        const fee = Math.ceil(gross * VAULT_FEE);
+        const fee = Math.ceil(gross * holderPerks(sim.tokenBalance).vaultFee);
         const next = row.bankGold - gross;
         await setBankGold(sim.token, next).catch(() => {});
         this.credit(sim, gross - fee);
@@ -736,6 +741,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         }
         await setWalletAddress(sim.token, address).catch(() => {});
         const tokenBalance = await getTokenBalance(address);
+        sim.tokenBalance = tokenBalance; // holder-tier perks follow the link
         client.send("walletResult", {
           ok: true,
           address,
@@ -798,6 +804,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!sim) return;
       if (!this.allow(sim, "unlinkWallet", 3, 10_000)) return;
       await setWalletAddress(sim.token, null).catch(() => {});
+      sim.tokenBalance = 0; // tier perks leave with the wallet
       client.send("walletResult", { ok: true, address: null });
     });
 
@@ -821,6 +828,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const tokenBalance = row.walletAddress
         ? await getTokenBalance(row.walletAddress)
         : 0;
+      sim.tokenBalance = tokenBalance; // holder-tier perks track the wallet
       client.send("profile", {
         snapshot: sim.profileSnapshot,
         myClaims,
@@ -857,8 +865,9 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (qty < 1 || qty > 999) return fail("Bad quantity");
         if (price < 1 || price > 100_000) return fail("Bad price");
         const owned = [...this.listingOwner.values()].filter((t) => t === sim.token).length;
-        if (owned >= MAX_LISTINGS_PER_PLAYER) {
-          return fail(`Your stall is full (${MAX_LISTINGS_PER_PLAYER} listings)`);
+        const stallCap = holderPerks(sim.tokenBalance).marketSlots;
+        if (owned >= stallCap) {
+          return fail(`Your stall is full (${stallCap} listings)`);
         }
         // the goods leave the inventory ledger and live in the listing
         if (!this.debitItems(sim, [[item as ItemKey, qty]])) {
@@ -948,8 +957,9 @@ export class DriftRoom extends Room<DriftRoomState> {
         }
       }
       const owned = [...this.claimOwner.values()].filter((t) => t === sim.token).length;
-      if (owned >= MAX_CLAIMS_PER_PLAYER) {
-        return fail(`You already hold ${MAX_CLAIMS_PER_PLAYER} claims`);
+      const claimCap = holderPerks(sim.tokenBalance).claimSlots;
+      if (owned >= claimCap) {
+        return fail(`You already hold ${claimCap} claims`);
       }
       if (msg?.burnSig) {
         const err = await this.consumeBurn(sim, String(msg.burnSig), "claim");
@@ -1092,6 +1102,24 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.syncInv(sim);
     });
 
+    // ---- vendor sales: goods leave the ledger, gold arrives at house prices -------
+    this.onMessage("sell", (client, msg: { item?: string; qty?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "sell", 8, 2000)) return;
+      const item = String(msg?.item ?? "") as ItemKey;
+      if (!VALID_ITEMS.has(item)) return;
+      const qty = Math.trunc(Number(msg?.qty ?? 0));
+      if (!Number.isFinite(qty) || qty <= 0 || qty > 999) return;
+      const n = Math.min(qty, sim.inv[item] ?? 0);
+      if (n <= 0) return;
+      sim.inv[item] = (sim.inv[item] ?? 0) - n;
+      sim.invSeeded = true;
+      void persistInv(sim.token, sim.inv).catch(() => {});
+      this.syncInv(sim);
+      this.credit(sim, n * ITEM_META[item].sellValue);
+    });
+
     // ---- the Forge: a recipe's materials leave the ledger (gear stays client-side)
     this.onMessage("craft", (client, msg: { id?: string }) => {
       const sim = this.sims.get(client.sessionId);
@@ -1168,8 +1196,11 @@ export class DriftRoom extends Room<DriftRoomState> {
         const entry = this.caravanContrib.get(sim.token) ?? {
           name: this.state.players.get(client.sessionId)?.name ?? "Wanderer",
           kills: 0,
+          weight: 1,
         };
         entry.kills += 1;
+        // holder tiers weigh each kill heavier in the pro-rata split
+        entry.weight = holderPerks(sim.tokenBalance).caravanWeight;
         this.caravanContrib.set(sim.token, entry);
         if (c.waveKills >= c.waveNeed) {
           c.phase = "rolling";
@@ -1197,16 +1228,22 @@ export class DriftRoom extends Room<DriftRoomState> {
   }
 
   /** guest auth: a browser-held token is the identity; rows are auto-created.
-   *  With GATE_TOKENS set, the door also demands a wallet holding enough of
-   *  the game token (balance checked here; ownership proof is the Phase 6
-   *  hardening follow-up — the link flow already exists for binding). */
-  async onAuth(client: Client, options: { token?: string; address?: string }) {
+   *  With GATE_TOKENS set, the door demands a wallet holding enough of the
+   *  game token AND a signature over gateMessage proving the join actually
+   *  owns that wallet (nonce issued by /gate; verified in src/gate.ts). */
+  async onAuth(
+    client: Client,
+    options: { token?: string; address?: string; gateNonce?: string; gateSig?: string },
+  ) {
     const token = typeof options?.token === "string" ? options.token.trim() : "";
     if (token.length < 8 || token.length > 64) return false;
     const gate = gateTokens();
     if (gate > 0) {
       const address = typeof options?.address === "string" ? options.address.trim() : "";
-      if (!address) return false;
+      const nonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
+      const sig = typeof options?.gateSig === "string" ? options.gateSig : "";
+      if (!address || !nonce || !sig) return false;
+      if (!verifyGateProof(address, nonce, sig)) return false;
       if ((await getTokenBalance(address)) < gate) return false;
     }
     return await loadOrCreatePlayer(token);
@@ -1256,6 +1293,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       deltaWindow: new Map(),
       rates: new Map(),
       combatLevel: snapCombatLevel(row.snapshot),
+      tokenBalance: 0, // refreshed by getProfile/linkWallet (chain reads are async)
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -1363,7 +1401,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         node.amount -= 1;
         const depleted = node.amount <= 0;
         // the house rolls rich strikes now; loot lands on the inventory ledger
-        const rich = Math.random() < RICH_STRIKE_P;
+        const rich = Math.random() < holderPerks(sim.tokenBalance).richStrikeP;
         const qty = rich ? 2 : 1;
         this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
         sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
@@ -1880,6 +1918,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (ms.hp !== mob.hp) ms.hp = mob.hp;
       if (ms.maxHp !== mob.maxHp) ms.maxHp = mob.maxHp;
       if (ms.state !== mob.state) ms.state = mob.state;
+      if (ms.moving !== mob.moving) ms.moving = mob.moving;
     }
   }
 
@@ -2003,11 +2042,14 @@ export class DriftRoom extends Room<DriftRoomState> {
   private async arriveCaravan() {
     const c = this.state.caravan;
     const pool = Math.round(CARAVAN_BASE_POOL + this.corruptionPct() * 3);
-    const totalKills = [...this.caravanContrib.values()].reduce((n, e) => n + e.kills, 0);
+    // shares are kill-weighted by holder tier (zero inflation: weights split
+    // the same pool, they don't grow it)
+    const totalShare = [...this.caravanContrib.values()]
+      .reduce((n, e) => n + e.kills * e.weight, 0);
     const payouts: { name: string; kills: number; gold: number }[] = [];
     for (const [token, e] of this.caravanContrib) {
-      const gold = totalKills > 0
-        ? Math.max(10, Math.round((e.kills / totalKills) * pool))
+      const gold = totalShare > 0
+        ? Math.max(10, Math.round(((e.kills * e.weight) / totalShare) * pool))
         : 0;
       payouts.push({ name: e.name, kills: e.kills, gold });
       // online escorts get paid into the ledger; offline ones through escrow

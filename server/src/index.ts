@@ -1,3 +1,4 @@
+import "./env"; // first: solana.ts reads SOLANA_RPC at module scope
 import { createServer } from "node:http";
 import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
@@ -5,6 +6,7 @@ import { Encoder } from "@colyseus/schema";
 import { DriftRoom } from "./rooms/DriftRoom";
 import { initDb, leaderboards } from "./db";
 import { gateTokens, getTokenBalance, tokenMint } from "./solana";
+import { issueGateNonce, verifyGateProof } from "./gate";
 
 // initial full state (1600-tile map + nodes + players) outgrows the 8KB default
 Encoder.BUFFER_SIZE = 64 * 1024;
@@ -14,7 +16,7 @@ const port = Number(process.env.PORT ?? 2567);
 // The entry gate, as HTTP: the landing page asks BEFORE joining whether the
 // door is token-locked and whether a wallet clears it. The same rule is
 // enforced authoritatively in DriftRoom.onAuth.
-async function handleGate(address: string | null) {
+async function handleGate(address: string | null, nonce: string | null, sig: string | null) {
   const gate = gateTokens();
   // balance reads whenever a mint is configured (the landing's nav chip wants
   // it even on an ungated server); the gate itself only bites when set
@@ -32,6 +34,13 @@ async function handleGate(address: string | null) {
     balance,
     ok: gate === 0 || (balance ?? 0) >= gate,
     online,
+    // ownership proof: a warded door hands the wallet a nonce to sign; a
+    // stored proof can be re-checked here so the landing knows whether the
+    // wallet must sign again (e.g. after a server restart rotates the secret)
+    ...(gate > 0 && address ? { nonce: issueGateNonce(address) } : {}),
+    ...(gate > 0 && address && nonce && sig
+      ? { proofOk: verifyGateProof(address, nonce, sig) }
+      : {}),
   };
 }
 
@@ -41,7 +50,11 @@ async function main() {
     res.setHeader("Access-Control-Allow-Origin", "*");
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname === "/gate") {
-      void handleGate(url.searchParams.get("address"))
+      void handleGate(
+        url.searchParams.get("address"),
+        url.searchParams.get("nonce"),
+        url.searchParams.get("sig"),
+      )
         .then((body) => {
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify(body));

@@ -42,8 +42,8 @@ const STEPS: { title: string; text: string }[] = [
     text: "At 90% corruption the horde falls on the Waystation: a shared kill quota on a three-minute clock. Hold and dawn burns the corruption back and pays every defender 250g. Fail and the realm resets; your vault, cosmetics and wallet persist.",
   },
   {
-    title: "7 · THE TOKEN RITES (HOLDERS)",
-    text: "Holders burn tokens instead of coin for certain rites: 1◆ a spin, 5◆ a claim, 3◆ an aura, 2◆ a cleansing, 1◆ to rewrite the day's quests. Burns are destroyed on-chain and verified by the realm. The server pays all fees; you need zero SOL.",
+    title: "7 · THE DRIFTS RITES (HOLDERS)",
+    text: "Holders burn DRIFTS instead of gold for certain rites: 5k a spin, 25k a claim, 15k an aura, 10k a cleansing, 5k to rewrite the day's quests. Burns are destroyed on-chain and verified by the realm. The server pays all fees; you need zero SOL. Holding more deepens your standing: at 10k held you are a Keeper (4 claims, 8 stalls, lighter vault fees, luckier strikes), at 100k a Warden, at 1M a Drift Lord (6 claims, 12 stalls, no vault fee, the richest strikes, the heaviest caravan share). The whitepaper carries the full table.",
   },
 ];
 

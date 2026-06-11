@@ -174,6 +174,10 @@ interface GameState {
   shrine: { pot: number; goal: number };
   duel: DuelState | null;
   duelChallenge: { from: string; name: string; wager: number } | null;
+  /** the Threshold walked (or skipped); persists in the save */
+  tutorialDone: boolean;
+  /** current tutorial objective line (null = no banner) */
+  tutorialObjective: string | null;
 
   setDriftPct: (pct: number) => void;
   setSeason: (season: number) => void;
@@ -200,6 +204,8 @@ interface GameState {
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
+  setTutorialDone: (b: boolean) => void;
+  setTutorialObjective: (s: string | null) => void;
 
   /**
    * Mutate pocket gold locally. A reason tags client-trusted events so the
@@ -307,6 +313,8 @@ export const useGame = create<GameState>((set, get) => ({
   tokenBalance: 0,
   holder: false,
   night: null,
+  tutorialDone: false,
+  tutorialObjective: null,
   openDock: null,
   satchelOpen: true,
   shrine: { pot: 0, goal: 500 },
@@ -362,6 +370,8 @@ export const useGame = create<GameState>((set, get) => ({
   setWallet: (a) => set({ wallet: a }),
   setTokenStatus: (tokenBalance, holder) => set({ tokenBalance, holder }),
   setNight: (night) => set({ night }),
+  setTutorialDone: (tutorialDone) => set({ tutorialDone }),
+  setTutorialObjective: (tutorialObjective) => set({ tutorialObjective }),
   setOpenDock: (openDock) => set({ openDock }),
   setSatchelOpen: (satchelOpen) => set({ satchelOpen }),
   setShrine: (s) => set({ shrine: s }),
@@ -417,10 +427,13 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   sellItem: (item, qty, goldEach) => {
-    if (!get().removeItem(item, qty, "sell")) return;
+    // local mutation is the offline path AND the instant feedback; online the
+    // "sell" intent makes it real and invSync/goldSync adopt the server's word
+    if (!get().removeItem(item, qty)) return;
     const total = qty * goldEach;
     play("coin");
-    get().addGold(total, "sell");
+    get().addGold(total);
+    bus.emit("sell", { item, qty });
     get().pushLog(`Sold ${qty}× for ${total}g.`, "#e7c873");
   },
 

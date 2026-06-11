@@ -187,6 +187,59 @@ if (JSON.stringify(makeBuildingSprite("obelisk", 0).d) === JSON.stringify(makeBu
   failures++; console.error("FAIL obelisk: rune frames are identical");
 }
 
+// the Threshold tutorial set (DS threshold.js port)
+import {
+  drawThresholdGate, drawGatewarden, drawBeacon, drawArrowPip,
+  drawDriftWall, drawThresholdTile,
+} from "../game/render/sprites";
+for (const open of [false, true]) for (let f = 0; f < 3; f++) {
+  try {
+    const g = drawThresholdGate(open, f);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 96 || g.h !== 128) { failures++; console.error(`FAIL gate ${open ? "open" : "sealed"}#${f}: grid ${g.w}×${g.h}`); }
+    else if (px < 1000) { failures++; console.error(`FAIL gate ${open ? "open" : "sealed"}#${f}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW gate ${open}#${f}:`, e); }
+}
+if (JSON.stringify(drawThresholdGate(false, 0).d) === JSON.stringify(drawThresholdGate(true, 0).d)) {
+  failures++; console.error("FAIL gate: sealed and open are identical");
+}
+if (JSON.stringify(drawThresholdGate(true, 0).d) === JSON.stringify(drawThresholdGate(true, 1).d)) {
+  failures++; console.error("FAIL gate: open frames 0 and 1 are identical");
+}
+for (const fc of FACINGS) for (let f = 0; f < 2; f++) {
+  try {
+    const g = drawGatewarden(fc, f);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 32 || g.h !== 40) { failures++; console.error(`FAIL gatewarden ${fc}#${f}: grid ${g.w}×${g.h}`); }
+    else if (px < 100) { failures++; console.error(`FAIL gatewarden ${fc}#${f}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW gatewarden ${fc}#${f}:`, e); }
+}
+for (let f = 0; f < 3; f++) {
+  try {
+    const g = drawBeacon(f); frames++;
+    if (g.w !== 64 || g.h !== 64 || g.d.filter(Boolean).length < 200) { failures++; console.error(`FAIL beacon#${f}`); }
+  } catch (e) { failures++; console.error(`THROW beacon#${f}:`, e); }
+  try {
+    const g = drawDriftWall(f); frames++;
+    if (g.w !== 64 || g.h !== 96 || g.d.filter(Boolean).length < 1000) { failures++; console.error(`FAIL drift_wall#${f}`); }
+  } catch (e) { failures++; console.error(`THROW drift_wall#${f}:`, e); }
+}
+if (JSON.stringify(drawDriftWall(0).d) === JSON.stringify(drawDriftWall(1).d)) {
+  failures++; console.error("FAIL drift_wall: frames 0 and 1 are identical");
+}
+for (let f = 0; f < 2; f++) {
+  try {
+    const g = drawArrowPip(f); frames++;
+    if (g.w !== 16 || g.h !== 16 || g.d.filter(Boolean).length < 20) { failures++; console.error(`FAIL arrow_pip#${f}`); }
+  } catch (e) { failures++; console.error(`THROW arrow_pip#${f}:`, e); }
+  try {
+    const g = drawThresholdTile(f); frames++;
+    if (g.w !== 64 || g.h !== 36 || g.d.filter(Boolean).length < 500) { failures++; console.error(`FAIL threshold ground#${f}`); }
+  } catch (e) { failures++; console.error(`THROW threshold ground#${f}:`, e); }
+}
+
 // animated fixtures must actually animate
 if (JSON.stringify(makeFixture("hearth", "", 0).d) === JSON.stringify(makeFixture("hearth", "", 1).d)) {
   failures++; console.error("FAIL hearth: frames 0 and 1 are identical");

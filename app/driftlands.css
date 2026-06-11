@@ -374,6 +374,18 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
   mix-blend-mode: normal;
 }
 
+/* ─── DRIFTS coin mark ───────────────────────────────────────────────────────
+   The brand emblem from the DS pack, used inline wherever the currency shows.
+   Sized to the surrounding text via em units. */
+.drifts-mark {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.14em;
+  background: url("/assets/design-system.nosync/assets/brand/emblem-16.svg") center / contain no-repeat;
+  image-rendering: pixelated;
+}
+
 /* ─── The Landing (entry gate page) ─────────────────────────────────────────
    Art comes straight from the Design System SVG exports in
    public/assets/design-system.nosync/assets/landing/ — frame sheets animated with

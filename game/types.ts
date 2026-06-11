@@ -54,7 +54,51 @@ export const PROP_CATALOG: Record<PropKey, { label: string; price: number }> = {
 export const DYE_PRICE = 200;
 export const EYE_PRICE = 350;
 export const SPIN_COST = 50;
-export const VAULT_FEE = 0.02; // withdrawal fee
+export const VAULT_FEE = 0.02; // withdrawal fee (base; tiers lower it)
+
+/** token burn costs per rite (shared: the server debits them on-chain, the HUD
+ *  and codex display them — one table so the copy can't drift from the truth) */
+export const BURN_COSTS = {
+  spin: 5_000,     // a Wheel spin
+  claim: 25_000,   // staking a 3×3 claim
+  aura: 15_000,    // any Dyeworks aura
+  cleanse: 10_000, // feeds the Shrine pot
+  obelisk: 5_000,  // the Ash Obelisk rewrites the day's quests
+} as const;
+/** short display form: 5_000 → "5k" (pixel HUD space is tight) */
+export const burnAmt = (n: number) => (n >= 1000 ? `${n / 1000}k` : String(n));
+
+// ─── Holding tiers ──────────────────────────────────────────────────────────────
+// What a wallet's DRIFTS balance is worth INSIDE the realm. Server-enforced on
+// every rail listed; the HUD, docs and codex render from this same table so the
+// promises can't go stale. Order matters: highest tier first.
+export interface HolderTier {
+  key: string;
+  label: string;
+  min: number;         // DRIFTS held (linked wallet) to qualify
+  claimSlots: number;  // total land claims held at once (base 3)
+  marketSlots: number; // total market listings at once (base 6)
+  vaultFee: number;    // vault withdrawal fee (base 2%)
+  richStrikeP: number; // chance a gather swing pays double (base 10%)
+  caravanWeight: number; // caravan payout shares weigh this much per kill
+}
+export const BASE_PERKS: HolderTier = {
+  key: "", label: "", min: 0,
+  claimSlots: 3, marketSlots: 6, vaultFee: VAULT_FEE,
+  richStrikeP: 0.1, caravanWeight: 1,
+};
+export const HOLDER_TIERS: HolderTier[] = [
+  { key: "driftlord", label: "Drift Lord", min: 1_000_000,
+    claimSlots: 6, marketSlots: 12, vaultFee: 0, richStrikeP: 0.2, caravanWeight: 1.5 },
+  { key: "warden", label: "Warden", min: 100_000,
+    claimSlots: 5, marketSlots: 10, vaultFee: 0.005, richStrikeP: 0.15, caravanWeight: 1.25 },
+  { key: "keeper", label: "Keeper", min: 10_000,
+    claimSlots: 4, marketSlots: 8, vaultFee: 0.01, richStrikeP: 0.12, caravanWeight: 1.1 },
+];
+/** the perks a balance earns (base perks when below every tier) */
+export function holderPerks(balance: number): HolderTier {
+  return HOLDER_TIERS.find((t) => balance >= t.min) ?? BASE_PERKS;
+}
 export const DUEL_MIN_WAGER = 0;
 export const DUEL_MAX_WAGER = 5000;
 
@@ -350,8 +394,20 @@ export type ItemReason =
 // it for signMessage; the server rebuilds it verbatim to verify the signature.
 export function walletLinkMessage(address: string, nonce: string): string {
   return [
-    "Driftlands (devnet)",
+    "Driftlands (beta)",
     "Link this wallet to your wanderer.",
+    `Wallet: ${address}`,
+    `Nonce: ${nonce}`,
+  ].join("\n");
+}
+
+/** the canonical text a wallet signs to prove itself at the token entry gate
+ *  (same rail as the link message; distinct wording so the wallet popup says
+ *  what is actually being authorized) */
+export function gateMessage(address: string, nonce: string): string {
+  return [
+    "Driftlands (beta)",
+    "Prove this wallet to pass the gate.",
     `Wallet: ${address}`,
     `Nonce: ${nonce}`,
   ].join("\n");

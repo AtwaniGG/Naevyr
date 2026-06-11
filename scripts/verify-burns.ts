@@ -53,9 +53,9 @@ async function main() {
   // wallet under test: a raw keypair (zero SOL — the authority pays fees)
   const kp = Keypair.generate();
   const address = kp.publicKey.toBase58();
-  console.log(`minting 12 test tokens to ${address}…`);
+  console.log(`minting 20000 test tokens to ${address}…`);
   execFileSync("./node_modules/.bin/tsx",
-    ["scripts/create-devnet-mint.ts", "--mint-to", address, "12"],
+    ["scripts/create-devnet-mint.ts", "--mint-to", address, "20000"],
     { cwd: SERVER_DIR, stdio: "pipe", timeout: 120_000 });
 
   const server = spawn("./node_modules/.bin/tsx", ["src/index.ts"], {

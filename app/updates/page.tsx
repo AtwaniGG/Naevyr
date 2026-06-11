@@ -8,12 +8,12 @@ const UPDATES: { tag: string; title: string; text: string }[] = [
   {
     tag: "Phase 6 · current",
     title: "The Hardening — Ledgers, Shared Beasts & the Warded Door",
-    text: "Gold and items moved onto server-held ledgers with seed-once migration; snapshots can no longer mint. Every overworld beast became shared and server-ruled — husks, stalkers, the den pack, caravan raiders, the night horde, and the Colossus as a true world boss — with kill quotas counting real deaths and loot landing straight on the ledgers. The token entry gate went up (hold the posted amount to pass), and this landing site rose with it. Big-text banners now announce caravans, ambushes, the Colossus, the Long Night, dawn, and the realm's fall.",
+    text: "Gold and items moved onto server-held ledgers with seed-once migration; snapshots can no longer mint. Every overworld beast became shared and server-ruled — husks, stalkers, the den pack, caravan raiders, the night horde, and the Colossus as a true world boss — with kill quotas counting real deaths and loot landing straight on the ledgers. The DRIFTS entry gate went up (hold the posted amount to pass), and this landing site rose with it. Big-text banners now announce caravans, ambushes, the Colossus, the Long Night, dawn, and the realm's fall.",
   },
   {
     tag: "Phase 5",
     title: "The Chain — Wallets, the Token & Burn Rites",
-    text: "Solana wallets bind to wanderers by signed message. The devnet token went live with holder gates, and burn rites followed: burn-paid Wheel spins, claim stakes, Dyeworks auras, Shrine cleansings and Obelisk rerolls — every burn server-built, fee-paid by the realm, verified on-chain, and spendable exactly once.",
+    text: "Solana wallets bind to wanderers by signed message. DRIFTS went live with holder gates, and burn rites followed: burn-paid Wheel spins, claim stakes, Dyeworks auras, Shrine cleansings and Obelisk rerolls — every burn server-built, fee-paid by the realm, verified on-chain, and spendable exactly once.",
   },
   {
     tag: "Phase 4+",

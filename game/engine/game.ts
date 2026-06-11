@@ -12,6 +12,7 @@ import {
   BuildingKey,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
+import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
 import { Drift } from "@/game/world/drift";
 import { interiorFor, interiorNav, InteriorSpec } from "@/game/world/interior";
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
@@ -38,10 +39,12 @@ import {
   buildSnapshot,
   getDeviceToken,
   getGateWallet,
+  getGateProof,
+  takeDoorName,
   SaveData,
 } from "@/game/state/persistence";
 import { bus } from "@/game/state/bus";
-import { tileToCode } from "@/game/types";
+import { tileToCode, BURN_COSTS } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
 import { Transaction } from "@solana/web3.js";
 
@@ -64,6 +67,8 @@ export class Game {
   player: Player;
   drift = new Drift();
   combat = new CombatManager();
+  /** THE THRESHOLD: non-null while running the first-login tutorial */
+  private tutorial: TutorialDirector | null = null;
 
   private raf = 0;
   private last = 0;
@@ -131,18 +136,28 @@ export class Game {
 
   private cleanupFns: Array<() => void> = [];
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, opts?: { tutorial?: boolean }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
-    this.world = new World(40, 40);
-    this.player = new Player(20, 20);
+    if (opts?.tutorial) {
+      // THE THRESHOLD: a handcrafted pocket world, no server, no ambient sim
+      this.world = new World(THRESHOLD.w, THRESHOLD.h);
+      buildThreshold(this.world);
+      this.player = new Player(THRESHOLD.spawn.x, THRESHOLD.spawn.y);
+      this.tutorial = new TutorialDirector(this.world, this.player, this.combat);
+    } else {
+      this.world = new World(40, 40);
+      this.player = new Player(20, 20);
+    }
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.snapTo(iso.x, iso.y);
 
     spriteCache.init();
 
-    this.combat.spawn(this.world, 8);
-    this.spawnDenPack();
+    if (!this.tutorial) {
+      this.combat.spawn(this.world, 8);
+      this.spawnDenPack();
+    }
     this.wireCombat();
 
     this.drift.onRelocate = (kind) =>
@@ -179,7 +194,7 @@ export class Game {
     this.running = true;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
-    useGame.getState().pushLog("You awaken in the Driftlands.", "#d8cfe0");
+    if (!this.tutorial) useGame.getState().pushLog("You awaken in the Driftlands.", "#d8cfe0");
     this.cleanupFns.push(bus.on("chat", (text) => this.handleChatInput(text)));
     this.cleanupFns.push(bus.on("emote", (e) => this.handleChatInput(`/${e}`)));
     this.cleanupFns.push(bus.on("stake", () => this.toggleClaimMode()));
@@ -213,6 +228,7 @@ export class Game {
       bus.on("itemDelta", (d) => this.net?.sendItemDelta(d.item, d.qty, d.reason)),
     );
     this.cleanupFns.push(bus.on("cook", (c) => this.net?.sendCook(c.qty)));
+    this.cleanupFns.push(bus.on("sell", (s) => this.net?.sendSell(s.item, s.qty)));
     this.cleanupFns.push(bus.on("craft", (c) => this.net?.sendCraft(c.id)));
     this.cleanupFns.push(bus.on("spinBurn", () => this.startBurn("spin")));
     this.cleanupFns.push(bus.on("cleanseBurn", () => this.startBurn("cleanse")));
@@ -231,7 +247,8 @@ export class Game {
         this.net?.sendAcceptDuel(ch.from, ch.wager);
       }),
     );
-    void this.connect();
+    if (this.tutorial) this.tutorial.start();
+    else void this.connect(); // the Threshold never joins the shared world
   }
 
   // ---- Phase 5: Solana wallet link (devnet) -------------------------------------
@@ -331,7 +348,7 @@ export class Game {
       const tx = Transaction.from(raw);
       const { signature } = await provider.signAndSendTransaction(tx);
       if (!signature) throw new Error("no signature");
-      store.pushLog("The tokens burn. Awaiting the chain's word…", "#d8b4fe");
+      store.pushLog("The DRIFTS burn. Awaiting the chain's word…", "#d8b4fe");
       switch (pending.action) {
         case "spin":    this.net.sendSpin(signature); break;
         case "cleanse": this.net.sendDonate(0, signature); break;
@@ -341,7 +358,7 @@ export class Game {
       }
     } catch {
       store.pushLog(
-        "The burn was declined or failed. Nothing was taken. (Is your wallet on devnet?)",
+        "The burn was declined or failed. Nothing was taken. (Is your wallet on the right network?)",
         "#6f6781",
       );
     }
@@ -390,7 +407,7 @@ export class Game {
     if (useGame.getState().claimMode) {
       store.pushLog(
         burning
-          ? "Choose your ground. Staking burns 5 tokens (Holder rite)."
+          ? `Choose your ground. Staking burns ${BURN_COSTS.claim.toLocaleString()} DRIFTS (Holder rite).`
           : "Choose your ground. Click to stake a 3×3 claim.",
         "#e7c873",
       );
@@ -445,7 +462,14 @@ export class Game {
   /** Try to join the shared world; on failure the local sim keeps running. */
   private async connect() {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
-    const net = await NetClient.connect(url, 2500, getDeviceToken(), getGateWallet());
+    // the gate proof (wallet + signed nonce from the door) rides along so
+    // GATE_TOKENS servers can verify ownership, not just the claimed address
+    const proof = getGateProof();
+    const address = getGateWallet();
+    const net = await NetClient.connect(
+      url, 2500, getDeviceToken(), address,
+      proof && proof.address === address ? proof : null,
+    );
     if (!net) {
       useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
       return;
@@ -637,7 +661,7 @@ export class Game {
       store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
       store.pushLog(
         m.address
-          ? `Wallet bound: ${m.address.slice(0, 4)}…${m.address.slice(-4)}. Your wanderer is yours on devnet.`
+          ? `Wallet bound: ${m.address.slice(0, 4)}…${m.address.slice(-4)}. Your wanderer is yours.`
           : "Wallet unbound. You walk as a guest again.",
         "#e7c873",
       );
@@ -645,7 +669,7 @@ export class Game {
         store.pushLog(
           m.holder
             ? `The token knows you. Holder confirmed (${m.tokenBalance} held).`
-            : "No game tokens in this wallet yet. The gate stays shut.",
+            : "No DRIFTS in this wallet yet. The gate stays shut.",
           m.holder ? "#d8b4fe" : "#6f6781",
         );
       }
@@ -755,7 +779,7 @@ export class Game {
       }
       store.grantCosmetic("aura", m.key);
       store.setCosmetics({ aura: m.key as AuraKey });
-      store.pushLog("The Dyeworks takes your burned tokens. The aura clings to you.", "#d8b4fe");
+      store.pushLog("The Dyeworks takes your burned DRIFTS. The aura clings to you.", "#d8b4fe");
     });
 
     // server-stored progress: apply it, or seed the server with local progress
@@ -772,6 +796,7 @@ export class Game {
       holder?: boolean;
     }>("profile", (m) => {
       const store = useGame.getState();
+      const sworn = takeDoorName(); // the door outranks the stored snapshot
       if (m.snapshot) {
         applySnapshot(m.snapshot);
         this.sentIdentity = ""; // re-push identity from the restored cosmetics
@@ -779,6 +804,7 @@ export class Game {
       } else {
         net.sendSave(buildSnapshot());
       }
+      if (sworn) store.setCosmetics({ name: sworn });
       // the ledgers outrank whatever the snapshot remembered
       if (typeof m.gold === "number") store.setGold(m.gold);
       if (m.inv) store.setInventory(m.inv as never);
@@ -1440,9 +1466,11 @@ export class Game {
       this.updateOnline(dt);
     } else {
       this.player.update(dt);
-      this.drift.update(this.world, dt);
+      // the Threshold's corruption is scripted; the real Drift stays out
+      if (!this.tutorial) this.drift.update(this.world, dt);
     }
     this.combat.update(dt, this.world, this.player);
+    this.tutorial?.update();
 
     // arrival -> begin gather (offline only; the server runs gathers online)
     if (
@@ -1492,8 +1520,10 @@ export class Game {
     }
 
     this.watchLevelUps();
-    this.watchBoss();
-    this.updateWildQuadrants();
+    if (!this.tutorial) {
+      this.watchBoss();
+      this.updateWildQuadrants();
+    }
     this.updateWorldFeel(dt);
 
     // minimap snapshot ~2×/sec
@@ -1808,8 +1838,11 @@ export class Game {
       const mdy = m.y - pup.py;
       pup.px += mdx * k;
       pup.py += mdy * k;
-      pup.moving = Math.hypot(mdx, mdy) > 0.03;
-      if (pup.moving && pup.state !== "dead") {
+      // the server says whether the beast is stepping (guessing it from the
+      // lerp residue flickered walk/idle between patches); facing still comes
+      // from the visible drift toward the synced position
+      pup.moving = !!m.moving;
+      if (pup.state !== "dead" && pup.moving && Math.hypot(mdx, mdy) > 0.01) {
         pup.facing = mdx >= 0 ? 1 : -1;
         pup.updateIsoFacing(mdx, mdy);
       }
@@ -1881,8 +1914,10 @@ export class Game {
     veins: { x: number; y: number; charges: number; regrowAt: number }[];
   } | null = null;
 
-  private static readonly VEIN_CHARGES = 3;
-  private static readonly VEIN_REGROW_MS = 60_000;
+  // Economy pass: 2 charges × 7 veins on a 4-min regrow lands the camp at
+  // ~1,900-2,900g/hr by mining level — a rotation stop, not the realm's mint.
+  private static readonly VEIN_CHARGES = 2;
+  private static readonly VEIN_REGROW_MS = 240_000;
 
   private enterInterior(key: BuildingKey) {
     if (key === "huskden") {
@@ -2707,7 +2742,10 @@ export class Game {
         const nearMire =
           Math.max(Math.abs(x - 5), Math.abs(y - 24)) <= 8 ||
           Math.max(Math.abs(x - 7), Math.abs(y - 34)) <= 6; // the Hollowmere
-        if (t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
+        // the Threshold grows NO decorative clutter: the only tree/rock/pool
+        // on screen must be the real lesson nodes (the den's clutter zone
+        // would otherwise blanket this tiny map with fake dead trees)
+        if (!this.tutorial && t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
           const h = hash2(x, y, 91);
           let kind: DoodadKind | null = null;
           if (t === 'corrupt') {
@@ -2868,12 +2906,16 @@ export class Game {
     type Draw = { depth: number; fn: () => void };
     const draws: Draw[] = [];
 
+    // the Threshold's set pieces (Gatewarden, beacon, the gate)
+    this.tutorial?.pushDraws(draws, ctx, (gx, gy) => this.tileScreen(gx, gy), this.camera.zoom);
+
     for (const node of this.world.nodes) {
       if (node.regrowIn > 0) continue; // depleted = invisible until it re-forms
       const depth = node.gx + node.gy;
       draws.push({ depth, fn: () => this.drawNode(ctx, node) });
     }
     for (const b of ALL_STRUCTURES) {
+      if (this.tutorial) break; // the Threshold has no structures of the realm
       // pit floor draws under everything; houses depth-sort on their south edge
       const depth = b.key === "pit" ? -1000 : b.x + b.y + b.r;
       draws.push({
@@ -2936,7 +2978,7 @@ export class Game {
     }
 
     // the Drowned Field: sunken lore graves + sometimes a lost tombstone
-    for (const grave of Game.DROWNED_FIELD) {
+    for (const grave of this.tutorial ? [] : Game.DROWNED_FIELD) {
       draws.push({
         depth: grave.x + grave.y,
         fn: () => {
@@ -3149,15 +3191,20 @@ export class Game {
       ctx.globalAlpha = 1;
     }
 
-    // name + earned title; your own tag is dimmer
+    // name + earned title; your own tag is dimmer. Void shadow keeps both
+    // readable on bright ground; the title line clears the name's descenders.
     ctx.textAlign = "center";
-    ctx.fillStyle = isSelf ? "rgba(216,207,224,0.4)" : "rgba(216,207,224,0.8)";
     ctx.font = `${8 * z}px ui-sans-serif`;
+    ctx.fillStyle = "rgba(10,8,16,0.75)";
+    ctx.fillText(name, s.x + 1, s.y - 46 * z + 1);
+    ctx.fillStyle = isSelf ? "rgba(216,207,224,0.7)" : "rgba(216,207,224,0.9)";
     ctx.fillText(name, s.x, s.y - 46 * z);
     if (title) {
-      ctx.fillStyle = isSelf ? "rgba(168,85,247,0.4)" : "rgba(216,180,254,0.6)";
       ctx.font = `${6.5 * z}px ui-sans-serif`;
-      ctx.fillText(title, s.x, s.y - 40 * z);
+      ctx.fillStyle = "rgba(10,8,16,0.75)";
+      ctx.fillText(title, s.x + 1, s.y - 37 * z + 1);
+      ctx.fillStyle = isSelf ? "rgba(168,85,247,0.75)" : "rgba(216,180,254,0.8)";
+      ctx.fillText(title, s.x, s.y - 37 * z);
     }
 
     // chat / emote bubble

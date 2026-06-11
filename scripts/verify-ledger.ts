@@ -83,47 +83,50 @@ async function main() {
   check("later snapshots cannot re-seed (no minting)", p?.gold === 1200, `gold=${p?.gold}`);
 
   // ---- goldDelta caps --------------------------------------------------------------
-  a.send("goldDelta", { amount: 40, reason: "mob" });
+  a.send("goldDelta", { amount: 20, reason: "vein" });
   await wait(300);
-  check("capped reason credits within the event cap", goldA.value() === 1240,
+  check("capped reason credits within the event cap", goldA.value() === 1220,
     `sync=${goldA.value()}`);
 
-  a.send("goldDelta", { amount: 100_000, reason: "mob" });
+  a.send("goldDelta", { amount: 100_000, reason: "vein" });
   await wait(300);
-  check("oversized event clamped to the event cap (60)", goldA.value() === 1300,
+  check("oversized event clamped to the event cap (25)", goldA.value() === 1245,
     `sync=${goldA.value()}`);
 
   a.send("goldDelta", { amount: 500, reason: "hack" });
+  a.send("goldDelta", { amount: 500, reason: "mob" }); // mob gold is server-paid now
+  a.send("goldDelta", { amount: 500, reason: "sell" }); // sales are a validated intent now
   a.send("goldDelta", { amount: 500, reason: "" });
   await wait(300);
-  check("unknown reasons ignored", goldA.value() === 1300, `sync=${goldA.value()}`);
+  check("unknown / retired reasons ignored", goldA.value() === 1245, `sync=${goldA.value()}`);
 
-  // burn down the per-minute budget (900 for "mob"; 100 already granted)
-  for (let i = 0; i < 20; i++) a.send("goldDelta", { amount: 60, reason: "mob" });
+  // burn down the per-minute budget (350 for "vein"; 45 already granted)
+  for (let i = 0; i < 20; i++) a.send("goldDelta", { amount: 25, reason: "vein" });
   await wait(600);
-  check("per-minute budget holds (mob ≤ 900/min)", goldA.value() === 1200 + 900,
+  check("per-minute budget holds (vein ≤ 350/min)", goldA.value() === 1200 + 350,
     `sync=${goldA.value()}`);
 
   // ---- death drops + tombstone reclaim ----------------------------------------------
   a.send("goldDelta", { amount: -600, reason: "death" });
   await wait(300);
   const afterDeath = goldA.value();
-  check("death drop debits the ledger", afterDeath === 1500, `sync=${afterDeath}`);
+  check("death drop debits the ledger", afterDeath === 950, `sync=${afterDeath}`);
 
   a.send("goldDelta", { amount: 999_999, reason: "tomb" });
   await wait(300);
-  check("tomb reclaim capped at what the death dropped", goldA.value() === 2100,
+  check("tomb reclaim capped at what the death dropped", goldA.value() === 1550,
     `sync=${goldA.value()}`);
 
   a.send("goldDelta", { amount: 600, reason: "tomb" });
   await wait(300);
-  check("a tombstone pays only once", goldA.value() === 2100, `sync=${goldA.value()}`);
+  check("a tombstone pays only once", goldA.value() === 1550, `sync=${goldA.value()}`);
 
   // ---- ledger-paid transactions ------------------------------------------------------
   const b = await new Client(URL).joinOrCreate<any>("drift", { token: tokenB });
   mute(b);
   const goldB = trackGold(b);
-  b.send("save", { snapshot: { gold: 30, day: 0 } });
+  const invB = trackInv(b);
+  b.send("save", { snapshot: { gold: 30, inventory: { driftshard: 10 }, day: 0 } });
   await wait(400);
 
   let spin = await (async () => {
@@ -133,8 +136,19 @@ async function main() {
   })();
   check("spin refused on an empty purse", spin?.ok === false, spin?.reason ?? "no response");
 
-  b.send("goldDelta", { amount: 100, reason: "sell" });
-  await wait(2700); // spin rate limit
+  // fund the purse the honest way: a validated vendor sale (10 shards × 15g)
+  b.send("sell", { item: "driftshard", qty: 999 });
+  await wait(300);
+  check("sell clamps to the goods actually held (10 × 15g)",
+    goldB.value() === 30 + 150 && invB.value()?.driftshard === 0,
+    `sync=${goldB.value()} shards=${invB.value()?.driftshard}`);
+
+  b.send("sell", { item: "hide", qty: 5 }); // holds none — nothing should move
+  await wait(300);
+  check("selling goods you don't hold pays nothing", goldB.value() === 180,
+    `sync=${goldB.value()}`);
+
+  await wait(2400); // spin rate limit
   spin = await (async () => {
     const r = once<any>(b, "spinResult");
     b.send("spin");
@@ -143,8 +157,8 @@ async function main() {
   check("funded spin resolves", spin?.ok === true && typeof spin.gold === "number",
     spin?.label ?? "timed out");
   await wait(300);
-  check("spin settles on the ledger (130 - 50 + prize)",
-    goldB.value() === 130 - 50 + (spin?.gold ?? 0), `sync=${goldB.value()}`);
+  check("spin settles on the ledger (180 - 50 + prize)",
+    goldB.value() === 180 - 50 + (spin?.gold ?? 0), `sync=${goldB.value()}`);
 
   const bank = await (async () => {
     const r = once<any>(b, "bankResult");
@@ -183,22 +197,23 @@ async function main() {
   check("later snapshots cannot re-seed items (no minting)", pc?.inv?.wood === 10,
     `wood=${pc?.inv?.wood}`);
 
-  c.send("itemDelta", { item: "driftshard", qty: 1, reason: "mob" });
+  c.send("itemDelta", { item: "driftshard", qty: 1, reason: "chest" });
   await wait(300);
   check("capped item reason credits", invC.value()?.driftshard === 3,
     `shards=${invC.value()?.driftshard}`);
 
-  c.send("itemDelta", { item: "driftshard", qty: 999, reason: "mob" });
+  c.send("itemDelta", { item: "driftshard", qty: 999, reason: "chest" });
   await wait(300);
-  check("oversized item event clamped (mob ≤ 6)", invC.value()?.driftshard === 9,
+  check("oversized item event clamped (chest ≤ 2)", invC.value()?.driftshard === 5,
     `shards=${invC.value()?.driftshard}`);
 
-  c.send("itemDelta", { item: "wood", qty: 50, reason: "mob" });
+  c.send("itemDelta", { item: "wood", qty: 50, reason: "chest" });
   c.send("itemDelta", { item: "driftshard", qty: 5, reason: "hack" });
+  c.send("itemDelta", { item: "driftshard", qty: 5, reason: "mob" }); // retired reason
   await wait(300);
   pc = await getProfile(c);
-  check("off-whitelist items and unknown reasons ignored",
-    pc?.inv?.wood === 10 && pc?.inv?.driftshard === 9,
+  check("off-whitelist items and unknown / retired reasons ignored",
+    pc?.inv?.wood === 10 && pc?.inv?.driftshard === 5,
     `wood=${pc?.inv?.wood} shards=${pc?.inv?.driftshard}`);
 
   // cooking: only as many fish as the ledger holds become food
@@ -219,13 +234,13 @@ async function main() {
   await wait(300);
   inv = invC.value();
   check("craft debits the recipe materials",
-    inv?.wood === 0 && inv?.driftshard === 6 && inv?.hide === 1, JSON.stringify(inv));
+    inv?.wood === 0 && inv?.driftshard === 2 && inv?.hide === 1, JSON.stringify(inv));
 
   c.send("craft", { id: "shard_saber" });
   await wait(300);
   pc = await getProfile(c);
   check("craft without materials refused (nothing taken)",
-    pc?.inv?.driftshard === 6 && pc?.inv?.hide === 1,
+    pc?.inv?.driftshard === 2 && pc?.inv?.hide === 1,
     `shards=${pc?.inv?.driftshard} hide=${pc?.inv?.hide}`);
 
   const finalInvC = pc?.inv;

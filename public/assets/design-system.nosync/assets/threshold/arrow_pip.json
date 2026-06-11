@@ -1,0 +1,44 @@
+{
+  "image": "threshold/arrow_pip.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "note": "hovers over target; bob loop",
+  "frames": {
+    "arrow_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "arrow_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  },
+  "animations": {
+    "bob": {
+      "frames": [
+        "arrow_00",
+        "arrow_01"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

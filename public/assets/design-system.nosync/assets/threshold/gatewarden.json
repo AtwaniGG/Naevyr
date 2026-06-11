@@ -1,0 +1,171 @@
+{
+  "image": "threshold/gatewarden.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "frames": {
+    "gatewarden-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "gatewarden-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "gatewarden-idle-s_00",
+        "gatewarden-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-se": {
+      "frames": [
+        "gatewarden-idle-se_00",
+        "gatewarden-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-e": {
+      "frames": [
+        "gatewarden-idle-e_00",
+        "gatewarden-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-ne": {
+      "frames": [
+        "gatewarden-idle-ne_00",
+        "gatewarden-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-n": {
+      "frames": [
+        "gatewarden-idle-n_00",
+        "gatewarden-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

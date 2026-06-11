@@ -29,6 +29,8 @@ export interface SaveData {
   driftSeason: number;
   driftPct?: number;
   quests: { id: string; progress: number; claimed: boolean }[];
+  /** the Threshold has been walked (or skipped); new wanderers go there first */
+  tutorialDone?: boolean;
 }
 
 const today = () => Math.floor(Date.now() / 86_400_000);
@@ -60,6 +62,36 @@ export function setGateWallet(address: string | null) {
   else localStorage.removeItem(GATE_WALLET_KEY);
 }
 
+// The signed ownership proof for that wallet (gateMessage over a server nonce,
+// signed once at the door). Rides along with every join so onAuth can verify
+// the wallet is actually owned, not merely claimed. The nonce carries its own
+// expiry; a stale or restart-orphaned proof just fails proofOk and re-signs.
+const GATE_PROOF_KEY = "driftlands-gate-proof";
+
+export interface GateProof {
+  address: string;
+  nonce: string;
+  sig: string;
+}
+
+export function getGateProof(): GateProof | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(GATE_PROOF_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as GateProof;
+    return p && p.address && p.nonce && p.sig ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setGateProof(proof: GateProof | null) {
+  if (typeof window === "undefined") return;
+  if (proof) localStorage.setItem(GATE_PROOF_KEY, JSON.stringify(proof));
+  else localStorage.removeItem(GATE_PROOF_KEY);
+}
+
 /** capture the full progress snapshot from the store */
 export function buildSnapshot(): SaveData {
   const s = useGame.getState();
@@ -84,6 +116,7 @@ export function buildSnapshot(): SaveData {
       progress: q.progress,
       claimed: q.claimed,
     })),
+    tutorialDone: s.tutorialDone,
   };
 }
 
@@ -123,11 +156,29 @@ export function applySnapshot(data: SaveData) {
     driftSeason: data.driftSeason ?? 1,
     driftPct: data.driftPct ?? 0,
     quests,
+    // sticky: an older snapshot (from before the flag existed) must never send
+    // a wanderer who finished the Threshold back through it
+    tutorialDone: (data.tutorialDone ?? false) || useGame.getState().tutorialDone,
   });
 }
 
+/** has this browser's wanderer walked the Threshold? (read before the engine mounts) */
+export function getTutorialDone(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? Boolean(JSON.parse(raw)?.tutorialDone) : false;
+  } catch {
+    return false;
+  }
+}
+
+let persistenceInited = false;
 export function initPersistence() {
   if (typeof window === "undefined") return;
+  // the tutorial → realm transition remounts GameCanvas; load + subscribe once
+  if (persistenceInited) return;
+  persistenceInited = true;
 
   // ---- load -----------------------------------------------------------------
   try {
@@ -151,6 +202,29 @@ export function initPersistence() {
       }
     }, SAVE_THROTTLE_MS);
   });
+
+  // leaving the page (back to the landing, tab close) flushes any pending save
+  window.addEventListener("pagehide", () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(buildSnapshot()));
+    } catch {
+      // storage full/blocked — skip silently
+    }
+  });
+}
+
+// ---- the name sworn at the door ----------------------------------------------
+// The door writes the local save, but a returning player's SERVER snapshot
+// lands after join and would clobber it. The engine takes this and re-asserts
+// the sworn name once the snapshot has applied.
+let doorName: string | null = null;
+export function setDoorName(name: string) {
+  doorName = name;
+}
+export function takeDoorName(): string | null {
+  const n = doorName;
+  doorName = null;
+  return n;
 }
 
 /** wipe the save and reload fresh (handy for testing) */

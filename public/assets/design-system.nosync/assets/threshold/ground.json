@@ -1,0 +1,39 @@
+{
+  "image": "threshold/ground.svg",
+  "cell": {
+    "w": 64,
+    "h": 36
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "anchor": {
+    "x": 32,
+    "y": 16
+  },
+  "drawUnderEntities": true,
+  "note": "overlay accent over grass; does not replace base tiles",
+  "frames": {
+    "threshold-ground_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "threshold-ground_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  }
+}

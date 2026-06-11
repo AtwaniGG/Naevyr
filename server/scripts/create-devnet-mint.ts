@@ -5,6 +5,7 @@
 // - `--mint-to <wallet> <amount>`: mints test tokens to any wallet (creates ATA).
 // Run:  cd server && npx tsx scripts/create-devnet-mint.ts [--mint-to <addr> <amt>]
 
+import "../src/env"; // server/.env.local may carry the keyed SOLANA_RPC
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {

@@ -16,6 +16,9 @@ import {
   PetKey,
   PropKey,
   SPIN_COST,
+  BURN_COSTS,
+  burnAmt,
+  holderPerks,
   INVENTORY_ORDER,
   ITEM_META,
   ItemKey,
@@ -94,6 +97,7 @@ export default function Hud() {
       <HotbarDock />
       <RightColumn />
       <NightBanner />
+      <TutorialBanner />
       <KeeperDialogue />
       <ShopModal />
       <DuelOverlay />
@@ -185,10 +189,13 @@ const KEEPERS: Record<string, { name: string; swatch: string; leave: string }> =
 interface TalkOpt {
   label: string;
   sub?: string;
-  right?: string;
+  right?: React.ReactNode;
   swatch?: string;
   onClick: () => void;
 }
+
+/** the DRIFTS coin emblem, inline at text size */
+const DriftsMark = () => <span className="drifts-mark" aria-label="DRIFTS" />;
 
 function KeeperDialogue() {
   const openShop = useGame((st) => st.openShop);
@@ -269,7 +276,9 @@ function KeeperDialogue() {
         const canBurn = !owned && !!s.wallet && s.holder;
         opts.push({
           label: meta.label, swatch: meta.color,
-          right: worn ? "doff" : owned ? "don" : canBurn ? `${meta.price}g · 3 ◆` : `${meta.price}g`,
+          right: worn ? "doff" : owned ? "don" : canBurn
+            ? <>{meta.price}g · {burnAmt(BURN_COSTS.aura)} <DriftsMark /></>
+            : `${meta.price}g`,
           onClick: () => {
             if (worn) { s.setCosmetics({ aura: "" }); respond("Dimmed, then."); return; }
             if (owned) { s.setCosmetics({ aura: k as never }); respond("It clings to you."); return; }
@@ -322,7 +331,8 @@ function KeeperDialogue() {
       });
       if (s.wallet && s.holder) {
         opts.push({
-          label: "Spin on a burn", sub: "devnet tokens, gone for good", right: "1 ◆",
+          label: "Spin on a burn", sub: "DRIFTS burned, gone for good",
+          right: <>{burnAmt(BURN_COSTS.spin)} <DriftsMark /></>,
           onClick: () => { bus.emit("spinBurn", true); respond("The chain takes its due…"); },
         });
       }
@@ -414,7 +424,8 @@ function KeeperDialogue() {
     });
     if (s.wallet && s.holder) {
       opts.push({
-        label: "Rewrite on a burn", sub: "devnet tokens, gone for good", right: "1 ◆",
+        label: "Rewrite on a burn", sub: "DRIFTS burned, gone for good",
+        right: <>{burnAmt(BURN_COSTS.obelisk)} <DriftsMark /></>,
         onClick: () => { bus.emit("obeliskBurn", true); respond("THE CHAIN CARRIES IT TO US…"); },
       });
     }
@@ -522,8 +533,8 @@ function ShrinePanel() {
         ))}
         {!!s.wallet && s.holder && (
           <Button size="sm" variant="ghost" onClick={() => bus.emit("cleanseBurn", true)}
-            title="Burn 2 tokens on-chain; the Flame counts it as 150g (devnet)">
-            Burn 2 ◆
+            title={`Burn ${BURN_COSTS.cleanse.toLocaleString()} DRIFTS on-chain; the Flame counts it as 150g`}>
+            Burn {burnAmt(BURN_COSTS.cleanse)} <DriftsMark />
           </Button>
         )}
       </div>
@@ -584,6 +595,44 @@ function OfflineNote({ what }: { what: string }) {
 }
 
 /** THE LONG NIGHT: top-center defense banner (kills + countdown) */
+/** the Threshold: objective banner + a way out for those who know the realm */
+function TutorialBanner() {
+  const objective = useGame((s) => s.tutorialObjective);
+  const setTutorialDone = useGame((s) => s.setTutorialDone);
+  const setTutorialObjective = useGame((s) => s.setTutorialObjective);
+  if (!objective) return null;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ bottom: 96, left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "bottom center", zIndex: 24 }}
+    >
+      <Panel padded={false} corners={false} style={{ padding: "8px 16px", boxShadow: "0 0 0 1px var(--drift-gold), var(--shadow-pixel)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="drift-label" style={{ fontSize: 11, color: "var(--drift-gold)", letterSpacing: 2 }}>
+            THE THRESHOLD
+          </div>
+          <div style={{ font: "600 12px/1.4 var(--font-ui)", color: "var(--text-primary)" }}>
+            {objective}
+          </div>
+          <button
+            onClick={() => {
+              setTutorialObjective(null);
+              setTutorialDone(true);
+            }}
+            style={{
+              marginTop: 4, background: "none", border: 0, cursor: "pointer",
+              font: "400 10px/1 var(--font-ui)", color: "var(--text-muted)",
+              textDecoration: "underline", textUnderlineOffset: 2,
+            }}
+          >
+            I know the Drift · skip the lessons
+          </button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function NightBanner() {
   const night = useGame((s) => s.night);
   if (!night) return null;
@@ -1005,21 +1054,21 @@ function IdentityDock() {
       </Button>
       <DockPopout open={open}>
         <Panel kicker="The Wanderer" title="Identity" style={{ width: 296 }}>
-            {/* name */}
+            {/* name: sworn at the door, fixed while inside the realm */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
-              Name
+              Name <span style={{ color: "var(--text-muted)" }}>· sworn at the door</span>
             </label>
-            <input
-              value={cosmetics.name}
-              maxLength={16}
-              onChange={(e) => setCosmetics({ name: e.target.value })}
+            <div
               className="drift-well"
+              title="Leave the realm to take a new name"
               style={{
-                width: "100%", border: 0, outline: "none", padding: "7px 9px",
+                width: "100%", padding: "7px 9px", boxSizing: "border-box",
                 font: "600 13px/1 var(--font-ui)", color: "var(--text-primary)",
                 background: "var(--surface-well)", marginBottom: 8,
               }}
-            />
+            >
+              {cosmetics.name || "Wanderer"}
+            </div>
             {/* earned title */}
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
               <span className="drift-label" style={{ fontSize: 9 }}>Title</span>
@@ -1072,7 +1121,7 @@ function IdentityDock() {
             </div>
             {/* Solana wallet (devnet) */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
-              Wallet <span style={{ color: "var(--text-muted)" }}>· devnet</span>
+              Wallet <span style={{ color: "var(--text-muted)" }}>· beta</span>
             </label>
             <WalletRow />
             {/* sound */}
@@ -1115,9 +1164,12 @@ function WalletRow() {
             {wallet.slice(0, 4)}…{wallet.slice(-4)}
           </span>
           {holder ? (
-            <Badge tone="gold">Holder · {tokenBalance >= 1000 ? `${Math.floor(tokenBalance / 1000)}k` : Math.floor(tokenBalance)}</Badge>
+            <Badge tone="gold">
+              {holderPerks(tokenBalance).label || "Holder"} ·{" "}
+              {tokenBalance >= 1000 ? `${Math.floor(tokenBalance / 1000)}k` : Math.floor(tokenBalance)}
+            </Badge>
           ) : (
-            <span style={{ font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)" }}>no tokens</span>
+            <span style={{ font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)" }}>no DRIFTS</span>
           )}
           <Button size="sm" variant="ghost" onClick={() => bus.emit("walletLink", false)}>
             Unlink
@@ -1153,12 +1205,25 @@ function TopLeft() {
       className="absolute flex flex-col items-start"
       style={{ top: "var(--hud-edge)", left: "var(--hud-edge)", gap: 10, transform: "scale(var(--hud-scale))", transformOrigin: "top left" }}
     >
-      <div
-        className="drift-wordmark drift-wordmark-bleed drift-hud-text"
-        style={{ fontSize: "var(--text-xl)", lineHeight: 1, textShadow: "none" }}
+      <a
+        href="/"
+        title="Leave the realm · back to the landing"
+        className="drift-wordmark drift-wordmark-bleed drift-hud-text pointer-events-auto"
+        style={{ fontSize: "var(--text-xl)", lineHeight: 1, textShadow: "none", textDecoration: "none", cursor: "pointer" }}
       >
         DRIFTLANDS
-      </div>
+      </a>
+      <a
+        href="/"
+        className="drift-hud-text pointer-events-auto"
+        title="Your progress is kept; the realm waits"
+        style={{
+          font: "600 9px/1 var(--font-ui)", color: "var(--text-muted)",
+          textDecoration: "none", letterSpacing: "0.1em", marginTop: -4,
+        }}
+      >
+        ← LEAVE THE REALM
+      </a>
       <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
       <OnlineBadge />
       <Vitals />

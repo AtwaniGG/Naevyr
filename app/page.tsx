@@ -37,12 +37,12 @@ export default function Home() {
           <div style={{ font: "400 11px/1.6 var(--font-ui)", color: "var(--text-muted)", textShadow: "0 1px 6px #0a0810" }}>
             {info ? `${info.online} wanderer${info.online === 1 ? "" : "s"} in the Drift` : " "}
             {info && info.gate > 0 && (
-              <div>The door is warded: {info.gate.toLocaleString()} tokens to enter.</div>
+              <div>The door is warded: {info.gate.toLocaleString()} DRIFTS to enter.</div>
             )}
           </div>
 
           <div style={{ font: "400 10px/1.5 var(--font-ui)", color: "var(--text-muted)", marginTop: 4 }}>
-            Devnet build · tokens hold no monetary value
+            Beta · DRIFTS is game utility, not an investment
           </div>
         </div>
       </div>

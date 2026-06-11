@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LandingShell from "@/components/LandingShell";
+import { BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS } from "@/game/types";
 
 // The whitepaper: everything the realm is and how it works, in one document.
 // Sidebar anchors on the left, long-form sections on the right.
@@ -23,10 +24,11 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "market", group: "Core Systems", title: "The Market" },
   { id: "caravans", group: "Core Systems", title: "Caravans" },
   { id: "events", group: "Core Systems", title: "World Events" },
-  { id: "token", group: "The Token", title: "The Token & Burn Rites" },
-  { id: "trust", group: "The Token", title: "Architecture & Trust" },
-  { id: "roadmap", group: "The Token", title: "Roadmap" },
-  { id: "disclaimer", group: "The Token", title: "Disclaimer" },
+  { id: "token", group: "DRIFTS", title: "DRIFTS & Burn Rites" },
+  { id: "tokenomics", group: "DRIFTS", title: "Tokenomics" },
+  { id: "trust", group: "DRIFTS", title: "Architecture & Trust" },
+  { id: "roadmap", group: "DRIFTS", title: "Roadmap" },
+  { id: "disclaimer", group: "DRIFTS", title: "Disclaimer" },
 ];
 
 function H({ id, children }: { id: string; children: React.ReactNode }) {
@@ -61,6 +63,39 @@ function P({ children }: { children: React.ReactNode }) {
 
 function Gold({ children }: { children: React.ReactNode }) {
   return <span style={{ color: "var(--drift-gold)" }}>{children}</span>;
+}
+
+/** a plate from the Design System exports. The SVGs are frame SHEETS laid out
+ *  horizontally; the paper shows frame 0 (background-size spans all frames). */
+function Art({
+  src, caption, frames = 1, ratio, maxWidth,
+}: {
+  src: string; caption: string; frames?: number; ratio: number; maxWidth?: number;
+}) {
+  return (
+    <figure style={{ margin: "18px 0 22px" }}>
+      <div
+        style={{
+          width: "100%", maxWidth: maxWidth ?? 480, aspectRatio: String(ratio),
+          margin: "0 auto",
+          backgroundImage: `url(${src})`,
+          backgroundSize: `${frames * 100}% 100%`,
+          backgroundPosition: "0 0",
+          backgroundRepeat: "no-repeat",
+          imageRendering: "pixelated",
+          boxShadow: "0 0 0 1px rgba(124, 58, 237, 0.35), 4px 4px 0 0 rgba(10, 8, 16, 0.85)",
+        }}
+      />
+      <figcaption
+        style={{
+          textAlign: "center", marginTop: 8,
+          font: "400 10.5px/1.4 var(--font-ui)", color: "var(--text-muted)",
+        }}
+      >
+        {caption}
+      </figcaption>
+    </figure>
+  );
 }
 
 export default function DocsPage() {
@@ -115,9 +150,15 @@ export default function DocsPage() {
             The Whitepaper
           </h1>
           <P>
-            Everything the realm is, how it works, and what the token does.
+            Everything the realm is, how it works, and what DRIFTS does.
             Use the contents to jump to any chapter.
           </P>
+          <Art
+            src="/assets/design-system.nosync/assets/landing/hero_vista.svg"
+            caption="The realm at dusk · the Drift gathers at the edges"
+            frames={2}
+            ratio={480 / 270}
+          />
 
           <H id="introduction">Introduction</H>
           <P>
@@ -153,18 +194,25 @@ export default function DocsPage() {
           </P>
 
           <H id="gate">The Entry Gate</H>
+          <Art
+            src="/assets/design-system.nosync/assets/landing/gate_door.svg"
+            caption="The warded door · it opens only to DRIFTS"
+            frames={3}
+            ratio={96 / 128}
+            maxWidth={192}
+          />
           <P>
             When the door is warded, entering the shared realm requires holding
-            a posted amount of the game token in a connected wallet. The
+            a posted amount of DRIFTS in a connected wallet. The
             landing page checks your balance against the chain when you press
             PLAY, and the realm's server checks it again, independently, when
-            you actually join. The game never takes custody of tokens; holding
+            you actually join. The game never takes custody of DRIFTS; holding
             them in your own wallet is the key.
           </P>
           <P>
-            With no wallet, or too few tokens, the door stays shut. The realm
-            can also run with the door open (no requirement), which is how the
-            devnet build usually stands.
+            With no wallet, or too few DRIFTS, the door stays shut. The realm
+            can also run with the door open (no requirement), at its keepers'
+            choosing.
           </P>
 
           <H id="first-session">Your First Session</H>
@@ -229,7 +277,7 @@ export default function DocsPage() {
             The <Gold>Husk Den</Gold> in the Ashen Flats is held by five elite
             husks guarding a war-chest (60-100g and shards; the den re-seeds a
             quarter hour after it is cleared). The <Gold>Ash Obelisk</Gold>{" "}
-            rewrites the day's quests for coin or a token burn, and sells a
+            rewrites the day's quests for gold or a DRIFTS burn, and sells a
             gathering blessing. The <Gold>Mirewife's Hut</Gold> in Hollowmere
             Reach brews stronger drinks that cost coin AND materials, and the
             Mirewife reads where the corruption will press next. In the{" "}
@@ -282,7 +330,7 @@ export default function DocsPage() {
 
           <H id="claims">Land Claims</H>
           <P>
-            A claim stakes a 3×3 plot for <Gold>250g</Gold> (or a token burn).
+            A claim stakes a 3×3 plot for <Gold>250g</Gold> (or a DRIFTS burn).
             Claimed ground resists the Drift, and relocated nodes prefer it,
             which makes claims the realm's farmland. But every season grinds a
             claim's warding down, three times faster when corruption stands at
@@ -322,23 +370,118 @@ export default function DocsPage() {
             gone. Your vault, cosmetics and wallet persist; the land does not.
           </P>
 
-          <H id="token">The Token & Burn Rites</H>
+          <H id="token">DRIFTS & Burn Rites</H>
+          <Art
+            src="/assets/design-system.nosync/assets/brand/emblem-64.svg"
+            caption="DRIFTS · the realm's coin"
+            ratio={1}
+            maxWidth={128}
+          />
           <P>
-            The game token lives on Solana (devnet for now) and is pure
+            <Gold>DRIFTS</Gold> lives on Solana and is pure
             utility. It does two things: <Gold>opens the door</Gold> (the entry
             gate, when warded) and <Gold>pays for rites by burning</Gold>.
-            Burned tokens are destroyed on-chain, verified by the realm's
+            Burned DRIFTS are destroyed on-chain, verified by the realm's
             server before any effect lands:
           </P>
           <P>
-            1◆ spins the Wheel · 5◆ stakes a claim · 3◆ buys an aura · 2◆ feeds
-            the Shrine's pot (+150g equivalent) · 1◆ rewrites the day's quests
-            at the Obelisk.
+            {burnAmt(BURN_COSTS.spin)} DRIFTS spins the Wheel ·{" "}
+            {burnAmt(BURN_COSTS.claim)} stakes a claim ·{" "}
+            {burnAmt(BURN_COSTS.aura)} buys an aura ·{" "}
+            {burnAmt(BURN_COSTS.cleanse)} feeds the Shrine's pot (+150g
+            equivalent) · {burnAmt(BURN_COSTS.obelisk)} rewrites the day's
+            quests at the Obelisk.
           </P>
           <P>
             The server builds and fee-pays every burn transaction, so players
             need zero SOL; your wallet only countersigns the burn itself. A
             burn signature spends exactly once; replays are refused.
+          </P>
+          <P>
+            <Gold>Holding tiers.</Gold> What you hold is also what you are.
+            The realm reads your linked wallet's balance and widens your
+            standing with it, enforced by the server on every rail:
+          </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Tier", "DRIFTS held", "Claims", "Stalls", "Vault fee", "Rich strikes", "Caravan share"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[BASE_PERKS, ...[...HOLDER_TIERS].reverse()].map((t) => (
+                  <tr key={t.key || "holder"}>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>{t.label || "Holder"}</td>
+                    <td style={{ padding: "5px 10px" }}>{t.min > 0 ? `${t.min.toLocaleString()}+` : "1+"}</td>
+                    <td style={{ padding: "5px 10px" }}>{t.claimSlots}</td>
+                    <td style={{ padding: "5px 10px" }}>{t.marketSlots}</td>
+                    <td style={{ padding: "5px 10px" }}>{(t.vaultFee * 100).toLocaleString()}%</td>
+                    <td style={{ padding: "5px 10px" }}>{Math.round(t.richStrikeP * 100)}%</td>
+                    <td style={{ padding: "5px 10px" }}>×{t.caravanWeight}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <P>
+            Weighted caravan shares split the same pool; they never grow it.
+            Sell or move your DRIFTS and the standing leaves with them.
+          </P>
+
+          <H id="tokenomics">Tokenomics</H>
+          <P>
+            <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana. The beta
+            runs on a test mint with no value; the real coin launches on
+            pump.fun, a fair-launch bonding curve: no presale, no allocation
+            rounds, a fixed supply minted once with the realm's keepers buying
+            on the same curve as everyone else. After launch nothing can mint
+            more. The realm's design only ever removes coins from circulation.
+          </P>
+          <P>
+            <Gold>Demand.</Gold> Three forces pull DRIFTS into wallets, all of
+            them utility:
+          </P>
+          <P>
+            1. <Gold>The door.</Gold> Entering the shared realm requires
+            holding the posted amount in a connected wallet. Every active
+            wanderer is a holder by definition.
+            <br />
+            2. <Gold>Standing.</Gold> The holding tiers above: claims, stalls,
+            vault fees, rich strikes and caravan weight all scale with what the
+            wallet holds. The realm reads balances live; standing follows the
+            coins.
+            <br />
+            3. <Gold>The rites.</Gold> Spins, claims, auras, cleansings and
+            rerolls can be paid in DRIFTS instead of gold, for those who carry
+            them.
+          </P>
+          <P>
+            <Gold>Supply sinks.</Gold> Every rite paid in DRIFTS is a burn:
+            the coins are destroyed on-chain, verified by the server before
+            the effect lands, and the supply never recovers. Gold sinks
+            (claims eroding, vault fees, death drops, the Wheel's house edge)
+            keep the in-game economy hungry so the rites stay used. The design
+            is deflationary by construction: coins enter wallets only through
+            the market, and leave circulation through play.
+          </P>
+          <P>
+            <Gold>What the house never does.</Gold> The realm holds no
+            treasury that pays players, sells no coins in-game, takes no
+            custody (the gate reads balances; linking signs a message; burns
+            are countersigned by your own wallet), and promises no yield.
+            Gold, the earnable currency, lives on the realm's ledgers and is
+            not the coin. Anything that would make DRIFTS flow FROM the realm
+            TO players is designed out on purpose.
+          </P>
+          <P>
+            <Gold>Ahead.</Gold> After the mainnet launch comes the Exchange: a
+            two-sided gold-for-DRIFTS market where payouts come only from what
+            other players paid in, with daily caps scaled by holdings. Player
+            to player, never house to player. Until then, the loop is simple:
+            hold to enter, hold more to stand taller, burn to act.
           </P>
 
           <H id="trust">Architecture & Trust</H>
@@ -347,7 +490,7 @@ export default function DocsPage() {
             and loot, the gold and item ledgers, every overworld beast's life
             and death, claims, the market's goods and coin, the vault, the
             wheel's rolls, duel wagers, caravan and night quotas, and every
-            token burn are all server-ruled. What remains client-side is
+            DRIFTS burn are all server-ruled. What remains client-side is
             cosmetic or being hardened next: experience, quest progress, drink
             buffs, and your own vitals.
           </P>
@@ -361,15 +504,16 @@ export default function DocsPage() {
           <P>
             Hardening (rate limits and validation across every message), then
             deployment to public infrastructure, then, and only then, the
-            mainnet token launch. The realm does not rush its own door.
+            DRIFTS mainnet launch. The realm does not rush its own door.
           </P>
 
           <H id="disclaimer">Disclaimer</H>
           <P>
-            This is a devnet build. The token holds no monetary value, promises
-            no return, and exists as game utility only. Nothing in the realm,
-            this paper, or its keepers' mouths is financial advice. The Drift
-            takes everything eventually; spend accordingly.
+            Driftlands is in beta. DRIFTS is game utility: it opens the
+            door and feeds the burn rites. It is not an investment, promises
+            no return, and its market price can fall to zero. Nothing in the
+            realm, this paper, or its keepers' mouths is financial advice.
+            The Drift takes everything eventually; spend accordingly.
           </P>
         </div>
       </div>

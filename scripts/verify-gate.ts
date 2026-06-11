@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Phase 6 verification: the token ENTRY GATE (Kintara-style door). SELF-HOSTED
 // (port 2591) with our devnet mint and GATE_TOKENS=2:
-//   /gate endpoint reports the lock; wallet-less and broke-wallet joins are
-//   REJECTED at onAuth; a wallet minted 2 real devnet tokens passes and joins.
+//   /gate endpoint reports the lock + issues nonces; wallet-less, broke-wallet
+//   and UNPROVEN (no/bad signature) joins are REJECTED at onAuth; a wallet
+//   minted 2 real devnet tokens that signs its gate nonce passes and joins.
 // Needs server/.data/devnet-mint.json (funded authority).
 // Run from repo root:  ./server/node_modules/.bin/tsx scripts/verify-gate.ts
 
@@ -12,6 +13,7 @@ import { resolve } from "node:path";
 import { Client } from "colyseus.js";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
+import { gateMessage } from "../game/types";
 
 const PORT = 2591;
 const WS_URL = `ws://localhost:${PORT}`;
@@ -84,7 +86,8 @@ async function main() {
     check("/gate reports the lock", closed.gate === GATE && closed.ok === false && closed.mint === mint,
       JSON.stringify(closed));
 
-    const broke = bs58.encode(nacl.sign.keyPair().publicKey);
+    const brokeKey = nacl.sign.keyPair();
+    const broke = bs58.encode(brokeKey.publicKey);
     const denied = await (await fetch(`${HTTP_URL}/gate?address=${broke}`)).json();
     check("/gate denies a broke wallet", denied.ok === false && denied.balance === 0,
       `balance=${denied.balance}`);
@@ -92,15 +95,54 @@ async function main() {
     const allowed = await (await fetch(`${HTTP_URL}/gate?address=${holderAddr}`)).json();
     check("/gate clears the funded wallet", allowed.ok === true && allowed.balance >= GATE,
       `balance=${allowed.balance}`);
+    check("/gate issues a signing nonce", typeof allowed.nonce === "string" && allowed.nonce.length > 8);
+
+    // ---- the ownership proof --------------------------------------------------------
+    const sign = (key: nacl.SignKeyPair, addr: string, nonce: string) =>
+      Buffer.from(
+        nacl.sign.detached(new TextEncoder().encode(gateMessage(addr, nonce)), key.secretKey),
+      ).toString("hex");
+    const holderSig = sign(holderKey, holderAddr, allowed.nonce);
+
+    const re = await (await fetch(
+      `${HTTP_URL}/gate?address=${holderAddr}&nonce=${encodeURIComponent(allowed.nonce)}&sig=${holderSig}`,
+    )).json();
+    check("/gate verifies a stored proof (proofOk)", re.proofOk === true);
+    const tampered = await (await fetch(
+      `${HTTP_URL}/gate?address=${holderAddr}&nonce=${encodeURIComponent(allowed.nonce)}&sig=${"0".repeat(128)}`,
+    )).json();
+    check("/gate refuses a forged proof", tampered.proofOk === false);
 
     // ---- onAuth enforcement -------------------------------------------------------
     const token = () => `gate-${Date.now()}-${Math.random()}`;
     check("join without a wallet rejected",
       (await tryJoin({ token: token() })) === "rejected");
-    check("join with a broke wallet rejected",
-      (await tryJoin({ token: token(), address: broke })) === "rejected");
-    check("join with the funded wallet accepted",
-      (await tryJoin({ token: token(), address: holderAddr })) === "joined");
+    check("join with a bare address (no proof) rejected",
+      (await tryJoin({ token: token(), address: holderAddr })) === "rejected");
+    check("join with a forged signature rejected",
+      (await tryJoin({
+        token: token(), address: holderAddr,
+        gateNonce: allowed.nonce, gateSig: "0".repeat(128),
+      })) === "rejected");
+    // a signature from the WRONG key over the right message
+    const intruder = nacl.sign.keyPair();
+    check("join with another wallet's signature rejected",
+      (await tryJoin({
+        token: token(), address: holderAddr,
+        gateNonce: allowed.nonce, gateSig: sign(intruder, holderAddr, allowed.nonce),
+      })) === "rejected");
+    // a PROVEN but broke wallet still fails the balance check
+    const brokeInfo = await (await fetch(`${HTTP_URL}/gate?address=${broke}`)).json();
+    check("join with a broke wallet (proven) rejected",
+      (await tryJoin({
+        token: token(), address: broke,
+        gateNonce: brokeInfo.nonce, gateSig: sign(brokeKey, broke, brokeInfo.nonce),
+      })) === "rejected");
+    check("join with the funded, proven wallet accepted",
+      (await tryJoin({
+        token: token(), address: holderAddr,
+        gateNonce: allowed.nonce, gateSig: holderSig,
+      })) === "joined");
   } catch (e) {
     console.error("THROW", e);
     failures++;

@@ -33,7 +33,7 @@ const EVENTS: { name: string; cadence: string; text: string }[] = [
   {
     name: "The Shrine Cleansing",
     cadence: "whenever the pot fills",
-    text: "Communal, not scheduled: every coin donated to the Pale Flame counts toward the pot. When it fills, the corruption nearest town burns clean. Holders can feed the pot with a 2-token burn worth 150g.",
+    text: "Communal, not scheduled: every coin donated to the Pale Flame counts toward the pot. When it fills, the corruption nearest town burns clean. Holders can feed the pot with a 10k DRIFTS burn worth 150g.",
   },
 ];
 

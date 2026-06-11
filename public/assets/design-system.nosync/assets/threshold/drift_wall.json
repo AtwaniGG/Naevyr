@@ -1,0 +1,57 @@
+{
+  "image": "threshold/drift_wall.svg",
+  "cell": {
+    "w": 64,
+    "h": 96
+  },
+  "anchor": {
+    "x": 32,
+    "y": 95
+  },
+  "tilesHorizontally": true,
+  "seamContinuous": "left/right",
+  "note": "advancing corruption front; tile along iso rows",
+  "frames": {
+    "drift_wall_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 96,
+      "anchor": {
+        "x": 32,
+        "y": 95
+      }
+    },
+    "drift_wall_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 96,
+      "anchor": {
+        "x": 32,
+        "y": 95
+      }
+    },
+    "drift_wall_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 96,
+      "anchor": {
+        "x": 32,
+        "y": 95
+      }
+    }
+  },
+  "animations": {
+    "boil": {
+      "frames": [
+        "drift_wall_00",
+        "drift_wall_01",
+        "drift_wall_02"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

@@ -27,7 +27,7 @@ export default function LandingShell({
   hero?: boolean;
 }) {
   const path = usePathname();
-  const { info, wallet, balance, busy, connect } = useGate();
+  const { info, wallet, balance, busy, connect, disconnect } = useGate();
 
   return (
     <div
@@ -69,10 +69,20 @@ export default function LandingShell({
         }}
       >
         <Link href="/" style={{ textDecoration: "none", flexShrink: 0 }}>
-          <span className="drift-wordmark" style={{ fontSize: 20, lineHeight: 1, marginRight: 16, whiteSpace: "nowrap" }}>
+          <span className="drift-wordmark" style={{ fontSize: 20, lineHeight: 1, whiteSpace: "nowrap" }}>
             DRIFTLANDS
           </span>
         </Link>
+        <span
+          style={{
+            font: "600 9px/1 var(--font-ui)", letterSpacing: "0.18em",
+            color: "var(--text-secondary)", padding: "4px 8px",
+            border: "1px solid rgba(124, 58, 237, 0.45)", borderRadius: 999,
+            whiteSpace: "nowrap", flexShrink: 0, margin: "0 10px",
+          }}
+        >
+          BETA
+        </span>
         {NAV.map((n) => (
           <Link
             key={n.href}
@@ -85,7 +95,7 @@ export default function LandingShell({
           </Link>
         ))}
         <span style={{ flex: 1 }} />
-        <span style={{ display: "inline-flex", gap: 10, margin: "0 12px", flexShrink: 0 }}>
+        <span style={{ display: "inline-flex", gap: 8, margin: "0 8px", flexShrink: 0 }}>
           {[
             { i: 6, t: "Discord · the hall is being raised" },
             { i: 7, t: "Telegram · the herald is not yet posted" },
@@ -107,9 +117,9 @@ export default function LandingShell({
               padding: "7px 10px", whiteSpace: "nowrap", flexShrink: 0,
               background: "rgba(231, 200, 115, 0.08)",
             }}
-            title={`${wallet} holds ${balance.toLocaleString()} tokens`}
+            title={`${wallet} holds ${balance.toLocaleString()} DRIFTS`}
           >
-            {balance.toLocaleString()} ◆
+            {balance.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" />
           </span>
         )}
         <Button
@@ -118,10 +128,21 @@ export default function LandingShell({
           onClick={() => void connect()}
           disabled={busy}
           style={{ marginLeft: 8, whiteSpace: "nowrap", flexShrink: 0 }}
-          title={wallet ?? undefined}
+          title={wallet ? `Connected · ${wallet}` : undefined}
         >
-          {wallet ? `Connected · ${shortAddr(wallet)}` : "Connect Wallet"}
+          {wallet ? shortAddr(wallet) : "Connect Wallet"}
         </Button>
+        {wallet && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void disconnect()}
+            style={{ marginLeft: 4, whiteSpace: "nowrap", flexShrink: 0 }}
+            title="Unbind this wallet"
+          >
+            ✕
+          </Button>
+        )}
       </div>
 
       <div className="relative" style={{ zIndex: 5 }}>{children}</div>
@@ -134,8 +155,8 @@ export default function LandingShell({
             font: "400 10.5px/1.5 var(--font-ui)", color: "var(--text-muted)",
           }}
         >
-          Driftlands · a realm at the edge of the Drift · devnet build, tokens hold no monetary value
-          {info && info.gate > 0 && <> · the door is warded: {info.gate.toLocaleString()} tokens</>}
+          Driftlands · a realm at the edge of the Drift · beta build · DRIFTS is game utility, not an investment, and promises no return
+          {info && info.gate > 0 && <> · the door is warded: {info.gate.toLocaleString()} DRIFTS</>}
         </div>
       )}
     </div>

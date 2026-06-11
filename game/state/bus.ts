@@ -44,6 +44,8 @@ type Events = {
   itemDelta: { item: string; qty: number; reason: ItemReason };
   /** cook fish over the embers (server validates the fish are real) */
   cook: { qty: number };
+  /** vendor (satchel) sale — server debits the goods, credits house prices */
+  sell: { item: string; qty: number };
   /** forge a recipe (server debits the materials from the ledger) */
   craft: { id: string };
 };

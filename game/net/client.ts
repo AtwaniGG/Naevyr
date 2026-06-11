@@ -44,6 +44,8 @@ export interface NetMob {
   hp: number;
   maxHp: number;
   state: string; // wander | engaged | dead
+  /** actually stepping on the server (drives the walk anim) */
+  moving: boolean;
 }
 
 export interface NetClaim {
@@ -89,18 +91,21 @@ export class NetClient {
   }
 
   /** Join the shared world; resolves null if the server can't be reached.
-   *  `address` rides along for the token entry gate (GATE_TOKENS servers). */
+   *  `address` rides along for the token entry gate (GATE_TOKENS servers);
+   *  `proof` is the signed gateMessage proving the wallet is actually owned. */
   static async connect(
     url: string,
     timeoutMs: number,
     token: string,
     address?: string | null,
+    proof?: { nonce: string; sig: string } | null,
   ): Promise<NetClient | null> {
     try {
       const room = await withTimeout(
         new Client(url).joinOrCreate<AnyState>("drift", {
           token,
           ...(address ? { address } : {}),
+          ...(proof ? { gateNonce: proof.nonce, gateSig: proof.sig } : {}),
         }),
         timeoutMs,
       );
@@ -335,6 +340,11 @@ export class NetClient {
   /** forge a recipe (server debits the materials from the ledger) */
   sendCraft(id: string) {
     this.safeSend("craft", { id });
+  }
+
+  /** vendor sale (server debits the goods, credits gold at house prices) */
+  sendSell(item: string, qty: number) {
+    this.safeSend("sell", { item, qty });
   }
 
   // ---- lifecycle -----------------------------------------------------------------

@@ -30,6 +30,7 @@ cd server && npx tsc --noEmit -p tsconfig.json     # server typecheck
 ./server/node_modules/.bin/tsx scripts/verify-limits.ts        # Phase 6: rate limits, server-rolled duel damage, level-scaled swing clamp
 ./server/node_modules/.bin/tsx scripts/verify-ledger.ts        # Phase 6: gold + inventory ledgers (seeding, caps, cook/craft, persistence)
 ./server/node_modules/.bin/tsx scripts/verify-mobs.ts          # SELF-HOSTED (port 2592): shared mobs + den + Colossus kill/loot/respawn
+./server/node_modules/.bin/tsx scripts/verify-tiers.ts         # SELF-HOSTED (port 2593): holder tiers (real devnet mint: Keeper vault fee + stall cap)
 ```
 
 **The workflow rule:** after any change — typecheck both sides, build, run the relevant
@@ -59,7 +60,7 @@ something works without running these.
 - **Sync model:** clients send intents (`move`, `gather`, `chat`, `claim`, `buy`,
   `bank`, `spin`, `donate`, `placeProp`, `challenge`/`acceptDuel`/`duelHit`, `save`,
   `identity`, `engage`/`attack` (shared mobs), `goldDelta`/`itemDelta` (capped
-  client-trusted income), `cook`/`craft` (ledger-validated conversions),
+  client-trusted income), `cook`/`craft`/`sell` (ledger-validated conversions),
   `walletNonce`/`linkWallet`/`unlinkWallet`, `burnQuote`, `buyAura`,
   `obeliskBurn`); server validates + broadcasts. Client **polls schema state each frame**
   (no per-property callbacks — deliberate, avoids colyseus.js callback API churn).
@@ -141,6 +142,16 @@ port: hero_vista 480×270 2f, wordmark_plate 320×96 2f, gate_door 96×128 3f,
 nav_icons 9×16×16 — all served straight from the design-system.nosync SVG
 exports and animated with CSS steps() classes in driftlands.css
 (`.landing-hero/-plate/-door/-icon`, icon picked via `--icon-index`).
+
+**BRAND SET (done):** `assets/brand/` exports (emblem-16/32/64 + logo-horizontal/
+stacked, each with -mono) are DOM art, no engine port. The emblem is the DRIFTS
+coin mark: `.drifts-mark` class in driftlands.css (1em inline, pixelated) used
+wherever the currency shows (nav balance chip, HUD burn buttons/keeper rights,
+codex legend, docs). `_gen/fxlogo.js` regenerates it. The currency is named
+**DRIFTS** in ALL user-facing copy (never "tokens"/"the token"/"coins"); the
+docs whitepaper embeds DS art via its `Art` component (frame-sheet aware:
+hero_vista intro, gate_door in the gate chapter, emblem-64 in the DRIFTS
+chapter).
 
 **TOWN SET (done):** `_gen/town.js` is ported in `makeBuildingSprite()` —
 verified pixel-identical to the DS SVG exports. Key mapping: DS `casino` → our
@@ -337,9 +348,42 @@ the save's cosmetics) → enter. ENFORCED server-side: `onAuth` rejects joins
 without an `address` option whose balance ≥ `gateTokens()` (solana.ts;
 `GATE_TOKENS` env, DEFAULT 0/OFF so dev + every verify suite stays open;
 production sets `GATE_TOKENS=1000`). No server reachable → "Wander offline"
-(offline-solo invariant holds). Caveat (hardening follow-up): the join
-address is balance-checked but not signature-proven; the in-game link flow
-remains the binding proof. NO tutorial yet (explicitly deferred).
+(offline-solo invariant holds). **Gate is SIGNATURE-PROVEN** (hardening
+done): a warded `/gate?address=` response includes a `nonce` (stateless:
+`expiryMs.hmac(address|expiry)` under a per-boot secret, 12h TTL,
+`server/src/gate.ts`); the wallet signs `gateMessage(address, nonce)`
+(types.ts, same rail as walletLinkMessage) ONCE at the door
+(`signGateProof` in components/gate.ts; proof in localStorage
+`driftlands-gate-proof`); every join sends `gateNonce`/`gateSig` options
+and `onAuth` verifies ed25519 BEFORE the balance check. The landing
+re-checks a stored proof via `/gate?address&nonce&sig` → `proofOk` (a
+server restart rotates the secret; the door quietly re-signs). The denied
+screen distinguishes "would not sign" from "too poor". verify-gate covers
+forged/wrong-key/bare-address rejections + the proven join. **TUTORIAL DONE — "the Threshold":** client-local pocket world on first
+login (after gate + naming, BEFORE the server join; the offline sim is the
+engine, no net). `game/engine/tutorial.ts`: `THRESHOLD` layout (14×8 — this
+size dodges every ALL_STRUCTURES coordinate; structures/graves/wild-quadrant
+sims AND the decorative doodad clutter are gated off by `this.tutorial` in
+game.ts — the Husk Den's r8 clutter box centered at (8,8) otherwise blankets
+the whole 14×8 map with fake dead trees, hiding the real lesson nodes), `buildThreshold()`
+carves it, `TutorialDirector` runs 7 lessons (beacon walk → chop → mine →
+fish → cook → kill one spawned husk → step through the gate) with scripted
+corruption eating columns from the west between lessons. **THRESHOLD SET
+(done):** `_gen/threshold.js` ported into sprites.ts, 6/6 byte-exact vs the
+DS exports (`tmp-compare-threshold.ts`): gate 96×128 sealed/open ×3f rune
+pulse 4fps, Gatewarden 32×40 5 facings idle 2f, beacon 64×64 3f light
+column 3fps, arrow pip 16×16 2f bob, drift wall FX 64×96 3f boil 6fps
+(stands on the front column the scripted Drift just ate, seam-continuous,
+no outline), ground accents 64×36 ×2 (`TUTORIAL_ACCENTS` cells in
+tutorial.ts). All cached LAZILY (`thresholdMap` in SpriteCache — only the
+first login pays). HUD: `TutorialBanner` (store.tutorialObjective)
+top-center with a "skip the lessons" link (sets tutorialDone directly).
+`tutorialDone` lives in SaveData/store and is STICKY in applySnapshot (old
+server snapshots without the flag must not regress it — re-tutorial loop
+otherwise). /play: mode door→tutorial→game, watches store.tutorialDone and
+remounts GameCanvas (key swap; initPersistence is now guarded against double
+init). Existing saves without the flag get ONE (skippable) pass. Finishing
+pays 50g and what was gathered carries into the realm via the normal save.
 The landing is a full Kintara-style SITE now: real routes sharing
 `components/LandingShell.tsx` (sticky nav: Dashboard / Updates / Events /
 How to Play / Leaderboard / Index / Docs + socials + balance chip + Connect;
@@ -384,9 +428,32 @@ mounted — every other page scrolls and selects like a normal site.
    burn-tx build 8s, verifyBurn polls 6s each) because the public devnet RPC
    throttles by HANGING, which used to stall walletResult/profile/gate joins
    forever.
-3. **Economy tuning pass — NEXT UP (start here).** Gold is fully server-held
-   now; balance the faucets against each other and the sinks, then tighten
-   the anti-cheat budgets to "just above legit maximums". The audit data:
+**HOLDER TIERS DONE** (all suites green incl. verify-tiers): `HOLDER_TIERS`/
+`BASE_PERKS`/`holderPerks(balance)` in types.ts — Keeper 10k / Warden 100k /
+Drift Lord 1M scale: claim slots 3→4/5/6, market stalls 6→8/10/12, vault fee
+2%→1%/0.5%/0, rich-strike odds 10%→12/15/20%, caravan payout WEIGHT per kill
+×1/1.1/1.25/1.5 (weighted split of the SAME pool — zero inflation). Server
+holds `sim.tokenBalance` (refreshed on linkWallet/getProfile, zeroed on
+unlink); every perk is enforced server-side at its rail. Client derives the
+tier from tokenBalance via the same shared table (You-panel badge shows the
+tier label); docs render the tier table from HOLDER_TIERS so it can't go
+stale. The currency is DRIFTS in all user-facing copy.
+
+3. **Economy tuning pass — DONE** (all suites green): the Mine was the outlier
+   (~4,700-16,000g/hr by mining level, zero risk); now `VEIN_CHARGES=2`,
+   `VEIN_REGROW_MS=240s` (game.ts) ≈ 1,900-2,900g/hr, in band with caravans
+   (~2,400 solo), beast farming (~3,000 equiv) and gather-selling (~2,500-3,000).
+   Vendor sales are a server-validated `sell` intent now (mirrors cook/craft:
+   debits the inventory ledger, credits qty × ITEM_META sellValue; store.sellItem
+   still mutates locally for offline + instant feedback, syncs adopt the
+   server's word online); the old `sell` goldDelta (a 15k/event mint hole) is
+   GONE. `GOLD_DELTA_CAPS` tightened to just above legit maximums (vein 25/350,
+   chest 110/120, losttomb 90/100, quest 70/250) and the `mob` reason is
+   retired from BOTH delta tables (every overworld mob pays on the server
+   ledger; the client "mob" paths in combat.ts are offline-only).
+   verify-ledger covers the new caps + sell clamp/refusal. Sink prices
+   untouched; the user's playtest feel decides any further squeeze.
+   The original audit data, for reference:
    - FAUCETS (gold/hr-ish): Mine veins 3+lvl/2+rand(3) per ~1.8s swing, 7
      veins × 3 charges, 60s regrow (`VEIN_CHARGES`/`VEIN_REGROW_MS`,
      game.ts) — likely the richest camp; Husk Den chest 60-100g + 2 shards
@@ -412,11 +479,68 @@ mounted — every other page scrolls and selects like a normal site.
    - The leaderboard (`/leaderboard`) + players table show the live wealth
      distribution; the user playtests on localhost:2567 and their "feels
      too rich/poor" calls outrank the spreadsheet.
-4. **Deploy:** client → Vercel; server → Railway/Fly (`NEXT_PUBLIC_GAME_SERVER`
-   ws URL env, `DATABASE_URL` → Neon, `TOKEN_MINT`/`SOLANA_RPC` envs; the
-   devnet authority keypair lives in server/.data and must move to a secret).
+4. **DEPLOY — NEXT UP (start here in a fresh chat).** Move the whole stack off
+   the user's laptop onto real infra. Everything below is BUILT and config-ready;
+   deploy is wiring + verification, not new features. Ask the user which server
+   host (Railway = simpler, Fly = more control) and whether they have
+   Vercel/Neon accounts before starting. Order:
+   - **DB → Neon Postgres.** The code already supports it: `server/src/db`
+     uses PGlite locally and swaps to a real PG when `DATABASE_URL` is set
+     (config-only, no code change). Bootstrap is `CREATE TABLE IF NOT EXISTS` +
+     `ALTER ... ADD COLUMN IF NOT EXISTS` on boot — verify it runs clean on a
+     fresh Neon instance (no drizzle-kit migrations exist). Create a Neon
+     project, grab the pooled connection string, set `DATABASE_URL`.
+   - **Server → Railway or Fly.** Containerize `server/` (Node, `npx tsx
+     src/index.ts`; the `server/src/env.ts` loader reads `.env.local` locally
+     but prod uses the host's env vars). Secrets to set: `DATABASE_URL` (Neon),
+     `SOLANA_RPC` (the Helius key currently in server/.env.local —
+     `https://devnet.helius-rpc.com/?api-key=…`), `TOKEN_MINT`
+     (`5oEhDEBED6DYroyuB99sGpGEZLWcMF1Dh1yr4QV6CsLH`), `GATE_TOKENS=1000`,
+     `PORT` (host-injected). Expose the HTTP+ws port (one server via
+     `createServer` + `WebSocketTransport` in index.ts — `/gate` and
+     `/leaderboard` ride the same port). Confirm wss:// works behind the host's
+     TLS.
+   - **Secret: the devnet mint authority keypair** lives in
+     `server/.data/devnet-authority.json` (gitignored) on the iCloud Desktop.
+     It signs burn fee-payment + minting. Move it into the host's secret
+     manager (env var holding the JSON, or a mounted secret) — do NOT bake it
+     into the image. Same for `devnet-mint.json` (or just rely on `TOKEN_MINT`).
+   - **Client → Vercel.** Next.js App Router, `distDir: .next.nosync` (fine on
+     Vercel). Env: `NEXT_PUBLIC_GAME_SERVER=wss://<deployed-server>` and
+     `NEXT_PUBLIC_TOKEN_MINT=5oEhDEBED6DYroyuB99sGpGEZLWcMF1Dh1yr4QV6CsLH`.
+     The offline-solo invariant means the client still loads if the server is
+     unreachable; verify the gate flow hits the real server.
+   - **Verify against the deployed stack:** point the verify suites at the prod
+     ws URL (`GAME_SERVER=wss://… npx tsx scripts/verify-*.ts`) — but note
+     GATE_TOKENS=1000 will reject the guest-token suites (they join without a
+     funded wallet). Either run a temporary second instance with GATE_TOKENS=0
+     for the suite pass, or smoke-test the gated path manually with a funded
+     wallet. Then the user + friends playtest over the real internet.
+   - **Gotchas to expect:** Colyseus needs sticky sessions / a single instance
+     (in-memory room state — do NOT autoscale to >1 instance without a presence
+     backend); Neon cold-starts can be slow on the free tier (the bootstrap
+     ALTERs run every boot); the public-RPC throttle disappears with the Helius
+     key so keep it set.
 5. **pump.fun mainnet launch** — REQUIRES the user's explicit go-ahead. New
-   mint, env swap, real RPC provider; never assume.
+   DRIFTS mint on mainnet, env swap (`TOKEN_MINT`, `SOLANA_RPC` → mainnet
+   provider, `NEXT_PUBLIC_TOKEN_MINT`), real authority keypair as a managed
+   secret; never assume, never touch mainnet without the word. Token name:
+   **DRIFTS**. Flip the launch-day copy is already done (the "tokens hold no
+   monetary value" → "utility, not an investment, market price can fall to
+   zero" framing is live site-wide).
+6. **POST-LAUNCH: the Exchange (gold ↔ DRIFTS)** — user-approved 2026-06-11,
+   Kintara-style ("sell gold for $KINS" with daily caps by holdings): two-sided
+   pool at the Vault keeper's counter — buy gold with DRIFTS / sell gold for
+   DRIFTS, payouts ONLY from what buyers paid in (server escrow wallet, never a
+   house faucet; "the merchant's purse is light" when the pool runs dry), daily
+   caps scaled by holdings, fixed rate not an order book. Incoming payments
+   verified on-chain like burns (existing rail); outgoing transfers are NEW
+   (server signs from escrow — the keypair must be a managed secret from day
+   one, which is why this waits until after deploy). Items themselves still
+   sell for gold only; the loop is items → gold → DRIFTS.
+
+**Loose ends:** none right now. (Threshold art swap + gate signature
+hardening both landed 2026-06-11 — see the tutorial + entry-gate sections.)
 
 ## Conventions & gotchas
 
@@ -427,6 +551,11 @@ mounted — every other page scrolls and selects like a normal site.
 - macOS: no `timeout` command. Background long-running processes via the harness.
 - Schema buffer: `Encoder.BUFFER_SIZE = 64KB` set in `server/src/index.ts` (full-state
   joins overflow the 8KB default).
+- The obelisk sprite's `foundation()` ground pad is CLIPPED by its own 64×112
+  canvas (pad rows extend past y=111 — the south corner is missing from the
+  art). Invisible on dirt/ash ground, a hard diagonal cut on grass: any
+  placement of the obelisk sprite needs dirt-toned tiles under it (the
+  Threshold gate sits on a dirt apron for exactly this reason).
 - Hotbar slots are static UI icons, NOT equipment (confused the user once) — gear comes
   from the Forge and auto-equips; it renders on the character (held blade, shoulder
   tool, chest ward).

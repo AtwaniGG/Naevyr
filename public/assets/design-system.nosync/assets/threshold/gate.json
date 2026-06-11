@@ -1,0 +1,103 @@
+{
+  "image": "threshold/gate.svg",
+  "cell": {
+    "w": 96,
+    "h": 128
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "anchor": {
+    "x": 48,
+    "y": 127
+  },
+  "footprint": "exit structure",
+  "labelClearTop": 6,
+  "states": [
+    "sealed",
+    "open"
+  ],
+  "frames": {
+    "gate-sealed_00": {
+      "x": 0,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate-sealed_01": {
+      "x": 96,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate-sealed_02": {
+      "x": 192,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate-open_00": {
+      "x": 0,
+      "y": 128,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate-open_01": {
+      "x": 96,
+      "y": 128,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate-open_02": {
+      "x": 192,
+      "y": 128,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    }
+  },
+  "animations": {
+    "sealed": {
+      "frames": [
+        "gate-sealed_00",
+        "gate-sealed_01",
+        "gate-sealed_02"
+      ],
+      "fps": 4,
+      "loop": true
+    },
+    "open": {
+      "frames": [
+        "gate-open_00",
+        "gate-open_01",
+        "gate-open_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

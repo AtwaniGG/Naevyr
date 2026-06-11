@@ -37,6 +37,8 @@ export class MobState extends Schema {
   @type("number") maxHp = 0;
   /** wander | engaged | dead */
   @type("string") state = "wander";
+  /** actually stepping (authoritative walk-anim signal for the puppets) */
+  @type("boolean") moving = false;
 }
 
 export class PropState extends Schema {

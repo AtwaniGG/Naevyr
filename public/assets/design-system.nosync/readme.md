@@ -446,6 +446,25 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     `gate_door` 96×128 (3 frames: shut → runes pulsing → opening glow; the token-gate visual),
     `wordmark_plate` 320×96 (2-frame inlay pulse — bone-and-gold frame with drift inlay to sit
     behind the DRIFTLANDS wordmark).
+  - `social/` — **social / launch pack** (PNG, nearest-neighbor upscaled, opaque sRGB) for the
+    **$DRIFTS** coin: `pfp_coin.png` 1024×1024 (pump.fun coin — the warded gate rune struck in
+    gold over a drift field with the **$DRIFTS** ticker on the lower face, 128px grid ×8),
+    `pfp_coin_clean.png` (same, no ticker), `pfp_x.png` 800×800 (X avatar, sigil only so it
+    reads at tiny sizes, meaning inside the inner 80% circular-crop safe zone, 100px grid ×8),
+    `banner_x.png` 1500×500 (X banner — night vista, moon, Waystation rooftops, corruption from
+    both edges, wordmark plate + tagline "THE DRIFT TAKES THE REALM" + the **$DRIFTS** ticker;
+    lower-left 400×200 kept clear for the profile photo, text above the bottom 15%). Each ships
+    a `*-2x-native.png` archive at 2× the native grid. **`banner_pumpfun.png`** 1500×500 is the
+    pump.fun coin-page banner (3:1, ≤4.3MB) — same scene with the wordmark **dead-centered**
+    (the coin page has no profile-photo overlap, unlike X).
+  - `threshold/` — **"The Threshold" tutorial micro-set** (rect-grid SVG + atlas JSON):
+    `gate` 96×128 (exit structure — sealed + open states, 3 rune-pulse frames each @4fps,
+    triangle-in-circle keystone sigil), `gatewarden` 32×40 (bone-robed keeper on the wanderer
+    rig — 5 facings, idle 2f, gold eye-glows + staff with a bobbing drift mote), `beacon` 64×64
+    (objective marker — rune tile + rising gold light, 3f rise/peak/fall) and `arrow_pip` 16×16
+    (2f bob), `drift_wall` 64×96 (advancing corruption front — 3f boil, **seam-continuous**
+    left/right so it tiles along iso rows), `ground` 64×36 (2 cracked pale-flagstone path
+    accents with gold rune fragments, drawn under entities over grass).
   - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
   - `creatures-preview.html` — every creature, facing & animation cycling live.
   - `town-preview.html` — all eight structures with anchor pins & label-clearance guides.
@@ -453,9 +472,11 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `walls-preview.html` — corrected iso walls (`wall2_*`) tiled 4-in-a-row to prove seams.
   - `wilds-preview.html` — wild structures, doodads, interior additions & lore graves.
   - `landing-preview.html` — hero composition (vista + plate + nav + buttons), icons, gate.
+  - `social-preview.html` — coin/avatar marks, banner & an X-profile mock with safe-zone notes.
+  - `threshold-preview.html` — gate (sealed/open), gatewarden facings, beacon, drift-wall tiling & path accents, all cycling live.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
+    `landing.js`, `social.js`, `threshold.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.
