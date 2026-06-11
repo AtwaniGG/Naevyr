@@ -30,6 +30,13 @@ export const players = pgTable("players", {
   escrowGold: real("escrow_gold").notNull().default(0),
   /** gold stored in the Vault (safe from tombstones) */
   bankGold: real("bank_gold").notNull().default(0),
+  /**
+   * Phase 6: authoritative pocket gold (the server ledger). NULL = ledger not
+   * seeded yet — first join migrates the old snapshot's gold into it.
+   */
+  gold: real("gold"),
+  /** Phase 6: authoritative item counts (same seed-once rules as gold) */
+  inv: jsonb("inv"),
 
   // where the wanderer last stood
   lastX: real("last_x"),

@@ -33,7 +33,7 @@ function svg(rects: ReturnType<typeof gridRects>, w: number, h: number) {
       (r.a != null ? ' fill-opacity="' + r.a + '"' : '') + '></rect>').join('') + '</svg>';
 }
 const ref = (name: string) =>
-  readFileSync(`public/assets/design-system/assets/walls/${name}.svg`, "utf8").trim();
+  readFileSync(`public/assets/design-system.nosync/assets/walls/${name}.svg`, "utf8").trim();
 
 let fail = 0;
 function diff(name: string, g: Grid) {

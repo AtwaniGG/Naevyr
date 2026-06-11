@@ -6,11 +6,17 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
   background: var(--bg-world, #0a0810);
   color: var(--text-primary, #d8cfe0);
-  overflow: hidden;
   font-family: var(--font-ui, ui-sans-serif, system-ui, sans-serif);
+}
+
+/* The game locks the viewport (no scroll, no text selection) while it runs;
+   the landing site scrolls and selects like any other website. The /play
+   page toggles this class on <body> when the engine mounts. */
+body.app-locked {
+  height: 100%;
+  overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
 }

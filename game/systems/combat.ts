@@ -27,7 +27,15 @@ export class CombatManager {
   onDeath: ((x: number, y: number) => void) | null = null;
   /** caravan escort hook: fires when a raider dies (engine reports to server) */
   onRaiderKill: (() => void) | null = null;
+  /** shared-mob hooks (engine forwards to the server when online) */
+  onNetAttack: ((mob: Mob, dmg: number) => void) | null = null;
+  onEngage: ((mob: Mob) => void) | null = null;
   private nextId = 1;
+
+  /** local id for a schema puppet (keeps the id space collision-free) */
+  allocId(): number {
+    return this.nextId++;
+  }
 
   private engaged: Mob | null = null;
   private playerTimer = 0;
@@ -153,6 +161,7 @@ export class CombatManager {
     if (mob.state === "dead") return;
     this.engaged = mob;
     mob.state = "engaged";
+    if (mob.netId != null) this.onEngage?.(mob); // freeze it server-side too
     this.playerTimer = PLAYER_ATTACK_MS * 0.4; // small wind-up
     this.mobTimer = MOB_ATTACK_MS;
     player.action = "attack";
@@ -171,7 +180,10 @@ export class CombatManager {
   }
 
   update(dt: number, world: World, player: Player) {
-    for (const m of this.mobs) m.update(dt, world);
+    for (const m of this.mobs) {
+      if (m.netId != null) m.updatePuppet(dt); // server drives the real sim
+      else m.update(dt, world);
+    }
     // crumbled raiders don't respawn — prune once the death anim finishes
     this.mobs = this.mobs.filter(
       (m) => !(m.kind === "raider" && m.state === "dead" && m.deathT > 1.5),
@@ -206,11 +218,11 @@ export class CombatManager {
       }
     }
 
-    // mob retaliates
+    // mob retaliates (shared beasts retaliate from the server via "mobHit")
     this.mobTimer -= dt * 1000;
     if (this.mobTimer <= 0) {
       this.mobTimer += MOB_ATTACK_MS;
-      this.mobAttack(player, mob);
+      if (mob.netId == null) this.mobAttack(player, mob);
     }
   }
 
@@ -221,6 +233,22 @@ export class CombatManager {
       3 + Math.floor(lvl / 2) + weaponBonus() + Math.floor(Math.random() * 4);
     const crit = Math.random() < 0.12;
     const dmg = crit ? base * 2 : base;
+    if (mob.netId != null) {
+      // shared beast: the server applies the damage; we just send + show juice
+      mob.hurtFlash = 180;
+      play(crit ? "crit" : "hit");
+      this.onPlayerHit?.(mob, dmg, crit);
+      if (crit) store.bumpStat("crits");
+      store.addXp("combat", crit ? 6 : 4);
+      store.pushLog(
+        crit
+          ? `CRITICAL! You strike the Drift Beast for ${dmg}!`
+          : `You strike the Drift Beast for ${dmg}.`,
+        crit ? "#fcd34d" : "#e7c873",
+      );
+      this.onNetAttack?.(mob, dmg);
+      return; // death (and loot) arrive from the server
+    }
     mob.hit(dmg);
     play(crit ? "crit" : "hit");
     this.onPlayerHit?.(mob, dmg, crit);
@@ -241,8 +269,8 @@ export class CombatManager {
     store.bumpKills();
 
     if (mob.kind === "colossus") {
-      store.addItem("driftshard", 5);
-      store.addGold(50);
+      store.addItem("driftshard", 5, "mob");
+      store.addGold(50, "mob");
       const { leveledTo } = store.addXp("combat", mob.xpReward);
       play("kill");
       store.pushLog(
@@ -255,7 +283,7 @@ export class CombatManager {
 
     if (mob.kind === "raider") {
       const gold = 5 + Math.floor(Math.random() * 6);
-      store.addGold(gold);
+      store.addGold(gold, "mob");
       const { leveledTo } = store.addXp("combat", mob.xpReward);
       play("kill");
       store.pushLog(`The raider falls. You loot ${gold}g from the body.`, "#e7c873");
@@ -264,10 +292,10 @@ export class CombatManager {
       return;
     }
 
-    store.addItem("driftshard", 1);
+    store.addItem("driftshard", 1, "mob");
     let loot = "Drift Shard";
     if (Math.random() < 0.5) {
-      store.addItem("hide", 1);
+      store.addItem("hide", 1, "mob");
       loot += " + Beast Hide";
     }
     const { leveledTo } = store.addXp("combat", mob.xpReward);

@@ -33,6 +33,11 @@ export class Mob {
   speed = 1.4;
   /** den-pack elites don't respawn on their own; the den re-seeds them */
   persistDeath = false;
+  /**
+   * Set on shared-world puppets: this mob mirrors a server MobState. Position,
+   * hp and life/death come from the schema; local update() is skipped.
+   */
+  netId: number | null = null;
   bob = 0;
   phase = Math.random() * Math.PI * 2;
   hurtFlash = 0;
@@ -88,6 +93,17 @@ export class Mob {
     this.hp = this.maxHp;
     this.state = "wander";
     this.idle = 0;
+  }
+
+  /** cosmetic-only tick for schema puppets (sim runs on the server) */
+  updatePuppet(dt: number) {
+    if (this.hurtFlash > 0) this.hurtFlash -= dt * 1000;
+    this.phase += dt;
+    if (this.state === "dead") {
+      this.deathT += dt;
+      return;
+    }
+    if (this.state === "engaged" || this.moving) this.bob += dt * 5;
   }
 
   update(dt: number, world: World) {

@@ -237,7 +237,7 @@ function KeeperDialogue() {
           onClick: () => {
             if (worn) return;
             if (owned) { s.setCosmetics({ dye: k as never }); respond("It suits you."); return; }
-            if (!s.spendGold(DYE_PRICE)) return respond(`Coin first. ${DYE_PRICE}g.`);
+            if (!s.spendGold(DYE_PRICE, "shop")) return respond(`Coin first. ${DYE_PRICE}g.`);
             s.grantCosmetic("dye", k);
             s.setCosmetics({ dye: k as never });
             respond("The Dyeworks remembers your taste.");
@@ -254,7 +254,7 @@ function KeeperDialogue() {
           onClick: () => {
             if (worn) return;
             if (owned) { s.setCosmetics({ eye: k as never }); respond("It suits you."); return; }
-            if (!s.spendGold(EYE_PRICE)) return respond(`Coin first. ${EYE_PRICE}g.`);
+            if (!s.spendGold(EYE_PRICE, "shop")) return respond(`Coin first. ${EYE_PRICE}g.`);
             s.grantCosmetic("eye", k);
             s.setCosmetics({ eye: k as never });
             respond("Careful who you stare at.");
@@ -274,7 +274,7 @@ function KeeperDialogue() {
             if (worn) { s.setCosmetics({ aura: "" }); respond("Dimmed, then."); return; }
             if (owned) { s.setCosmetics({ aura: k as never }); respond("It clings to you."); return; }
             if (canBurn) { bus.emit("auraBurn", k); respond("The chain takes its due. Hold still."); return; }
-            if (!s.spendGold(meta.price)) return respond(`Coin first. ${meta.price}g.`);
+            if (!s.spendGold(meta.price, "shop")) return respond(`Coin first. ${meta.price}g.`);
             s.grantCosmetic("aura", k);
             s.setCosmetics({ aura: k as never });
             respond("The Dyeworks remembers your taste.");
@@ -291,7 +291,7 @@ function KeeperDialogue() {
       const dep = (a: number) => {
         const amt = Math.min(a, s.gold);
         if (amt <= 0) return respond("Your purse is empty.");
-        s.spendGold(amt);
+        // the server ledger moves the gold; bankResult/goldSync report back
         bus.emit("bank", amt);
         respond(`${amt}g under lock and warding.`);
       };
@@ -314,7 +314,8 @@ function KeeperDialogue() {
       opts.push({
         label: `Spin the wheel`, right: `${SPIN_COST}g`,
         onClick: () => {
-          if (!s.spendGold(SPIN_COST)) return respond(`A spin costs ${SPIN_COST}g.`);
+          // the server ledger pays; this check is just fast feedback
+          if (s.gold < SPIN_COST) return respond(`A spin costs ${SPIN_COST}g.`);
           bus.emit("spin", true);
           respond("Round she goes…");
         },
@@ -335,7 +336,8 @@ function KeeperDialogue() {
           label: PROP_CATALOG[k].label, right: `${PROP_CATALOG[k].price}g`,
           onClick: () => {
             if (s.myClaims === 0) return respond("Furnishings need a claim to stand on. Stake land first.");
-            if (!s.spendGold(PROP_CATALOG[k].price)) return respond(`Coin first. ${PROP_CATALOG[k].price}g.`);
+            // the server ledger pays when the furnishing stands
+            if (s.gold < PROP_CATALOG[k].price) return respond(`Coin first. ${PROP_CATALOG[k].price}g.`);
             bus.emit("placeProp", k);
           },
         });
@@ -351,7 +353,7 @@ function KeeperDialogue() {
         onClick: () => {
           if (active) { s.setCosmetics({ pet: "" }); respond("It will sulk, you know."); return; }
           if (owned) { s.setCosmetics({ pet: k }); respond("It remembers you."); return; }
-          if (!s.spendGold(PET_CATALOG[k].price)) return respond(`Coin first. ${PET_CATALOG[k].price}g.`);
+          if (!s.spendGold(PET_CATALOG[k].price, "shop")) return respond(`Coin first. ${PET_CATALOG[k].price}g.`);
           s.grantCosmetic("pet", k);
           s.setCosmetics({ pet: k });
           respond("It follows you now. It chose you, really.");
@@ -375,8 +377,8 @@ function KeeperDialogue() {
         right: `${b.gold}g + ${b.qty} ${ITEM_META[b.item].label}`,
         onClick: () => {
           if (s.inventory[b.item] < b.qty) return respond(`The brew wants ${b.qty} ${ITEM_META[b.item].label}. Bring it.`);
-          if (!s.spendGold(b.gold)) return respond(`Coin first. ${b.gold}g.`);
-          s.removeItem(b.item, b.qty);
+          if (!s.spendGold(b.gold, "shop")) return respond(`Coin first. ${b.gold}g.`);
+          s.removeItem(b.item, b.qty, "brew");
           s.applyBuff(b.buff, b.ms);
           respond("Drink it all. Don't ask what's in it.");
         },
@@ -405,7 +407,7 @@ function KeeperDialogue() {
     opts.push({
       label: "Rewrite the day's tasks", sub: "a fresh set of dailies", right: "75g",
       onClick: () => {
-        if (!s.spendGold(75)) return respond("THE ASH TAKES COIN. 75.");
+        if (!s.spendGold(75, "shop")) return respond("THE ASH TAKES COIN. 75.");
         s.rerollQuests();
         respond("THE ASH ACCEPTS. THE DAY IS REWRITTEN.");
       },
@@ -419,7 +421,7 @@ function KeeperDialogue() {
     opts.push({
       label: "Blessing of Ash", sub: "+gather speed, 10 min", right: "60g",
       onClick: () => {
-        if (!s.spendGold(60)) return respond("THE ASH TAKES COIN. 60.");
+        if (!s.spendGold(60, "shop")) return respond("THE ASH TAKES COIN. 60.");
         s.applyBuff("gather", 10 * 60_000);
         respond("WORK, LITTLE WANDERER. THE ASH WATCHES.");
       },
@@ -495,10 +497,8 @@ function ShrinePanel() {
   const donate = (amount: number) => {
     const a = Math.min(amount, s.gold);
     if (a <= 0) return;
-    s.spendGold(a);
-    s.bumpStat("donated", a);
+    // the server ledger pays; donateResult logs it and tallies the stat
     bus.emit("donate", a);
-    s.pushLog(`You feed ${a}g to the Pale Flame.`, "#efe9f4");
   };
   const pct = Math.min(100, Math.round((s.shrine.pot / Math.max(1, s.shrine.goal)) * 100));
   return (
@@ -1308,14 +1308,46 @@ function Satchel() {
   const trading = useGame((s) => s.openDock) === "trade";
   const setOpenDock = useGame((s) => s.setOpenDock);
   const setTrading = (next: boolean) => setOpenDock(next ? "trade" : null);
+  const satchelOpen = useGame((s) => s.satchelOpen);
+  const setSatchelOpen = useGame((s) => s.setSatchelOpen);
   const carried = INVENTORY_ORDER.reduce((n, k) => n + inv[k], 0);
+
+  // collapsed: a slim button holds the spot; the Activity log takes the room
+  if (!satchelOpen) {
+    return (
+      <div className="pointer-events-auto" style={{ flexShrink: 0 }}>
+        <Button
+          variant="ghost"
+          size="md"
+          onClick={() => setSatchelOpen(true)}
+          iconLeft={<Icon name="bag" size={16} />}
+        >
+          Satchel · {carried}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-auto" style={{ position: "relative", flexShrink: 0 }}>
       <Panel
         kicker="Satchel"
         title="Inventory"
-        accessory={<Badge tone="neutral">{carried} carried</Badge>}
+        accessory={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Badge tone="neutral">{carried} carried</Badge>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Stow the satchel"
+              onClick={() => {
+                if (trading) setOpenDock(null); // the trader leaves with the bag
+                setSatchelOpen(false);
+              }}
+              iconLeft={<Icon name="x" size={12} />}
+            />
+          </span>
+        }
         style={{ width: 232 }}
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--slot-gap)" }}>
@@ -1455,12 +1487,19 @@ function SkillsPanel() {
 function ActivityPanel() {
   const log = useGame((s) => s.log);
   const entries = [...log].reverse();
-  // The column's ONE flexible item: when the screen is short, the log shrinks
-  // and scrolls internally while the chat input stays pinned and visible.
+  // The column's ONE flexible item: it GROWS into whatever the column has left
+  // (all of it when the satchel is stowed) and, when the screen is short, the
+  // log shrinks and scrolls internally while the chat input stays pinned.
   return (
     <div
       className="pointer-events-auto"
-      style={{ flexShrink: 1, minHeight: 170, display: "flex", flexDirection: "column" }}
+      style={{
+        flexGrow: 1,
+        flexShrink: 1,
+        minHeight: 170,
+        display: "flex",
+        flexDirection: "column",
+      }}
     >
       <Panel
         kicker="Realm"
@@ -1469,7 +1508,7 @@ function ActivityPanel() {
         style={{ width: 264, flex: 1, minHeight: 0 }}
       >
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-          <ActivityLog entries={entries} max={6} />
+          <ActivityLog entries={entries} max={16} />
         </div>
         <ChatRow />
       </Panel>

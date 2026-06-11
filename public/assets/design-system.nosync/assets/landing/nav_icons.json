@@ -1,0 +1,116 @@
+{
+  "image": "landing/nav_icons.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "tintable": true,
+  "note": "single bone-ramp silhouette + 1px void outline; recolor via DS (CSS filter / fill swap)",
+  "icons": [
+    "gauge",
+    "scroll",
+    "banner",
+    "book",
+    "trophy",
+    "ledger",
+    "discord",
+    "telegram",
+    "x_bird"
+  ],
+  "frames": {
+    "nav_gauge": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_scroll": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_banner": {
+      "x": 32,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_book": {
+      "x": 48,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_trophy": {
+      "x": 64,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_ledger": {
+      "x": 80,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_discord": {
+      "x": 96,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_telegram": {
+      "x": 112,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "nav_x_bird": {
+      "x": 128,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  }
+}

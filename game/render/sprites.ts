@@ -202,7 +202,11 @@ function genWaterFrames(seedN: number, foam = false): Grid[] {
 
 // ─── ground doodads — cosmetic clutter, no collision ─────────────────────────
 
-export type DoodadKind = 'tuft' | 'pebbles' | 'bones' | 'masonry' | 'crystal';
+export type DoodadKind =
+  | 'tuft' | 'pebbles' | 'bones' | 'masonry' | 'crystal'
+  // wilds pack: regional clutter (reeds by the mere, bones + dead trees in the
+  // Flats, bog bubbles on water — bubble "variant" is its 2-frame animation)
+  | 'reed_clump' | 'dead_tree' | 'bone_spike' | 'mire_bubble';
 
 function makeDoodad(kind: DoodadKind, seedN: number): Grid {
   const g = makeGrid(16, 12);
@@ -1650,151 +1654,439 @@ function drawMine(): Grid {
   return g;
 }
 
-// ─── WILD STRUCTURES (hand-built placeholders until the next design pack) ────
+// ─── WILD STRUCTURES (ported from DS _gen/wilds.js — byte-checked) ───────────
 
-// the Husk Den: a corrupted burrow-mound ringed with old bones (Ashen Flats)
-function drawHuskDen(): Grid {
-  const g = makeGrid(120, 88);
-  const cx = 60, baseY = 70;
-  foundation(g, cx, baseY + 6, 46, {});
-  // low dark mound, drift-tinged
-  for (let yy = 0; yy <= 26; yy++) {
-    const t = yy / 26;
-    let hw = Math.round(46 * Math.sqrt(Math.max(0, 1 - t * t)));
-    hw += Math.round((rnd2(yy, 0, 401) - 0.5) * 5);
-    for (let xx = -hw; xx <= hw; xx++) {
-      const h = rnd2(cx + xx, baseY - yy, 402);
-      let c = RAMP.stone[2];
-      if (xx < -hw + 5) c = RAMP.stone[1];
-      else if (xx > hw - 5) c = RAMP.stone[3];
-      if (h < 0.07) c = RAMP.drift[3];
-      else if (h < 0.1) c = RAMP.stone[3];
-      P(g, cx + xx, baseY - yy, c);
+/** branching drift vein walk across a mass (wilds pack helper) */
+function driftVeins(g: Grid, x0: number, y0: number, count: number, len: number, seed: number) {
+  const dr = RAMP.drift, rng = mulberry(seed);
+  for (let v = 0; v < count; v++) {
+    let x = x0 + Math.floor((rng() - 0.5) * 40), y = y0 + Math.floor((rng() - 0.5) * 24);
+    let dx = rng() < 0.5 ? 1 : -1, dy = rng() < 0.5 ? 1 : -1;
+    for (let k = 0; k < len; k++) {
+      if (G(g, x, y)) {
+        P(g, x, y, k % 7 === 0 ? dr[1] : dr[2]);
+        if (rng() < 0.4) P(g, x, y + 1, dr[3]);
+        if (k % 9 === 0) P(g, x, y - 1, dr[0]); // glowing node
+      }
+      x += dx * (rng() < 0.6 ? 1 : 0); y += dy * (rng() < 0.5 ? 1 : 0);
+      if (rng() < 0.15) dx = -dx;
+      if (rng() < 0.12) dy = -dy;
     }
   }
-  // burrow mouth (south)
-  for (let j = 0; j < 14; j++) for (let i = -9; i <= 9; i++) {
-    const t = Math.abs(i) / 9;
-    if (j < 8 * t * t) continue;
+}
+
+function boneSpikeShape(g: Grid, bx: number, by: number, h: number, lean: number) {
+  const bn = RAMP.bone;
+  for (let k = 0; k < h; k++) {
+    const t = k / h, w = Math.max(0, Math.round((1 - t) * 2));
+    const sx = bx + Math.round(lean * t * 3);
+    for (let i = -w; i <= w; i++) P(g, sx + i, by - k, i < 0 ? bn[0] : i > 0 ? bn[2] : bn[1]);
+  }
+  P(g, bx, by - h, bn[0]);
+}
+
+// the Husk Den: a corrupted burrow-mound ringed with old bones (120×88, 2f eye-blink)
+function drawHuskDen(frame = 0): Grid {
+  const g = makeGrid(120, 88);
+  const cx = 60, baseY = 78;
+  foundation(g, cx, baseY + 4, 50, { ash: true });
+  // low corrupted burrow-mound
+  const maxH = 46;
+  for (let yy = 0; yy <= maxH; yy++) {
+    const t = yy / maxH;
+    let hw = Math.round(52 * Math.pow(1 - Math.pow(t, 2.6), 0.5));
+    hw += Math.round((hash2(yy, 0, 101) - 0.5) * 6);
+    const top = baseY - yy;
+    for (let xx = -hw; xx <= hw; xx++) {
+      const h = hash2(cx + xx, top, 102);
+      let c = RAMP.stone[1];
+      if (xx < -hw + 5) c = RAMP.stone[0];
+      else if (xx > hw - 5) c = RAMP.stone[3];
+      else if (h < 0.10) c = RAMP.stone[2];
+      else if (h < 0.13) c = RAMP.stone[0];
+      P(g, cx + xx, top, c);
+    }
+  }
+  // drift-purple veining
+  driftVeins(g, cx, baseY - 26, 5, 60, 103);
+  // dark arched burrow mouth (south)
+  const mw = 22, mh = 26;
+  for (let j = 0; j < mh; j++) for (let i = -mw / 2; i <= mw / 2; i++) {
+    const t = Math.abs(i) / (mw / 2);
+    if (j < mh * 0.5 * t) continue;
     P(g, cx + i, baseY - j, RAMP.void);
   }
-  P(g, cx - 3, baseY - 5, RAMP.drift[1]); P(g, cx + 4, baseY - 7, RAMP.drift[2]); // eyes in the dark
-  // ring of jutting bone spikes
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const sx = cx + Math.round(Math.cos(a) * 42);
-    const sy = baseY + 4 + Math.round(Math.sin(a) * 9) - (Math.sin(a) < 0 ? 26 : 0);
-    const h = 7 + ((i * 5) % 7);
-    for (let k = 0; k < h; k++) {
-      P(g, sx + Math.round(k * 0.2), sy - k, k > h - 3 ? RAMP.bone[0] : RAMP.bone[1]);
-      if (k < h - 2) P(g, sx + 1 + Math.round(k * 0.2), sy - k, RAMP.bone[2]);
-    }
-  }
-  // scattered bones
-  for (let i = 0; i < 10; i++) {
-    const bx = cx - 40 + Math.floor(rnd2(i, 1, 403) * 80);
-    const by = baseY + 2 + Math.floor(rnd2(i, 2, 403) * 8);
-    if (rnd2(i, 3, 403) < 0.6) { P(g, bx, by, RAMP.bone[2]); P(g, bx + 1, by, RAMP.bone[3]); }
-  }
-  outline(g, RAMP.void);
-  return g;
-}
-
-// the Ash Obelisk: a drift-touched monolith with glowing runes (Ashen Flats)
-function drawObelisk(): Grid {
-  const g = makeGrid(64, 112);
-  const cx = 32, baseY = 96;
-  foundation(g, cx, baseY + 6, 26, {});
-  // tapered monolith
-  for (let yy = 0; yy <= 78; yy++) {
-    const t = yy / 78;
-    const hw = Math.round(11 * (1 - t * 0.55));
-    for (let xx = -hw; xx <= hw; xx++) {
-      let c = RAMP.stone[1];
-      if (xx < -hw + 2) c = RAMP.stone[0];
-      else if (xx > hw - 2) c = RAMP.stone[2];
-      if (rnd2(cx + xx, baseY - yy, 404) < 0.06) c = RAMP.stone[2];
-      P(g, cx + xx, baseY - yy, c);
-    }
-  }
-  // capstone shard
-  for (let k = 0; k < 7; k++) {
-    for (let xx = -Math.max(0, 4 - k); xx <= Math.max(0, 4 - k); xx++) {
-      P(g, cx + xx, baseY - 78 - k, k > 4 ? RAMP.drift[1] : RAMP.stone[0]);
-    }
-  }
-  P(g, cx, baseY - 86, RAMP.drift[0]);
-  // glowing runes down the face
-  for (let i = 0; i < 6; i++) {
-    const ry = baseY - 12 - i * 11;
-    const rx = cx + ((i % 2) ? -2 : 1);
-    P(g, rx, ry, RAMP.drift[1]); P(g, rx + 1, ry, RAMP.drift[2]);
-    P(g, rx, ry - 1, RAMP.drift[2]); P(g, rx - 1, ry, RAMP.drift[3]);
-    P(g, rx, ry + 1, RAMP.drift[0]);
-  }
-  // dither glow halo
-  for (let yy = -40; yy <= 0; yy++) for (let xx = -10; xx <= 10; xx++) {
-    const d = Math.abs(xx) + Math.abs((yy + 20) * 0.5);
-    if (d > 11 && d < 14 && (xx + yy) % 2 === 0) P(g, cx + xx, baseY - 40 + yy, RAMP.drift[2]);
-  }
-  outline(g, RAMP.void);
-  return g;
-}
-
-// the Mirewife's Hut: a crooked stilted hut hung with charms (Hollowmere Reach)
-function drawMireHut(): Grid {
-  const g = makeGrid(120, 116);
-  const cx = 60, baseY = 96;
-  foundation(g, cx, baseY + 6, 48, {});
-  // stilts
-  for (const sx of [-26, -8, 10, 26]) {
-    for (let k = 0; k < 12; k++) { P(g, cx + sx, baseY - k, RAMP.dirt[3]); P(g, cx + sx + 1, baseY - k, RAMP.dirt[2]); }
-  }
-  // hut body (timber, slightly skewed)
-  for (let y = 0; y <= 34; y++) for (let x = -30; x <= 30; x++) {
-    const skew = Math.round(y * 0.12);
-    let c = RAMP.dirt[1];
-    if (x < -26) c = RAMP.dirt[0];
-    else if (x > 26) c = RAMP.dirt[2];
-    if (y % 4 === 0) c = RAMP.dirt[2];
-    if (rnd2(x, y, 405) < 0.05) c = RAMP.dirt[3];
-    P(g, cx + x + skew, baseY - 12 - y, c);
-  }
-  // mossy reed roof
-  for (let y = 0; y <= 18; y++) {
-    const t = y / 18;
-    const hw = Math.round((36 - 30 * t));
-    for (let x = -hw; x <= hw; x++) {
-      let c = RAMP.grass[1];
-      if (x < -hw + 3) c = RAMP.grass[0];
-      else if (x > hw - 3) c = RAMP.grass[2];
-      if (y % 3 === 0) c = RAMP.grass[2];
-      if (rnd2(x, y, 406) < 0.07) c = RAMP.grass[3];
-      P(g, cx + x + Math.round((18 - y) * 0.12), baseY - 46 - y + 18, c);
-    }
-  }
-  // door + warm window
-  door(g, cx - 6, baseY - 12, 10, 18, RAMP.dirt);
-  litWindow(g, cx + 12, baseY - 36, 8, 7, { noCross: true });
-  // hanging charms under the eave
+  // faint drift-glow eyes inside
+  const bright = frame === 1;
+  const ey = baseY - 14;
+  ([[-5, bright ? RAMP.drift[0] : RAMP.drift[2]], [5, bright ? RAMP.drift[1] : RAMP.drift[3]]] as [number, string][]).forEach(([ox, c]) => {
+    P(g, cx + ox, ey, c); P(g, cx + ox + 1, ey, c);
+    P(g, cx + ox, ey + 1, bright ? RAMP.drift[2] : RAMP.drift[3]);
+    if (bright) { P(g, cx + ox, ey - 1, RAMP.drift[2]); P(g, cx + ox + 2, ey, RAMP.drift[3]); P(g, cx + ox - 1, ey, RAMP.drift[3]); }
+  });
+  // ringed bone spikes jutting out
+  ([[-44, 6, -0.6], [-30, 9, -0.3], [34, 9, 0.3], [46, 6, 0.6], [-16, 5, -0.2], [20, 6, 0.2]] as [number, number, number][]).forEach(([ox, h, ln]) => {
+    boneSpikeShape(g, cx + ox, baseY + 1, h + 6, ln);
+  });
+  // scattered ribs at the base
+  const rng = mulberry(104);
   for (let i = 0; i < 5; i++) {
-    const hx = cx - 22 + i * 11;
-    P(g, hx, baseY - 44, RAMP.bone[3]);
-    P(g, hx, baseY - 43, RAMP.bone[2]);
-    P(g, hx, baseY - 42, i % 2 ? RAMP.drift[2] : RAMP.bone[1]);
-  }
-  // a rickety stoop down the front
-  for (let k = 0; k < 4; k++) {
-    for (let i = -7; i <= 1; i++) P(g, cx + i - 4 + k, baseY - 8 + k * 2, RAMP.dirt[2]);
-    for (let i = -7; i <= 1; i++) P(g, cx + i - 4 + k, baseY - 7 + k * 2, RAMP.dirt[3]);
+    const rx = cx - 40 + Math.floor(rng() * 80), ry = baseY + 2 + Math.floor(rng() * 4);
+    for (let k = 0; k < 5; k++) P(g, rx + k, ry - Math.round(Math.sin(k / 5 * Math.PI) * 2), RAMP.bone[2]);
+    P(g, rx, ry, RAMP.bone[1]); P(g, rx + 5, ry, RAMP.bone[1]);
   }
   outline(g, RAMP.void);
   return g;
+}
+
+// the Ash Obelisk: a leaning monolith with pulsing runes (64×112, 3f pulse)
+function drawAshObelisk(frame = 0): Grid {
+  const g = makeGrid(64, 112);
+  const cx = 32, baseY = 104;
+  foundation(g, cx, baseY + 2, 30, { ash: true });
+  // tapered monolith
+  const topY = 14;
+  for (let y = baseY; y >= topY; y--) {
+    const t = (baseY - y) / (baseY - topY);
+    const hw = Math.round(13 - t * 5);
+    const skew = Math.round(t * 2); // slight lean
+    for (let x = -hw; x <= hw; x++) {
+      const sx = cx + x + skew;
+      let c = RAMP.stone[1];
+      if (x < -hw + 2) c = RAMP.stone[0];
+      else if (x > hw - 2) c = RAMP.stone[3];
+      if (hash2(sx, y, 111) < 0.06) c = RAMP.stone[2];
+      if (hash2(sx, y, 112) < 0.02) c = RAMP.stone[3]; // cracks
+      P(g, sx, y, c);
+    }
+  }
+  // weathered chips off the edges
+  const rng = mulberry(113);
+  for (let i = 0; i < 8; i++) {
+    const y = topY + 6 + Math.floor(rng() * (baseY - topY - 12));
+    const side = rng() < 0.5 ? -1 : 1;
+    const t = (baseY - y) / (baseY - topY);
+    const hw = Math.round(13 - t * 5);
+    P(g, cx + side * hw + Math.round(t * 2), y, RAMP.void);
+    P(g, cx + side * (hw - 1) + Math.round(t * 2), y, RAMP.stone[3]);
+  }
+  // glowing drift runes down the south face (pulse by frame)
+  const lit = [RAMP.drift[2], RAMP.drift[1], RAMP.drift[0]][frame];
+  const dim = [RAMP.drift[3], RAMP.drift[2], RAMP.drift[1]][frame];
+  const runes: [number, number][] = [[0, 30], [-1, 44], [1, 58], [0, 72], [-1, 86]];
+  runes.forEach(([ox, ry], i) => {
+    const rx = cx + ox;
+    const yy = baseY - ry;
+    // a small angular rune glyph
+    const on = ((frame + i) % 3) !== 2;
+    const col = on ? lit : dim;
+    P(g, rx, yy, col); P(g, rx - 1, yy + 1, col); P(g, rx + 1, yy + 1, col); P(g, rx, yy + 2, col);
+    P(g, rx - 1, yy - 1, on ? dim : RAMP.drift[3]); P(g, rx + 1, yy - 1, on ? dim : RAMP.drift[3]);
+  });
+  // drift-crystal shard crown
+  const cty = topY - 1;
+  for (let k = 0; k < 12; k++) {
+    const w = Math.max(0, Math.round((1 - k / 12) * 4));
+    for (let i = -w; i <= w; i++) {
+      let c = RAMP.drift[2];
+      if (i < 0) c = RAMP.drift[1];
+      if (i > 0) c = RAMP.drift[3];
+      if (i === 0 && k < 8) c = RAMP.drift[0];
+      P(g, cx + i, cty - k, c);
+    }
+  }
+  P(g, cx, cty - 12, RAMP.drift[0]);
+  // crown glow halo (dither, pulses)
+  if (frame >= 1) for (let yy = -10; yy <= 4; yy++) for (let xx = -7; xx <= 7; xx++) {
+    const d = Math.abs(xx) + Math.abs(yy);
+    if (d > 5 && d < (frame === 2 ? 9 : 7) && (xx + yy) % 2 === 0) P(g, cx + xx, cty - 6 + yy, RAMP.drift[2]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// the Mirewife's Hut: a crooked stilted hut over the bog (120×116)
+function drawMirewifeHut(): Grid {
+  const g = makeGrid(120, 116);
+  const cx = 58, baseY = 108;
+  // boggy ground (water + dirt iso patch)
+  for (let yy = -16; yy <= 16; yy++) for (let xx = -54; xx <= 54; xx++) {
+    if ((xx / 54) ** 2 + (yy / 16) ** 2 > 1) continue;
+    const h = hash2(cx + xx, baseY + yy, 121);
+    let c = RAMP.dirt[2];
+    if (h < 0.3) c = RAMP.water[2]; else if (h < 0.36) c = RAMP.water[1];
+    if (h > 0.93) c = RAMP.grass[2];
+    P(g, cx + xx, baseY + yy, c);
+  }
+  // reed tufts in the bog
+  for (let i = 0; i < 8; i++) {
+    const rx = cx - 46 + Math.floor(hash2(i, 1, 122) * 92), ry = baseY + Math.floor((hash2(i, 2, 122) - 0.5) * 22);
+    for (let k = 0; k < 4; k++) P(g, rx, ry - k, RAMP.grass[k > 2 ? 2 : 1]);
+    P(g, rx, ry - 4, RAMP.bone[2]);
+  }
+
+  const lean = -1; // crooked
+  // stilts lifting the hut
+  const liftTop = baseY - 26;
+  [-26, -10, 10, 26].forEach((ox, i) => {
+    const sx = cx + ox; const ly = baseY + (i % 2 ? 4 : 2);
+    for (let y = liftTop; y <= ly; y++) { P(g, sx, y, RAMP.dirt[2]); P(g, sx + 1, y, RAMP.dirt[3]); }
+    // cross-brace
+    P(g, sx, liftTop + 8, RAMP.dirt[3]);
+  });
+  // hut body (leaning)
+  const fw = 60, fh = 38, x0 = cx - fw / 2, ytop = liftTop - fh, ybot = liftTop;
+  for (let y = ytop; y <= ybot; y++) {
+    const sk = Math.round((ybot - y) / fh * lean * 4);
+    for (let x = x0; x <= x0 + fw; x++) {
+      let c = RAMP.dirt[1];
+      if (x <= x0 + 2) c = RAMP.dirt[0]; else if (x >= x0 + fw - 2) c = RAMP.dirt[2];
+      if ((y - ytop) % 4 === 0) c = RAMP.dirt[3]; // plank seams
+      if (hash2(x, y, 123) < 0.05) c = RAMP.dirt[2];
+      P(g, x + sk, y, c);
+    }
+  }
+  // right side wall (shadow), receding
+  for (let d = 1; d <= 22; d++) for (let y = ytop; y <= ybot; y++) P(g, x0 + fw + d, y - Math.floor(d / 2), d >= 21 ? RAMP.dirt[3] : RAMP.dirt[2]);
+  // mossy reed-thatch roof (gable, overhang)
+  const ov = 6, roofH = 22, gx0 = x0 - ov, gx1 = x0 + fw + ov, rcx = (gx0 + gx1) / 2;
+  for (let y = 0; y <= roofH; y++) {
+    const t = y / roofH, hw = ((gx1 - gx0) / 2) * t;
+    const yy = ytop - roofH + y + Math.round((ybot - (ytop - roofH + y)) / fh * lean * 2);
+    for (let x = Math.round(rcx - hw); x <= Math.round(rcx + hw); x++) {
+      let c = RAMP.grass[2];
+      if (x <= rcx - hw + 2) c = RAMP.grass[1];
+      else if (x >= rcx + hw - 1) c = RAMP.grass[3];
+      if (y % 3 === 0) c = RAMP.dirt[3]; // thatch rows
+      if (hash2(x, y, 124) < 0.12) c = RAMP.grass[3]; // moss patches
+      else if (hash2(x, y, 125) < 0.06) c = RAMP.grass[0];
+      P(g, x, yy, c);
+    }
+  }
+  // roof right slope receding
+  for (let d = 1; d <= 22 + ov; d++) {
+    const ys = Math.floor(d / 2);
+    for (let y = 0; y <= roofH; y++) {
+      const t = y / roofH;
+      const x = Math.round(rcx + d + (gx1 - rcx) * t);
+      const yy = Math.round(ytop - roofH - ys + y);
+      P(g, x, yy, y % 3 === 0 ? RAMP.dirt[3] : RAMP.grass[3]);
+    }
+  }
+  // ridge
+  for (let d = 0; d <= 22 + ov; d++) P(g, Math.round(rcx + d), ytop - roofH - Math.floor(d / 2), RAMP.grass[1]);
+  // warm lit window
+  const wx = cx - 6, wy = ytop + 12;
+  for (let j = 0; j < 11; j++) for (let i = 0; i < 11; i++) {
+    let c = RAMP.ember[1];
+    if (i === 0 || j === 0 || i === 10 || j === 10) c = RAMP.ember[0];
+    if ((i + j) % 2 === 0 && hash2(i, j, 126) < 0.3) c = RAMP.ember[0];
+    P(g, wx + i, wy + j, c);
+  }
+  for (let i = -1; i <= 11; i++) { P(g, wx + i, wy - 1, RAMP.dirt[3]); P(g, wx + i, wy + 11, RAMP.dirt[3]); }
+  for (let j = -1; j <= 11; j++) { P(g, wx - 1, wy + j, RAMP.dirt[3]); P(g, wx + 11, wy + j, RAMP.dirt[3]); }
+  for (let j = 0; j < 11; j++) P(g, wx + 5, wy + j, RAMP.dirt[3]);
+  for (let i = 0; i < 11; i++) P(g, wx + i, wy + 5, RAMP.dirt[3]);
+  // door
+  for (let j = 0; j < 18; j++) for (let i = 0; i < 9; i++) {
+    let c = RAMP.dirt[2];
+    if (i % 2) c = RAMP.dirt[3];
+    if (i === 0) c = RAMP.dirt[1];
+    P(g, x0 + 8 + i, ybot - j, c);
+  }
+  // hanging bone-and-charm strings under the eave
+  for (let s = 0; s < 6; s++) {
+    const hxr = x0 + 6 + s * 9, hy = ytop + 2;
+    P(g, hxr, hy, RAMP.dirt[3]);
+    for (let k = 1; k < 5 + (s % 3); k++) P(g, hxr, hy + k, RAMP.bone[3]);
+    const cy = hy + 5 + (s % 3);
+    if (s % 3 === 0) { fillRect(g, hxr - 1, cy, 3, 2, RAMP.bone[1]); P(g, hxr - 1, cy + 1, RAMP.void); P(g, hxr + 1, cy + 1, RAMP.void); } // skull
+    else if (s % 3 === 1) { P(g, hxr, cy, RAMP.drift[1]); P(g, hxr - 1, cy + 1, RAMP.drift[2]); P(g, hxr + 1, cy + 1, RAMP.drift[2]); P(g, hxr, cy + 2, RAMP.drift[2]); } // drift charm
+    else { for (let k = 0; k < 3; k++) P(g, hxr, cy + k, RAMP.bone[2]); } // bone shard
+  }
+  // rickety stoop (steps down from door)
+  for (let s = 0; s < 3; s++) for (let i = 0; i < 12 - s * 2; i++) {
+    P(g, x0 + 7 + s + i, ybot + 1 + s * 2, RAMP.dirt[3]);
+    P(g, x0 + 7 + s + i, ybot + 2 + s * 2, RAMP.dirt[2]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ─── wilds doodads + interior additions (DS _gen/wilds.js) ───────────────────
+
+export type WildDoodadKey = 'reed_clump' | 'dead_tree' | 'bone_spike' | 'mire_bubble';
+
+export function drawReedClump(variant: number): Grid {
+  const g = makeGrid(12, 18); const baseY = 16, cx = 6;
+  const blades = variant ? 6 : 4;
+  const rng = mulberry(131 + variant);
+  for (let i = 0; i < blades; i++) {
+    const bx = cx + Math.floor((rng() - 0.5) * 8), h = 9 + Math.floor(rng() * 6), lean = (rng() - 0.5) * 2;
+    for (let k = 0; k < h; k++) {
+      const sx = bx + Math.round(lean * (k / h));
+      P(g, sx, baseY - k, k > h - 2 ? RAMP.grass[0] : (k < 3 ? RAMP.grass[3] : RAMP.grass[1]));
+    }
+    if (rng() < 0.6) { const sy = baseY - h; P(g, bx + Math.round(lean), sy - 1, RAMP.bone[2]); P(g, bx + Math.round(lean), sy - 2, RAMP.bone[1]); } // seed-head
+  }
+  outline(g, RAMP.void); return g;
+}
+
+export function drawDeadTree(variant: number): Grid {
+  const g = makeGrid(28, 40); const baseY = 38, cx = 13;
+  const dr = RAMP.dirt;
+  // trunk leaning
+  const lean = variant ? 0.18 : -0.1;
+  for (let y = 0; y < 30; y++) {
+    const t = y / 30; const w = Math.round(3 - t * 1.5); const sx = cx + Math.round(lean * y);
+    for (let i = -w; i <= w; i++) P(g, sx + i, baseY - y, i < 0 ? dr[0] : i > 0 ? dr[3] : dr[1]);
+  }
+  // bare branches
+  const rng = mulberry(141 + variant);
+  const branch = (x0: number, y0: number, dx: number, dy: number, n: number) => {
+    let x = x0, y = y0;
+    for (let k = 0; k < n; k++) {
+      P(g, Math.round(x), Math.round(y), dr[2]);
+      x += dx; y += dy;
+      if (rng() < 0.3) P(g, Math.round(x), Math.round(y), dr[3]);
+    }
+  };
+  const tx = cx + Math.round(lean * 24);
+  branch(tx, baseY - 24, -0.9, -0.7, 9); branch(tx, baseY - 26, 0.95, -0.6, 10); branch(tx, baseY - 28, 0.1, -1, 7);
+  branch(tx - 6, baseY - 28, -0.7, -0.6, 5); branch(tx + 6, baseY - 30, 0.7, -0.5, 5);
+  // drift moss tufts
+  for (let i = 0; i < (variant ? 5 : 3); i++) {
+    const mx = tx + Math.floor((rng() - 0.5) * 18), my = baseY - 18 - Math.floor(rng() * 14);
+    P(g, mx, my, RAMP.drift[2]);
+    if (rng() < 0.5) P(g, mx + 1, my, RAMP.drift[3]);
+    P(g, mx, my + 1, RAMP.drift[3]);
+  }
+  outline(g, RAMP.void); return g;
+}
+
+export function drawBoneSpike(variant: number): Grid {
+  const g = makeGrid(10, 16); const baseY = 14, cx = variant ? 4 : 5;
+  boneSpikeShape(g, cx, baseY, variant ? 11 : 13, variant ? 0.4 : -0.15);
+  // a small second rib for variant
+  if (variant) boneSpikeShape(g, cx + 3, baseY, 6, 0.6);
+  // socket holes
+  P(g, cx, baseY - 4, RAMP.bone[3]); P(g, cx, baseY - 8, RAMP.bone[3]);
+  outline(g, RAMP.void); return g;
+}
+
+export function drawMireBubble(frame: number): Grid {
+  const g = makeGrid(10, 8); const cx = 5, cy = 5; const wa = RAMP.water;
+  // flat puddle
+  for (let yy = -2; yy <= 2; yy++) for (let xx = -4; xx <= 4; xx++) {
+    if ((xx / 4) ** 2 + (yy / 2) ** 2 > 1) continue;
+    let c = wa[2];
+    if (yy < 0) c = wa[1];
+    if (yy <= -1 && xx < 0) c = wa[0];
+    P(g, cx + xx, cy + yy, c);
+  }
+  // bubble swells (frame 0 small, frame 1 big/pop)
+  if (frame === 0) { P(g, cx, cy - 1, wa[0]); P(g, cx, cy, wa[1]); }
+  else { P(g, cx - 1, cy - 2, wa[0]); P(g, cx, cy - 2, wa[0]); P(g, cx - 1, cy - 1, wa[1]); P(g, cx, cy - 1, wa[1]); P(g, cx + 1, cy - 1, wa[1]); P(g, cx, cy - 3, RAMP.bone[2]); P(g, cx + 2, cy - 2, wa[0]); }
+  outline(g, RAMP.void); return g;
+}
+
+export function makeWildDoodad(key: WildDoodadKey, v = 0): Grid {
+  switch (key) {
+    case 'reed_clump':  return drawReedClump(v);
+    case 'dead_tree':   return drawDeadTree(v);
+    case 'bone_spike':  return drawBoneSpike(v);
+    case 'mire_bubble': return drawMireBubble(v);
+  }
+}
+
+/** the Mirewife's drying rack (interior fixture, 24×30) */
+export function drawHerbRack(): Grid {
+  const g = makeGrid(24, 30); const baseY = 27, x0 = 2, top = 6; const dr = RAMP.dirt;
+  // timber rack frame
+  for (let i = 0; i <= 20; i++) { P(g, x0 + i, top, dr[1]); P(g, x0 + i, top + 1, dr[3]); } // top rail
+  P(g, x0, top, dr[0]); P(g, x0 + 20, top, dr[2]);
+  for (let j = top; j < baseY; j++) { P(g, x0, j, dr[2]); P(g, x0 + 20, j, dr[3]); } // posts
+  // hanging dried herb bundles + charms
+  const items: [number, readonly string[]][] = [
+    [3, RAMP.grass], [7, RAMP.grass], [11, RAMP.ember], [15, RAMP.drift], [18, RAMP.grass],
+  ];
+  items.forEach(([ix, col], i) => {
+    const hx = x0 + ix, hy = top + 2;
+    for (let k = 0; k < 3; k++) P(g, hx, hy + k, RAMP.bone[3]); // string
+    const by = hy + 3, h = 8 + (i % 3) * 2;
+    if (i === 3) { // drift charm
+      P(g, hx, by + 2, RAMP.drift[1]); P(g, hx - 1, by + 3, RAMP.drift[2]); P(g, hx + 1, by + 3, RAMP.drift[2]); P(g, hx, by + 4, RAMP.drift[2]);
+    } else {
+      for (let k = 0; k < h; k++) {
+        const t = k / h, w = Math.round(1 + t * 1.5);
+        for (let m = -w; m <= w; m++) P(g, hx + m, by + k, m < 0 ? col[1] : m > 0 ? col[3] : col[2]);
+      }
+      P(g, hx, by + h, col[3]); // tied tip
+    }
+  });
+  outline(g, RAMP.void); return g;
+}
+
+/** plain timber NW wall strung with bone charms (DS export parity; the flat
+ *  v1 wall set is dead art — never place this along iso diagonals) */
+export function drawWallTimberCharms(): Grid {
+  const g = makeWallSegment('nw', 'timber', 'plain', {});
+  const bn = RAMP.bone, dr = RAMP.drift;
+  // a sagging string across the face
+  const y0 = 22;
+  for (let x = 2; x < 62; x++) { const sag = Math.round(Math.sin((x / 64) * Math.PI) * 4); P(g, x, y0 + sag, bn[3]); }
+  // dangling charms
+  for (let s = 0; s < 6; s++) {
+    const hx = 6 + s * 10, sag = Math.round(Math.sin((hx / 64) * Math.PI) * 4), hy = y0 + sag;
+    for (let k = 1; k < 4 + (s % 3); k++) P(g, hx, hy + k, bn[3]);
+    const cy = hy + 4 + (s % 3);
+    if (s % 3 === 0) { fillRect(g, hx - 1, cy, 3, 3, bn[1]); P(g, hx - 1, cy + 1, RAMP.void); P(g, hx + 1, cy + 1, RAMP.void); } // skull
+    else if (s % 3 === 1) { for (let k = 0; k < 4; k++) P(g, hx, cy + k, bn[2]); P(g, hx - 1, cy + 2, bn[1]); } // bone shard
+    else { P(g, hx, cy, dr[1]); P(g, hx - 1, cy + 1, dr[2]); P(g, hx + 1, cy + 1, dr[2]); P(g, hx, cy + 2, dr[2]); } // drift charm
+  }
+  outline(g, RAMP.void); return g;
+}
+
+/** a grave slab: rich (gold glint at the base) or sunken (16×20) */
+export function drawLostTombstone(sunken: boolean): Grid {
+  const g = makeGrid(16, 20); const bn = RAMP.bone; const cx = 8, baseY = 18;
+  // mound of soil
+  for (let xx = -7; xx <= 7; xx++) {
+    const t = 1 - Math.abs(xx) / 7; const h = Math.round(t * 3);
+    for (let k = 0; k < h; k++) P(g, cx + xx, baseY - k, RAMP.dirt[2]);
+    P(g, cx + xx, baseY - h, RAMP.dirt[3]);
+  }
+  const lean = sunken ? 0.5 : 0.18;
+  const topY = sunken ? 9 : 2, botY = baseY - 2;
+  // stone slab (leaning)
+  for (let y = botY; y >= topY; y--) {
+    const w = 4;
+    const sx = cx + Math.round(lean * (y - botY) * -1); // lean
+    for (let i = -w; i <= w; i++) {
+      if (y < topY + 4) { // rounded top
+        const tt = (topY + 4 - y) / 4;
+        if (Math.abs(i) > w * (1 - tt * 0.8)) continue;
+      }
+      let c = bn[2];
+      if (i < -w + 1) c = bn[1];
+      if (i > w - 1) c = bn[3];
+      if (hash2(sx + i, y, 151) < 0.08) c = bn[3];
+      P(g, sx + i, y, c);
+    }
+  }
+  // cross/mark
+  const msx = cx + Math.round(lean * (topY + 8 - botY) * -1);
+  P(g, msx, topY + 6, bn[3]); P(g, msx, topY + 7, bn[3]); P(g, msx, topY + 8, bn[3]); P(g, msx - 1, topY + 7, bn[3]); P(g, msx + 1, topY + 7, bn[3]);
+  // faint gold glint at the base (only non-sunken)
+  if (!sunken) { P(g, cx + 4, baseY - 1, RAMP.gold[1]); P(g, cx + 4, baseY - 2, RAMP.gold[0]); P(g, cx + 5, baseY - 1, RAMP.gold[2]); }
+  outline(g, RAMP.void); return g;
 }
 
 export const SHRINE_FRAMES = 3;
+export const HUSKDEN_FRAMES = 2;
+export const OBELISK_FRAMES = 3;
 
-// (exported for the headless smoke test; frame only matters for the shrine)
+// (exported for the headless smoke test; frame matters for shrine/den/obelisk)
 export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
   switch (key) {
     case 'dyeworks':  return drawDyeworks();
@@ -1806,9 +2098,9 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'shrine':    return drawShrine(frame % SHRINE_FRAMES);
     case 'pit':       return drawPit();
     case 'mine':      return drawMine();
-    case 'huskden':   return drawHuskDen();
-    case 'obelisk':   return drawObelisk();
-    case 'mirehut':   return drawMireHut();
+    case 'huskden':   return drawHuskDen(frame % HUSKDEN_FRAMES);
+    case 'obelisk':   return drawAshObelisk(frame % OBELISK_FRAMES);
+    case 'mirehut':   return drawMirewifeHut();
   }
 }
 
@@ -2320,7 +2612,7 @@ export function makeWall2Corner(mat: WallMatKind): Grid {
 export type FixtureSpriteKind =
   | 'counter' | 'vat' | 'shelf' | 'table' | 'barrel'
   | 'cage' | 'anvil' | 'rug' | 'wheelDisc'
-  | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart';
+  | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart' | 'herbrack';
 
 // generic iso cuboid: front (lit) + right side (shadow) + top
 function isoCuboid(g: Grid, x0: number, baseY: number, w: number, h: number, dep: number, ramp: readonly string[]) {
@@ -2547,6 +2839,7 @@ export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0):
     case 'goldVeinEmpty': return fxGoldVein('spent');
     case 'hearth':        return fxHearth(frame % 3);
     case 'oreCart':       return fxOreCart();
+    case 'herbrack':      return drawHerbRack();
   }
 }
 
@@ -2630,6 +2923,8 @@ export class SpriteCache {
   private doodads  = new Map<string, OffscreenCanvas>();
   private glow!: OffscreenCanvas;
   private tombstone!: OffscreenCanvas;
+  /** [rich (gold glint), sunken] Drowned Field grave slabs */
+  private lostTombs: OffscreenCanvas[] = [];
   private wagon: OffscreenCanvas[] = [];
   // interiors: floors keyed `${style}-${variant}`, fixtures `${kind}-${accent}` (lazy)
   private floors = new Map<string, OffscreenCanvas>();
@@ -2675,6 +2970,11 @@ export class SpriteCache {
       this.doodads.set(`${k}-0`, gridToCanvas(makeDoodad(k, 1)));
       this.doodads.set(`${k}-1`, gridToCanvas(makeDoodad(k, 2)));
     }
+    for (const k of ['reed_clump', 'dead_tree', 'bone_spike', 'mire_bubble'] as WildDoodadKey[]) {
+      this.doodads.set(`${k}-0`, gridToCanvas(makeWildDoodad(k, 0)));
+      this.doodads.set(`${k}-1`, gridToCanvas(makeWildDoodad(k, 1)));
+    }
+    this.lostTombs = [gridToCanvas(drawLostTombstone(false)), gridToCanvas(drawLostTombstone(true))];
     // soft corruption glow (screen-space atmosphere, drawn additively)
     this.glow = makeGlowCanvas();
     this.tombstone = gridToCanvas(makeTombstone());
@@ -2682,13 +2982,19 @@ export class SpriteCache {
     // the Waystation
     for (const k of [
       'dyeworks', 'vault', 'wheel', 'lantern',
-      'furnisher', 'menagerie', 'pit', 'mine',
-      'huskden', 'obelisk', 'mirehut',
+      'furnisher', 'menagerie', 'pit', 'mine', 'mirehut',
     ] as BuildingSpriteKey[]) {
       this.buildings.set(k, gridToCanvas(makeBuildingSprite(k)));
     }
     for (let f = 0; f < SHRINE_FRAMES; f++) {
       this.buildings.set(`shrine-${f}`, gridToCanvas(makeBuildingSprite('shrine', f)));
+    }
+    // animated wild structures (den eyes blink, obelisk runes pulse)
+    for (let f = 0; f < HUSKDEN_FRAMES; f++) {
+      this.buildings.set(`huskden-${f}`, gridToCanvas(makeBuildingSprite('huskden', f)));
+    }
+    for (let f = 0; f < OBELISK_FRAMES; f++) {
+      this.buildings.set(`obelisk-${f}`, gridToCanvas(makeBuildingSprite('obelisk', f)));
     }
     for (const k of ['wisp', 'crow', 'emberling'] as PetSpriteKey[]) {
       this.pets.set(`${k}-0`, gridToCanvas(makePet(k, 0)));
@@ -2780,7 +3086,10 @@ export class SpriteCache {
     if (!this.ready) return;
     ctx.imageSmoothingEnabled = false;
     const cv = this.doodads.get(`${kind}-${variant % 2}`);
-    if (cv) ctx.drawImage(cv, sx - 8 * z, sy - 11 * z, 16 * z, 12 * z);
+    if (!cv) return;
+    // bottom-center anchored at native size (classic clutter is 16×12;
+    // wilds doodads run from 10×8 bubbles to 28×40 dead trees)
+    ctx.drawImage(cv, sx - (cv.width / 2) * z, sy - (cv.height - 1) * z, cv.width * z, cv.height * z);
   }
 
   /** town building, bottom-center anchored on its south tile (frame: shrine
@@ -2796,7 +3105,11 @@ export class SpriteCache {
   ) {
     if (!this.ready) return;
     ctx.imageSmoothingEnabled = false;
-    const cv = this.buildings.get(key === 'shrine' ? `shrine-${frame % SHRINE_FRAMES}` : key);
+    const fkey =
+      key === 'shrine'  ? `shrine-${frame % SHRINE_FRAMES}` :
+      key === 'huskden' ? `huskden-${frame % HUSKDEN_FRAMES}` :
+      key === 'obelisk' ? `obelisk-${frame % OBELISK_FRAMES}` : key;
+    const cv = this.buildings.get(fkey);
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
     const yOff = key === 'pit' ? cv.height / 2 + 16 : cv.height - 16;
@@ -2819,8 +3132,18 @@ export class SpriteCache {
 
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
-    const cv = this.buildings.get(key === 'shrine' ? 'shrine-0' : key);
+    const cv = this.buildings.get(
+      key === 'shrine' || key === 'huskden' || key === 'obelisk' ? `${key}-0` : key,
+    );
     return cv ? cv.height : 0;
+  }
+
+  /** a Drowned Field grave: rich (gold glint) or sunken lore stone */
+  drawLostTomb(ctx: CanvasRenderingContext2D, sunken: boolean, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.lostTombs[sunken ? 1 : 0];
+    if (cv) ctx.drawImage(cv, sx - 8 * z, sy - 19 * z, 16 * z, 20 * z);
   }
 
   /** little follower, bottom-center anchored */

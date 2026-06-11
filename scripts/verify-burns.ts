@@ -40,6 +40,7 @@ const MUTE = [
   "loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile",
   "caravanDepart", "ambush", "waveCleared", "caravanLost", "caravanArrived", "caravanPayout",
   "spinResult", "burnResult", "burnQuote", "walletNonce", "walletResult", "cleansing",
+  "goldSync", "invSync", "donateResult",
 ];
 
 async function main() {
@@ -129,7 +130,8 @@ async function main() {
     room.send("donate", { burnSig: cleanseSig });
     const cleanse = await br3;
     await wait(400);
-    check("cleanse burn accepted", cleanse?.ok === true, `+${cleanse?.pot}g`);
+    check("cleanse burn accepted", cleanse?.ok === true,
+      cleanse?.ok ? `+${cleanse.pot}g` : `reason: ${cleanse?.reason}`);
     check("shrine pot rose by the burn value", room.state.shrinePot >= potBefore + 150,
       `${potBefore} → ${room.state.shrinePot}`);
 

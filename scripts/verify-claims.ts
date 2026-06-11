@@ -15,7 +15,7 @@ function check(name: string, ok: boolean, detail = "") {
 }
 
 function mute(room: Room<any>) {
-  for (const t of ["loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile", "claimPlaced", "claimFallen"])
+  for (const t of ["loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile", "claimPlaced", "claimFallen", "goldSync", "invSync"])
     room.onMessage(t, () => {});
 }
 
@@ -60,6 +60,8 @@ async function main() {
   const token = `claims-${Date.now()}`;
   const room = await new Client(URL).joinOrCreate<any>("drift", { token });
   mute(room);
+  // Phase 6: claims pay from the server ledger — seed the purse (3 × 250g)
+  room.send("save", { snapshot: { gold: 1000, day: 0 } });
   await wait(500);
 
   const plots = findPlots(room.state, 4, []);

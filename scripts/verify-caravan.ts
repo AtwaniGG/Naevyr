@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Caravan verification: boots its OWN server (port 2599, throwaway PGlite dir,
-// compressed timers via env), then walks a full run with two escort clients:
-// depart → ambush → kills across both escorts → waveCleared (× waves) →
-// arrival → pro-rata payouts. Also checks raiderKill is rejected while idle.
-// Run from repo root:  ./server/node_modules/.bin/tsx scripts/verify-caravan.ts
+// compressed timers via env), then walks a full run with two escort clients.
+// Raiders are SHARED server mobs now: each wave's quota is met by actually
+// walking to each raider and killing it (attack intents), pro-rata payouts
+// follow the real kill split. Run:  ./server/node_modules/.bin/tsx scripts/verify-caravan.ts
 
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
@@ -25,7 +25,7 @@ const MUTE = [
   "loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile",
   "claimPlaced", "claimFallen", "listResult", "unlistResult", "buyResult", "sold",
   "bankResult", "spinResult", "cleansing", "propResult", "challenged",
-  "duelStart", "duelHp", "duelEnd", "claimResult",
+  "duelStart", "duelHp", "duelEnd", "claimResult", "goldSync", "invSync",
   "caravanDepart", "ambush", "waveCleared", "caravanLost", "caravanArrived", "caravanPayout",
 ];
 function mute(room: Room<any>) {
@@ -43,6 +43,38 @@ async function until(room: Room<any>, pred: (s: any) => boolean, timeoutMs: numb
   return false;
 }
 
+interface MobSnap { id: number; kind: string; x: number; y: number; hp: number; state: string }
+function liveRaiders(room: Room<any>): MobSnap[] {
+  const out: MobSnap[] = [];
+  (room.state.mobs as Map<string, MobSnap>).forEach((m) => {
+    if (m.kind === "raider" && m.state !== "dead") out.push({ ...m });
+  });
+  return out.sort((a, b) => a.id - b.id);
+}
+function selfPos(room: Room<any>): { x: number; y: number } {
+  const p = (room.state.players as Map<string, any>).get(room.sessionId);
+  return { x: p?.x ?? 0, y: p?.y ?? 0 };
+}
+const cheby = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+  Math.max(Math.abs(Math.round(a.x) - Math.round(b.x)), Math.abs(Math.round(a.y) - Math.round(b.y)));
+
+/** walk to a shared raider and put it down (server-validated swings) */
+async function killRaider(room: Room<any>, id: number, timeoutMs = 15_000): Promise<boolean> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const m = (room.state.mobs as Map<string, MobSnap>).get(String(id));
+    if (!m || m.state === "dead") return true;
+    if (cheby(selfPos(room), m) <= 1) {
+      room.send("attack", { id, dmg: 50 });
+      await wait(950); // server swing cap
+    } else {
+      room.send("move", { x: Math.round(m.x), y: Math.round(m.y) });
+      await wait(700);
+    }
+  }
+  return false;
+}
+
 async function main() {
   // ---- boot an isolated server with a fast caravan timeline -------------------
   const server = spawn("./node_modules/.bin/tsx", ["src/index.ts"], {
@@ -54,6 +86,7 @@ async function main() {
       CARAVAN_FIRST_S: "3",     // first wagon 3s after boot
       CARAVAN_PERIOD_S: "600",  // no second run during the test
       CARAVAN_SPEED: "3",       // brisk wagon, test stays under a minute
+      CARAVAN_GNAW: "0.8",      // real kills take real walking; don't bleed out
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -76,10 +109,9 @@ async function main() {
     await until(a, (s) => s.w > 0, 5000, "initial state");
     check("caravan state synced", !!a.state.caravan, `phase=${a.state.caravan?.phase}`);
 
-    // kills before any ambush must not count
-    a.send("raiderKill");
-    await wait(400);
-    check("raiderKill ignored while idle", a.state.caravan.waveKills === 0);
+    // no raiders walk the realm while the wagon sits idle
+    check("no raiders before the ambush", liveRaiders(a).length === 0,
+      `${liveRaiders(a).length} raiders`);
 
     // ---- departure ---------------------------------------------------------------
     const departed = await until(a, (s) => s.caravan.phase !== "idle", 15_000, "departure");
@@ -111,26 +143,28 @@ async function main() {
       const c = a.state.caravan;
       const need = c.waveNeed as number;
       check(`wave ${c.wave}/${c.waves} ambush declared`, need >= 3, `need ${need} kills`);
-      const hpBefore = c.hp;
-      // both escorts run to the wagon (server walks them; kills need proximity)
-      a.send("move", { x: Math.round(c.x), y: Math.round(c.y) });
-      b.send("move", { x: Math.round(c.x), y: Math.round(c.y) });
-      // report kills (A does the heavy lifting → bigger payout share)
-      let sent = 0;
-      const t0 = Date.now();
-      while (a.state.caravan.phase === "ambushed" && Date.now() - t0 < 25_000) {
-        const before = a.state.caravan.waveKills;
-        const fromA = sent % 3 !== 2; // A:B kill ratio 2:1
-        (fromA ? a : b).send("raiderKill");
-        sent++;
-        await wait(350);
-        if (a.state.caravan.waveKills === before && a.state.caravan.phase === "ambushed") {
-          await wait(350); // still walking into range; try again
-        }
+      await wait(600); // let the raider pack land in the schema
+      const pack = liveRaiders(a);
+      if (w === 1) {
+        check("raider pack spawned around the wagon", pack.length >= need,
+          `${pack.length} raiders for ${need} kills`);
       }
+      const hpBefore = c.hp;
+      // split the pack: A does the heavy lifting → bigger payout share.
+      // Both escorts hunt their share of REAL raiders concurrently.
+      const forA = pack.filter((_, i) => i % 3 !== 2);
+      const forB = pack.filter((_, i) => i % 3 === 2);
+      const hunt = async (room: Room<any>, targets: MobSnap[]) => {
+        for (const t of targets) {
+          if (a.state.caravan.phase !== "ambushed") return;
+          await killRaider(room, t.id);
+        }
+      };
+      await Promise.all([hunt(a, forA), hunt(b, forB)]);
+      await until(a, (s) => s.caravan.phase !== "ambushed", 8000, `wave ${w} clear`);
       if (w === 1) check("wagon bleeds while ambushed", hpBefore <= 100 && a.state.caravan.hp < 100);
       const clearedNow = a.state.caravan.phase !== "ambushed";
-      check(`wave ${w} cleared by escort kills`, clearedNow);
+      check(`wave ${w} cleared by real raider kills`, clearedNow);
       if (clearedNow) clearedWaves++;
     }
     check("all waves cleared", clearedWaves >= waves(), `${clearedWaves}/${waves()}`);

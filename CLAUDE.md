@@ -26,6 +26,9 @@ cd server && npx tsc --noEmit -p tsconfig.json     # server typecheck
 ./server/node_modules/.bin/tsx scripts/verify-token.ts         # SELF-HOSTED (port 2596): devnet RPC balance reads + in-game holder gate
 ./server/node_modules/.bin/tsx scripts/verify-burns.ts         # SELF-HOSTED (port 2595): REAL devnet burns end-to-end (spin/cleanse/replay)
 ./server/node_modules/.bin/tsx scripts/verify-night.ts         # SELF-HOSTED (port 2594): Long Night survive→dawn + fail→realm reset
+./server/node_modules/.bin/tsx scripts/verify-gate.ts          # SELF-HOSTED (port 2591): token ENTRY gate (/gate + onAuth, real devnet mint)
+./server/node_modules/.bin/tsx scripts/verify-ledger.ts        # Phase 6: gold + inventory ledgers (seeding, caps, cook/craft, persistence)
+./server/node_modules/.bin/tsx scripts/verify-mobs.ts          # SELF-HOSTED (port 2592): shared mobs + den + Colossus kill/loot/respawn
 ```
 
 **The workflow rule:** after any change — typecheck both sides, build, run the relevant
@@ -43,30 +46,40 @@ something works without running these.
   Reuses `game/world/*` + `game/types.ts` via tsconfig path alias `@/*` → repo root.
   **`useDefineForClassFields: false` is required** in server/tsconfig (Colyseus schema
   decorators break under ES2022 field semantics).
-- **DB:** Drizzle ORM. Local dev = **PGlite** (embedded Postgres, `server/.data/`,
-  gitignored). Production = set `DATABASE_URL` (Neon planned) — config-only swap.
+- **DB:** Drizzle ORM. Local dev = **PGlite** (embedded Postgres,
+  `server/.data/driftlands.nosync/`, gitignored; MUST stay *.nosync — iCloud's
+  agent deleted `base/5` out of the old un-suffixed cluster and killed it).
+  Production = set `DATABASE_URL` (Neon planned) — config-only swap.
   Schema in `server/src/db/schema.ts`; bootstrap is `CREATE TABLE IF NOT EXISTS` +
   `ALTER ... ADD COLUMN IF NOT EXISTS` on boot (no drizzle-kit migrations yet).
 - **Identity:** guest device token (uuid in localStorage, `getDeviceToken()`), validated
-  in `onAuth`. `players.wallet_address` column exists, NULL until Phase 5 wallet link.
+  in `onAuth`. `players.wallet_address` binds a Solana wallet after the Phase 5
+  sign-message link (NULL for pure guests; both keep working).
 - **Sync model:** clients send intents (`move`, `gather`, `chat`, `claim`, `buy`,
   `bank`, `spin`, `donate`, `placeProp`, `challenge`/`acceptDuel`/`duelHit`, `save`,
-  `identity`); server validates + broadcasts. Client **polls schema state each frame**
+  `identity`, `engage`/`attack` (shared mobs), `goldDelta`/`itemDelta` (capped
+  client-trusted income), `cook`/`craft` (ledger-validated conversions),
+  `walletNonce`/`linkWallet`/`unlinkWallet`, `burnQuote`, `buyAura`,
+  `obeliskBurn`); server validates + broadcasts. Client **polls schema state each frame**
   (no per-property callbacks — deliberate, avoids colyseus.js callback API churn).
-  Inventory/XP/quests/combat-vs-mobs are still **client-side and trusted** (anti-cheat
-  is Phase 6). Progress snapshot pushed to server every 8s (`buildSnapshot()` in
+  XP/quests/buffs/gear/vitals are still **client-side and trusted** (gold,
+  items and all overworld mobs are server-authoritative — see Phase 6 status).
+  Progress snapshot pushed to server every 8s (`buildSnapshot()` in
   `game/state/persistence.ts`), localStorage is the offline fallback.
 - **Offline mode:** no server → full local sim keeps working (claims/market/town
   server-features show "needs shared world" notes). Never break this.
 - **HUD ↔ engine bridge:** typed event bus `game/state/bus.ts` (chat, emote, stake,
-  market*, bank, spin, donate, placeProp, challenge, duelAccept).
+  market*, bank, spin, donate, placeProp, challenge, duelAccept, walletLink,
+  spinBurn, cleanseBurn, auraBurn, obeliskBurn).
 
 ## Art system (important)
 
 All art is **procedural rect-grid pixel generation in code** — no image files at
 runtime. The art SOURCE OF TRUTH is the Claude Design packages the user drops as a zip
 named `DriftLands Design System.zip` into `public/assets/`, extracted to
-`public/assets/design-system/`. Key contents:
+`public/assets/design-system.nosync/` (MUST be *.nosync — iCloud's agent
+half-deleted a fresh plain-named extraction mid-session on 2026-06-11; the
+zip itself is the durable copy). Key contents:
 - `assets/_gen/*.js` — the pixel **generators** (pixlib.js helpers + tiles.js,
   nodes.js, character.js, beasts.js…). These are the files you PORT to TypeScript in
   `game/render/sprites.ts` (faithful translation, then cache via `SpriteCache`).
@@ -76,19 +89,24 @@ named `DriftLands Design System.zip` into `public/assets/`, extracted to
   tokens already live in `app/driftlands.css` + `components/ds/`.
 
 **Integration workflow when the user says "zip uploaded / new design dropped":**
-1. `rm -rf public/assets/design-system && unzip -o "public/assets/DriftLands Design
-   System.zip" -d public/assets/design-system`
+1. `rm -rf public/assets/design-system.nosync && unzip -o "public/assets/DriftLands
+   Design System.zip" -d public/assets/design-system.nosync`
 2. Read the new `_gen/*.js` generators + their `.json` metadata.
 3. Port to TS in `game/render/sprites.ts` (same names/structure as existing ports),
    register in `SpriteCache.init()` (or lazy maps), add draw method, wire into
-   `game/engine/game.ts`.
+   `game/engine/game.ts`. EXCEPTION — art for DOM pages (the landing) uses the
+   SVG exports directly from public/ (CSS steps() sheets per the JSON frame
+   tables; classes in driftlands.css), no engine port.
 4. Extend `scripts/smoke-sprites.ts` to cover the new generators; run it + tsc + build.
+   Byte-diff ports against exports (`scripts/tmp-compare-walls.ts` /
+   `tmp-compare-wilds.ts` pattern: exports emit rects FRAME BY FRAME with
+   per-frame x offsets, not row-major across the sheet).
 
 Locked palette = `RAMP` ramps (stone/drift/ember/gold/blood/bone/grass/dirt/water,
 void outline `#0a0810`). Rules: dither not blur, 1px void outline, 64×32 iso diamonds,
 bottom-center anchors, `crispEdges`. Wanderer: 32×40, 5 facings s/se/e/ne/n + engine
 mirror, anims idle 2f/walk 6f/swing 4f. Beasts ported: husk (lv1-2), stalker (lv3+),
-colossus (boss), raider (unused — awaiting Caravans). Equipment, dyes, eye glows,
+colossus (boss), raider (caravan ambushes + Long Night). Equipment, dyes, eye glows,
 auras are baked into lazily-cached frames (`drawChar` key includes the gear/look sig).
 Small one-off sprites: hand-build in the same style; big batches go to Claude Design.
 
@@ -104,6 +122,24 @@ edge and tile at +32x,±16y; NO side outline (seams). Placement in
 (anchor 0,71), ne per row-0 tile at its NORTH corner (anchor 0,55), corner
 wedge at the junction. The flat v1 `makeWallSegment` set is dead art (kept
 only for the smoke test); never place flat billboards along iso diagonals.
+
+**WILDS SET (done):** `_gen/wilds.js` ported — 10/10 byte-exact vs exports
+(`tmp-compare-wilds.ts`). Husk Den 120×88 2f eye-blink (2fps), Ash Obelisk
+64×112 3f rune pulse (4fps; animated via `drawBuilding` frame like the
+shrine), Mirewife Hut 120×116. Wild doodads via `makeWildDoodad` (reed_clump/
+dead_tree/bone_spike 2 variants, mire_bubble 2f): placed regionally in the
+game.ts clutter pass (bone spikes + dead trees ring the den; reeds + bog
+bubbles crowd the mire + Hollowmere; `drawDoodad` is now native-size
+bottom-anchored). `herbrack` fixture stands in the Mirewife's hut interior.
+`drawLostTombstone(sunken)`: rich slab = the gold lost-tomb, sunken = the
+Drowned Field lore graves (`drawLostTomb`). `drawWallTimberCharms` is ported
+for export parity but NOT placed (it builds on the dead flat v1 wall set).
+
+**LANDING SET (done):** `_gen/landing.js` is used as DOM art, not an engine
+port: hero_vista 480×270 2f, wordmark_plate 320×96 2f, gate_door 96×128 3f,
+nav_icons 9×16×16 — all served straight from the design-system.nosync SVG
+exports and animated with CSS steps() classes in driftlands.css
+(`.landing-hero/-plate/-door/-icon`, icon picked via `--icon-index`).
 
 **TOWN SET (done):** `_gen/town.js` is ported in `makeBuildingSprite()` —
 verified pixel-identical to the DS SVG exports. Key mapping: DS `casino` → our
@@ -127,10 +163,10 @@ center-anchored ground decor.
   Menagerie, Shrine cleansing ritual, Pit wagered duels) ✅ ·
   **Caravans** (server-authoritative wagon: departs every ~6 min via A* to a
   map-edge gate, schema-synced `CaravanState`, raider ambush waves cleared by
-  escort kill-counts (`raiderKill` intent, 12-tile proximity gate), wagon hp
-  gnaw-down fail state, pro-rata payouts live or via escrow; raiders are
-  per-client mobs (accepted caveat); env knobs `CARAVAN_FIRST_S/PERIOD_S/SPEED`
-  + `DRIFT_DATA_DIR` for isolated test instances) ✅
+  killing the SHARED raider mobs (Phase 6: real deaths feed `waveKills`),
+  wagon hp gnaw-down fail state, pro-rata payouts live or via escrow; env
+  knobs `CARAVAN_FIRST_S/PERIOD_S/SPEED/GNAW` + `DRIFT_DATA_DIR` for isolated
+  test instances) ✅
 
 - Phase 5 slice 1: **wallet link** ✅ — browser wallet (Phantom/Solflare/Backpack via
   `window.solana`, no adapter deps) signs a server nonce (`walletLinkMessage` in
@@ -167,7 +203,7 @@ center-anchored ground decor.
   wanderer rig with per-room dye), counter-adjacent opens the shop panel, the
   lit doorway (or clicking beyond the room) exits. World sim/HUD-store sync
   pauses while inside.
-- **The Mine** ✅ — 9th town structure at (12,12), cave interior (11×9) with 7
+- **The Mine** ✅ — 9th structure (now at 31,29 in the SE rocks), cave interior (11×9) with 7
   gold veins: walk adjacent + swing (mining-skill timing/speed buffs apply),
   each strike pays 3+lvl/2+rand gold + mining XP, veins hold 3 charges then
   regrow in 60s. Client-trusted like all gathering (Phase 6). No counter/shop;
@@ -188,8 +224,9 @@ center-anchored ground decor.
   direction from the minimap), and the **Drowned Field** (lore graves + a lost
   tombstone with 30-80g surfacing every 6-10 min, client-local).
 - **THE LONG NIGHT (endgame)** ✅ — at ≥90% corruption a realm-wide assault hits
-  the Waystation: shared kill quota (`raiderKill`, ≤16 tiles of town) on a 3-min
-  timer, schema-synced (`nightActive/EndsIn/Kills/Need`, HUD banner top-center).
+  the Waystation: shared kill quota (real deaths of the server-spawned night
+  horde — Phase 6) on a 3-min timer, schema-synced (`nightActive/EndsIn/Kills/
+  Need`, HUD banner top-center).
   Survive → dawn cleanses corruption back to 35% (burns outward from town) +
   250g per defender; fail (or ≥97% failsafe) → **realm reset**: fresh world +
   Drift, claims/props wiped, nodes resynced, season 1; bank/cosmetics/wallet
@@ -199,14 +236,152 @@ center-anchored ground decor.
   with SEASON_MS env). Full corruption cycle to the Long Night ≈ a day; claims
   last ~5h unsieged.
 
-### Next up (in order)
-1. **Phase 6:** anti-cheat (move trusted client systems server-side: inventory,
-   combat, duel damage), rate limits, economy tuning, deploy (Vercel +
-   Railway/Fly for the server, `NEXT_PUBLIC_GAME_SERVER` env), then pump.fun
-   mainnet launch (explicit go-ahead required; new mint + env swap).
-3. **Phase 6:** anti-cheat (move trusted client systems server-side: inventory, combat,
-   duel damage), rate limits, economy tuning, deploy (Vercel + Railway/Fly for the
-   server, `NEXT_PUBLIC_GAME_SERVER` env), then pump.fun mainnet launch.
+### World layout (current map, 40×40)
+- Town spread organically around spawn (20,20), region "Wanderer's Rest"
+  (radius 13 in `regionAt`, game.ts): shrine (17,13), dyeworks (12,17),
+  vault (24,16), lantern (21,22), menagerie (28,22), furnisher (14,24),
+  wheel (13,29), pit (20,32) r2, mine (31,29 — wild-adjacent, in Bonefields).
+- **Layout rule (comment above TOWN_BUILDINGS):** doors are south-facing; a
+  building with depth gap Δ(x+y) ∈ (0,8] behind another needs screen-column
+  gap |Δ(x-y)| > 4 or it covers that door. East-of-center houses render
+  MIRRORED (drawBuilding mirror flag) to face town.
+- Lakes: Palewater pool NE (~28.8,11.2 r3.2+ring), the Hollowmere SW
+  (~w*0.18, h*0.86) with +4 rich fish on its banks.
+- `WILD_STRUCTURES` (huskden 8,8 · obelisk 15,5 · mirehut 5,24) share
+  walkability/claim-blocking via `ALL_STRUCTURES`/`buildingAt` but are NOT in
+  `townProtected` (the Drift can besiege them). `nearBuilding(pad=2)` keeps
+  nodes from clipping any structure sprite (gen + relocation).
+- Drowned Field graves: client-local decor cells in game.ts `DROWNED_FIELD`.
+
+### PHASE 6 — IN PROGRESS
+Goal: production-harden, then deploy, then (on explicit go-ahead only) mainnet.
+
+**Slice 1 DONE: the server gold ledger** (built, all suites green, uncommitted):
+`players.gold` column is the authoritative pocket balance, held in
+`PlayerSim.gold` (write-through via db `setGold`, seeded on first join from the
+old snapshot's gold; a brand-new row waits for the client's FIRST snapshot push
+to seed, exactly once — `sim.goldSeeded`). Server-side debits/credits for
+everything the server adjudicates: wheel spin (50g), vault deposit/withdraw
+(fee server-side), market buy → seller ledger or escrow, claim staking (250g),
+Furnisher props, duel wagers at accept + pot at end (`duelRefused` if either
+purse is light), shrine donations (`donateResult` drives the client log),
+caravan payouts, night rewards, escrow delivery on profile. Client-trusted
+income flows through ONE rail: `store.addGold/spendGold(amount, reason)` emits
+a `goldDelta` bus event → engine forwards → DriftRoom clamps per reason
+(`GOLD_DELTA_CAPS`: per-event + rolling per-minute budgets; reasons in
+`GoldReason`, types.ts). Death drops record `tombGold` server-side; tomb
+reclaim pays back at most what fell, once. After every ledger change the server
+pushes `goldSync` and the client display adopts it (`store.setGold`). The
+client no longer pre-pays/refunds for server transactions; snapshot gold can
+never re-seed a live ledger (no minting). Offline mode unchanged (local sim;
+bus forwarder no-ops). Verify suites were adapted: fresh tokens seed their
+purse via the first-save rail (`room.send("save", {snapshot:{gold:N}})`).
+
+**Slice 2 DONE: the inventory ledger** (all suites green, uncommitted):
+`players.inv` jsonb mirrors the gold rail exactly (`PlayerSim.inv`,
+`creditItem`/`debitItems`, `invSync` after every change, same seed-once
+migration via `sim.invSeeded`). Server-granted: gather loot (the server rolls
+rich strikes now — `RICH_STRIKE_P`; `loot` carries `qty`/`rich` and the client
+only applies items locally when OFFLINE), wheel shards, market list (debits
+the ledger; ghost listings refused) / unlist / buy (credits). Server-validated
+intents: `cook` (fish → cooked, clamped to real fish) and `craft` (debits
+RECIPES costs; gear itself stays client-side). Client-trusted drops ride
+`itemDelta` with per-reason caps AND item whitelists (`ITEM_DELTA_CAPS`: mob →
+shards/hide, chest → shards); negative deltas (eat/brew/vendor sell) floor at
+zero. Ordering rule: any message paired with an invSync must NOT addItem
+client-side (the sync precedes it — double-count then snap-back otherwise).
+
+**Slice 3 DONE: shared server-side mobs** (ambient + den; all suites green,
+uncommitted): ambient Drift Beasts (8, lv1-3) and the Husk Den elite pack
+(5× lv5, reseeds 15 min after the last falls; env `MOB_COUNT`/`DEN_RESEED_S`)
+live in `ServerMob` sims inside DriftRoom — same wander-and-retaliate behavior
+as the old client sim, synced via `MobState` schema map. Client mirrors them as
+PUPPETS injected into `combat.mobs` (`Mob.netId` set, `updatePuppet()` cosmetic
+tick) so all draw/click/minimap code is untouched. Combat: `engage` intent
+freezes the beast (adjacency-checked); each client swing sends `attack {id,
+dmg}` (server: adjacency, 900ms rate cap, dmg clamp 50); retaliation comes
+back as `mobHit` (client applies its ward reduction — gear still
+client-trusted); deaths are server-rolled with shard/hide loot landing
+straight on the inventory ledger + `mobKill` to the killer (XP/quests/log
+client-side). Realm reset respawns all shared mobs. Den chest stays
+client-local (capped deltas) but gates on the SHARED pack. Offline: the local
+CombatManager sim is unchanged (puppets only exist online).
+
+**Slice 4 DONE: ALL mobs are shared** (raiders + Colossus converted; all
+suites green, uncommitted): caravan-ambush waves and the Long Night horde are
+server-spawned raider `ServerMob`s (`eventTag` "ambush"/"night"); the
+`raiderKill` intent is GONE — the attack handler counts REAL raider deaths
+into `waveKills`/`nightKills` and pays raider gold (5-10g) on the killer's
+ledger. The Colossus is a shared world boss: server-side `watchBoss()` wakes
+one per corruption threshold (`bossThresholds`, env `BOSS_PCTS`) anchored on a
+corrupt tile (fallback: walkable ground ≥10 from town), 140hp/120xp, pays
+50g + 5 shards on the ledgers; `colossus` broadcast drives the client banner.
+Dead raiders/colossi prune from the schema 2.5s after the death anim. New env:
+`CARAVAN_GNAW` (wagon hp/s while swarmed; suites lower it because real kills
+take real walking). verify-caravan/night now WALK to each raider and kill it
+via attack intents; verify-mobs is self-hosted (port 2592, BOSS_PCTS=0) and
+covers the Colossus end-to-end.
+
+**Token ENTRY GATE + landing page DONE** (Kintara-style door; uncommitted):
+the app now opens on `components/Landing.tsx` (full-screen, DS-styled:
+wordmark → tagline → PLAY NOW; `app/page.tsx` only mounts GameCanvas/Hud
+after the gate). Flow: PLAY → GET `/gate` on the game server (HTTP endpoint
+on the same port as the ws transport — `server/src/index.ts` now builds its
+own `createServer` + `WebSocketTransport`; returns `{gate, mint, balance,
+ok, online}`) → if `gate > 0`: connect a browser wallet, re-check `/gate?
+address=`, denied screen shows balance vs requirement; a previously cleared
+wallet (localStorage `driftlands-gate-wallet`, helpers in persistence.ts)
+skips the popup → fresh players (no local save) name their wanderer (seeds
+the save's cosmetics) → enter. ENFORCED server-side: `onAuth` rejects joins
+without an `address` option whose balance ≥ `gateTokens()` (solana.ts;
+`GATE_TOKENS` env, DEFAULT 0/OFF so dev + every verify suite stays open;
+production sets `GATE_TOKENS=1000`). No server reachable → "Wander offline"
+(offline-solo invariant holds). Caveat (hardening follow-up): the join
+address is balance-checked but not signature-proven; the in-game link flow
+remains the binding proof. NO tutorial yet (explicitly deferred).
+The landing is a full Kintara-style SITE now: real routes sharing
+`components/LandingShell.tsx` (sticky nav: Dashboard / Updates / Events /
+How to Play / Leaderboard / Index / Docs + socials + balance chip + Connect;
+wallet/gate plumbing shared via `components/gate.ts` `useGate()`). Pages:
+`/docs` = the full whitepaper (20 anchored chapters, sticky contents);
+`/how-to-play` = the 7-step guide; `/updates` = the phase chronicle;
+`/events` = the reckonings; `/leaderboard` = categorized boards from GET
+`/leaderboard` (db `leaderboards()`: gold = ledger+vault, kills + total
+levels from snapshots); `/dashboard` = reads the browser save (profile,
+title, skills, satchel, wallet standing); `/codex` (nav label "Index") = the
+encyclopedia GENERATED from the shared catalogs (ITEM_META/RECIPES/
+DRINK_CATALOG/AURA/PET/PROP + tilemap structures) so it can't go stale.
+GOTCHA: an app route literally named `index/` crashes Next's prerenderer
+(clientReferenceManifest invariant) — hence `codex`. Home (`/`) is the pure
+hero landing; PLAY NOW links to `/play`, which auto-runs the gate flow
+(check → wallet → name) and then mounts GameCanvas+Hud. The viewport lock
+(`overflow:hidden` + `user-select:none`) is NOT global anymore: it's
+`body.app-locked` in globals.css, toggled by /play only while the engine is
+mounted — every other page scrolls and selects like a normal site.
+
+1. **Anti-cheat — move remaining trusted client systems server-side.** Still
+   client-trusted: XP/levels, duel damage amounts (server rate-caps swings),
+   quest progress (rewards capped via goldDelta "quest"), cosmetics purchases
+   (gold ones; spends can't mint), buff application, equipment/gear (incl.
+   ward reduction vs mobHit and the dmg the client reports per swing, clamped
+   at 50), player vitals/death, mine veins, den chest/lost-tomb gold (capped
+   deltas), and the MAGNITUDE of capped income. Server-authoritative:
+   movement, gather timers + loot grants, gold + inventory ledgers, ALL
+   overworld mobs (ambient/den/raiders/Colossus: hp, deaths, loot, quotas),
+   claims, market escrow (gold AND goods), vault, wheel, shrine pot, duels'
+   gold, token burns (on-chain). Next: duel damage rolls server-side, or
+   start item 2 (rate limits + validation hardening across all handlers).
+2. **Rate limits + validation hardening** on every message handler (some have
+   ad-hoc caps: save 4s, spin 2.5s, duelHit 900ms, goldDelta budgets; most
+   handlers still have none).
+3. **Economy tuning pass** now that gold is server-held (faucets: mine veins,
+   den chest, lost tombs, caravan pay, night reward; caps in
+   `GOLD_DELTA_CAPS` are deliberately generous — tighten with data).
+4. **Deploy:** client → Vercel; server → Railway/Fly (`NEXT_PUBLIC_GAME_SERVER`
+   ws URL env, `DATABASE_URL` → Neon, `TOKEN_MINT`/`SOLANA_RPC` envs; the
+   devnet authority keypair lives in server/.data and must move to a secret).
+5. **pump.fun mainnet launch** — REQUIRES the user's explicit go-ahead. New
+   mint, env swap, real RPC provider; never assume.
 
 ## Conventions & gotchas
 
@@ -230,19 +405,59 @@ center-anchored ground decor.
   scale). Never absolutely position a new panel on the right edge; add it to the
   column. Column children are `flexShrink: 0` (a shrunken child paints its
   overflow UNDER later siblings — the Activity-covers-Forge bug) with ONE
-  exception: the Activity panel is the designated flexible item (`flexShrink:
-  1`, `minHeight: 170`, `Panel fill` + internal `overflowY: auto` on the log)
-  so short windows shrink the log instead of cropping the chat input.
+  exception: the Activity panel is the designated flexible item (`flexGrow: 1`
+  + `flexShrink: 1`, `minHeight: 170`, `Panel fill` + internal `overflowY:
+  auto` on the log) so it absorbs ALL leftover column space and short windows
+  shrink the log instead of cropping the chat input. The Satchel collapses to
+  a slim "Satchel · N" button (`store.satchelOpen`; closing it also closes the
+  trade popout) and the Activity log grows into the freed room.
   Pop-out panels (Forge/Market/You/Trade) must go through `DockPopout`
   (absolute overlay anchored left of the button, zIndex 20, own scroll):
   they take zero column space, so opening one can never shift or hide anything.
-- Never run `npm run build` while the dev server is running (shared `.next` dir
-  gets corrupted → garbled runtime TypeErrors). Stop it or skip the build check.
+- Never run `npm run build` while the dev server is running (shared build dir
+  corrupts → garbled runtime TypeErrors). Stop dev, build, restart dev.
+- **The repo lives on the iCloud-synced Desktop.** iCloud's agent (bird)
+  DELETES freshly written build artifacts mid-session (proven with a canary
+  file). Hence `distDir: ".next.nosync"` in next.config.mjs (iCloud skips
+  *.nosync). If the app ever serves unstyled white HTML with 404 CSS/chunks,
+  it's this class of corruption: stop dev, rm -rf .next.nosync, restart.
+  It also ate the live PGlite cluster (2026-06-11; corpse backed up at
+  `~/driftlands-db-corrupt-backup-2026-06-11`) — hence the *.nosync data dir.
+  The devnet keypair JSONs in server/.data are still unprotected (small,
+  static, lower risk — but check them if mint features go dormant).
+  Long-term fix: move the repo out of Desktop.
+- The public devnet RPC (api.devnet.solana.com) rate-limits PER METHOD —
+  heavy suite days exhaust `getParsedTransaction`/`getTokenLargestAccounts`
+  budgets and verify-token/verify-burns fail with 429s that are NOT code
+  bugs. verifyBurn polls through transient errors (bounded:
+  `disableRetryOnRateLimit` on all Connections) and verify-token SKIPs its
+  live-USDC layer when throttled. If burns fail with "429", wait an hour or
+  set `SOLANA_RPC` to a keyed endpoint (Helius/QuickNode free tier).
+- Regression flow without touching the user's live server: boot an isolated
+  instance (`cd server && DRIFT_DATA_DIR=/tmp/x PORT=2598 CARAVAN_FIRST_S=9999
+  npx tsx src/index.ts`), run suites with `GAME_SERVER=ws://localhost:2598`,
+  kill it after (verify port 2598 actually died — a stale listener once made
+  suites silently test old code). PGlite is single-process: never point two
+  servers at the same data dir.
+- After server-side changes, RESTART the user's `npm run server` (and tell
+  them to reload) — they playtest continuously against localhost:2567.
+- Keeper voice lines live in `game/world/keeperTalk.ts` (enter/idle/greet);
+  engine draws idle bubbles over keepers in interiors, HUD picks a random
+  greet per conversation. Names/swatches in `KEEPERS` (Hud.tsx).
+- Right-rail popouts are mutually exclusive via `store.openDock`
+  (forge/market/you/trade) — one open at a time, by user request.
 - Tunables live near their feature: claim cost/erosion in types.ts + DriftRoom consts;
   wheel odds in DriftRoom `WHEEL`; drink buffs in `DRINK_CATALOG`.
 - The user's flow: they say "next!"/"go" — proceed autonomously, verify everything,
-  summarize with what's verified vs caveats. Known accepted caveats: mobs/combat
-  per-client; remote players don't show equipment; PvP only as Pit duels.
-- Don't commit unless asked.
+  summarize with what's verified vs caveats. Known accepted caveats (all Phase 6
+  targets): ALL overworld mobs are shared server mobs now (per-swing damage
+  values still client-reported, clamped at 50); interiors are client-local
+  scenes (others see you at the door); XP/quests/buffs/gear/vitals
+  client-trusted (gold AND items are server-ledgered; client-reported income
+  is capped per reason); remote players don't show equipment; PvP only as Pit
+  duels.
+- Git: user commits/pushes themselves ("Phase N Complete" milestones); repo is
+  github.com/AtwaniGG/Driftlands. Don't commit unless asked (pushing on request
+  is fine).
 - Token/regulatory stance: utility + burn model, never market guaranteed returns, all
   chain work on devnet until explicit mainnet go-ahead.

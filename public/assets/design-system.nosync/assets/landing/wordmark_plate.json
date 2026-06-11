@@ -1,0 +1,43 @@
+{
+  "image": "landing/wordmark_plate.svg",
+  "cell": {
+    "w": 320,
+    "h": 96
+  },
+  "anchor": {
+    "x": 160,
+    "y": 48
+  },
+  "frames": {
+    "wordmark_plate_00": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 96,
+      "anchor": {
+        "x": 160,
+        "y": 48
+      }
+    },
+    "wordmark_plate_01": {
+      "x": 320,
+      "y": 0,
+      "w": 320,
+      "h": 96,
+      "anchor": {
+        "x": 160,
+        "y": 48
+      }
+    }
+  },
+  "animations": {
+    "inlay": {
+      "frames": [
+        "wordmark_plate_00",
+        "wordmark_plate_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

@@ -11,8 +11,9 @@ import {
   SKILL_META,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
-import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG } from "@/game/types";
+import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason } from "@/game/types";
 import { play } from "@/game/audio/sound";
+import { bus } from "@/game/state/bus";
 
 // Zustand holds only HUD-facing state. The live world/player simulation lives
 // in the Game instance (mutable, per-frame) and pushes updates here on events.
@@ -168,6 +169,8 @@ interface GameState {
   night: { kills: number; need: number; endsIn: number } | null;
   /** which right-rail popout is open (one at a time) */
   openDock: "forge" | "market" | "you" | "trade" | null;
+  /** the Satchel panel: collapsed to a button when false (Activity grows) */
+  satchelOpen: boolean;
   shrine: { pot: number; goal: number };
   duel: DuelState | null;
   duelChallenge: { from: string; name: string; wager: number } | null;
@@ -193,18 +196,29 @@ interface GameState {
   setTokenStatus: (balance: number, holder: boolean) => void;
   setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
   setOpenDock: (d: "forge" | "market" | "you" | "trade" | null) => void;
+  setSatchelOpen: (b: boolean) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
 
-  addGold: (amount: number) => void;
-  spendGold: (amount: number) => boolean;
+  /**
+   * Mutate pocket gold locally. A reason tags client-trusted events so the
+   * engine can forward them to the server ledger (online); reasonless calls
+   * are local-only (offline sim, server-result application).
+   */
+  addGold: (amount: number, reason?: GoldReason) => void;
+  spendGold: (amount: number, reason?: GoldReason) => boolean;
+  /** adopt the server ledger's authoritative balance (no forwarding) */
+  setGold: (amount: number) => void;
   questEvent: (e: QuestEvent) => void;
   claimQuest: (id: string) => void;
   sellItem: (item: ItemKey, qty: number, goldEach: number) => void;
   equip: (item: EquipmentItem) => void;
-  addItem: (item: ItemKey, qty: number) => void;
-  removeItem: (item: ItemKey, qty: number) => boolean;
+  /** reason-tagged calls forward to the server inventory ledger when online */
+  addItem: (item: ItemKey, qty: number, reason?: ItemReason) => void;
+  removeItem: (item: ItemKey, qty: number, reason?: ItemReason) => boolean;
+  /** adopt the server inventory ledger (no forwarding) */
+  setInventory: (inv: Partial<Record<ItemKey, number>>) => void;
   /** Mirewife brews / Obelisk blessings: set a buff for an arbitrary duration */
   applyBuff: (buff: "gather" | "damage" | "sight", ms: number) => void;
   /** the Ash Obelisk: trade coin for a fresh set of dailies */
@@ -294,6 +308,7 @@ export const useGame = create<GameState>((set, get) => ({
   holder: false,
   night: null,
   openDock: null,
+  satchelOpen: true,
   shrine: { pot: 0, goal: 500 },
   duel: null,
   duelChallenge: null,
@@ -335,7 +350,7 @@ export const useGame = create<GameState>((set, get) => ({
     }),
   drink: (kind) => {
     const meta = DRINK_CATALOG[kind];
-    if (!get().spendGold(meta.price)) return false;
+    if (!get().spendGold(meta.price, "shop")) return false;
     play("eat");
     set((s) => ({
       buffs: { ...s.buffs, [meta.buff]: Date.now() + meta.ms },
@@ -348,24 +363,30 @@ export const useGame = create<GameState>((set, get) => ({
   setTokenStatus: (tokenBalance, holder) => set({ tokenBalance, holder }),
   setNight: (night) => set({ night }),
   setOpenDock: (openDock) => set({ openDock }),
+  setSatchelOpen: (satchelOpen) => set({ satchelOpen }),
   setShrine: (s) => set({ shrine: s }),
   setDuel: (d) => set({ duel: d }),
   setDuelChallenge: (c) => set({ duelChallenge: c }),
 
-  addGold: (amount) =>
+  addGold: (amount, reason) => {
     set((s) => ({
       gold: s.gold + amount,
       stats:
         amount > 0
           ? { ...s.stats, goldEarned: s.stats.goldEarned + amount }
           : s.stats,
-    })),
+    }));
+    if (reason) bus.emit("goldDelta", { amount, reason });
+  },
 
-  spendGold: (amount) => {
+  spendGold: (amount, reason) => {
     if (get().gold < amount) return false;
     set((s) => ({ gold: s.gold - amount }));
+    if (reason) bus.emit("goldDelta", { amount: -amount, reason });
     return true;
   },
+
+  setGold: (amount) => set({ gold: Math.max(0, amount) }),
 
   questEvent: (e) =>
     set((s) => ({
@@ -382,11 +403,11 @@ export const useGame = create<GameState>((set, get) => ({
     const q = get().quests.find((x) => x.def.id === id);
     if (!q || q.claimed || q.progress < q.def.target) return;
     set((s) => ({
-      gold: s.gold + q.def.goldReward,
       quests: s.quests.map((x) =>
         x.def.id === id ? { ...x, claimed: true } : x,
       ),
     }));
+    get().addGold(q.def.goldReward, "quest");
     play("coin");
     get().addXp(q.def.xpReward.skill, q.def.xpReward.xp);
     get().pushLog(
@@ -396,26 +417,39 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   sellItem: (item, qty, goldEach) => {
-    if (!get().removeItem(item, qty)) return;
+    if (!get().removeItem(item, qty, "sell")) return;
     const total = qty * goldEach;
     play("coin");
-    get().addGold(total);
+    get().addGold(total, "sell");
     get().pushLog(`Sold ${qty}× for ${total}g.`, "#e7c873");
   },
 
   equip: (item) =>
     set((s) => ({ equipment: { ...s.equipment, [item.slot]: item } })),
 
-  addItem: (item, qty) =>
-    set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] + qty } })),
+  addItem: (item, qty, reason) => {
+    set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] + qty } }));
+    if (reason) bus.emit("itemDelta", { item, qty, reason });
+  },
 
   applyBuff: (buff, ms) => set((s) => ({ buffs: { ...s.buffs, [buff]: Date.now() + ms } })),
   rerollQuests: () => set({ quests: rollDailyQuests() }),
-  removeItem: (item, qty) => {
+  removeItem: (item, qty, reason) => {
     if (get().inventory[item] < qty) return false;
     set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] - qty } }));
+    if (reason) bus.emit("itemDelta", { item, qty: -qty, reason });
     return true;
   },
+
+  setInventory: (inv) =>
+    set(() => {
+      const next = emptyInventory();
+      for (const k of INVENTORY_ORDER) {
+        const v = Number(inv[k] ?? 0);
+        next[k] = Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+      }
+      return { inventory: next };
+    }),
 
   setHp: (hp) =>
     set((s) => ({ vitals: { ...s.vitals, hp: Math.max(0, Math.min(s.vitals.maxHp, hp)) } })),

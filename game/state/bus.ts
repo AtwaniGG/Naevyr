@@ -1,6 +1,8 @@
 // Tiny typed event bus: lets the React HUD talk to the running Game instance
 // without threading refs through the component tree.
 
+import type { GoldReason, ItemReason } from "@/game/types";
+
 type Events = {
   /** player typed a chat line (already trimmed, non-empty) */
   chat: string;
@@ -36,6 +38,14 @@ type Events = {
   auraBurn: string;
   /** burn-paid Obelisk quest reroll */
   obeliskBurn: boolean;
+  /** client-trusted gold change, forwarded to the server ledger when online */
+  goldDelta: { amount: number; reason: GoldReason };
+  /** client-trusted item change, forwarded to the inventory ledger when online */
+  itemDelta: { item: string; qty: number; reason: ItemReason };
+  /** cook fish over the embers (server validates the fish are real) */
+  cook: { qty: number };
+  /** forge a recipe (server debits the materials from the ledger) */
+  craft: { id: string };
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

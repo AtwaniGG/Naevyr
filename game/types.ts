@@ -318,6 +318,33 @@ export function seasonName(season: number): string {
   return SEASON_NAMES[(season - 1) % SEASON_NAMES.length];
 }
 
+// ─── Phase 6: server-side gold ledger ─────────────────────────────────────────
+// Client-trusted gold events (mob loot, veins, chests, quest rewards, vendor
+// sells, shop spends) flow to the server as one "goldDelta" intent tagged with
+// a reason. The server applies per-reason caps and keeps the authoritative
+// balance; everything the server adjudicates itself (wheel, vault, market,
+// claims, duels, donations, payouts) never touches this rail.
+export type GoldReason =
+  | "mob"      // beast/raider/colossus kill loot
+  | "vein"     // a Mine vein strike
+  | "chest"    // the Husk Den war-chest
+  | "losttomb" // a Drowned Field lost tombstone
+  | "quest"    // daily quest reward
+  | "sell"     // vendor (satchel) sale
+  | "death"    // negative: half your purse drops into your tombstone
+  | "tomb"     // reclaiming your tombstone (capped at what "death" recorded)
+  | "shop";    // negative: drinks, dyes, brews, obelisk rites (gold paths)
+
+// Same rail for items (the inventory ledger). Positive reasons are capped
+// server-side; negative ones floor at zero (spends can't mint). Cooking and
+// crafting go through their own server-validated intents instead.
+export type ItemReason =
+  | "mob"   // beast drops: shards + hides (colossus pays 5 shards)
+  | "chest" // the Husk Den war-chest shards
+  | "eat"   // negative: food leaves the satchel
+  | "brew"  // negative: Mirewife brew materials
+  | "sell"; // negative: vendor (satchel) sale
+
 // ─── Phase 5: Solana wallet link (devnet) ─────────────────────────────────────
 // The exact text a wallet signs to bind itself to a guest token. Client builds
 // it for signMessage; the server rebuilds it verbatim to verify the signature.

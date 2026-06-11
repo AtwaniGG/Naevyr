@@ -15,7 +15,7 @@ function check(name: string, ok: boolean, detail = "") {
 }
 
 function muteMessages(room: Room<any>) {
-  for (const t of ["loot", "gatherStart", "relocate", "season", "chat", "driftfall"]) {
+  for (const t of ["loot", "gatherStart", "relocate", "season", "chat", "driftfall", "goldSync", "invSync"]) {
     room.onMessage(t, () => {});
   }
 }

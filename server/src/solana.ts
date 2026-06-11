@@ -34,7 +34,7 @@ export async function getTokenBalance(wallet: string): Promise<number> {
   const hit = cache.get(wallet);
   if (hit && Date.now() - hit.at < BALANCE_TTL_MS) return hit.bal;
   try {
-    conn ??= new Connection(RPC, "confirmed");
+    conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const res = await conn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
       mint: new PublicKey(MINT),
     });
@@ -53,6 +53,17 @@ export async function getTokenBalance(wallet: string): Promise<number> {
 /** the token gate: holding ≥1 whole token */
 export async function isHolder(wallet: string): Promise<boolean> {
   return (await getTokenBalance(wallet)) >= 1;
+}
+
+/**
+ * Phase 6: the entry gate. Tokens required to step into the shared world
+ * (`GATE_TOKENS` env; production wants 1000). 0 = open door, and a missing
+ * mint always means an open door (token features dormant).
+ */
+export function gateTokens(): number {
+  if (!MINT) return 0;
+  const n = Number(process.env.GATE_TOKENS ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 // ─── Phase 5: token burns ─────────────────────────────────────────────────────
@@ -92,7 +103,7 @@ export async function buildBurnTx(
   const payer = feePayer();
   if (!payer) return { ok: false, reason: "The forge that takes tokens is cold (no authority key)" };
   try {
-    conn ??= new Connection(RPC, "confirmed");
+    conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const balance = await getTokenBalance(wallet);
     if (balance < amount) {
       return { ok: false, reason: `That rite burns ${amount} tokens; you hold ${balance}` };
@@ -122,10 +133,13 @@ export async function verifyBurn(
   minAmount: number,
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
-  try {
-    conn ??= new Connection(RPC, "confirmed");
-    // poll: wallets return the signature before the cluster confirms it
-    for (let i = 0; i < 15; i++) {
+  conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
+  // poll: wallets return the signature before the cluster confirms it. A
+  // throttled/flaky RPC read (429s on public endpoints) is NOT terminal —
+  // keep polling until the attempts run out.
+  let lastError = "";
+  for (let i = 0; i < 15; i++) {
+    try {
       const tx = await conn.getParsedTransaction(sig, {
         commitment: "confirmed",
         maxSupportedTransactionVersion: 0,
@@ -150,10 +164,10 @@ export async function verifyBurn(
         }
         return { ok: false, reason: "No matching burn in that transaction" };
       }
-      await new Promise((r) => setTimeout(r, 2000));
+    } catch (e) {
+      lastError = `Chain unreachable: ${(e as Error).message}`.slice(0, 120);
     }
-    return { ok: false, reason: "The chain never confirmed the burn" };
-  } catch (e) {
-    return { ok: false, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
+    await new Promise((r) => setTimeout(r, 2000));
   }
+  return { ok: false, reason: lastError || "The chain never confirmed the burn" };
 }

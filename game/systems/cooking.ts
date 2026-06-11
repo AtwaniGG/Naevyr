@@ -1,5 +1,6 @@
 import { ITEM_META, ItemKey } from "@/game/types";
 import { useGame } from "@/game/state/store";
+import { bus } from "@/game/state/bus";
 import { play } from "@/game/audio/sound";
 
 // Cooking & eating: closes the loop between fishing and combat. Raw Hollowfish
@@ -14,6 +15,7 @@ export function cookAllFish() {
   }
   store.removeItem("fish", raw);
   store.addItem("cooked_fish", raw);
+  bus.emit("cook", { qty: raw }); // the inventory ledger cooks the real fish
   store.questEvent({ type: "cook", qty: raw });
   play("craft");
   store.addXp("fishing", raw * 5);
@@ -30,7 +32,7 @@ export function eat(item: ItemKey) {
     store.pushLog("You're already at full health.", "#9aa0b0");
     return;
   }
-  store.removeItem(item, 1);
+  store.removeItem(item, 1, "eat");
   play("eat");
   store.heal(meta.heal);
   store.pushLog(`You eat ${meta.label}. +${meta.heal} HP.`, "#4d7c4d");

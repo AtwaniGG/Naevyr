@@ -132,6 +132,9 @@ for (const [kind, nFrames] of FIXTURES) {
 }
 // wall2: skewed segments + corners (DS walls.js port)
 import { makeWall2, makeWall2Corner } from "../game/render/sprites";
+import {
+  makeWildDoodad, drawLostTombstone, drawWallTimberCharms, WildDoodadKey,
+} from "../game/render/sprites";
 const WALL2_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
   ["nw", "timber", "plain"], ["ne", "timber", "plain"], ["nw", "timber", "window"], ["ne", "timber", "banner"],
   ["nw", "block", "plain"], ["ne", "block", "plain"], ["nw", "block", "window"], ["ne", "block", "banner"],
@@ -152,6 +155,36 @@ for (const mat of ["timber", "block", "cave"] as WallMatKind[]) {
     frames++;
     if (g.w !== 16 || g.h !== 72) { failures++; console.error(`FAIL wall2 corner ${mat}`); }
   } catch (e) { failures++; console.error(`THROW wall2 corner ${mat}:`, e); }
+}
+
+// wilds pack (DS wilds.js port): structures animate, doodads + extras generate
+for (const k of ["reed_clump", "dead_tree", "bone_spike", "mire_bubble"] as WildDoodadKey[]) {
+  for (const v of [0, 1]) {
+    try {
+      const g = makeWildDoodad(k, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (px < 20) { failures++; console.error(`FAIL wild doodad ${k}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW wild doodad ${k}#${v}:`, e); }
+  }
+}
+for (const sunken of [false, true]) {
+  try {
+    const g = drawLostTombstone(sunken);
+    frames++;
+    if (g.d.filter(Boolean).length < 40) { failures++; console.error(`FAIL lost tombstone sunken=${sunken}`); }
+  } catch (e) { failures++; console.error(`THROW lost tombstone:`, e); }
+}
+try {
+  const g = drawWallTimberCharms();
+  frames++;
+  if (g.d.filter(Boolean).length < 400) { failures++; console.error("FAIL wall_timber_charms"); }
+} catch (e) { failures++; console.error("THROW wall_timber_charms:", e); }
+if (JSON.stringify(makeBuildingSprite("huskden", 0).d) === JSON.stringify(makeBuildingSprite("huskden", 1).d)) {
+  failures++; console.error("FAIL huskden: eye frames are identical");
+}
+if (JSON.stringify(makeBuildingSprite("obelisk", 0).d) === JSON.stringify(makeBuildingSprite("obelisk", 2).d)) {
+  failures++; console.error("FAIL obelisk: rune frames are identical");
 }
 
 // animated fixtures must actually animate

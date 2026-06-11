@@ -22,15 +22,18 @@ import {
   loadProps,
   insertProp,
   deletePropsForClaim,
+  setGold as persistGold,
+  setInv as persistInv,
   PlayerRow,
 } from "../db";
-import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn } from "../solana";
+import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens } from "../solana";
 import { tryInsertBurn, deleteBurn } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
   RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode, walletLinkMessage,
+  CLAIM_COST, SPIN_COST, VAULT_FEE, PROP_CATALOG, PropKey, ItemKey, RECIPES,
 } from "@/game/types";
 import {
   DriftRoomState,
@@ -39,6 +42,7 @@ import {
   ClaimState,
   ListingState,
   PropState,
+  MobState,
   tileToCode,
 } from "./schema";
 
@@ -69,10 +73,9 @@ const CARAVAN_FIRST_S  = Number(process.env.CARAVAN_FIRST_S ?? 90);   // boot �
 const CARAVAN_PERIOD_S = Number(process.env.CARAVAN_PERIOD_S ?? 360); // between runs
 const CARAVAN_SPEED    = Number(process.env.CARAVAN_SPEED ?? 1.1);    // tiles/sec
 const CARAVAN_HP       = 100;
-const CARAVAN_GNAW_DPS = 3;    // hp lost per second while raiders swarm it
+const CARAVAN_GNAW_DPS = Number(process.env.CARAVAN_GNAW ?? 3); // hp/s while swarmed
 const CARAVAN_BASE_POOL = 120; // gold pool at 0% corruption; +3g per corruption point
 const CARAVAN_MIN_ROUTE = 18;  // tiles; gates closer than this don't count
-const CARAVAN_ESCORT_RANGE = 12; // kills count only this close to the wagon
 
 // ---- Phase 5: token burn costs (devnet) -------------------------------------
 // Holders can pay these rites with on-chain burns instead of gold.
@@ -97,9 +100,155 @@ const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
 const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
 const RESET_FAILSAFE_PCT   = 97;   // theoretical max is ~92 (town/claims/water immune)
-const NIGHT_DEFENSE_RANGE  = 16;   // kills count only this close to the Waystation
 
-// the Wheel (server-rolled; client pays 50g up front)
+// ---- Phase 6: the gold ledger ------------------------------------------------
+// The server holds the authoritative pocket balance. Client-trusted income
+// (mobs/veins/chests are still per-client sims) arrives as "goldDelta" intents
+// and is clamped per reason: a cap per event plus a rolling per-minute budget.
+// Real validation of these events lands with server-side mobs.
+const GOLD_DELTA_CAPS: Record<string, { event: number; perMin: number }> = {
+  mob:      { event: 60,    perMin: 900 },    // colossus pays 50
+  vein:     { event: 40,    perMin: 700 },    // 3 + lvl/2 + rand per strike
+  chest:    { event: 110,   perMin: 220 },    // den war-chest 60-100, 15min reseed
+  losttomb: { event: 90,    perMin: 180 },    // lost tombstones 30-80
+  quest:    { event: 100,   perMin: 500 },    // daily rewards top out at 60
+  sell:     { event: 15000, perMin: 20000 },  // a full 999-stack of shards ≈ 15k
+};
+
+// Items ride the same rail (the inventory ledger). Positive client-trusted
+// reasons are capped; negatives floor at zero. Cooking/crafting/market moves
+// and gather loot are validated or granted server-side instead.
+const ITEM_DELTA_CAPS: Record<string, { event: number; perMin: number; items: string[] }> = {
+  mob:   { event: 6, perMin: 60, items: ["driftshard", "hide"] }, // colossus drops 5 shards
+  chest: { event: 2, perMin: 6, items: ["driftshard"] },          // den chest, 15min reseed
+};
+/** chance a gather swing pays double (was a client roll; now the house rolls) */
+const RICH_STRIKE_P = 0.1;
+
+// ---- Phase 6: shared ambient mobs ---------------------------------------------
+// Ambient Drift Beasts (husk/stalker) + the Husk Den elite pack live on the
+// server: same wander-and-retaliate behavior the client sim used, but hp,
+// deaths and loot are authoritative. Raiders/colossus stay per-client for now.
+const MOB_AMBIENT_COUNT = Number(process.env.MOB_COUNT ?? 8);
+const DEN_RESEED_MS = Number(process.env.DEN_RESEED_S ?? 900) * 1000;
+const DEN_PACK_SIZE = 5;
+const DEN_PACK_LEVEL = 5;
+const MOB_ATTACK_MS = 1500;       // retaliation cadence (mirrors the old client sim)
+const ATTACK_RATE_MS = 900;       // server-side swing cap (client swings at 1100ms)
+const ATTACK_MAX_DMG = 50;        // generous clamp; real rolls come with server gear
+const ENGAGE_TIMEOUT_MS = 6000;   // no swings for this long → the beast loses interest
+/** corruption thresholds that wake a Colossus (env override for tests) */
+const BOSS_PCTS = (process.env.BOSS_PCTS ?? "10,25,40,60,80")
+  .split(",").map(Number).filter((n) => Number.isFinite(n));
+
+type MobKind = "husk" | "stalker" | "raider" | "colossus";
+
+/** a server-side Drift Beast: wanders its territory, retaliates when struck */
+class ServerMob {
+  id: number;
+  kind: MobKind;
+  level: number;
+  px: number;
+  py: number;
+  spawnX: number;
+  spawnY: number;
+  hp: number;
+  maxHp: number;
+  damage: number;
+  state: "wander" | "engaged" | "dead" = "wander";
+  /** den elites stay dead until the den re-seeds */
+  persistDeath = false;
+  /** which event owns this mob (its deaths feed that event's quota) */
+  eventTag: "ambush" | "night" | null = null;
+  /** dead raiders/colossi leave the schema once their death anim has played */
+  pruneAt = 0;
+  /** combat XP the kill pays (client applies it from mobKill) */
+  xp: number;
+  /** sessionId of the wanderer this beast is trading blows with */
+  engagedBy: string | null = null;
+  lastEngagedAt = 0;
+  retaliateIn = MOB_ATTACK_MS;
+  respawnIn = 0;
+  speed = 1.4;
+  private tx: number;
+  private ty: number;
+  private idle = 0;
+  private wanderRadius = 4;
+
+  constructor(id: number, gx: number, gy: number, level: number, kind?: MobKind) {
+    this.id = id;
+    this.px = this.tx = this.spawnX = gx;
+    this.py = this.ty = this.spawnY = gy;
+    this.level = level;
+    this.kind = kind ?? (level >= 3 ? "stalker" : "husk");
+    this.maxHp = this.hp = 14 + level * 4;
+    this.damage = 2 + level;
+    this.xp = 14 + level * 6;
+  }
+
+  get cell(): Cell {
+    return { x: Math.round(this.px), y: Math.round(this.py) };
+  }
+
+  die() {
+    this.state = "dead";
+    this.engagedBy = null;
+    if (this.kind === "raider" || this.kind === "colossus") {
+      // event mobs stay slain; the corpse leaves once the death anim plays out
+      this.respawnIn = Number.POSITIVE_INFINITY;
+      this.pruneAt = Date.now() + 2500;
+    } else {
+      this.respawnIn = this.persistDeath
+        ? Number.POSITIVE_INFINITY
+        : 6000 + Math.random() * 4000;
+    }
+  }
+
+  update(dt: number, world: World) {
+    if (this.state === "dead") {
+      this.respawnIn -= dt * 1000;
+      if (this.respawnIn <= 0) {
+        this.px = this.tx = this.spawnX;
+        this.py = this.ty = this.spawnY;
+        this.hp = this.maxHp;
+        this.state = "wander";
+        this.idle = 0;
+      }
+      return;
+    }
+    if (this.state === "engaged") return; // hold ground while trading blows
+
+    const dx = this.tx - this.px;
+    const dy = this.ty - this.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.1) {
+      this.idle -= dt;
+      if (this.idle <= 0) this.pickTarget(world);
+    } else {
+      const step = this.speed * dt;
+      this.px += (dx / dist) * Math.min(step, dist);
+      this.py += (dy / dist) * Math.min(step, dist);
+    }
+  }
+
+  private pickTarget(world: World) {
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * this.wanderRadius;
+      const x = Math.round(this.spawnX + Math.cos(a) * r);
+      const y = Math.round(this.spawnY + Math.sin(a) * r);
+      if (world.isWalkable(x, y)) {
+        this.tx = x;
+        this.ty = y;
+        this.idle = 1 + Math.random() * 2;
+        return;
+      }
+    }
+    this.idle = 1;
+  }
+}
+
+// the Wheel (server-rolled; the spin price is debited from the ledger)
 const WHEEL: { p: number; gold: number; shards: number; label: string }[] = [
   { p: 0.40, gold: 0,   shards: 0, label: "The Drift takes your coin." },
   { p: 0.25, gold: 25,  shards: 0, label: "A modest return: 25g." },
@@ -136,8 +285,24 @@ interface PlayerSim {
   /** guest identity (db row key) */
   token: string;
   lastSaveAt: number;
+  /** server-side swing cap for shared-mob attacks */
+  lastMobAttackAt?: number;
   /** stored progress, served on request (client asks once handlers are wired) */
   profileSnapshot: unknown;
+  /** Phase 6: authoritative pocket gold (write-through to the players row) */
+  gold: number;
+  /**
+   * false until the ledger has a real value: a brand-new row waits for the
+   * client's first snapshot push (offline progress seeds the ledger once,
+   * same trust model as the snapshot itself). Any ledger mutation pins it.
+   */
+  goldSeeded: boolean;
+  /** Phase 6: authoritative item counts (write-through to players.inv) */
+  inv: Record<ItemKey, number>;
+  /** same seed-once rule as goldSeeded, for the inventory ledger */
+  invSeeded: boolean;
+  /** rolling per-minute budgets for client-trusted gold/item delta reasons */
+  deltaWindow: Map<string, { start: number; sum: number }>;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -166,6 +331,18 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** Long Night bookkeeping (server-side only) */
   private nightUntil = 0;
   private nightDone = false;
+
+  /** gold recorded into a tombstone at death, reclaimable once (token → g) */
+  private tombGold = new Map<string, number>();
+
+  /** shared ambient beasts + the den pack (server-side sim) */
+  private mobSims: ServerMob[] = [];
+  private nextMobId = 1;
+  private denIds: number[] = [];
+  /** when the last den elite fell (0 = pack alive); reseeds after DEN_RESEED_MS */
+  private denClearedAt = 0;
+  /** corruption marks that still owe the realm a Colossus */
+  private bossThresholds = [...BOSS_PCTS];
 
   async onCreate() {
     this.setState(new DriftRoomState());
@@ -197,6 +374,10 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // first caravan rolls a little after boot
     this.state.caravan.departIn = CARAVAN_FIRST_S;
+
+    // the shared beasts wake with the realm
+    this.spawnAmbientMobs();
+    this.spawnDenPack();
 
     // the Shrine's communal pot
     this.state.shrinePot = await loadShrinePot();
@@ -286,22 +467,40 @@ export class DriftRoom extends Room<DriftRoomState> {
       },
     );
 
-    // ---- the Vault: banked gold (delta > 0 deposit, < 0 withdraw) -------------
+    // ---- the Vault: pocket ↔ bank moves, both sides on the server ledger -------
     this.onMessage("bank", async (client, msg: { delta?: number }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       const delta = Math.floor(Number(msg?.delta ?? 0));
       if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 1_000_000) return;
       const row = await loadOrCreatePlayer(sim.token);
-      const next = row.bankGold + delta;
-      if (next < 0) {
-        return client.send("bankResult", { ok: false, banked: row.bankGold, reason: "Not that much in your box" });
+      if (delta > 0) {
+        // deposit: pocket → box
+        if (!this.debit(sim, delta)) {
+          return client.send("bankResult", {
+            ok: false, banked: row.bankGold, reason: "Your purse is lighter than that",
+          });
+        }
+        const next = row.bankGold + delta;
+        await setBankGold(sim.token, next).catch(() => {});
+        client.send("bankResult", { ok: true, banked: next, delta });
+      } else {
+        // withdraw: box → pocket, less the handling fee
+        const gross = -delta;
+        if (row.bankGold < gross) {
+          return client.send("bankResult", {
+            ok: false, banked: row.bankGold, reason: "Not that much in your box",
+          });
+        }
+        const fee = Math.ceil(gross * VAULT_FEE);
+        const next = row.bankGold - gross;
+        await setBankGold(sim.token, next).catch(() => {});
+        this.credit(sim, gross - fee);
+        client.send("bankResult", { ok: true, banked: next, delta, fee });
       }
-      await setBankGold(sim.token, next).catch(() => {});
-      client.send("bankResult", { ok: true, banked: next, delta });
     });
 
-    // ---- the Wheel: server-rolled spin (client paid 50g, OR a token burn) -------
+    // ---- the Wheel: server-rolled spin (ledger pays 50g, OR a token burn) -------
     this.onMessage("spin", async (client, msg: { burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
@@ -311,6 +510,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (msg?.burnSig) {
         const err = await this.consumeBurn(sim, String(msg.burnSig), "spin");
         if (err) return client.send("burnResult", { ok: false, action: "spin", reason: err });
+      } else if (!this.debit(sim, SPIN_COST)) {
+        return client.send("spinResult", { ok: false, reason: `A spin costs ${SPIN_COST}g.` });
       }
       let roll = Math.random();
       let prize = WHEEL[0];
@@ -318,10 +519,14 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (roll < seg.p) { prize = seg; break; }
         roll -= seg.p;
       }
-      client.send("spinResult", { gold: prize.gold, shards: prize.shards, label: prize.label });
+      if (prize.gold > 0) this.credit(sim, prize.gold);
+      if (prize.shards > 0) this.creditItem(sim, "driftshard", prize.shards);
+      client.send("spinResult", {
+        ok: true, gold: prize.gold, shards: prize.shards, label: prize.label,
+      });
     });
 
-    // ---- the Shrine: communal donations toward a cleansing (gold or burn) -------
+    // ---- the Shrine: communal donations toward a cleansing (ledger or burn) -----
     this.onMessage("donate", async (client, msg: { amount?: number; burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
@@ -331,8 +536,15 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (err) return client.send("burnResult", { ok: false, action: "cleanse", reason: err });
         amount = CLEANSE_BURN_POT;
         client.send("burnResult", { ok: true, action: "cleanse", pot: amount });
+      } else {
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000) return;
+        amount = Math.min(amount, Math.floor(sim.gold));
+        if (amount <= 0) {
+          return client.send("donateResult", { ok: false, reason: "Your purse is empty." });
+        }
+        this.debit(sim, amount);
+        client.send("donateResult", { ok: true, amount });
       }
-      if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000) return;
       this.state.shrinePot += amount;
       if (this.state.shrinePot >= this.state.shrineGoal) {
         this.cleanse();
@@ -361,6 +573,8 @@ export class DriftRoom extends Room<DriftRoomState> {
         for (const p of this.state.props.values()) {
           if (p.x === x && p.y === y) return fail("Something already stands there");
         }
+        const price = PROP_CATALOG[kind as PropKey]?.price ?? 0;
+        if (!this.debit(sim, price)) return fail(`That costs ${price}g`);
         const row = await insertProp(claim.id, sim.token, x, y, kind);
         const ps2 = new PropState();
         ps2.id = row.id;
@@ -393,6 +607,20 @@ export class DriftRoom extends Room<DriftRoomState> {
       const b = this.sims.get(client.sessionId);        // acceptor
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
       if (!a || !b || this.inDuel(a.client.sessionId) || this.inDuel(b.client.sessionId)) return;
+      // both stakes leave the ledgers up front; the pot pays out at the end
+      if (wager > 0) {
+        if (a.gold < wager || b.gold < wager) {
+          const light = a.gold < wager ? a : b;
+          for (const s of [a, b]) {
+            s.client.send("duelRefused", {
+              reason: light === s ? "Your purse can't cover the wager" : "Their purse can't cover the wager",
+            });
+          }
+          return;
+        }
+        this.debit(a, wager);
+        this.debit(b, wager);
+      }
       // both fighters step into the Pit
       a.px = 18; a.py = 32; a.path = []; a.action = "idle";
       b.px = 22; b.py = 32; b.path = []; b.action = "idle";
@@ -545,32 +773,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("walletResult", { ok: true, address: null });
     });
 
-    // ---- raider kills: Long Night defense, or caravan-ambush escorts -----------
-    this.onMessage("raiderKill", (client) => {
-      const sim = this.sims.get(client.sessionId);
-      if (!sim) return;
-      // the Long Night takes priority: kills near the Waystation hold the line
-      if (this.state.nightActive) {
-        if (Math.hypot(sim.px - TOWN_CENTER.x, sim.py - TOWN_CENTER.y) > NIGHT_DEFENSE_RANGE) return;
-        this.state.nightKills += 1;
-        return;
-      }
-      const c = this.state.caravan;
-      if (c.phase !== "ambushed") return;
-      // only escorts actually at the wagon count
-      if (Math.hypot(sim.px - c.x, sim.py - c.y) > CARAVAN_ESCORT_RANGE) return;
-      c.waveKills += 1;
-      const entry = this.caravanContrib.get(sim.token) ?? {
-        name: this.state.players.get(client.sessionId)?.name ?? "Wanderer",
-        kills: 0,
-      };
-      entry.kills += 1;
-      this.caravanContrib.set(sim.token, entry);
-      if (c.waveKills >= c.waveNeed) {
-        c.phase = "rolling";
-        this.broadcast("waveCleared", { run: c.run, wave: c.wave, waves: c.waves });
-      }
-    });
+    // (the "raiderKill" intent is gone — raiders are shared mobs now, and the
+    //  attack handler counts their REAL deaths into the event quotas)
 
     // stored progress, sent when the client says it's ready to receive it
     this.onMessage("getProfile", async (client) => {
@@ -583,6 +787,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         .filter(([, t]) => t === sim.token)
         .map(([id]) => id);
       const escrowGold = await takeEscrow(sim.token).catch(() => 0);
+      if (escrowGold > 0) this.credit(sim, escrowGold);
       const row = await loadOrCreatePlayer(sim.token);
       const tokenBalance = row.walletAddress
         ? await getTokenBalance(row.walletAddress)
@@ -592,6 +797,10 @@ export class DriftRoom extends Room<DriftRoomState> {
         myClaims,
         myListings,
         escrowGold,
+        // an unseeded ledger stays quiet: the client's local gold/items stand
+        // until its first snapshot push seeds the ledgers
+        ...(sim.goldSeeded ? { gold: Math.round(sim.gold) } : {}),
+        ...(sim.invSeeded ? { inv: sim.inv } : {}),
         banked: row.bankGold,
         wallet: row.walletAddress ?? null,
         tokenBalance,
@@ -621,6 +830,10 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (owned >= MAX_LISTINGS_PER_PLAYER) {
           return fail(`Your stall is full (${MAX_LISTINGS_PER_PLAYER} listings)`);
         }
+        // the goods leave the inventory ledger and live in the listing
+        if (!this.debitItems(sim, [[item as ItemKey, qty]])) {
+          return fail("You don't carry that much");
+        }
         const name = ps?.name ?? "Wanderer";
         const row = await insertListing(sim.token, name, item, qty, price);
         this.addListing(row.id, sim.token, name, item, qty, price);
@@ -637,10 +850,11 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.state.listings.delete(String(ls.id));
       this.listingOwner.delete(ls.id);
       await deleteListing(ls.id).catch(() => {});
+      this.creditItem(sim, ls.item as ItemKey, ls.qty); // goods back to the ledger
       client.send("unlistResult", { ok: true, item: ls.item, qty: ls.qty });
     });
 
-    // buy a listing (buyer already deducted gold client-side; refunded on fail)
+    // buy a listing (the ledger pays; the seller's ledger or escrow collects)
     this.onMessage("buy", async (client, msg: { id?: number }) => {
       const sim = this.sims.get(client.sessionId);
       const ls = this.state.listings.get(String(msg?.id));
@@ -650,15 +864,18 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!ls) return fail("That offer is gone");
       const sellerToken = this.listingOwner.get(ls.id);
       if (sellerToken === sim.token) return fail("That's your own stall");
+      if (!this.debit(sim, ls.price)) return fail(`That costs ${ls.price}g. Your purse is light`);
 
       this.state.listings.delete(String(ls.id));
       this.listingOwner.delete(ls.id);
       await deleteListing(ls.id).catch(() => {});
+      this.creditItem(sim, ls.item as ItemKey, ls.qty); // goods to the buyer's ledger
       client.send("buyResult", { ok: true, item: ls.item, qty: ls.qty, price: ls.price });
 
-      // pay the seller: live message when online, escrow otherwise
+      // pay the seller: straight into their ledger when online, escrow otherwise
       const sellerSim = [...this.sims.values()].find((s) => s.token === sellerToken);
       if (sellerSim) {
+        this.credit(sellerSim, ls.price);
         sellerSim.client.send("sold", {
           item: ls.item,
           qty: ls.qty,
@@ -670,7 +887,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
     });
 
-    // stake a 3×3 land claim (gold deducted client-side, OR a verified token burn)
+    // stake a 3×3 land claim (the ledger pays, OR a verified token burn)
     this.onMessage("claim", async (client, msg: { x?: number; y?: number; burnSig?: string }) => {
       const sim = this.sims.get(client.sessionId);
       const ps = this.state.players.get(client.sessionId);
@@ -704,6 +921,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (msg?.burnSig) {
         const err = await this.consumeBurn(sim, String(msg.burnSig), "claim");
         if (err) return fail(err);
+      } else if (!this.debit(sim, CLAIM_COST)) {
+        return fail(`Staking a claim costs ${CLAIM_COST}g`);
       }
 
       const row = await insertClaim(sim.token, x, y);
@@ -724,12 +943,198 @@ export class DriftRoom extends Room<DriftRoomState> {
       const now = Date.now();
       if (now - sim.lastSaveAt < 4000) return; // rate limit
       sim.lastSaveAt = now;
+      // first contact: the snapshot's gold/items seed the ledgers exactly once
+      if (!sim.goldSeeded) {
+        const g = Number((msg.snapshot as { gold?: unknown })?.gold ?? 0);
+        sim.gold = Number.isFinite(g) ? Math.max(0, Math.round(g)) : 0;
+        sim.goldSeeded = true;
+        void persistGold(sim.token, sim.gold).catch(() => {});
+        this.syncGold(sim);
+      }
+      if (!sim.invSeeded) {
+        sim.inv = sanitizeInv((msg.snapshot as { inventory?: unknown })?.inventory);
+        sim.invSeeded = true;
+        void persistInv(sim.token, sim.inv).catch(() => {});
+        this.syncInv(sim);
+      }
       void savePlayer(sim.token, {
         snapshot: msg.snapshot,
         lastX: sim.px,
         lastY: sim.py,
         ...(ps ? { name: ps.name, dye: ps.dye, eye: ps.eye } : {}),
       }).catch(() => {});
+    });
+
+    // ---- Phase 6: client-trusted gold events → the ledger, clamped per reason ----
+    this.onMessage("goldDelta", (client, msg: { amount?: number; reason?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      const amount = Math.trunc(Number(msg?.amount ?? 0));
+      const reason = String(msg?.reason ?? "");
+      if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1_000_000) return;
+
+      // spends can't mint gold — apply, clamped at an empty purse
+      if (amount < 0) {
+        if (reason === "death") {
+          // half the purse drops into a tombstone; remember what fell
+          const drop = Math.min(-amount, Math.floor(sim.gold));
+          this.tombGold.set(sim.token, drop);
+          if (drop > 0) this.credit(sim, -drop);
+        } else {
+          this.credit(sim, amount);
+        }
+        return;
+      }
+
+      // tombstone reclaim pays back only what the death actually recorded
+      if (reason === "tomb") {
+        const held = this.tombGold.get(sim.token) ?? 0;
+        const take = Math.min(amount, held);
+        this.tombGold.set(sim.token, held - take);
+        if (take > 0) this.credit(sim, take);
+        return;
+      }
+
+      const cap = GOLD_DELTA_CAPS[reason];
+      if (!cap) return;
+      const now = Date.now();
+      let win = sim.deltaWindow.get(reason);
+      if (!win || now - win.start > 60_000) {
+        win = { start: now, sum: 0 };
+        sim.deltaWindow.set(reason, win);
+      }
+      const granted = Math.min(amount, cap.event, cap.perMin - win.sum);
+      if (granted <= 0) return;
+      win.sum += granted;
+      this.credit(sim, granted);
+    });
+
+    // ---- client-trusted item events → the inventory ledger, clamped per reason ----
+    this.onMessage("itemDelta", (client, msg: { item?: string; qty?: number; reason?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      const item = String(msg?.item ?? "") as ItemKey;
+      const qty = Math.trunc(Number(msg?.qty ?? 0));
+      const reason = String(msg?.reason ?? "");
+      if (!VALID_ITEMS.has(item)) return;
+      if (!Number.isFinite(qty) || qty === 0 || Math.abs(qty) > 100_000) return;
+
+      // spends can't mint — apply, clamped at an empty satchel
+      if (qty < 0) {
+        this.creditItem(sim, item, qty);
+        return;
+      }
+
+      const cap = ITEM_DELTA_CAPS[reason];
+      if (!cap || !cap.items.includes(item)) return;
+      const now = Date.now();
+      const key = `item:${reason}:${item}`;
+      let win = sim.deltaWindow.get(key);
+      if (!win || now - win.start > 60_000) {
+        win = { start: now, sum: 0 };
+        sim.deltaWindow.set(key, win);
+      }
+      const granted = Math.min(qty, cap.event, cap.perMin - win.sum);
+      if (granted <= 0) return;
+      win.sum += granted;
+      this.creditItem(sim, item, granted);
+    });
+
+    // ---- cooking: fish → cooked fish, only as many as the ledger holds -----------
+    this.onMessage("cook", (client, msg: { qty?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      const qty = Math.trunc(Number(msg?.qty ?? 0));
+      if (!Number.isFinite(qty) || qty <= 0 || qty > 999) return;
+      const n = Math.min(qty, sim.inv.fish ?? 0);
+      if (n <= 0) return;
+      sim.inv.fish -= n;
+      sim.inv.cooked_fish = (sim.inv.cooked_fish ?? 0) + n;
+      sim.invSeeded = true;
+      void persistInv(sim.token, sim.inv).catch(() => {});
+      this.syncInv(sim);
+    });
+
+    // ---- the Forge: a recipe's materials leave the ledger (gear stays client-side)
+    this.onMessage("craft", (client, msg: { id?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      const recipe = RECIPES.find((r) => r.result.id === String(msg?.id ?? ""));
+      if (!recipe) return;
+      this.debitItems(
+        sim,
+        Object.entries(recipe.cost) as [ItemKey, number][],
+      );
+    });
+
+    // ---- shared mobs: engage freezes the beast, attack trades the blows ---------
+    this.onMessage("engage", (client, msg: { id?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      const mob = this.mobSims.find((m) => m.id === Number(msg?.id));
+      if (!sim || !mob || mob.state === "dead") return;
+      if (chebyshev(this.cellOf(sim), mob.cell) > 1) return;
+      mob.engagedBy = client.sessionId;
+      mob.lastEngagedAt = Date.now();
+      mob.state = "engaged";
+      mob.retaliateIn = MOB_ATTACK_MS;
+    });
+
+    this.onMessage("attack", (client, msg: { id?: number; dmg?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      const mob = this.mobSims.find((m) => m.id === Number(msg?.id));
+      if (!sim || !mob || mob.state === "dead") return;
+      const now = Date.now();
+      if (now - (sim.lastMobAttackAt ?? 0) < ATTACK_RATE_MS) return; // swing cap
+      if (chebyshev(this.cellOf(sim), mob.cell) > 1) return;
+      sim.lastMobAttackAt = now;
+      const dmg = Math.max(1, Math.min(ATTACK_MAX_DMG, Math.floor(Number(msg?.dmg ?? 0))));
+      mob.engagedBy = client.sessionId;
+      mob.lastEngagedAt = now;
+      if (mob.state !== "engaged") {
+        mob.state = "engaged";
+        mob.retaliateIn = MOB_ATTACK_MS;
+      }
+      mob.hp = Math.max(0, mob.hp - dmg);
+      if (mob.hp > 0) return;
+
+      // it falls: loot lands on the killer's ledgers, the kill on their log
+      mob.die();
+      const loot = { gold: 0, shards: 0, hide: 0 };
+      if (mob.kind === "raider") {
+        loot.gold = 5 + ((Math.random() * 6) | 0);
+      } else if (mob.kind === "colossus") {
+        loot.gold = 50;
+        loot.shards = 5;
+      } else {
+        loot.shards = 1;
+        loot.hide = Math.random() < 0.5 ? 1 : 0;
+      }
+      if (loot.gold) this.credit(sim, loot.gold);
+      if (loot.shards) this.creditItem(sim, "driftshard", loot.shards);
+      if (loot.hide) this.creditItem(sim, "hide", loot.hide);
+      client.send("mobKill", {
+        id: mob.id, kind: mob.kind, level: mob.level, xp: mob.xp, ...loot,
+      });
+
+      // real deaths feed the event quotas (no more trusted kill intents)
+      if (mob.eventTag === "night" && this.state.nightActive) {
+        this.state.nightKills += 1;
+      } else if (mob.eventTag === "ambush") {
+        const c = this.state.caravan;
+        if (c.phase !== "ambushed") return;
+        c.waveKills += 1;
+        const entry = this.caravanContrib.get(sim.token) ?? {
+          name: this.state.players.get(client.sessionId)?.name ?? "Wanderer",
+          kills: 0,
+        };
+        entry.kills += 1;
+        this.caravanContrib.set(sim.token, entry);
+        if (c.waveKills >= c.waveNeed) {
+          c.phase = "rolling";
+          this.clearEventMobs("ambush");
+          this.broadcast("waveCleared", { run: c.run, wave: c.wave, waves: c.waves });
+        }
+      }
     });
 
     // client died in (client-local) combat — pull them back to spawn
@@ -748,10 +1153,19 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.setSimulationInterval(() => this.tick(TICK_MS / 1000), TICK_MS);
   }
 
-  /** guest auth: a browser-held token is the identity; rows are auto-created */
-  async onAuth(client: Client, options: { token?: string }) {
+  /** guest auth: a browser-held token is the identity; rows are auto-created.
+   *  With GATE_TOKENS set, the door also demands a wallet holding enough of
+   *  the game token (balance checked here; ownership proof is the Phase 6
+   *  hardening follow-up — the link flow already exists for binding). */
+  async onAuth(client: Client, options: { token?: string; address?: string }) {
     const token = typeof options?.token === "string" ? options.token.trim() : "";
     if (token.length < 8 || token.length > 64) return false;
+    const gate = gateTokens();
+    if (gate > 0) {
+      const address = typeof options?.address === "string" ? options.address.trim() : "";
+      if (!address) return false;
+      if ((await getTokenBalance(address)) < gate) return false;
+    }
     return await loadOrCreatePlayer(token);
   }
 
@@ -768,6 +1182,16 @@ export class DriftRoom extends Room<DriftRoomState> {
       spawn = { x: Math.round(row.lastX), y: Math.round(row.lastY) };
     }
 
+    // the ledger: NULL column = first join since Phase 6 — migrate snapshot gold.
+    // A row with neither stays unseeded until the client's first snapshot push.
+    const snapGold = Number((row.snapshot as { gold?: unknown } | null)?.gold ?? 0);
+    const gold = row.gold ?? (Number.isFinite(snapGold) ? Math.max(0, Math.round(snapGold)) : 0);
+    const goldSeeded = row.gold != null || row.snapshot != null;
+    const inv = sanitizeInv(
+      row.inv ?? (row.snapshot as { inventory?: unknown } | null)?.inventory,
+    );
+    const invSeeded = row.inv != null || row.snapshot != null;
+
     const sim: PlayerSim = {
       client,
       px: spawn.x,
@@ -782,8 +1206,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       token: row.token,
       lastSaveAt: 0,
       profileSnapshot: row.snapshot ?? null,
+      gold,
+      goldSeeded,
+      inv,
+      invSeeded,
+      deltaWindow: new Map(),
     };
     this.sims.set(client.sessionId, sim);
+    if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
+    if (row.inv == null && invSeeded) void persistInv(row.token, inv).catch(() => {});
 
     const ps = new PlayerState();
     ps.id = client.sessionId;
@@ -824,6 +1255,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.syncNodes();
     this.stepCaravan(dt);
     this.stepNight();
+    this.stepMobs(dt);
 
     // duel timeouts → draw, both refunded client-side
     const now = Date.now();
@@ -885,7 +1317,11 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (sim.gatherMs >= sim.gatherTotal) {
         node.amount -= 1;
         const depleted = node.amount <= 0;
-        sim.client.send("loot", { kind: node.kind, depleted });
+        // the house rolls rich strikes now; loot lands on the inventory ledger
+        const rich = Math.random() < RICH_STRIKE_P;
+        const qty = rich ? 2 : 1;
+        this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
+        sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
         if (depleted) {
           this.drift.depleteNode(this.world, node.gx, node.gy);
           this.cancelGather(sim);
@@ -937,6 +1373,18 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** winner=null → draw (timeout) */
   private endDuel(duel: Duel, winner: string | null) {
     this.duels = this.duels.filter((d) => d !== duel);
+    // settle the pot from the ledgers: winner takes all, a draw returns stakes
+    if (duel.wager > 0) {
+      if (winner) {
+        const w = this.sims.get(winner);
+        if (w) this.credit(w, duel.wager * 2);
+      } else {
+        for (const id of [duel.a, duel.b]) {
+          const s = this.sims.get(id);
+          if (s) this.credit(s, duel.wager);
+        }
+      }
+    }
     // both fighters return to the spawn steps
     for (const id of [duel.a, duel.b]) {
       const sim = this.sims.get(id);
@@ -991,10 +1439,17 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.state.nightNeed = LONG_NIGHT_BASE_KILLS + (defenders - 1) * 8;
     this.nightUntil = Date.now() + LONG_NIGHT_MS;
     this.state.nightEndsIn = Math.round(LONG_NIGHT_MS / 1000);
+    const level = 3 + Math.floor(this.corruptionPct() / 25);
+    // the horde closes on the Waystation from three sides (shared mobs)
+    const per = Math.ceil((this.state.nightNeed * 1.3) / 3);
+    const { x, y } = TOWN_CENTER;
+    this.spawnEventRaiders(x - 6, y, per, level, "night");
+    this.spawnEventRaiders(x + 6, y, per, level, "night");
+    this.spawnEventRaiders(x, y + 7, per, level, "night");
     this.broadcast("longNight", {
       durationMs: LONG_NIGHT_MS,
       need: this.state.nightNeed,
-      level: 3 + Math.floor(this.corruptionPct() / 25),
+      level,
     });
   }
 
@@ -1006,11 +1461,13 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     const survived = this.state.nightKills >= this.state.nightNeed;
     this.state.nightActive = false;
+    this.clearEventMobs("night");
     if (survived) {
       this.nightDone = true;
       this.dawnCleanse();
       this.broadcast("nightEnd", { survived: true, driftPct: this.state.driftPct });
       for (const sim of this.sims.values()) {
+        this.credit(sim, LONG_NIGHT_REWARD);
         sim.client.send("nightReward", { gold: LONG_NIGHT_REWARD });
       }
     } else {
@@ -1077,6 +1534,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.state.nodes.set(String(node.id), ns);
     }
     this.resetCaravan();
+    this.resetMobs();
 
     // everyone wakes at the spawn of the new realm
     for (const sim of this.sims.values()) {
@@ -1089,6 +1547,57 @@ export class DriftRoom extends Room<DriftRoomState> {
       sim.action = "idle";
     }
     this.broadcast("realmReset", { season: this.state.season });
+  }
+
+  // ---- Phase 6: the gold ledger ----------------------------------------------------
+
+  /** push the authoritative balance to its owner (display copy adopts it) */
+  private syncGold(sim: PlayerSim) {
+    sim.client.send("goldSync", { gold: Math.round(sim.gold) });
+  }
+
+  /** mutate the ledger, persist write-through, and sync the owner's display */
+  private credit(sim: PlayerSim, amount: number) {
+    sim.gold = Math.max(0, sim.gold + amount);
+    sim.goldSeeded = true; // a live ledger never gets re-seeded by a snapshot
+    void persistGold(sim.token, sim.gold).catch(() => {});
+    this.syncGold(sim);
+  }
+
+  /** spend from the ledger; false (and no sync) when the purse is too light */
+  private debit(sim: PlayerSim, amount: number): boolean {
+    if (amount > 0 && sim.gold < amount) return false;
+    this.credit(sim, -amount);
+    return true;
+  }
+
+  // ---- the inventory ledger ---------------------------------------------------
+
+  /** push the authoritative item counts to their owner */
+  private syncInv(sim: PlayerSim) {
+    sim.client.send("invSync", { inv: sim.inv });
+  }
+
+  /** mutate one item count (clamped at 0), persist, and sync the owner */
+  private creditItem(sim: PlayerSim, item: ItemKey, qty: number) {
+    sim.inv[item] = Math.max(0, (sim.inv[item] ?? 0) + qty);
+    sim.invSeeded = true;
+    void persistInv(sim.token, sim.inv).catch(() => {});
+    this.syncInv(sim);
+  }
+
+  /** take items off the ledger; false (and no change) if any are missing */
+  private debitItems(sim: PlayerSim, costs: [ItemKey, number][]): boolean {
+    for (const [item, qty] of costs) {
+      if ((sim.inv[item] ?? 0) < qty) return false;
+    }
+    for (const [item, qty] of costs) {
+      sim.inv[item] = (sim.inv[item] ?? 0) - qty;
+    }
+    sim.invSeeded = true;
+    void persistInv(sim.token, sim.inv).catch(() => {});
+    this.syncInv(sim);
+    return true;
   }
 
   // ---- Phase 5: burns ------------------------------------------------------------
@@ -1113,6 +1622,201 @@ export class DriftRoom extends Room<DriftRoomState> {
       return v.reason ?? "The burn could not be verified";
     }
     return null;
+  }
+
+  // ---- shared mobs ------------------------------------------------------------------
+
+  private spawnAmbientMobs() {
+    let placed = 0;
+    let guard = 0;
+    while (placed < MOB_AMBIENT_COUNT && guard++ < 2000) {
+      const x = (Math.random() * this.world.w) | 0;
+      const y = (Math.random() * this.world.h) | 0;
+      if (!this.world.isWalkable(x, y)) continue;
+      if (Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) < 6) continue;
+      const level = 1 + ((Math.random() * 3) | 0);
+      this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level));
+      placed++;
+    }
+  }
+
+  /** the Husk Den's elite pack: holds its ground, stays dead until the reseed */
+  private spawnDenPack() {
+    const den = WILD_STRUCTURES.find((s) => s.key === "huskden");
+    if (!den) return;
+    this.mobSims = this.mobSims.filter((m) => !this.denIds.includes(m.id));
+    for (const id of this.denIds) this.state.mobs.delete(String(id));
+    this.denIds = [];
+    this.denClearedAt = 0;
+    let guard = 0;
+    while (this.denIds.length < DEN_PACK_SIZE && guard++ < 300) {
+      const dx = ((Math.random() * 9) | 0) - 4;
+      const dy = ((Math.random() * 9) | 0) - 4;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+      const cx = den.x + dx;
+      const cy = den.y + dy;
+      if (!this.world.isWalkable(cx, cy)) continue;
+      const elite = new ServerMob(this.nextMobId++, cx, cy, DEN_PACK_LEVEL, "husk");
+      elite.persistDeath = true;
+      this.mobSims.push(elite);
+      this.denIds.push(elite.id);
+    }
+  }
+
+  /** all shared beasts fall with the old realm; fresh ones rise with the new */
+  private resetMobs() {
+    this.mobSims = [];
+    this.denIds = [];
+    this.denClearedAt = 0;
+    this.bossThresholds = [...BOSS_PCTS];
+    this.state.mobs.clear();
+    this.spawnAmbientMobs();
+    this.spawnDenPack();
+  }
+
+  /** raider pack for an event (caravan ambush / Long Night), around a point */
+  private spawnEventRaiders(
+    x: number,
+    y: number,
+    count: number,
+    level: number,
+    tag: "ambush" | "night",
+  ) {
+    let placed = 0;
+    let guard = 0;
+    while (placed < count && guard++ < 400) {
+      const dx = ((Math.random() * 9) | 0) - 4;
+      const dy = ((Math.random() * 9) | 0) - 4;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+      const cx = x + dx;
+      const cy = y + dy;
+      if (!this.world.isWalkable(cx, cy)) continue;
+      const raider = new ServerMob(this.nextMobId++, cx, cy, level, "raider");
+      raider.eventTag = tag;
+      this.mobSims.push(raider);
+      placed++;
+    }
+  }
+
+  /** an event ends: its surviving raiders crumble (clients see the death anim) */
+  private clearEventMobs(tag: "ambush" | "night") {
+    for (const mob of this.mobSims) {
+      if (mob.eventTag === tag && mob.state !== "dead") mob.die();
+    }
+  }
+
+  /** corruption thresholds wake a shared Colossus at the corruption front */
+  private watchBoss() {
+    if (this.bossThresholds.length === 0) return;
+    if (this.state.driftPct < this.bossThresholds[0]) return;
+    if (this.mobSims.some((m) => m.kind === "colossus" && m.state !== "dead")) return;
+    // anchor on a corrupt tile; a clean map (env-forced threshold) falls back
+    // to any walkable ground away from town
+    let cell: Cell | null = null;
+    for (let i = 0; i < this.world.tiles.length; i++) {
+      if (this.world.tiles[i] === "corrupt" && Math.random() < 0.05) {
+        cell = { x: i % this.world.w, y: (i / this.world.w) | 0 };
+        break;
+      }
+    }
+    for (let guard = 0; !cell && guard < 200; guard++) {
+      const x = (Math.random() * this.world.w) | 0;
+      const y = (Math.random() * this.world.h) | 0;
+      if (this.world.isWalkable(x, y) &&
+          Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) >= 10) {
+        cell = { x, y };
+      }
+    }
+    if (!cell) return;
+    // nudge onto walkable ground (corrupt tiles are walkable, but be safe)
+    if (!this.world.isWalkable(cell.x, cell.y)) {
+      outer: for (let r = 1; r < 6; r++) {
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (this.world.isWalkable(cell.x + dx, cell.y + dy)) {
+              cell = { x: cell.x + dx, y: cell.y + dy };
+              break outer;
+            }
+          }
+        }
+      }
+    }
+    if (!this.world.isWalkable(cell.x, cell.y)) return;
+    this.bossThresholds.shift();
+    const boss = new ServerMob(this.nextMobId++, cell.x, cell.y, 6, "colossus");
+    boss.maxHp = boss.hp = 140;
+    boss.damage = 7;
+    boss.xp = 120;
+    boss.speed = 0.45; // a walking ruin does not hurry
+    this.mobSims.push(boss);
+    this.broadcast("colossus", { x: cell.x, y: cell.y });
+  }
+
+  private stepMobs(dt: number) {
+    const now = Date.now();
+    for (const mob of this.mobSims) {
+      // engagement upkeep: the engager must stay adjacent and keep swinging
+      if (mob.state === "engaged") {
+        const sim = mob.engagedBy ? this.sims.get(mob.engagedBy) : null;
+        if (
+          !sim ||
+          now - mob.lastEngagedAt > ENGAGE_TIMEOUT_MS ||
+          chebyshev(this.cellOf(sim), mob.cell) > 1
+        ) {
+          mob.engagedBy = null;
+          mob.state = "wander";
+        } else {
+          mob.retaliateIn -= dt * 1000;
+          if (mob.retaliateIn <= 0) {
+            mob.retaliateIn += MOB_ATTACK_MS;
+            // raw damage; the client applies its ward reduction (gear is
+            // client-trusted until server equipment lands)
+            sim.client.send("mobHit", {
+              id: mob.id,
+              dmg: mob.damage + ((Math.random() * 3) | 0),
+            });
+          }
+        }
+      }
+      mob.update(dt, this.world);
+    }
+
+    // the den re-seeds a while after the last elite falls
+    if (this.denIds.length) {
+      const alive = this.mobSims.some(
+        (m) => this.denIds.includes(m.id) && m.state !== "dead",
+      );
+      if (!alive && this.denClearedAt === 0) this.denClearedAt = now;
+      if (!alive && now - this.denClearedAt > DEN_RESEED_MS) this.spawnDenPack();
+    }
+
+    // fallen raiders/colossi leave the realm once their death anim has played
+    const pruned = this.mobSims.filter((m) => m.pruneAt > 0 && now > m.pruneAt);
+    if (pruned.length) {
+      this.mobSims = this.mobSims.filter((m) => !pruned.includes(m));
+      for (const m of pruned) this.state.mobs.delete(String(m.id));
+    }
+
+    this.watchBoss();
+    this.syncMobs();
+  }
+
+  private syncMobs() {
+    for (const mob of this.mobSims) {
+      let ms = this.state.mobs.get(String(mob.id));
+      if (!ms) {
+        ms = new MobState();
+        ms.id = mob.id;
+        ms.kind = mob.kind;
+        this.state.mobs.set(String(mob.id), ms);
+      }
+      if (ms.level !== mob.level) ms.level = mob.level;
+      if (ms.x !== mob.px) ms.x = mob.px;
+      if (ms.y !== mob.py) ms.y = mob.py;
+      if (ms.hp !== mob.hp) ms.hp = mob.hp;
+      if (ms.maxHp !== mob.maxHp) ms.maxHp = mob.maxHp;
+      if (ms.state !== mob.state) ms.state = mob.state;
+    }
   }
 
   // ---- Caravans ---------------------------------------------------------------------
@@ -1218,6 +1922,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     c.wave += 1;
     c.waveKills = 0;
     c.waveNeed = 3 + (c.wave - 1) * 2 + tier;
+    // the raiders are real now: exactly waveNeed shared mobs around the wagon
+    this.spawnEventRaiders(Math.round(c.x), Math.round(c.y), c.waveNeed, 2 + tier, "ambush");
     this.broadcast("ambush", {
       run: c.run,
       x: Math.round(c.x),
@@ -1240,16 +1946,19 @@ export class DriftRoom extends Room<DriftRoomState> {
         ? Math.max(10, Math.round((e.kills / totalKills) * pool))
         : 0;
       payouts.push({ name: e.name, kills: e.kills, gold });
-      // online escorts get paid live; offline ones through escrow (market rails)
+      // online escorts get paid into the ledger; offline ones through escrow
       const sim = [...this.sims.values()].find((s) => s.token === token);
-      if (sim) sim.client.send("caravanPayout", { run: c.run, gold, kills: e.kills });
-      else if (gold > 0) await addEscrow(token, gold).catch(() => {});
+      if (sim) {
+        if (gold > 0) this.credit(sim, gold);
+        sim.client.send("caravanPayout", { run: c.run, gold, kills: e.kills });
+      } else if (gold > 0) await addEscrow(token, gold).catch(() => {});
     }
     this.broadcast("caravanArrived", { run: c.run, pool, payouts });
     this.resetCaravan();
   }
 
   private resetCaravan() {
+    this.clearEventMobs("ambush");
     const c = this.state.caravan;
     c.phase = "idle";
     c.departIn = CARAVAN_PERIOD_S;
@@ -1463,6 +2172,17 @@ export class DriftRoom extends Room<DriftRoomState> {
 
 function chebyshev(a: Cell, b: Cell) {
   return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+/** coerce an untrusted blob into clean item counts (known keys, ints ≥ 0) */
+function sanitizeInv(raw: unknown): Record<ItemKey, number> {
+  const src = (raw ?? {}) as Record<string, unknown>;
+  const out = {} as Record<ItemKey, number>;
+  for (const k of INVENTORY_ORDER) {
+    const v = Number(src[k] ?? 0);
+    out[k] = Number.isFinite(v) ? Math.min(999_999, Math.max(0, Math.round(v))) : 0;
+  }
+  return out;
 }
 
 function clamp(v: number, lo: number, hi: number) {

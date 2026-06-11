@@ -8,7 +8,7 @@ import { BuildingKey } from "@/game/world/tilemap";
 
 export type FixtureKind =
   | "counter" | "vat" | "shelf" | "table" | "barrel"
-  | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart";
+  | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart" | "herbrack";
 
 export interface InteriorFixture {
   kind: FixtureKind;
@@ -45,7 +45,7 @@ export interface InteriorSpec {
 }
 
 const SOLID_KINDS: FixtureKind[] = [
-  "counter", "vat", "shelf", "table", "barrel", "cage", "anvil", "wheelDisc", "hearth", "oreCart",
+  "counter", "vat", "shelf", "table", "barrel", "cage", "anvil", "wheelDisc", "hearth", "oreCart", "herbrack",
 ];
 
 export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
@@ -149,6 +149,7 @@ INTERIORS.mirehut = {
     { kind: "shelf", x: 2, y: 1 },
     { kind: "hearth", x: 6, y: 3 },
     { kind: "rug", x: 4, y: 3 },
+    { kind: "herbrack", x: 1, y: 3 }, // the Mirewife's drying rack (wilds pack)
   ],
 };
 

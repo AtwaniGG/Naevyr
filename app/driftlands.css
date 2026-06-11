@@ -373,3 +373,83 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
     linear-gradient(180deg, rgba(59, 17, 98, 0.10) 0%, transparent 30%);
   mix-blend-mode: normal;
 }
+
+/* ─── The Landing (entry gate page) ─────────────────────────────────────────
+   Art comes straight from the Design System SVG exports in
+   public/assets/design-system.nosync/assets/landing/ — frame sheets animated with
+   CSS steps per the pack's JSON metadata (no engine port; this is DOM). */
+
+/* hero_vista: 2-frame 480x270 scene, fills the viewport behind the UI */
+.landing-hero {
+  position: absolute;
+  inset: 0;
+  background-image: url("/assets/design-system.nosync/assets/landing/hero_vista.svg");
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: landing-hero-shimmer 1s infinite;
+}
+@keyframes landing-hero-shimmer {
+  0%, 49.9% { background-position-x: 0%; }
+  50%, 100% { background-position-x: 100%; }
+}
+
+/* wordmark_plate: 2-frame 320x96 plate behind the title (rendered 2x) */
+.landing-plate {
+  width: 640px;
+  height: 192px;
+  background-image: url("/assets/design-system.nosync/assets/landing/wordmark_plate.svg");
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: landing-plate-inlay 1s infinite;
+}
+@keyframes landing-plate-inlay {
+  0%, 49.9% { background-position-x: 0%; }
+  50%, 100% { background-position-x: 100%; }
+}
+
+/* gate_door: 3-frame 96x128 warded door (rendered 1.5x) for the wallet step */
+.landing-door {
+  width: 144px;
+  height: 192px;
+  background-image: url("/assets/design-system.nosync/assets/landing/gate_door.svg");
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: landing-door-ward 1s infinite;
+}
+@keyframes landing-door-ward {
+  0%, 33.2%  { background-position-x: 0%; }
+  33.3%, 66.5% { background-position-x: 50%; }
+  66.6%, 100% { background-position-x: 100%; }
+}
+
+/* nav_icons: 9 cells of 16x16 in a row; pick one via --icon-index (0..8) */
+.landing-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-image: url("/assets/design-system.nosync/assets/landing/nav_icons.svg");
+  background-size: 900% 100%;
+  background-repeat: no-repeat;
+  background-position-x: calc(var(--icon-index, 0) / 8 * 100%);
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.landing-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  cursor: pointer;
+  font: 600 12px/1 var(--font-ui);
+  color: var(--text-secondary);
+  transition: color 120ms;
+}
+.landing-nav-link:hover { color: var(--text-primary); }
+.landing-nav-link:hover .landing-icon { filter: brightness(1.35); }
+.landing-nav-link.active { color: var(--drift-gold); }

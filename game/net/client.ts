@@ -35,6 +35,17 @@ export interface NetNode {
   alive: boolean;
 }
 
+export interface NetMob {
+  id: number;
+  kind: string; // husk | stalker
+  level: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  state: string; // wander | engaged | dead
+}
+
 export interface NetClaim {
   id: number;
   x: number;
@@ -77,15 +88,20 @@ export class NetClient {
     this.room = room;
   }
 
-  /** Join the shared world; resolves null if the server can't be reached. */
+  /** Join the shared world; resolves null if the server can't be reached.
+   *  `address` rides along for the token entry gate (GATE_TOKENS servers). */
   static async connect(
     url: string,
     timeoutMs: number,
     token: string,
+    address?: string | null,
   ): Promise<NetClient | null> {
     try {
       const room = await withTimeout(
-        new Client(url).joinOrCreate<AnyState>("drift", { token }),
+        new Client(url).joinOrCreate<AnyState>("drift", {
+          token,
+          ...(address ? { address } : {}),
+        }),
         timeoutMs,
       );
       // wait for the initial full state (map dims arrive with the first patch)
@@ -144,6 +160,10 @@ export class NetClient {
     (this.room.state.nodes as Map<string, NetNode>).forEach((n) => fn(n));
   }
 
+  forEachMob(fn: (m: NetMob) => void) {
+    (this.room.state.mobs as Map<string, NetMob>).forEach((m) => fn(m));
+  }
+
   forEachClaim(fn: (c: NetClaim) => void) {
     (this.room.state.claims as Map<string, NetClaim>).forEach((c) => fn(c));
   }
@@ -200,6 +220,16 @@ export class NetClient {
     this.safeSend("respawn");
   }
 
+  /** lock a shared beast's attention (it stops wandering) */
+  sendEngage(id: number) {
+    this.safeSend("engage", { id });
+  }
+
+  /** one swing at a shared beast (server clamps + rate-caps) */
+  sendAttack(id: number, dmg: number) {
+    this.safeSend("attack", { id, dmg });
+  }
+
   sendIdentity(id: {
     name: string; dye: string; eye: string; title: string;
     aura: string; pet: string;
@@ -247,10 +277,6 @@ export class NetClient {
     this.safeSend("duelHit", { dmg });
   }
 
-  sendRaiderKill() {
-    this.safeSend("raiderKill");
-  }
-
   requestWalletNonce() {
     this.safeSend("walletNonce");
   }
@@ -289,6 +315,26 @@ export class NetClient {
 
   sendSave(snapshot: unknown) {
     this.safeSend("save", { snapshot });
+  }
+
+  /** client-trusted gold event (mob loot, veins, quests…) → server ledger */
+  sendGoldDelta(amount: number, reason: string) {
+    this.safeSend("goldDelta", { amount, reason });
+  }
+
+  /** client-trusted item event (mob drops, eating…) → inventory ledger */
+  sendItemDelta(item: string, qty: number, reason: string) {
+    this.safeSend("itemDelta", { item, qty, reason });
+  }
+
+  /** cook fish (server moves fish → cooked on the inventory ledger) */
+  sendCook(qty: number) {
+    this.safeSend("cook", { qty });
+  }
+
+  /** forge a recipe (server debits the materials from the ledger) */
+  sendCraft(id: string) {
+    this.safeSend("craft", { id });
   }
 
   // ---- lifecycle -----------------------------------------------------------------

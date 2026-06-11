@@ -14,15 +14,27 @@ const GATHER_SFX = { tree: "chop", rock: "mine", fish: "splash" } as const;
 // Online, the server runs the timers and sends "loot" events; only
 // applyGatherLoot runs locally (inventory/XP stay client-side until Phase 4).
 
-/** Apply one successful gather swing to local state (item, XP, quest, log). */
-export function applyGatherLoot(kind: ResourceKind, depleted: boolean) {
+/**
+ * Apply one successful gather swing to local state (item, XP, quest, log).
+ * Online the server rolls rich strikes and grants the ledger; the message
+ * carries qty/rich. Offline (no args) the local sim rolls its own.
+ */
+export function applyGatherLoot(
+  kind: ResourceKind,
+  depleted: boolean,
+  qtyIn?: number,
+  richIn?: boolean,
+) {
   const meta = RESOURCE_META[kind];
   const store = useGame.getState();
+  // server-granted loot is already on the ledger (invSync carries the count);
+  // only the offline sim adds the item itself
+  const ledgered = qtyIn != null;
   // rich strike: 10% chance the swing yields double
-  const rich = Math.random() < 0.1;
-  const qty = rich ? 2 : 1;
+  const rich = richIn ?? Math.random() < 0.1;
+  const qty = qtyIn ?? (rich ? 2 : 1);
   play(rich ? "rich" : GATHER_SFX[kind]);
-  store.addItem(meta.item, qty);
+  if (!ledgered) store.addItem(meta.item, qty);
   store.bumpStat("gathered", qty);
   store.questEvent({ type: "gather", item: meta.item });
   const { leveledTo } = store.addXp(meta.skill, rich ? meta.xp * 2 : meta.xp);

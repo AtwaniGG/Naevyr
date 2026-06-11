@@ -1,0 +1,59 @@
+{
+  "image": "landing/gate_door.svg",
+  "cell": {
+    "w": 96,
+    "h": 128
+  },
+  "anchor": {
+    "x": 48,
+    "y": 127
+  },
+  "frames": {
+    "gate_door_00": {
+      "x": 0,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate_door_01": {
+      "x": 96,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    },
+    "gate_door_02": {
+      "x": 192,
+      "y": 0,
+      "w": 96,
+      "h": 128,
+      "anchor": {
+        "x": 48,
+        "y": 127
+      }
+    }
+  },
+  "animations": {
+    "ward": {
+      "frames": [
+        "gate_door_00",
+        "gate_door_01",
+        "gate_door_02"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  },
+  "states": [
+    "shut",
+    "runes",
+    "opening"
+  ]
+}

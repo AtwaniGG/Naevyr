@@ -18,7 +18,8 @@ const MUTE = [
   "loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile",
   "claimPlaced", "claimFallen", "listResult", "unlistResult", "buyResult", "sold",
   "bankResult", "spinResult", "cleansing", "propResult", "challenged",
-  "duelStart", "duelHp", "duelEnd", "claimResult",
+  "duelStart", "duelHp", "duelEnd", "claimResult", "goldSync", "invSync",
+  "donateResult", "duelRefused",
 ];
 function mute(room: Room<any>) {
   for (const t of MUTE) room.onMessage(t, () => {});
@@ -64,7 +65,11 @@ async function main() {
   mute(b);
   a.send("identity", { name: "Vaultsworn" });
   b.send("identity", { name: "Pitfighter" });
-  await wait(400);
+  // Phase 6: town rites pay from the server ledger — seed both purses via the
+  // first-snapshot rail (fresh tokens are unseeded)
+  a.send("save", { snapshot: { gold: 5000, day: 0 } });
+  b.send("save", { snapshot: { gold: 100, day: 0 } });
+  await wait(500);
 
   // ---- Vault -------------------------------------------------------------------
   let bank = once<any>(a, "bankResult");
@@ -96,8 +101,8 @@ async function main() {
   const sp = await spin;
   check(
     "wheel returns a result",
-    sp !== null && typeof sp.gold === "number" && typeof sp.shards === "number" && !!sp.label,
-    sp ? sp.label : "timed out",
+    sp?.ok === true && typeof sp.gold === "number" && typeof sp.shards === "number" && !!sp.label,
+    sp ? sp.label ?? sp.reason : "timed out",
   );
 
   // ---- Shrine -------------------------------------------------------------------

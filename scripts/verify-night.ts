@@ -23,10 +23,11 @@ const MUTE = [
   "loot", "gatherStart", "relocate", "season", "chat", "driftfall", "profile",
   "caravanDepart", "ambush", "waveCleared", "caravanLost", "caravanArrived",
   "caravanPayout", "claimResult", "claimPlaced", "claimFallen",
-  "longNight", "nightEnd", "nightReward", "realmReset", "cleansing",
+  "longNight", "nightEnd", "nightReward", "realmReset", "cleansing", "goldSync",
+  "invSync",
 ];
 
-async function bootServer(port: number, dataDir: string) {
+async function bootServer(port: number, dataDir: string, env: Record<string, string> = {}) {
   const server = spawn("./node_modules/.bin/tsx", ["src/index.ts"], {
     cwd: resolve(process.cwd(), "server"),
     env: {
@@ -38,6 +39,7 @@ async function bootServer(port: number, dataDir: string) {
       LONG_NIGHT_PCT: "0",   // first season tick triggers the night
       LONG_NIGHT_MS: "6000",
       LONG_NIGHT_KILLS: "3",
+      ...env,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -72,6 +74,38 @@ function listen(room: Room<any>) {
   };
 }
 
+interface MobSnap { id: number; kind: string; x: number; y: number; hp: number; state: string }
+function liveRaiders(room: Room<any>): MobSnap[] {
+  const out: MobSnap[] = [];
+  (room.state.mobs as Map<string, MobSnap>).forEach((m) => {
+    if (m.kind === "raider" && m.state !== "dead") out.push({ ...m });
+  });
+  return out.sort((a, b) => a.id - b.id);
+}
+function selfPos(room: Room<any>): { x: number; y: number } {
+  const p = (room.state.players as Map<string, any>).get(room.sessionId);
+  return { x: p?.x ?? 0, y: p?.y ?? 0 };
+}
+const cheby = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+  Math.max(Math.abs(Math.round(a.x) - Math.round(b.x)), Math.abs(Math.round(a.y) - Math.round(b.y)));
+
+/** walk to a shared raider and put it down (server-validated swings) */
+async function killRaider(room: Room<any>, id: number, timeoutMs = 15_000): Promise<boolean> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const m = (room.state.mobs as Map<string, MobSnap>).get(String(id));
+    if (!m || m.state === "dead") return true;
+    if (cheby(selfPos(room), m) <= 1) {
+      room.send("attack", { id: m.id, dmg: 50 });
+      await wait(950);
+    } else {
+      room.send("move", { x: Math.round(m.x), y: Math.round(m.y) });
+      await wait(700);
+    }
+  }
+  return false;
+}
+
 const TILE = ["grass", "dirt", "stone", "water", "corrupt"];
 function findPlot(state: any): { x: number; y: number } | null {
   const w = state.w;
@@ -94,7 +128,8 @@ async function main() {
   // ---- A: the realm holds ------------------------------------------------------
   {
     const dir = `/tmp/driftlands-night-a-${Date.now()}`;
-    const server = await bootServer(2594, dir);
+    // real kills take real walking — give the survive path a longer night
+    const server = await bootServer(2594, dir, { LONG_NIGHT_MS: "40000" });
     check("survive-path server boots", !!server);
     if (server) {
       const room = await new Client("ws://localhost:2594").joinOrCreate<any>("drift", { token: `night-a-${Date.now()}` });
@@ -104,11 +139,17 @@ async function main() {
       await wait(400); // schema patch lands a tick after the broadcast
       check("night state synced", room.state.nightActive === true && room.state.nightNeed === 3,
         `active=${room.state.nightActive} need=${room.state.nightNeed}`);
-      // hold the line: 3 kills from the spawn steps (inside defense range)
-      for (let i = 0; i < 3; i++) { room.send("raiderKill"); await wait(250); }
+      const horde = liveRaiders(room);
+      check("the horde stands at the Waystation (shared mobs)", horde.length >= 3,
+        `${horde.length} raiders`);
+      // hold the line: actually cut down 3 of them
+      for (const r of horde.slice(0, 3)) {
+        if ((room.state.nightKills as number) >= 3) break;
+        await killRaider(room, r.id);
+      }
       await wait(400);
-      check("kills counted", room.state.nightKills >= 3, `${room.state.nightKills}/3`);
-      const end = await ev.waitFor("nightEnd", 12_000);
+      check("real deaths counted", room.state.nightKills >= 3, `${room.state.nightKills}/3`);
+      const end = await ev.waitFor("nightEnd", 45_000);
       check("dawn comes (survived)", end?.survived === true, `drift=${end?.driftPct}%`);
       const reward = await ev.waitFor("nightReward", 4000);
       check("defenders rewarded", reward?.gold >= 1, `${reward?.gold}g`);
@@ -134,6 +175,9 @@ async function main() {
       const room = await new Client("ws://localhost:2594").joinOrCreate<any>("drift", { token: `night-b-${Date.now()}` });
       const ev = listen(room);
       await wait(400);
+      // Phase 6: claims pay from the server ledger — seed the purse first
+      room.send("save", { snapshot: { gold: 1000, day: 0 } });
+      await wait(300);
       // stake a claim so the reset has something to take
       const plot = findPlot(room.state);
       if (plot) room.send("claim", plot);
@@ -148,7 +192,9 @@ async function main() {
       check("the dark wins (failed)", end?.survived === false);
       const reset = await ev.waitFor("realmReset", 6000);
       check("the realm resets", !!reset, `season=${reset?.season}`);
-      await wait(1200);
+      // check before the next 1.2s season tick: with LONG_NIGHT_PCT=0 a fresh
+      // night legitimately re-arms on the first tick of the new realm
+      await wait(500);
       check("season back to the start", room.state.season <= 2, `season=${room.state.season}`);
       check("claims wiped with the old realm", room.state.claims.size === 0);
       check("fresh world has nodes", room.state.nodes.size > 10, `${room.state.nodes.size} nodes`);

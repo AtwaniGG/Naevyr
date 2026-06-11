@@ -24,6 +24,21 @@ export class PlayerState extends Schema {
   @type("string") pet = "";
 }
 
+// Phase 6: shared ambient Drift Beasts (husk/stalker + the den pack). Raiders,
+// the colossus and interior content stay per-client for now.
+export class MobState extends Schema {
+  @type("number") id = 0;
+  /** husk | stalker */
+  @type("string") kind = "husk";
+  @type("number") level = 1;
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("number") hp = 0;
+  @type("number") maxHp = 0;
+  /** wander | engaged | dead */
+  @type("string") state = "wander";
+}
+
 export class PropState extends Schema {
   @type("number") id = 0;
   @type("number") x = 0;
@@ -84,6 +99,7 @@ export class DriftRoomState extends Schema {
   @type({ map: ClaimState }) claims = new MapSchema<ClaimState>();
   @type({ map: ListingState }) listings = new MapSchema<ListingState>();
   @type({ map: PropState }) props = new MapSchema<PropState>();
+  @type({ map: MobState }) mobs = new MapSchema<MobState>();
   @type(CaravanState) caravan = new CaravanState();
   // THE LONG NIGHT: realm-wide assault on the Waystation at terminal corruption
   @type("boolean") nightActive = false;

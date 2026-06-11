@@ -18,7 +18,7 @@ function mute(room: Room<any>) {
   for (const t of [
     "loot", "gatherStart", "relocate", "season", "chat", "driftfall",
     "profile", "claimPlaced", "claimFallen", "listResult", "unlistResult",
-    "buyResult", "sold",
+    "buyResult", "sold", "goldSync", "invSync",
   ]) room.onMessage(t, () => {});
 }
 
@@ -41,6 +41,12 @@ async function main() {
   mute(seller);
   mute(buyer);
   seller.send("identity", { name: "Sellsword" });
+  // Phase 6: both ledgers live on the server — seed the buyer's purse and the
+  // seller's satchel (listings debit the inventory ledger now)
+  buyer.send("save", { snapshot: { gold: 200, day: 0 } });
+  seller.send("save", {
+    snapshot: { inventory: { wood: 5, stone: 3, hide: 2 }, gold: 0, day: 0 },
+  });
   await wait(400);
 
   // ---- list ------------------------------------------------------------------------
@@ -56,6 +62,13 @@ async function main() {
   seller.send("list", { item: "moon_rock", qty: 1, price: 10 });
   const badRes = await bad;
   check("unknown item rejected", badRes?.ok === false, badRes?.reason ?? "no response");
+
+  // Phase 6: the inventory ledger escrows listings — can't list ghost goods
+  const over = once<any>(seller, "listResult");
+  seller.send("list", { item: "wood", qty: 99, price: 10 });
+  const overRes = await over;
+  check("listing more than the ledger holds rejected", overRes?.ok === false,
+    overRes?.reason ?? "no response");
 
   // ---- buy: live seller gets paid by message ------------------------------------------
   const soldMsg = once<any>(seller, "sold", 4000);

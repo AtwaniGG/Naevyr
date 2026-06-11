@@ -20,7 +20,7 @@ import { startGathering, applyGatherLoot } from "@/game/systems/gathering";
 import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/systems/crafting";
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
-  CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PROP_CATALOG, PropKey, AuraKey,
+  CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
   walletLinkMessage,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
@@ -37,6 +37,7 @@ import {
   applySnapshot,
   buildSnapshot,
   getDeviceToken,
+  getGateWallet,
   SaveData,
 } from "@/game/state/persistence";
 import { bus } from "@/game/state/bus";
@@ -80,6 +81,8 @@ export class Game {
   // ---- multiplayer (null = offline, local sim) ----
   private net: NetClient | null = null;
   private remotes = new Map<string, Player>();
+  /** schema mob id → local puppet (lives inside combat.mobs for draw/click) */
+  private netMobs = new Map<number, Mob>();
   /** local visual for the server-run gather timer (progress arc + swing) */
   private gatherVis: { nodeId: number; start: number; total: number } | null = null;
   /** last cosmetic identity pushed to the server (resend on change) */
@@ -125,7 +128,6 @@ export class Game {
   /** ids of market listings this player owns */
   private myListingIds = new Set<number>();
   /** gold already deducted for an in-flight buy (refunded on failure) */
-  private pendingBuyPrice = 0;
 
   private cleanupFns: Array<() => void> = [];
 
@@ -203,6 +205,15 @@ export class Game {
         else this.net?.sendUnlinkWallet();
       }),
     );
+    // client-trusted gold/item events ride to the server ledgers (no-op offline)
+    this.cleanupFns.push(
+      bus.on("goldDelta", (d) => this.net?.sendGoldDelta(d.amount, d.reason)),
+    );
+    this.cleanupFns.push(
+      bus.on("itemDelta", (d) => this.net?.sendItemDelta(d.item, d.qty, d.reason)),
+    );
+    this.cleanupFns.push(bus.on("cook", (c) => this.net?.sendCook(c.qty)));
+    this.cleanupFns.push(bus.on("craft", (c) => this.net?.sendCraft(c.id)));
     this.cleanupFns.push(bus.on("spinBurn", () => this.startBurn("spin")));
     this.cleanupFns.push(bus.on("cleanseBurn", () => this.startBurn("cleanse")));
     this.cleanupFns.push(bus.on("auraBurn", (key) => this.startBurn("aura", { key })));
@@ -336,7 +347,7 @@ export class Game {
     }
   }
 
-  // ---- marketplace (items/gold move client-side; server is the ledger) ---------
+  // ---- marketplace (both ledgers live on the server now) -----------------------
 
   private marketList(m: { item: string; qty: number; price: number }) {
     const store = useGame.getState();
@@ -344,7 +355,8 @@ export class Game {
       store.pushLog("The market needs the shared world (server offline).", "#6f6781");
       return;
     }
-    if (!store.removeItem(m.item as never, m.qty)) {
+    // the server ledger escrows the goods; this check is just fast feedback
+    if (store.inventory[m.item as never] < m.qty) {
       store.pushLog("You don't carry that much.", "#6f6781");
       return;
     }
@@ -355,11 +367,11 @@ export class Game {
     const store = useGame.getState();
     const ls = store.listings.find((l) => l.id === id);
     if (!this.net || !ls) return;
-    if (!store.spendGold(ls.price)) {
+    // the server ledger pays; this check is just fast feedback
+    if (store.gold < ls.price) {
       store.pushLog(`That costs ${ls.price}g. You carry ${store.gold}g.`, "#6f6781");
       return;
     }
-    this.pendingBuyPrice = ls.price;
     this.net.sendBuy(id);
   }
 
@@ -433,7 +445,7 @@ export class Game {
   /** Try to join the shared world; on failure the local sim keeps running. */
   private async connect() {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
-    const net = await NetClient.connect(url, 2500, getDeviceToken());
+    const net = await NetClient.connect(url, 2500, getDeviceToken(), getGateWallet());
     if (!net) {
       useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
       return;
@@ -450,12 +462,12 @@ export class Game {
     // adopt the server's world (map + nodes); local drift sim goes dormant
     this.applyNetWorld();
 
-    // fresh local mobs for the adopted map (combat stays client-side this phase)
+    // ambient beasts + the den pack are SHARED now (schema puppets); the local
+    // manager only hosts event mobs (raiders, colossus) while online
     this.combat = new CombatManager();
-    this.combat.spawn(this.world, 8);
     this.wireCombat();
+    this.netMobs.clear();
     this.den.packIds = [];
-    this.spawnDenPack();
 
     const self = net.self();
     if (self) {
@@ -473,9 +485,61 @@ export class Game {
     this.sentIdentity = "";
     this.pushIdentity(net);
 
-    net.onMessage<{ kind: ResourceKind; depleted: boolean }>("loot", (m) =>
-      applyGatherLoot(m.kind, m.depleted),
+    net.onMessage<{ kind: ResourceKind; qty?: number; rich?: boolean; depleted: boolean }>(
+      "loot",
+      (m) => applyGatherLoot(m.kind, m.depleted, m.qty, m.rich),
     );
+    // the server ledgers speak: adopt the authoritative balances
+    net.onMessage<{ gold: number }>("goldSync", (m) =>
+      useGame.getState().setGold(m.gold),
+    );
+    net.onMessage<{ inv: Record<string, number> }>("invSync", (m) =>
+      useGame.getState().setInventory(m.inv as never),
+    );
+
+    // ---- shared mobs: the server retaliates and confirms kills ----
+    net.onMessage<{ id: number; dmg: number }>("mobHit", (m) => {
+      const store = useGame.getState();
+      const dmg = Math.max(1, Math.round(m.dmg) - damageReduction());
+      const remaining = store.damage(dmg);
+      play("hurt");
+      this.combat.onSelfHit?.(dmg);
+      store.pushLog(`The Drift Beast hits you for ${dmg}.`, "#dc2626");
+      if (remaining <= 0) this.combat.killPlayer(this.player);
+    });
+    net.onMessage<{
+      id: number; kind: string; level: number; xp?: number;
+      gold?: number; shards?: number; hide?: number;
+    }>("mobKill", (m) => {
+      const store = useGame.getState();
+      store.questEvent({ type: "kill" });
+      store.bumpKills();
+      const { leveledTo } = store.addXp("combat", m.xp ?? 14 + m.level * 6);
+      play("kill");
+      // all loot already landed on the ledgers (goldSync/invSync carry it)
+      if (m.gold) store.bumpStat("goldEarned", m.gold);
+      if (m.kind === "colossus") {
+        store.pushLog("THE COLOSSUS CRUMBLES. Loot: 5 Drift Shards + 50g.", "#e7c873");
+      } else if (m.kind === "raider") {
+        store.pushLog(`The raider falls. You loot ${m.gold}g from the body.`, "#e7c873");
+      } else {
+        store.pushLog(
+          `The Drift Beast dissolves. Loot: Drift Shard${m.hide ? " + Beast Hide" : ""}.`,
+          "#a855f7",
+        );
+      }
+      if (leveledTo) store.pushLog(`Combat is now level ${leveledTo}!`, "#e7c873");
+    });
+    net.onMessage<{ x: number; y: number }>("colossus", (m) => {
+      play("boss");
+      this.banner = { name: "A COLOSSUS RISES", t0: performance.now() };
+      this.shakeUntil = performance.now() + 600;
+      this.shakeMag = 5;
+      this.spawnFloater(m.x, m.y - 1.5, "THE COLOSSUS AWAKENS", "#a855f7");
+      useGame
+        .getState()
+        .pushLog("The ground shudders. A COLOSSUS rises from the corruption…", "#a855f7");
+    });
     net.onMessage<{ nodeId: number; totalMs: number }>("gatherStart", (m) => {
       this.gatherVis = { nodeId: m.nodeId, start: performance.now(), total: m.totalMs };
     });
@@ -499,6 +563,7 @@ export class Game {
     net.onMessage<{ run: number; gateX: number; gateY: number; waves: number }>(
       "caravanDepart",
       () => {
+        this.banner = { name: "A CARAVAN ROLLS OUT", t0: performance.now() };
         useGame.getState().pushLog(
           "A caravan rolls out of the Waystation. Escort it for a cut of the pay.",
           "#e7c873",
@@ -509,7 +574,8 @@ export class Game {
       run: number; x: number; y: number;
       wave: number; waves: number; count: number; level: number;
     }>("ambush", (m) => {
-      this.combat.spawnRaiders(this.world, m.x, m.y, m.count, m.level);
+      // raiders are shared mobs now — the schema brings them; we just rattle
+      this.banner = { name: "RAIDERS TAKE THE CARAVAN", t0: performance.now() };
       this.shakeUntil = performance.now() + 200;
       this.shakeMag = 3;
       useGame.getState().pushLog(
@@ -518,7 +584,6 @@ export class Game {
       );
     });
     net.onMessage<{ run: number; wave: number; waves: number }>("waveCleared", (m) => {
-      this.combat.clearRaiders();
       useGame.getState().pushLog(
         m.wave >= m.waves
           ? "The last raiders break. The wagon makes for the gate."
@@ -527,7 +592,7 @@ export class Game {
       );
     });
     net.onMessage<{ run: number }>("caravanLost", () => {
-      this.combat.clearRaiders();
+      this.banner = { name: "THE CARAVAN IS LOST", t0: performance.now() };
       useGame.getState().pushLog(
         "The caravan is torn apart. The Drift keeps its goods.",
         "#dc2626",
@@ -536,7 +601,7 @@ export class Game {
     net.onMessage<{ run: number; pool: number; payouts: { name: string; kills: number; gold: number }[] }>(
       "caravanArrived",
       (m) => {
-        this.combat.clearRaiders();
+        this.banner = { name: "THE CARAVAN MAKES THE GATE", t0: performance.now() };
         useGame.getState().pushLog(
           m.payouts.length
             ? `The caravan reaches the gate. ${m.pool}g split among its escorts.`
@@ -548,7 +613,7 @@ export class Game {
     net.onMessage<{ run: number; gold: number; kills: number }>("caravanPayout", (m) => {
       if (m.gold <= 0) return;
       const store = useGame.getState();
-      store.addGold(m.gold);
+      store.bumpStat("goldEarned", m.gold); // ledger already paid; track the title stat
       play("coin");
       store.pushLog(
         `Caravan pay lands in your purse: ${m.gold}g for ${m.kills} raider${m.kills === 1 ? "" : "s"}.`,
@@ -590,14 +655,10 @@ export class Game {
     net.onMessage<{ durationMs: number; need: number; level: number }>("longNight", (m) => {
       const store = useGame.getState();
       play("boss");
+      this.banner = { name: "THE LONG NIGHT FALLS", t0: performance.now() };
       this.shakeUntil = performance.now() + 600;
       this.shakeMag = 5;
-      // the horde closes on the Waystation from three sides
-      const { x, y } = TOWN_CENTER;
-      const per = Math.ceil((m.need * 1.3) / 3);
-      this.combat.spawnRaiders(this.world, x - 6, y, per, m.level);
-      this.combat.spawnRaiders(this.world, x + 6, y, per, m.level);
-      this.combat.spawnRaiders(this.world, x, y + 7, per, m.level);
+      // the horde is made of shared mobs now — the schema brings them
       store.pushLog(
         `THE LONG NIGHT FALLS. Hold the Waystation: ${m.need} raiders must die before the dark wins.`,
         "#dc2626",
@@ -605,8 +666,8 @@ export class Game {
     });
     net.onMessage<{ survived: boolean; driftPct: number }>("nightEnd", (m) => {
       const store = useGame.getState();
-      this.combat.clearRaiders();
       if (m.survived) {
+        this.banner = { name: "DAWN BREAKS", t0: performance.now() };
         store.pushLog(
           "DAWN. The horde breaks and the corruption burns back. The realm holds.",
           "#e7c873",
@@ -619,13 +680,14 @@ export class Game {
     });
     net.onMessage<{ gold: number }>("nightReward", (m) => {
       const store = useGame.getState();
-      store.addGold(m.gold);
+      store.bumpStat("goldEarned", m.gold); // ledger already paid
       play("levelup");
       store.pushLog(`You stood through the Long Night. ${m.gold}g for the dawn.`, "#e7c873");
     });
     net.onMessage<{ season: number }>("realmReset", (m) => {
       const store = useGame.getState();
       play("death");
+      this.banner = { name: "THE DRIFT TAKES THE REALM", t0: performance.now() };
       store.pushLog(
         "THE DRIFT TAKES THE REALM. All claims fall. A new land rises from the ash…",
         "#a855f7",
@@ -641,10 +703,9 @@ export class Game {
       setTimeout(() => {
         this.applyNetWorld();
         this.combat = new CombatManager();
-        this.combat.spawn(this.world, 8);
         this.wireCombat();
+        this.netMobs.clear(); // fresh schema beasts repopulate next frame
         this.den.packIds = [];
-        this.spawnDenPack();
         this.lostTomb = null;
         const self = this.net?.self();
         if (self) {
@@ -703,6 +764,8 @@ export class Game {
       myClaims?: number[];
       myListings?: number[];
       escrowGold?: number;
+      gold?: number;
+      inv?: Record<string, number>;
       banked?: number;
       wallet?: string | null;
       tokenBalance?: number;
@@ -716,6 +779,9 @@ export class Game {
       } else {
         net.sendSave(buildSnapshot());
       }
+      // the ledgers outrank whatever the snapshot remembered
+      if (typeof m.gold === "number") store.setGold(m.gold);
+      if (m.inv) store.setInventory(m.inv as never);
       this.myClaimIds = new Set(m.myClaims ?? []);
       store.setMyClaims(this.myClaimIds.size);
       this.myListingIds = new Set(m.myListings ?? []);
@@ -723,7 +789,7 @@ export class Game {
       store.setWallet(m.wallet ?? null);
       store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
       if (m.escrowGold && m.escrowGold > 0) {
-        store.addGold(m.escrowGold);
+        store.bumpStat("goldEarned", m.escrowGold); // ledger already paid
         play("coin");
         store.pushLog(
           `Your market stall earned ${m.escrowGold}g while you wandered.`,
@@ -742,7 +808,7 @@ export class Game {
           this.myListingIds.add(m.id);
           store.pushLog("Your offer is on the market.", "#e7c873");
         } else {
-          if (m.item && m.qty) store.addItem(m.item as never, m.qty); // return escrowed items
+          // the ledger only escrows goods for listings that stand
           store.pushLog(`Listing refused: ${m.reason ?? "the market balks"}.`, "#dc2626");
         }
       },
@@ -750,7 +816,7 @@ export class Game {
     net.onMessage<{ ok: boolean; item?: string; qty?: number }>("unlistResult", (m) => {
       const store = useGame.getState();
       if (m.ok && m.item && m.qty) {
-        store.addItem(m.item as never, m.qty);
+        // the ledger already returned the goods (invSync carries them)
         store.pushLog("Offer withdrawn. Goods returned to your satchel.", "#a99fb8");
       }
     });
@@ -759,51 +825,65 @@ export class Game {
       (m) => {
         const store = useGame.getState();
         if (m.ok && m.item && m.qty) {
-          store.addItem(m.item as never, m.qty);
+          // goods arrive via invSync; the ledger already holds them
           play("coin");
           store.pushLog(`Bought ${m.qty}× for ${m.price}g.`, "#e7c873");
         } else {
-          if (this.pendingBuyPrice > 0) store.addGold(this.pendingBuyPrice); // refund
-          store.pushLog(`Purchase failed: ${m.reason ?? "offer gone"}. Gold returned.`, "#dc2626");
+          // the ledger never paid, so there is nothing to give back
+          store.pushLog(`Purchase failed: ${m.reason ?? "offer gone"}.`, "#dc2626");
         }
-        this.pendingBuyPrice = 0;
       },
     );
     net.onMessage<{ item: string; qty: number; gold: number; buyer: string }>("sold", (m) => {
       const store = useGame.getState();
-      store.addGold(m.gold);
+      store.bumpStat("goldEarned", m.gold); // ledger already paid
       play("coin");
       store.pushLog(`${m.buyer} bought your ${m.qty}× listing. +${m.gold}g.`, "#e7c873");
     });
 
     // ---- the Waystation ----
-    net.onMessage<{ ok: boolean; banked: number; delta?: number; reason?: string }>(
+    net.onMessage<{ ok: boolean; banked: number; delta?: number; fee?: number; reason?: string }>(
       "bankResult",
       (m) => {
         const store = useGame.getState();
         if (m.ok) {
           store.setBanked(m.banked);
           if (m.delta && m.delta < 0) {
+            // the ledger already received the net amount (goldSync carries it)
             const gross = -m.delta;
-            const net2 = Math.floor(gross * 0.98);
-            store.addGold(net2);
-            store.pushLog(`Withdrew ${gross}g (${gross - net2}g handling fee).`, "#e7c873");
+            store.pushLog(`Withdrew ${gross}g (${m.fee ?? 0}g handling fee).`, "#e7c873");
           } else if (m.delta && m.delta > 0) {
             store.pushLog(`${m.delta}g locked safely in the Vault.`, "#a99fb8");
           }
           play("coin");
         } else {
-          // deposit that failed → give the gold back
           store.pushLog(`The Vault refuses: ${m.reason ?? "?"}.`, "#dc2626");
         }
       },
     );
-    net.onMessage<{ gold: number; shards: number; label: string }>("spinResult", (m) => {
+    net.onMessage<{ ok: boolean; gold?: number; shards?: number; label?: string; reason?: string }>(
+      "spinResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok) {
+          store.pushLog(m.reason ?? "The Wheel refuses you.", "#6f6781");
+          return;
+        }
+        const gold = m.gold ?? 0;
+        if (gold > 0) store.bumpStat("goldEarned", gold); // ledgers already paid
+        // shards land via invSync; nothing to add locally
+        play(gold >= 500 ? "levelup" : gold > 0 || (m.shards ?? 0) > 0 ? "coin" : "ui");
+        store.pushLog(`The Wheel: ${m.label}`, gold >= 500 ? "#fcd34d" : "#d8cfe0");
+      },
+    );
+    net.onMessage<{ ok: boolean; amount?: number; reason?: string }>("donateResult", (m) => {
       const store = useGame.getState();
-      if (m.gold > 0) store.addGold(m.gold);
-      if (m.shards > 0) store.addItem("driftshard", m.shards);
-      play(m.gold >= 500 ? "levelup" : m.gold > 0 || m.shards > 0 ? "coin" : "ui");
-      store.pushLog(`The Wheel: ${m.label}`, m.gold >= 500 ? "#fcd34d" : "#d8cfe0");
+      if (!m.ok || !m.amount) {
+        store.pushLog(m.reason ?? "The Flame takes nothing from an empty purse.", "#6f6781");
+        return;
+      }
+      store.bumpStat("donated", m.amount);
+      store.pushLog(`You feed ${m.amount}g to the Pale Flame.`, "#efe9f4");
     });
     net.onMessage<{ count: number; driftPct: number }>("cleansing", (m) => {
       const store = useGame.getState();
@@ -822,13 +902,15 @@ export class Game {
         play("craft");
         store.pushLog("Your furnishing stands.", "#e7c873");
       } else {
-        const price = PROP_CATALOG[(m.kind ?? "") as PropKey]?.price ?? 0;
-        if (price > 0) store.addGold(price);
-        store.pushLog(`Can't place it: ${m.reason ?? "?"}. Gold returned.`, "#dc2626");
+        // the ledger only pays when the furnishing stands — nothing to refund
+        store.pushLog(`Can't place it: ${m.reason ?? "?"}.`, "#dc2626");
       }
     });
 
     // ---- the Pit ----
+    net.onMessage<{ reason?: string }>("duelRefused", (m) => {
+      useGame.getState().pushLog(`The Pit turns you away: ${m.reason ?? "?"}.`, "#6f6781");
+    });
     net.onMessage<{ from: string; name: string; wager: number }>("challenged", (m) => {
       useGame.getState().setDuelChallenge(m);
       play("boss");
@@ -842,7 +924,7 @@ export class Game {
         const store = useGame.getState();
         const meId = net.sessionId;
         if (m.a === meId || m.b === meId) {
-          store.spendGold(m.wager); // both stake the pot
+          // the server ledger already staked both wagers (goldSync carries it)
           this.duelOpp = m.a === meId ? m.b : m.a;
           store.setDuel({
             oppName: m.a === meId ? m.nameB : m.nameA,
@@ -875,12 +957,11 @@ export class Game {
         const meId = net.sessionId;
         if (m.a === meId || m.b === meId) {
           if (m.winner === meId) {
-            store.addGold(m.pot);
+            store.bumpStat("goldEarned", m.pot); // ledger already paid
             play("levelup");
             this.banner = { name: "VICTORY", t0: performance.now() };
             store.pushLog(`You win the duel. ${m.pot}g pot.`, "#e7c873");
           } else if (m.winner === null) {
-            store.addGold(m.pot / 2); // draw: stake returned
             store.pushLog("The duel ends in a draw. Stakes returned.", "#a99fb8");
           } else {
             play("death");
@@ -904,8 +985,8 @@ export class Game {
         play("reclaim");
         store.pushLog("You stake your claim. This ground is yours, for now.", "#e7c873");
       } else {
-        store.addGold(CLAIM_COST); // refund
-        store.pushLog(`Claim refused: ${m.reason ?? "the Drift resists"}. Gold returned.`, "#dc2626");
+        // the ledger only pays for claims that stand — nothing to refund
+        store.pushLog(`Claim refused: ${m.reason ?? "the Drift resists"}.`, "#dc2626");
       }
     });
     net.onMessage<{ x: number; y: number; name: string }>("claimPlaced", (m) =>
@@ -927,6 +1008,7 @@ export class Game {
       const s = useGame.getState();
       s.setSeason(m.season);
       s.setDriftPct(m.driftPct);
+      this.banner = { name: "THE DRIFT DEEPENS", t0: performance.now() };
       s.pushLog("The Drift deepens. A new season corrupts the land.", "#a855f7");
       this.applyNetTiles();
     });
@@ -986,6 +1068,7 @@ export class Game {
 
   /** corruption thresholds wake the Colossus at the corruption front */
   private watchBoss() {
+    if (this.net) return; // online the server wakes the shared Colossus
     if (this.bossThresholds.length === 0) return;
     const pct = useGame.getState().driftPct;
     if (pct < this.bossThresholds[0] || this.combat.bossAlive()) return;
@@ -1002,6 +1085,7 @@ export class Game {
     if (!boss) return;
     this.bossThresholds.shift();
     play("boss");
+    this.banner = { name: "A COLOSSUS RISES", t0: performance.now() };
     this.shakeUntil = performance.now() + 600;
     this.shakeMag = 5;
     this.spawnFloater(boss.px, boss.py - 1.5, "THE COLOSSUS AWAKENS", "#a855f7");
@@ -1013,7 +1097,13 @@ export class Game {
   /** juice + respawn hooks (re-run whenever a fresh CombatManager is created) */
   private wireCombat() {
     // escorts report raider kills so the server can resolve the wave
-    this.combat.onRaiderKill = () => this.net?.sendRaiderKill();
+    // shared beasts: swings + engagement ride to the server sim
+    this.combat.onNetAttack = (mob, dmg) => {
+      if (mob.netId != null) this.net?.sendAttack(mob.netId, dmg);
+    };
+    this.combat.onEngage = (mob) => {
+      if (mob.netId != null) this.net?.sendEngage(mob.netId);
+    };
     this.combat.onPlayerHit = (mob, dmg, crit) => {
       this.spawnFloater(
         mob.px, mob.py,
@@ -1038,7 +1128,7 @@ export class Game {
       const store = useGame.getState();
       const drop = Math.floor(store.gold / 2);
       if (drop <= 0) return;
-      store.spendGold(drop);
+      store.spendGold(drop, "death");
       this.tomb = { x: Math.round(x), y: Math.round(y), gold: drop, t0: performance.now() };
       store.pushLog(
         `Your tombstone holds ${drop}g. Reclaim it before it dissolves (5 min).`,
@@ -1279,8 +1369,8 @@ export class Game {
       return;
     }
 
-    // claim mode: this click stakes. Holders burn tokens; guests pay gold
-    // (deducted now, refunded on rejection).
+    // claim mode: this click stakes. Holders burn tokens; guests pay from
+    // the server ledger (debited only when the claim stands).
     const store = useGame.getState();
     if (store.claimMode) {
       store.setClaimMode(false);
@@ -1288,7 +1378,7 @@ export class Game {
         void this.startBurn("claim", { x: cell.x, y: cell.y });
         return;
       }
-      if (!store.spendGold(CLAIM_COST)) {
+      if (store.gold < CLAIM_COST) {
         store.pushLog(`Staking a claim costs ${CLAIM_COST}g.`, "#6f6781");
         return;
       }
@@ -1451,7 +1541,7 @@ export class Game {
         store.pushLog("Your lost gold dissolves into the Drift…", "#6f6781");
         this.tomb = null;
       } else if (chebyshev(cell, this.tomb) <= 1) {
-        store.addGold(this.tomb.gold);
+        store.addGold(this.tomb.gold, "tomb");
         play("reclaim");
         this.spawnFloater(this.player.px, this.player.py, `+${this.tomb.gold}g`, "#e7c873");
         store.pushLog(`You reclaim ${this.tomb.gold}g from your grave.`, "#e7c873");
@@ -1698,6 +1788,52 @@ export class Game {
         store.pushLog("A wanderer fades from sight.", "#7c6f93");
       }
     }
+
+    // ---- shared beasts: mirror schema mobs into local puppets -----------------
+    const seenMobs = new Set<number>();
+    net.forEachMob((m) => {
+      seenMobs.add(m.id);
+      let pup = this.netMobs.get(m.id);
+      if (!pup) {
+        pup = new Mob(this.combat.allocId(), m.x, m.y, m.level, m.kind as never);
+        pup.netId = m.id;
+        pup.persistDeath = true; // life and death belong to the schema
+        this.netMobs.set(m.id, pup);
+        this.combat.mobs.push(pup);
+      }
+      pup.level = m.level;
+      pup.maxHp = m.maxHp;
+      pup.hp = m.hp;
+      const mdx = m.x - pup.px;
+      const mdy = m.y - pup.py;
+      pup.px += mdx * k;
+      pup.py += mdy * k;
+      pup.moving = Math.hypot(mdx, mdy) > 0.03;
+      if (pup.moving && pup.state !== "dead") {
+        pup.facing = mdx >= 0 ? 1 : -1;
+        pup.updateIsoFacing(mdx, mdy);
+      }
+      if (m.state === "dead") {
+        if (pup.state !== "dead") {
+          pup.state = "dead";
+          pup.deathT = 0;
+        }
+      } else if (pup.state === "dead") {
+        // respawned on the server — snap to the fresh spot
+        pup.state = "wander";
+        pup.px = m.x;
+        pup.py = m.y;
+      } else {
+        pup.state = this.combat.isEngaged(pup) ? "engaged" : (m.state as never);
+      }
+    });
+    for (const [id, pup] of [...this.netMobs]) {
+      if (!seenMobs.has(id)) {
+        this.netMobs.delete(id);
+        this.combat.mobs = this.combat.mobs.filter((m) => m !== pup);
+      }
+    }
+
     const count = net.playerCount();
     if (store.playersOnline !== count) store.setPlayersOnline(count);
 
@@ -1885,7 +2021,7 @@ export class Game {
     const store = useGame.getState();
     v.charges -= 1;
     const gold = 3 + Math.floor(store.skills.mining.level / 2) + Math.floor(Math.random() * 3);
-    store.addGold(gold);
+    store.addGold(gold, "vein");
     const { leveledTo } = store.addXp("mining", 6);
     play("mine");
     this.spawnFloater(v.x, v.y, `+${gold}g`, "#e7c873");
@@ -2169,6 +2305,7 @@ export class Game {
   private nextLostTombAt = performance.now() + 120_000 + Math.random() * 180_000;
 
   private spawnDenPack() {
+    if (this.net) return; // online the server owns the pack (schema puppets)
     const den = WILD_STRUCTURES.find((w) => w.key === "huskden");
     if (!den) return;
     this.combat.removePack(this.den.packIds);
@@ -2178,6 +2315,17 @@ export class Game {
   }
 
   private denPackAlive(): boolean {
+    if (this.net) {
+      // shared pack: any living puppet husk holding the den's ground
+      const den = WILD_STRUCTURES.find((w) => w.key === "huskden");
+      if (!den) return false;
+      return this.combat.mobs.some(
+        (m) =>
+          m.netId != null &&
+          m.state !== "dead" &&
+          Math.max(Math.abs(m.px - den.x), Math.abs(m.py - den.y)) <= 6,
+      );
+    }
     return this.combat.mobs.some(
       (m) => this.den.packIds.includes(m.id) && m.state !== "dead",
     );
@@ -2196,8 +2344,8 @@ export class Game {
     this.den.looted = true;
     this.den.respawnAt = performance.now() + 15 * 60_000;
     const gold = 60 + Math.floor(Math.random() * 41);
-    store.addGold(gold);
-    store.addItem("driftshard", 2);
+    store.addGold(gold, "chest");
+    store.addItem("driftshard", 2, "chest");
     play("coin");
     store.pushLog(`You crack the den's war-chest: ${gold}g and 2 Drift Shards.`, "#e7c873");
   }
@@ -2206,7 +2354,13 @@ export class Game {
   private updateWildQuadrants() {
     const now = performance.now();
     if (this.den.looted && this.den.respawnAt > 0 && now >= this.den.respawnAt) {
-      this.spawnDenPack();
+      if (this.net) {
+        // server reseeds the pack itself; just re-arm the (client-local) chest
+        this.den.looted = false;
+        this.den.respawnAt = 0;
+      } else {
+        this.spawnDenPack();
+      }
       useGame.getState().pushLog("The Husk Den stirs again in the Flats.", "#a855f7");
     }
     if (!this.lostTomb && now >= this.nextLostTombAt) {
@@ -2230,7 +2384,7 @@ export class Game {
     if (!t || cell.x !== t.x || cell.y !== t.y) return false;
     if (chebyshev(this.player.cell, t) <= 1) {
       const store = useGame.getState();
-      store.addGold(t.gold);
+      store.addGold(t.gold, "losttomb");
       play("reclaim");
       store.pushLog(`The lost tombstone gives up ${t.gold}g. Rest now.`, "#e7c873");
       this.lostTomb = null;
@@ -2546,14 +2700,27 @@ export class Game {
 
         if (t === 'corrupt') this.corruptGlows.push({ sx: s.x, sy: s.y });
 
-        // deterministic clutter — same cell always grows the same tuft
-        if (t !== 'water' && !this.world.getNode(x, y)) {
+        // deterministic clutter — same cell always grows the same tuft.
+        // the wild quadrants grow their own kinds (DS wilds pack): bone
+        // spikes + dead trees ring the Husk Den, reeds crowd the mire
+        const nearDen  = Math.max(Math.abs(x - 8), Math.abs(y - 8)) <= 8;
+        const nearMire =
+          Math.max(Math.abs(x - 5), Math.abs(y - 24)) <= 8 ||
+          Math.max(Math.abs(x - 7), Math.abs(y - 34)) <= 6; // the Hollowmere
+        if (t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
           const h = hash2(x, y, 91);
           let kind: DoodadKind | null = null;
           if (t === 'corrupt') {
             if (h < 0.10) kind = 'crystal';
           } else if ([nw, nn, se, ss].includes('corrupt') && h < 0.08) {
             kind = 'crystal'; // corruption seeps ahead of itself
+          } else if (nearDen) {
+            if (h < 0.05) kind = 'bone_spike';
+            else if (h < 0.075) kind = 'dead_tree';
+            else if (h < 0.09) kind = 'bones';
+          } else if (nearMire && (t === 'grass' || t === 'dirt')) {
+            if (h < 0.11) kind = 'reed_clump';
+            else if (h < 0.125) kind = 'dead_tree';
           } else if (t === 'grass') {
             if (h < 0.05) kind = 'tuft';
             else if (h < 0.062) kind = 'pebbles';
@@ -2572,6 +2739,15 @@ export class Game {
               sy: s.y + (hash2(x, y, 94) - 0.5) * 6 * z,
             });
           }
+        }
+        // bog bubbles swell on the mire's water (2-frame, slow and staggered)
+        if (t === 'water' && nearMire && hash2(x, y, 95) < 0.2) {
+          doodads.push({
+            kind: 'mire_bubble',
+            v: (Math.floor(now / 700) + ((hash2(x, y, 96) * 2) | 0)) % 2,
+            sx: s.x + (hash2(x, y, 93) - 0.5) * 14 * z,
+            sy: s.y + (hash2(x, y, 94) - 0.5) * 6 * z,
+          });
         }
 
         // hover highlight (drawn over the tile, using diamond path)
@@ -2704,8 +2880,11 @@ export class Game {
         depth,
         fn: () => {
           const s = this.tileScreen(b.x, b.y + (b.key === "pit" ? 0 : b.r));
-          // shrine's Pale Flame flickers at 4fps
-          const frame = b.key === "shrine" ? Math.floor(performance.now() / 250) % 3 : 0;
+          // shrine flame 4fps · den eyes blink 2fps · obelisk runes pulse 4fps
+          const frame =
+            b.key === "shrine"  ? Math.floor(performance.now() / 250) % 3 :
+            b.key === "huskden" ? Math.floor(performance.now() / 500) % 2 :
+            b.key === "obelisk" ? Math.floor(performance.now() / 250) % 3 : 0;
           // east-side houses mirror so their features lean toward town center
           const mirror =
             b.key !== "pit" && b.key !== "shrine" && b.x > TOWN_CENTER.x;
@@ -2764,7 +2943,7 @@ export class Game {
           const s = this.tileScreen(grave.x, grave.y);
           ctx.save();
           ctx.globalAlpha = 0.75;
-          spriteCache.drawTombstone(ctx, s.x, s.y, this.camera.zoom);
+          spriteCache.drawLostTomb(ctx, true, s.x, s.y, this.camera.zoom);
           ctx.restore();
         },
       });
@@ -2776,8 +2955,8 @@ export class Game {
         fn: () => {
           const s = this.tileScreen(t.x, t.y);
           const z = this.camera.zoom;
-          spriteCache.drawTombstone(ctx, s.x, s.y, z);
-          // gold shimmer marks it apart from the lore graves
+          // the rich slab carries its own gold glint; shimmer marks it apart
+          spriteCache.drawLostTomb(ctx, false, s.x, s.y, z);
           ctx.save();
           ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 300) * 0.25;
           ctx.fillStyle = "#e7c873";

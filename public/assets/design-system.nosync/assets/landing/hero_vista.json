@@ -1,0 +1,45 @@
+{
+  "image": "landing/hero_vista.svg",
+  "cell": {
+    "w": 480,
+    "h": 270
+  },
+  "anchor": {
+    "x": 240,
+    "y": 269
+  },
+  "frames": {
+    "hero_vista_00": {
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 270,
+      "anchor": {
+        "x": 240,
+        "y": 269
+      }
+    },
+    "hero_vista_01": {
+      "x": 480,
+      "y": 0,
+      "w": 480,
+      "h": 270,
+      "anchor": {
+        "x": 240,
+        "y": 269
+      }
+    }
+  },
+  "animations": {
+    "shimmer": {
+      "frames": [
+        "hero_vista_00",
+        "hero_vista_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "scene": true,
+  "note": "backdrop — scales to fill; center third kept calm/dark for overlaid UI text"
+}

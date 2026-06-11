@@ -44,6 +44,22 @@ export function getDeviceToken(): string {
   return t;
 }
 
+// ---- Phase 6: the entry gate ------------------------------------------------
+// The wallet that passed the landing gate; the engine sends it with the join
+// so GATE_TOKENS servers can re-check the balance authoritatively.
+const GATE_WALLET_KEY = "driftlands-gate-wallet";
+
+export function getGateWallet(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(GATE_WALLET_KEY);
+}
+
+export function setGateWallet(address: string | null) {
+  if (typeof window === "undefined") return;
+  if (address) localStorage.setItem(GATE_WALLET_KEY, address);
+  else localStorage.removeItem(GATE_WALLET_KEY);
+}
+
 /** capture the full progress snapshot from the store */
 export function buildSnapshot(): SaveData {
   const s = useGame.getState();

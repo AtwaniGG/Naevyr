@@ -1,5 +1,6 @@
 import { ITEM_META, ItemKey, Recipe } from "@/game/types";
 import { useGame } from "@/game/state/store";
+import { bus } from "@/game/state/bus";
 import { play } from "@/game/audio/sound";
 
 // Crafting: spend gathered materials to forge equipment. Equipment is
@@ -37,6 +38,7 @@ export function craft(recipe: Recipe): boolean {
   for (const [item, qty] of Object.entries(recipe.cost)) {
     store.removeItem(item as ItemKey, qty ?? 0);
   }
+  bus.emit("craft", { id: recipe.result.id }); // ledger debits the materials
   store.equip(recipe.result);
   play("craft");
   store.pushLog(

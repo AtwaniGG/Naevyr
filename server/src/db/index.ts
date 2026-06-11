@@ -29,12 +29,14 @@ export async function initDb(): Promise<Db> {
     db = drizzlePg(new Pool({ connectionString: process.env.DATABASE_URL }));
     console.log("DB: postgres via DATABASE_URL");
   } else {
-    // DRIFT_DATA_DIR lets verify scripts boot an isolated throwaway instance
+    // DRIFT_DATA_DIR lets verify scripts boot an isolated throwaway instance.
+    // The default dir is *.nosync: the repo lives on the iCloud Desktop and
+    // bird DELETES files out of plain dirs (it ate base/5 of the old cluster).
     const dataDir = process.env.DRIFT_DATA_DIR ??
-      fileURLToPath(new URL("../../.data/driftlands", import.meta.url));
+      fileURLToPath(new URL("../../.data/driftlands.nosync", import.meta.url));
     mkdirSync(dirname(dataDir), { recursive: true });
     db = drizzlePglite(new PGlite(dataDir));
-    console.log("DB: embedded pglite (server/.data/driftlands)");
+    console.log(`DB: embedded pglite (${dataDir})`);
   }
 
   // single-table bootstrap — swap for drizzle-kit migrations when tables multiply
@@ -58,6 +60,12 @@ export async function initDb(): Promise<Db> {
   `);
   await db.execute(sql`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS bank_gold real NOT NULL DEFAULT 0
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS gold real
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS inv jsonb
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS props (
@@ -223,6 +231,18 @@ export async function setBankGold(token: string, amount: number) {
   await db.update(players).set({ bankGold: amount }).where(eq(players.token, token));
 }
 
+// ---- Phase 6: the pocket-gold ledger ----------------------------------------------
+
+/** write-through persist of the authoritative pocket balance */
+export async function setGold(token: string, amount: number) {
+  await db.update(players).set({ gold: amount }).where(eq(players.token, token));
+}
+
+/** write-through persist of the authoritative item counts */
+export async function setInv(token: string, inv: Record<string, number>) {
+  await db.update(players).set({ inv }).where(eq(players.token, token));
+}
+
 // ---- the Shrine ------------------------------------------------------------------
 
 export async function loadShrinePot(): Promise<number> {
@@ -257,6 +277,36 @@ export async function deleteProp(id: number) {
 
 export async function deletePropsForClaim(claimId: number) {
   await db.delete(props).where(eq(props.claimId, claimId));
+}
+
+// ---- the leaderboards --------------------------------------------------------------
+
+export interface BoardRow { name: string; value: number }
+export interface Leaderboards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[] }
+
+/** landing-page boards: gold from the ledgers, kills/levels from snapshots */
+export async function leaderboards(limit = 10): Promise<Leaderboards> {
+  const rows = await db
+    .select({
+      name: players.name,
+      gold: players.gold,
+      bank: players.bankGold,
+      snapshot: players.snapshot,
+    })
+    .from(players);
+  const top = (vals: BoardRow[]) =>
+    vals.filter((v) => v.value > 0).sort((a, b) => b.value - a.value).slice(0, limit);
+  const snap = (r: (typeof rows)[number]) =>
+    (r.snapshot ?? {}) as { kills?: number; skills?: Record<string, { level?: number }> };
+  return {
+    gold: top(rows.map((r) => ({ name: r.name, value: Math.round((r.gold ?? 0) + r.bank) }))),
+    kills: top(rows.map((r) => ({ name: r.name, value: Math.round(Number(snap(r).kills ?? 0)) }))),
+    levels: top(rows.map((r) => ({
+      name: r.name,
+      value: Object.values(snap(r).skills ?? {}).reduce(
+        (n, s) => n + Math.max(0, Math.round(Number(s?.level ?? 0))), 0),
+    }))),
+  };
 }
 
 /** read accumulated escrow and zero it (single-process server → no race) */
