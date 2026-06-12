@@ -2467,7 +2467,20 @@ export class DriftRoom extends Room<DriftRoomState> {
       return v.reason ?? "The burn could not be verified";
     }
     void this.markFounder(sim, row);
+    // the wallet just spent `cost` DRIFTS on-chain. Reflect it in the live
+    // in-realm balance (and holder-tier perks) immediately — re-reading the
+    // chain here would return the 60s-cached pre-burn number.
+    sim.tokenBalance = Math.max(0, sim.tokenBalance - cost);
+    this.syncToken(sim);
     return null;
+  }
+
+  /** push the live DRIFTS balance + holder flag to the wallet's owner */
+  private syncToken(sim: PlayerSim) {
+    sim.client.send("tokenSync", {
+      tokenBalance: sim.tokenBalance,
+      holder: sim.tokenBalance >= 1,
+    });
   }
 
   /** one Drift Wheel roll: server-rolled prize, duplicates pay shards, pity

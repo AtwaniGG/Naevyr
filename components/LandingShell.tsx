@@ -96,20 +96,18 @@ export default function LandingShell({
           </Link>
         ))}
         <span style={{ flex: 1 }} />
-        <span style={{ display: "inline-flex", gap: 8, margin: "0 8px", flexShrink: 0 }}>
-          {[
-            { i: 6, t: "Discord · the hall is being raised" },
-            { i: 7, t: "Telegram · the herald is not yet posted" },
-            { i: 8, t: "X · the crier sleeps" },
-          ].map((s) => (
-            <span
-              key={s.i}
-              className="landing-icon"
-              title={s.t}
-              style={{ "--icon-index": s.i, opacity: 0.75, cursor: "help" } as React.CSSProperties}
-            />
-          ))}
-        </span>
+        <a
+          href="https://x.com/PlayNaevyr"
+          target="_blank"
+          rel="noreferrer noopener"
+          title="X · @PlayNaevyr"
+          style={{ display: "inline-flex", margin: "0 8px", flexShrink: 0, textDecoration: "none" }}
+        >
+          <span
+            className="landing-icon"
+            style={{ "--icon-index": 8, opacity: 0.75, cursor: "pointer" } as React.CSSProperties}
+          />
+        </a>
         {burnStats && burnStats.burned > 0 && (
           <span
             className="drift-num"

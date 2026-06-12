@@ -836,6 +836,11 @@ export class Game {
         );
       }
     });
+    // a burn just spent DRIFTS — adopt the server's fresh balance so the
+    // in-realm HUD chip + holder-tier perks track it without a profile refetch
+    net.onMessage<{ tokenBalance: number; holder: boolean }>("tokenSync", (m) =>
+      useGame.getState().setTokenStatus(m.tokenBalance, m.holder),
+    );
 
     // ---- THE LONG NIGHT + realm reset ----
     net.onMessage<{ durationMs: number; need: number; level: number }>("longNight", (m) => {
@@ -3693,7 +3698,9 @@ export class Game {
     // banners and the HUD draw after this, so the fight reads through it.)
     if (this.duelOpp) {
       const c = this.tileScreen(ARENA.x, ARENA.y);
-      const rim = this.tileScreen(ARENA.x + ARENA.r + 1, ARENA.y + ARENA.r + 1);
+      // the light reaches one tile past the crowd line, so the watchers and
+      // any ringside wanderers stand IN the torchlight, not behind it
+      const rim = this.tileScreen(ARENA.x + ARENA.r + 2, ARENA.y + ARENA.r + 2);
       const rIn = Math.hypot(rim.x - c.x, rim.y - c.y);
       const g = ctx.createRadialGradient(c.x, c.y, rIn, c.x, c.y, rIn * 2.1);
       g.addColorStop(0, "rgba(10, 8, 16, 0)");

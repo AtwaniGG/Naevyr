@@ -18,7 +18,7 @@ import { Client, Room } from "colyseus.js";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
-import { walletLinkMessage } from "../game/types";
+import { walletLinkMessage, BURN_COSTS } from "../game/types";
 
 const RPC = "https://api.devnet.solana.com";
 const PORT = 2595;
@@ -119,6 +119,9 @@ async function main() {
       });
     let founderSeen = false;
     room.onMessage("founder", () => { founderSeen = true; });
+    // the live in-realm DRIFTS balance the server pushes after each burn
+    let lastTokenSync: number | null = null;
+    room.onMessage("tokenSync", (m: any) => { lastTokenSync = m.tokenBalance; });
     await wait(300);
     // Phase 6: claims pay from the server ledger — seed the purse via first save
     room.send("save", { snapshot: { gold: 1000, day: 0 } });
@@ -156,6 +159,12 @@ async function main() {
     const spinOut = await Promise.race([sr, br]);
     check("burn-paid spin resolves", !!spinOut && typeof spinOut.label === "string",
       spinOut?.label ?? spinOut?.reason);
+
+    // the burn must debit the live in-realm balance by exactly the spin cost
+    await wait(500); // let tokenSync land
+    check("burn debits the live in-realm DRIFTS balance (tokenSync)",
+      lastTokenSync != null && lastTokenSync === (linked!.tokenBalance - BURN_COSTS.spin),
+      `linked=${linked?.tokenBalance} → sync=${lastTokenSync} (spin cost ${BURN_COSTS.spin})`);
 
     // 2) replay: the same signature must be refused
     await wait(2600); // spin rate limit

@@ -113,6 +113,7 @@ export default function Hud() {
       <HotbarDock />
       <RightColumn />
       <NightBanner />
+      <ZoomTip />
       <TutorialBanner />
       <KeeperDialogue />
       <ShopModal />
@@ -917,6 +918,28 @@ function TutorialBanner() {
           >
             I know the Drift · skip the lessons
           </button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/** a subtle top-center control hint; click to dismiss, hidden during the Long
+ *  Night so it never collides with that banner */
+function ZoomTip() {
+  const night = useGame((s) => s.night);
+  const [show, setShow] = useState(true);
+  if (!show || night) return null;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ top: 14, left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "top center", zIndex: 23, cursor: "pointer" }}
+      onClick={() => setShow(false)}
+      title="Dismiss"
+    >
+      <Panel padded={false} corners={false} style={{ padding: "5px 12px", opacity: 0.8 }}>
+        <div className="drift-label" style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: 1.5 }}>
+          Scroll to zoom the realm
         </div>
       </Panel>
     </div>
