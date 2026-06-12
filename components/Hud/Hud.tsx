@@ -1854,6 +1854,8 @@ function OnlineBadge() {
 function Vitals() {
   const { hp, maxHp } = useGame((s) => s.vitals);
   const gold = useGame((s) => s.gold);
+  const tokenBalance = useGame((s) => s.tokenBalance);
+  const wallet = useGame((s) => s.wallet);
   const hearts = 5;
   const filled = Math.ceil((hp / maxHp) * hearts);
   return (
@@ -1873,6 +1875,20 @@ function Vitals() {
             {gold.toLocaleString()}
           </span>
         </span>
+        {wallet != null && (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15 }}
+            title="DRIFTS held by your linked wallet"
+          >
+            <DriftsMark />
+            <span
+              className="drift-num drift-hud-text"
+              style={{ fontWeight: 700, fontSize: 15, color: "var(--drift-corrupt)" }}
+            >
+              {tokenBalance.toLocaleString()}
+            </span>
+          </span>
+        )}
       </div>
     </Panel>
   );

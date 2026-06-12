@@ -138,11 +138,32 @@ async function main() {
         token: token(), address: broke,
         gateNonce: brokeInfo.nonce, gateSig: sign(brokeKey, broke, brokeInfo.nonce),
       })) === "rejected");
-    check("join with the funded, proven wallet accepted",
-      (await tryJoin({
-        token: token(), address: holderAddr,
-        gateNonce: allowed.nonce, gateSig: holderSig,
-      })) === "joined");
+    // the funded, proven wallet joins AND is auto-linked in-game (the gate proof
+    // is a wallet-ownership signature, so no second in-game signature is needed)
+    {
+      let joined = true;
+      let wr: any = null;
+      try {
+        const room = await new Client(WS_URL).joinOrCreate<any>("drift", {
+          token: token(), address: holderAddr,
+          gateNonce: allowed.nonce, gateSig: holderSig,
+        });
+        wr = await new Promise<any>((resolve) => {
+          const to = setTimeout(() => resolve(null), 6000);
+          room.onMessage("walletResult", (m: any) => { clearTimeout(to); resolve(m); });
+        });
+        await room.leave();
+      } catch {
+        joined = false;
+      }
+      check("join with the funded, proven wallet accepted", joined);
+      check("gated join auto-links the wallet (no second signature)",
+        !!wr && wr.ok === true && wr.address === holderAddr,
+        wr ? `address=${wr.address}` : "no walletResult");
+      check("auto-linked wallet reads as a holder",
+        !!wr && wr.holder === true && wr.tokenBalance >= GATE,
+        wr ? `balance=${wr.tokenBalance}` : "");
+    }
   } catch (e) {
     console.error("THROW", e);
     failures++;

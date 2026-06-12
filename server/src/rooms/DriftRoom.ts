@@ -1833,6 +1833,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     const token = typeof options?.token === "string" ? options.token.trim() : "";
     if (token.length < 8 || token.length > 64) return false;
     const gate = gateTokens();
+    let gateAddress = "";
     if (gate > 0) {
       const address = typeof options?.address === "string" ? options.address.trim() : "";
       const nonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
@@ -1840,8 +1841,12 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!address || !nonce || !sig) return false;
       if (!verifyGateProof(address, nonce, sig)) return false;
       if ((await getTokenBalance(address)) < gate) return false;
+      // the gate proof IS a wallet-ownership signature (same ed25519 rail as the
+      // in-game link) — carry the proven address through so onJoin can auto-link it
+      gateAddress = address;
     }
-    return await loadOrCreatePlayer(token);
+    const row = await loadOrCreatePlayer(token);
+    return gateAddress ? Object.assign(row, { gateAddress }) : row;
   }
 
   onJoin(client: Client) {
@@ -1909,6 +1914,13 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.state.players.set(client.sessionId, ps);
 
     this.syncQuests(sim);
+
+    // a player who cleared the entry gate already proved wallet ownership at the
+    // door — bind it now so they're a linked holder without signing again
+    const gateAddress = (row as PlayerRow & { gateAddress?: string }).gateAddress;
+    if (gateAddress) {
+      void this.autoLinkGateWallet(sim, gateAddress, row.walletAddress ?? null);
+    }
   }
 
   async onLeave(client: Client) {
@@ -2386,6 +2398,31 @@ export class DriftRoom extends Room<DriftRoomState> {
       void persistQuests(sim.token, sim.quests).catch(() => {});
       this.syncQuests(sim);
     }
+  }
+
+  /** Bind the gate-proven wallet to this player's row without a second signature.
+   *  The entry gate already verified an ed25519 proof of ownership over `address`
+   *  (the same rail as the in-game link), so this is cryptographically equivalent
+   *  to linking. Respects a deliberate in-game link to a DIFFERENT wallet and the
+   *  global wallet-uniqueness rule (never hijacks a wallet another token owns). */
+  private async autoLinkGateWallet(sim: PlayerSim, gateAddress: string, currentWallet: string | null) {
+    // already linked to a different wallet on purpose — leave it alone
+    if (currentWallet && currentWallet !== gateAddress) return;
+    if (!currentWallet) {
+      // binding fresh: make sure no other wanderer already owns this wallet
+      const existing = await findPlayerByWallet(gateAddress).catch(() => null);
+      if (existing && existing.token !== sim.token) return;
+      await setWalletAddress(sim.token, gateAddress).catch(() => {});
+    }
+    const tokenBalance = await getTokenBalance(gateAddress);
+    sim.tokenBalance = tokenBalance; // holder-tier perks follow the link
+    sim.client.send("walletResult", {
+      ok: true,
+      address: gateAddress,
+      tokenBalance,
+      holder: tokenBalance >= 1,
+      mint: tokenMint() || null,
+    });
   }
 
   /** replace the board with a fresh roll (Obelisk reroll); progress reset */
