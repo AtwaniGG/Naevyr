@@ -554,12 +554,12 @@ const at = (i: number) => CUTS.slice(0, i).reduce((a, b) => a + b, 0);
 
 export const Trailer: React.FC = () => (
   <AbsoluteFill style={{ background: VOID }}>
-    {/* original score, synthesized in scripts/score.mjs (license-free).
-        Fades out over the last 2s under the CTA. */}
+    {/* background music: ElevenLabs "naevyr-launch" (42.0s, trailer-length).
+        Plays at full and fades out over the last 1.5s under the CTA. */}
     <Audio
       src={staticFile("music.mp3")}
       volume={(f) =>
-        interpolate(f, [TRAILER_FRAMES - 60, TRAILER_FRAMES], [0.9, 0], {
+        interpolate(f, [TRAILER_FRAMES - 45, TRAILER_FRAMES], [1, 0], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         })
