@@ -165,16 +165,19 @@ export interface BurnStats {
   bySink: Record<string, number>;
 }
 
-/** lifetime burn totals off the game server; null while loading/offline */
-export function useBurnStats(): BurnStats | null {
+/** burn totals off the game server; null while loading/offline. With a wallet
+ *  address the totals are THAT wallet's own burns (the nav chip is personal);
+ *  no wallet = no fetch, the chip stays hidden until one connects. */
+export function useBurnStats(address?: string | null): BurnStats | null {
   const [stats, setStats] = useState<BurnStats | null>(null);
   useEffect(() => {
+    if (!address) { setStats(null); return; }
     let dead = false;
-    fetch(`${httpBase()}/stats`, { signal: AbortSignal.timeout(5000) })
+    fetch(`${httpBase()}/stats?address=${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(5000) })
       .then((r) => r.json())
       .then((s: BurnStats) => { if (!dead) setStats(s); })
       .catch(() => {});
     return () => { dead = true; };
-  }, []);
+  }, [address]);
   return stats;
 }

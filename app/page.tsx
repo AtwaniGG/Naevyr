@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import LandingShell from "@/components/LandingShell";
 import { Button } from "@/components/ds";
@@ -10,6 +11,8 @@ import { useGate } from "@/components/gate";
 
 export default function Home() {
   const { info } = useGate();
+  const [copied, setCopied] = useState(false);
+  const mint = info?.mint ?? process.env.NEXT_PUBLIC_TOKEN_MINT ?? "";
 
   return (
     <LandingShell hero>
@@ -38,6 +41,24 @@ export default function Home() {
             {info ? `${info.online} wanderer${info.online === 1 ? "" : "s"} in the Drift` : " "}
             {info && info.gate > 0 && (
               <div>The door is warded: {info.gate.toLocaleString()} DRIFTS to enter.</div>
+            )}
+            {mint && (
+              <div
+                onClick={() => {
+                  void navigator.clipboard.writeText(mint).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1600);
+                  });
+                }}
+                title="Copy the DRIFTS contract address"
+                style={{
+                  font: "400 10.5px/1.6 var(--font-mono, monospace)",
+                  color: copied ? "var(--drift-gold)" : "var(--text-muted)",
+                  cursor: "pointer", userSelect: "all", marginTop: 2,
+                }}
+              >
+                {copied ? "Copied to the satchel." : <>CA: {mint}</>}
+              </div>
             )}
           </div>
 

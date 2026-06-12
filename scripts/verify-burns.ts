@@ -283,6 +283,16 @@ async function main() {
     check("/stats counts the treasury half", stats.treasury === expectTreasury, `treasury=${stats.treasury}`);
     check("/stats counts the rites", stats.count === 4, `count=${stats.count}`);
 
+    // 11) per-wallet scoping: this wallet did ALL the burns; a stranger did none
+    const mine = await (await fetch(`http://localhost:${PORT}/stats?address=${address}`)).json();
+    check("/stats?address scopes to the burner's own rites",
+      mine.burned === stats.burned && mine.count === stats.count,
+      `mine=${mine.burned}/${mine.count}`);
+    const stranger = bs58.encode(nacl.sign.keyPair().publicKey);
+    const theirs = await (await fetch(`http://localhost:${PORT}/stats?address=${stranger}`)).json();
+    check("/stats?address for an unlinked wallet reads zero",
+      theirs.burned === 0 && theirs.count === 0, `theirs=${theirs.burned}/${theirs.count}`);
+
     room.leave();
   } catch (e) {
     console.error("THROW", e);

@@ -4,7 +4,7 @@ import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Encoder } from "@colyseus/schema";
 import { DriftRoom } from "./rooms/DriftRoom";
-import { initDb, leaderboards, burnTotals } from "./db";
+import { initDb, leaderboards, burnTotals, burnTotalsFor } from "./db";
 import { gateTokens, getTokenBalance, tokenMint } from "./solana";
 import { issueGateNonce, verifyGateProof } from "./gate";
 
@@ -77,9 +77,12 @@ async function main() {
         });
       return;
     }
-    // the public scarcity counter: lifetime burned/treasury DRIFTS by sink
+    // the public scarcity counter: lifetime burned/treasury DRIFTS by sink.
+    // ?address=<wallet> scopes the totals to that linked wallet's own burns.
     if (url.pathname === "/stats") {
-      void burnTotals()
+      const address = (url.searchParams.get("address") ?? "").trim();
+      const wantWallet = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+      void (wantWallet ? burnTotalsFor(address) : burnTotals())
         .then((totals) => {
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify(totals));

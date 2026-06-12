@@ -263,6 +263,30 @@ export async function burnTotals(): Promise<BurnTotals> {
   return out;
 }
 
+/** lifetime burn totals for ONE linked wallet (burns are keyed by device
+ *  token; the players row carries the wallet link) */
+export async function burnTotalsFor(address: string): Promise<BurnTotals> {
+  const grouped = await db
+    .select({
+      action: burns.action,
+      burned: sql<number>`coalesce(sum(${burns.burned}), 0)`,
+      treasury: sql<number>`coalesce(sum(${burns.treasury}), 0)`,
+      count: sql<number>`count(*)`,
+    })
+    .from(burns)
+    .innerJoin(players, eq(burns.token, players.token))
+    .where(eq(players.walletAddress, address))
+    .groupBy(burns.action);
+  const out: BurnTotals = { burned: 0, treasury: 0, count: 0, bySink: {} };
+  for (const r of grouped) {
+    out.burned += Number(r.burned);
+    out.treasury += Number(r.treasury);
+    out.count += Number(r.count);
+    out.bySink[r.action] = Number(r.count);
+  }
+  return out;
+}
+
 /** release a signature whose on-chain verification failed (allows retry) */
 export async function deleteBurn(sig: string) {
   await db.delete(burns).where(eq(burns.sig, sig));

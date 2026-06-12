@@ -28,7 +28,7 @@ export default function LandingShell({
 }) {
   const path = usePathname();
   const { info, wallet, balance, busy, connect, disconnect } = useGate();
-  const burnStats = useBurnStats();
+  const burnStats = useBurnStats(wallet);
 
   return (
     <div
@@ -116,7 +116,7 @@ export default function LandingShell({
               padding: "7px 10px", whiteSpace: "nowrap", flexShrink: 0,
               background: "rgba(168, 85, 247, 0.08)", marginRight: 4,
             }}
-            title={`${burnStats.burned.toLocaleString()} DRIFTS burned forever across ${burnStats.count.toLocaleString()} rites${burnStats.treasury > 0 ? ` · ${burnStats.treasury.toLocaleString()} tithed to the keep` : ""}`}
+            title={`${burnStats.burned.toLocaleString()} DRIFTS burned forever by this wallet across ${burnStats.count.toLocaleString()} rites${burnStats.treasury > 0 ? ` · ${burnStats.treasury.toLocaleString()} tithed to the keep` : ""}`}
           >
             {burnStats.burned.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" /> burned
           </span>
