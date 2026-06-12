@@ -40,6 +40,9 @@ export const players = pgTable("players", {
   inv: jsonb("inv"),
   /** burned DRIFTS during the beta window — one-time Founder cosmetics */
   founder: boolean("founder").notNull().default(false),
+  /** Drift-touched cosmetics this player has BURNED for (server-authoritative
+   *  ownership; the identity sync rejects prestige keys not listed here) */
+  prestige: jsonb("prestige").$type<string[]>().notNull().default([]),
 
   // where the wanderer last stood
   lastX: real("last_x"),

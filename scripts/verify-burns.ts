@@ -228,12 +228,30 @@ async function main() {
     const unknown = await pr2;
     check("unknown prestige key refused", unknown?.ok === false, unknown?.reason);
 
+    // 7b) the identity sync must ACCEPT the owned prestige aura…
+    {
+      room.send("identity", { aura: "corruption_halo" });
+      await wait(500);
+      const me = room.state.players.get(room.sessionId);
+      check("owned prestige aura accepted on sync", me?.aura === "corruption_halo", `aura=${me?.aura}`);
+    }
+    // …and REJECT a prestige aura the player never burned for (anti-spoof)
+    {
+      room.send("identity", { aura: "bonewisp" }); // never purchased
+      await wait(500);
+      const me = room.state.players.get(room.sessionId);
+      check("unowned prestige aura rejected on sync", me?.aura !== "bonewisp", `aura=${me?.aura}`);
+    }
+
     // 8) the Founder window: the first verified burn marked the wanderer
     check("founder mark granted on first burn", founderSeen);
     const pp = on<any>("profile", 10_000);
     room.send("getProfile");
     const prof = await pp;
     check("founder persists on the profile", prof?.founder === true);
+    check("profile carries prestige ownership",
+      Array.isArray(prof?.prestige) && prof.prestige.includes("corruption_halo"),
+      `prestige=${JSON.stringify(prof?.prestige)}`);
 
     // 9) the 50/50 split, on-chain: the treasury holds exactly half of every sink
     //    spin 5000 + cleanse 10000 + reinforce 10000 + prestigeAura 25000 = 50000 → 25000 each

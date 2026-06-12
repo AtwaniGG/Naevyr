@@ -866,6 +866,7 @@ export class Game {
       tokenBalance?: number;
       holder?: boolean;
       founder?: boolean;
+      prestige?: string[];
     }>("profile", (m) => {
       const store = useGame.getState();
       const sworn = takeDoorName(); // the door outranks the stored snapshot
@@ -890,6 +891,14 @@ export class Game {
         // idempotent: the server flag re-grants on every device
         store.grantCosmetic("title", "Founder");
         store.grantCosmetic("aura", "ashen_crown");
+      }
+      // server-authoritative Drift-touched ownership (so a returning owner on a
+      // fresh device knows what they've burned for, without re-burning)
+      for (const key of m.prestige ?? []) {
+        const entry = PRESTIGE_CATALOG[key];
+        if (!entry) continue;
+        if (entry.kind === "title") store.grantCosmetic("title", entry.label);
+        else store.grantCosmetic(entry.kind, key); // "dye" | "aura"
       }
       if (m.escrowGold && m.escrowGold > 0) {
         store.bumpStat("goldEarned", m.escrowGold); // ledger already paid

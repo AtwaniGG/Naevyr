@@ -28,7 +28,7 @@ import {
 } from "../db";
 import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens, burnSplit } from "../solana";
 import { verifyGateProof } from "../gate";
-import { tryInsertBurn, deleteBurn, setFounder } from "../db";
+import { tryInsertBurn, deleteBurn, setFounder, setPrestige } from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
@@ -70,6 +70,11 @@ const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo",
   "ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
 const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
+// Drift-touched (burn-only) keys: in the whitelist for legit owners, but the
+// identity sync additionally requires the player to OWN them (sim.prestige),
+// so they can't be spoofed for free — the whole point of burning for them.
+const PRESTIGE_AURA_KEYS = new Set(["ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"]);
+const PRESTIGE_DYE_KEYS = new Set(["drift"]);
 
 // ---- Phase 6: the Founder window -----------------------------------------------
 // Any verified burn while now < FOUNDER_UNTIL stamps the one-time Founder mark
@@ -324,6 +329,9 @@ interface PlayerSim {
   /** last known DRIFTS balance of the linked wallet (drives holder-tier perks;
    *  refreshed on link and on every profile fetch, 0 for guests/unlinked) */
   tokenBalance: number;
+  /** Drift-touched cosmetics this player has BURNED for (server-authoritative;
+   *  the identity sync only accepts prestige keys present here) */
+  prestige: Set<string>;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -486,10 +494,14 @@ export class DriftRoom extends Room<DriftRoomState> {
           const clean = msg.name.trim().slice(0, 16);
           if (clean) ps.name = clean;
         }
-        if (typeof msg.dye === "string" && DYE_KEYS.includes(msg.dye)) ps.dye = msg.dye;
+        // Drift-touched keys are accepted only if the player owns them (burned
+        // for them); otherwise the prestige cosmetic would be free to fake.
+        if (typeof msg.dye === "string" && DYE_KEYS.includes(msg.dye) &&
+            (!PRESTIGE_DYE_KEYS.has(msg.dye) || simI.prestige.has(msg.dye))) ps.dye = msg.dye;
         if (typeof msg.eye === "string" && EYE_KEYS.includes(msg.eye)) ps.eye = msg.eye;
         if (typeof msg.title === "string") ps.title = msg.title.trim().slice(0, 24);
-        if (typeof msg.aura === "string" && AURA_KEYS.includes(msg.aura)) ps.aura = msg.aura;
+        if (typeof msg.aura === "string" && AURA_KEYS.includes(msg.aura) &&
+            (!PRESTIGE_AURA_KEYS.has(msg.aura) || simI.prestige.has(msg.aura))) ps.aura = msg.aura;
         if (typeof msg.pet === "string" && PET_KEYS.includes(msg.pet)) ps.pet = msg.pet;
       },
     );
@@ -820,6 +832,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
       const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), entry.action);
       if (err) return client.send("prestigeResult", { ok: false, reason: err });
+      // server-authoritative ownership: now the identity sync will accept this
+      // prestige key from this player (and reject it from everyone else)
+      sim.prestige.add(key);
+      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
       client.send("prestigeResult", { ok: true, key, kind: entry.kind });
     });
 
@@ -832,15 +848,29 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!this.allow(sim, "reinforce", 4, 10_000)) return;
       const fail = (reason: string) =>
         client.send("reinforceResult", { ok: false, reason });
-      let weakest: ClaimState | null = null;
-      for (const cs of this.state.claims.values()) {
-        if (this.claimOwner.get(cs.id) !== sim.token) continue;
-        if (!weakest || cs.integrity < weakest.integrity) weakest = cs;
+      // your weakest claim that still has room to mend
+      const weakestReinforceable = (): ClaimState | null => {
+        let w: ClaimState | null = null;
+        for (const cs of this.state.claims.values()) {
+          if (this.claimOwner.get(cs.id) !== sim.token) continue;
+          if (cs.integrity >= 100) continue;
+          if (!w || cs.integrity < w.integrity) w = cs;
+        }
+        return w;
+      };
+      // pre-check BEFORE burning: don't take a burn we can't apply
+      if (!weakestReinforceable()) {
+        const ownsAny = [...this.state.claims.values()].some(
+          (cs) => this.claimOwner.get(cs.id) === sim.token,
+        );
+        return fail(ownsAny ? "Your wardings already stand whole" : "You hold no claims to reinforce");
       }
-      if (!weakest) return fail("You hold no claims to reinforce");
-      if (weakest.integrity >= 100) return fail("Your wardings already stand whole");
       const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "reinforce");
       if (err) return fail(err);
+      // re-select AFTER the on-chain wait: a season may have eroded or felled a
+      // claim while the burn confirmed — mend whatever is weakest NOW
+      const weakest = weakestReinforceable();
+      if (!weakest) return fail("The land fell before the warding could take.");
       weakest.integrity = Math.min(100, weakest.integrity + REINFORCE_INTEGRITY);
       void setClaimIntegrity(weakest.id, weakest.integrity).catch(() => {});
       client.send("reinforceResult", {
@@ -894,6 +924,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         holder: tokenBalance >= 1,
         mint: tokenMint() || null,
         founder: row.founder,
+        prestige: [...sim.prestige], // server-authoritative Drift-touched ownership
       });
     });
 
@@ -1345,6 +1376,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       rates: new Map(),
       combatLevel: snapCombatLevel(row.snapshot),
       tokenBalance: 0, // refreshed by getProfile/linkWallet (chain reads are async)
+      prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -1785,6 +1817,12 @@ export class DriftRoom extends Room<DriftRoomState> {
   private async markFounder(sim: PlayerSim, row: PlayerRow) {
     if (!FOUNDER_UNTIL || Date.now() >= FOUNDER_UNTIL || row.founder) return;
     await setFounder(sim.token).catch(() => {});
+    // the Founder's Ashen Crown is a prestige aura — grant ownership so the
+    // identity sync accepts it from them
+    if (!sim.prestige.has("ashen_crown")) {
+      sim.prestige.add("ashen_crown");
+      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
+    }
     for (const c of this.clients) {
       if (this.sims.get(c.sessionId) === sim) { c.send("founder", {}); break; }
     }

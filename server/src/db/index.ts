@@ -71,6 +71,9 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS founder boolean NOT NULL DEFAULT false
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS prestige jsonb NOT NULL DEFAULT '[]'::jsonb
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS props (
       id serial PRIMARY KEY,
       claim_id real NOT NULL,
@@ -184,22 +187,34 @@ export async function tryInsertBurn(
   return inserted.length > 0;
 }
 
-/** lifetime fee-split totals + per-sink counts (the public scarcity counter) */
-export async function burnTotals(): Promise<{
-  burned: number;
-  treasury: number;
-  count: number;
-  bySink: Record<string, number>;
-}> {
-  const rows = await db
-    .select({ action: burns.action, burned: burns.burned, treasury: burns.treasury })
-    .from(burns);
-  const out = { burned: 0, treasury: 0, count: rows.length, bySink: {} as Record<string, number> };
-  for (const r of rows) {
-    out.burned += r.burned;
-    out.treasury += r.treasury;
-    out.bySink[r.action] = (out.bySink[r.action] ?? 0) + 1;
+/** lifetime fee-split totals + per-sink counts (the public scarcity counter).
+ *  SQL aggregates (not a full-table read) + a short cache: the landing nav
+ *  hits this on every page mount, so it must stay cheap as `burns` grows. */
+interface BurnTotals { burned: number; treasury: number; count: number; bySink: Record<string, number>; }
+let burnTotalsCache: { at: number; data: BurnTotals } | null = null;
+const BURN_TOTALS_TTL_MS = 15_000;
+
+export async function burnTotals(): Promise<BurnTotals> {
+  if (burnTotalsCache && Date.now() - burnTotalsCache.at < BURN_TOTALS_TTL_MS) {
+    return burnTotalsCache.data;
   }
+  const grouped = await db
+    .select({
+      action: burns.action,
+      burned: sql<number>`coalesce(sum(${burns.burned}), 0)`,
+      treasury: sql<number>`coalesce(sum(${burns.treasury}), 0)`,
+      count: sql<number>`count(*)`,
+    })
+    .from(burns)
+    .groupBy(burns.action);
+  const out: BurnTotals = { burned: 0, treasury: 0, count: 0, bySink: {} };
+  for (const r of grouped) {
+    out.burned += Number(r.burned);
+    out.treasury += Number(r.treasury);
+    out.count += Number(r.count);
+    out.bySink[r.action] = Number(r.count);
+  }
+  burnTotalsCache = { at: Date.now(), data: out };
   return out;
 }
 
@@ -211,6 +226,11 @@ export async function deleteBurn(sig: string) {
 /** stamp the one-time Founder mark (burned DRIFTS inside the beta window) */
 export async function setFounder(token: string) {
   await db.update(players).set({ founder: true }).where(eq(players.token, token));
+}
+
+/** record server-authoritative ownership of a Drift-touched (burned) cosmetic */
+export async function setPrestige(token: string, owned: string[]) {
+  await db.update(players).set({ prestige: owned }).where(eq(players.token, token));
 }
 
 // ---- land claims -----------------------------------------------------------------
