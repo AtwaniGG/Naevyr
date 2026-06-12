@@ -11,7 +11,7 @@ import {
   SKILL_META,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
-import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason } from "@/game/types";
+import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason, AvatarKind } from "@/game/types";
 import { play } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
 
@@ -48,6 +48,10 @@ export interface Cosmetics {
   aura: AuraKey | "";
   /** equipped pet ("" = none) */
   pet: PetKey | "";
+  /** worn premium avatar ("" = the wanderer) + its two channel options */
+  avatar: AvatarKind | "";
+  avA: string;
+  avB: string;
 }
 
 /** lightweight world snapshot pushed by the engine ~2×/sec for the minimap */
@@ -206,6 +210,8 @@ interface GameState {
   ownedEyes: EyeKey[];
   ownedAuras: AuraKey[];
   ownedPets: PetKey[];
+  /** premium avatars, burn-bought (server-authoritative ownership) */
+  ownedAvatars: AvatarKind[];
   /** Drift-touched titles, burn-bought (latest outranks earned titles) */
   ownedTitles: string[];
   /** active drink buffs: expiry timestamps (ms) */
@@ -227,6 +233,8 @@ interface GameState {
   shrine: { pot: number; goal: number };
   duel: DuelState | null;
   duelChallenge: { from: string; name: string; wager: number } | null;
+  /** the arena queue: who waits in the Pit's ring (mine = it's me) */
+  pitQueue: { name: string; wager: number; mine: boolean } | null;
   /** the Threshold walked (or skipped); persists in the save */
   tutorialDone: boolean;
   /** current tutorial objective line (null = no banner) */
@@ -256,7 +264,7 @@ interface GameState {
   setListings: (l: MarketListing[]) => void;
   setOpenShop: (k: string | null) => void;
   /** record ownership of a bought cosmetic (gold is spent by the caller) */
-  grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet" | "title", key: string) => void;
+  grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet" | "title" | "avatar", key: string) => void;
   /** a relic left your hands (sold P2P) — stop owning it locally too */
   revokeCosmetic: (kind: "dye" | "aura", key: string) => void;
   drink: (kind: DrinkKey) => boolean;
@@ -269,6 +277,7 @@ interface GameState {
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
+  setPitQueue: (q: { name: string; wager: number; mine: boolean } | null) => void;
   setTutorialDone: (b: boolean) => void;
   setTutorialObjective: (s: string | null) => void;
   setWheelSpin: (s: WheelSpin | null) => void;
@@ -363,7 +372,7 @@ export const useGame = create<GameState>((set, get) => ({
   driftSeason: 1,
   driftPct: 0,
   playersOnline: 1,
-  cosmetics: { name: "Wanderer", dye: "stone", eye: "drift", aura: "", pet: "" },
+  cosmetics: { name: "Wanderer", dye: "stone", eye: "drift", aura: "", pet: "", avatar: "", avA: "", avB: "" },
   kills: 0,
   stats: { deaths: 0, gathered: 0, crits: 0, goldEarned: 0, driftfalls: 0, donated: 0 },
   minimap: null,
@@ -377,6 +386,7 @@ export const useGame = create<GameState>((set, get) => ({
   ownedEyes: ["drift"],
   ownedAuras: [],
   ownedPets: [],
+  ownedAvatars: [],
   ownedTitles: [],
   buffs: { gather: 0, damage: 0, sight: 0 },
   banked: 0,
@@ -396,6 +406,7 @@ export const useGame = create<GameState>((set, get) => ({
   shrine: { pot: 0, goal: 500 },
   duel: null,
   duelChallenge: null,
+  pitQueue: null,
 
   setDriftPct: (pct) => set({ driftPct: Math.round(pct) }),
   setSeason: (season) => set({ driftSeason: season }),
@@ -432,6 +443,8 @@ export const useGame = create<GameState>((set, get) => ({
         return { ownedPets: [...s.ownedPets, key as PetKey] };
       if (kind === "title" && !s.ownedTitles.includes(key))
         return { ownedTitles: [...s.ownedTitles, key] };
+      if (kind === "avatar" && !s.ownedAvatars.includes(key as AvatarKind))
+        return { ownedAvatars: [...s.ownedAvatars, key as AvatarKind] };
       return {};
     }),
   revokeCosmetic: (kind, key) =>
@@ -466,6 +479,7 @@ export const useGame = create<GameState>((set, get) => ({
   setShrine: (s) => set({ shrine: s }),
   setDuel: (d) => set({ duel: d }),
   setDuelChallenge: (c) => set({ duelChallenge: c }),
+  setPitQueue: (pitQueue) => set({ pitQueue }),
 
   addGold: (amount, reason) => {
     set((s) => ({

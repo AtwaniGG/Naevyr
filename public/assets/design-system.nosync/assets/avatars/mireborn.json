@@ -1,0 +1,797 @@
+{
+  "image": "avatars/mireborn.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "rig": "wanderer-compatible",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "ramp": "grass/stone(shawl) + ember(flame)",
+  "frameByFrameXOffset": true,
+  "channels": {
+    "flame": [
+      "ember",
+      "drift",
+      "gold",
+      "water",
+      "blood"
+    ],
+    "shawl": [
+      "grass",
+      "dirt",
+      "stone",
+      "water",
+      "bone"
+    ]
+  },
+  "channelNote": "look {a,b}: a=flame, b=shawl; each value is a locked RAMP name. Baked at draw time.",
+  "frames": {
+    "mireborn-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_04": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-s_05": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-s_00": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-s_01": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-s_02": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-s_03": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_00": {
+      "x": 64,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_01": {
+      "x": 96,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_02": {
+      "x": 128,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_03": {
+      "x": 160,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_04": {
+      "x": 192,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-se_05": {
+      "x": 224,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-se_00": {
+      "x": 256,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-se_01": {
+      "x": 288,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-se_02": {
+      "x": 320,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-se_03": {
+      "x": 352,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_00": {
+      "x": 64,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_01": {
+      "x": 96,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_02": {
+      "x": 128,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_03": {
+      "x": 160,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_04": {
+      "x": 192,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-e_05": {
+      "x": 224,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-e_00": {
+      "x": 256,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-e_01": {
+      "x": 288,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-e_02": {
+      "x": 320,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-e_03": {
+      "x": 352,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_00": {
+      "x": 64,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_01": {
+      "x": 96,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_02": {
+      "x": 128,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_03": {
+      "x": 160,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_04": {
+      "x": 192,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-ne_05": {
+      "x": 224,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-ne_00": {
+      "x": 256,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-ne_01": {
+      "x": 288,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-ne_02": {
+      "x": 320,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-ne_03": {
+      "x": 352,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_00": {
+      "x": 64,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_01": {
+      "x": 96,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_02": {
+      "x": 128,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_03": {
+      "x": 160,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_04": {
+      "x": 192,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-walk-n_05": {
+      "x": 224,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-n_00": {
+      "x": 256,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-n_01": {
+      "x": 288,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-n_02": {
+      "x": 320,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "mireborn-swing-n_03": {
+      "x": 352,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "mireborn-idle-s_00",
+        "mireborn-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "mireborn-walk-s_00",
+        "mireborn-walk-s_01",
+        "mireborn-walk-s_02",
+        "mireborn-walk-s_03",
+        "mireborn-walk-s_04",
+        "mireborn-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-s": {
+      "frames": [
+        "mireborn-swing-s_00",
+        "mireborn-swing-s_01",
+        "mireborn-swing-s_02",
+        "mireborn-swing-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "mireborn-idle-se_00",
+        "mireborn-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "mireborn-walk-se_00",
+        "mireborn-walk-se_01",
+        "mireborn-walk-se_02",
+        "mireborn-walk-se_03",
+        "mireborn-walk-se_04",
+        "mireborn-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-se": {
+      "frames": [
+        "mireborn-swing-se_00",
+        "mireborn-swing-se_01",
+        "mireborn-swing-se_02",
+        "mireborn-swing-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "mireborn-idle-e_00",
+        "mireborn-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "mireborn-walk-e_00",
+        "mireborn-walk-e_01",
+        "mireborn-walk-e_02",
+        "mireborn-walk-e_03",
+        "mireborn-walk-e_04",
+        "mireborn-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-e": {
+      "frames": [
+        "mireborn-swing-e_00",
+        "mireborn-swing-e_01",
+        "mireborn-swing-e_02",
+        "mireborn-swing-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "mireborn-idle-ne_00",
+        "mireborn-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "mireborn-walk-ne_00",
+        "mireborn-walk-ne_01",
+        "mireborn-walk-ne_02",
+        "mireborn-walk-ne_03",
+        "mireborn-walk-ne_04",
+        "mireborn-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-ne": {
+      "frames": [
+        "mireborn-swing-ne_00",
+        "mireborn-swing-ne_01",
+        "mireborn-swing-ne_02",
+        "mireborn-swing-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "mireborn-idle-n_00",
+        "mireborn-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "mireborn-walk-n_00",
+        "mireborn-walk-n_01",
+        "mireborn-walk-n_02",
+        "mireborn-walk-n_03",
+        "mireborn-walk-n_04",
+        "mireborn-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-n": {
+      "frames": [
+        "mireborn-swing-n_00",
+        "mireborn-swing-n_01",
+        "mireborn-swing-n_02",
+        "mireborn-swing-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

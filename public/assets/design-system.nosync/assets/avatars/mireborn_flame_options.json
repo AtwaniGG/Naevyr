@@ -1,0 +1,74 @@
+{
+  "image": "avatars/mireborn_flame_options.svg",
+  "channel": "flame",
+  "options": [
+    "ember",
+    "drift",
+    "gold",
+    "water",
+    "blood"
+  ],
+  "layout": "s-facing idle row (idle0,idle1) per option",
+  "frames": {
+    "ember_idle0": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "ember_idle1": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "drift_idle0": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "drift_idle1": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "gold_idle0": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "gold_idle1": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "water_idle0": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "water_idle1": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "blood_idle0": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "blood_idle1": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    }
+  }
+}

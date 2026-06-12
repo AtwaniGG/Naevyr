@@ -22,6 +22,11 @@ export class PlayerState extends Schema {
   @type("string") title = "Drifter";
   @type("string") aura = "";
   @type("string") pet = "";
+  /** premium avatar ("" = the wanderer) + its two channel options — accepted
+   *  only when the player owns the avatar (prestige, burned for) */
+  @type("string") avatar = "";
+  @type("string") avA = "";
+  @type("string") avB = "";
   /** guild tag ("" = guildless) — server-set, never client-chosen */
   @type("string") guildTag = "";
 }

@@ -25,6 +25,7 @@ export interface SaveData {
   ownedEyes?: string[];
   ownedAuras?: string[];
   ownedPets?: string[];
+  ownedAvatars?: string[];
   ownedTitles?: string[];
   gold: number;
   driftSeason: number;
@@ -109,6 +110,7 @@ export function buildSnapshot(): SaveData {
     ownedEyes: s.ownedEyes,
     ownedAuras: s.ownedAuras,
     ownedPets: s.ownedPets,
+    ownedAvatars: s.ownedAvatars,
     ownedTitles: s.ownedTitles,
     gold: s.gold,
     driftSeason: s.driftSeason,
@@ -150,6 +152,9 @@ export function applySnapshot(data: SaveData) {
     ownedEyes: ownedEyes as never,
     ownedAuras: (data.ownedAuras ?? []) as never,
     ownedPets: (data.ownedPets ?? []) as never,
+    // NOT grandfathered from the worn look: ownership is server-authoritative
+    // (the profile's prestige list re-grants after this runs)
+    ownedAvatars: (data.ownedAvatars ?? []) as never,
     ownedTitles: data.ownedTitles ?? [],
     ...(data.stats
       ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never }

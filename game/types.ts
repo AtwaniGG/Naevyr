@@ -36,15 +36,28 @@ export const AURA_CATALOG: Record<
   bonewisp:        { label: "Bonewisp", price: 0, color: "#d8cfe0", driftsOnly: true },
 };
 
+// ─── Premium avatars: whole other bodies, DRIFTS burns only ───────────────────
+// The art lives in game/render/sprites.ts (DS avatars.js port); this table is
+// the shared truth for the HUD shop, the server's identity validation and the
+// codex. Each kind has two cosmetic channels; options are locked-ramp names.
+export type AvatarKind = "ashbound" | "mireborn" | "bonecaller" | "veilborn";
+export const AVATAR_CHANNELS: Record<AvatarKind, Record<string, readonly string[]>> = {
+  ashbound:   { seam:   ["ember", "gold", "blood", "drift", "bone"],  wrap:   ["stone", "dirt", "blood", "bone", "drift"] },
+  mireborn:   { flame:  ["ember", "drift", "gold", "water", "blood"], shawl:  ["grass", "dirt", "stone", "water", "bone"] },
+  bonecaller: { socket: ["drift", "ember", "gold", "blood", "water"], mantle: ["bone", "stone", "gold", "dirt", "blood"] },
+  veilborn:   { veil:   ["stone", "drift", "blood", "water", "bone"], mote:   ["drift", "ember", "gold", "water", "blood"] },
+};
+export const AVATAR_KINDS = Object.keys(AVATAR_CHANNELS) as AvatarKind[];
+
 // ─── Drift-touched cosmetics (Phase 6): DRIFTS burns only, never gold ─────────
 // One shared catalog so the Dyeworks panel, the server's burn validation and
 // the codex all read the same truth. `action` keys into BURN_COSTS.
-export type PrestigeKind = "dye" | "aura" | "title";
+export type PrestigeKind = "dye" | "aura" | "title" | "avatar";
 export interface PrestigeEntry {
   kind: PrestigeKind;
   label: string;
   desc: string;
-  action: "prestigeDye" | "prestigeAura" | "prestigeTitle";
+  action: "prestigeDye" | "prestigeAura" | "prestigeTitle" | "prestigeAvatar";
 }
 export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   drift: {
@@ -74,6 +87,23 @@ export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   driftmarked: {
     kind: "title", label: "Drift-Marked", action: "prestigeTitle",
     desc: "the corruption knows you on sight",
+  },
+  // premium avatars: bound to the buyer, never on the relic stall
+  ashbound: {
+    kind: "avatar", label: "The Ashbound", action: "prestigeAvatar",
+    desc: "a burned penitent of the Ashen Flats. The fire never quite left",
+  },
+  mireborn: {
+    kind: "avatar", label: "The Mireborn", action: "prestigeAvatar",
+    desc: "a bog seer of Hollowmere, lantern guttering at the belt",
+  },
+  bonecaller: {
+    kind: "avatar", label: "The Bonecaller", action: "prestigeAvatar",
+    desc: "an ossuary priest of the Bonefields. The mantle clicks when it moves",
+  },
+  veilborn: {
+    kind: "avatar", label: "The Veilborn", action: "prestigeAvatar",
+    desc: "one the Drift gave back. The hem never touches the ground",
   },
 };
 
@@ -119,6 +149,7 @@ export const BURN_COSTS = {
   prestigeDye: 15_000,   // Drift-touched cloak dye (burn-only, never gold)
   prestigeAura: 25_000,  // Drift-touched aura (burn-only, never gold)
   prestigeTitle: 40_000, // Drift-touched title (burn-only, never gold)
+  prestigeAvatar: 30_000, // a premium avatar: a whole other body (burn-only)
   driftSpin: 5_000,      // one Drift Wheel spin (gacha cosmetics)
   cache: 12_000,         // a Drift Cache = 3 Drift Wheel spins (20% off)
   guildFound: 50_000,    // found a guild (also requires holding ≥ GUILD.foundHold)

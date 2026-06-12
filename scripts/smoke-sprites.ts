@@ -303,6 +303,48 @@ for (const key of Object.keys(PRESTIGE_AURAS) as PrestigeAuraKey[]) {
   }
 }
 
+// premium avatars (DS avatars.js port): every kind × facing × anim frame,
+// 32×40, plus channel swaps, portraits and the Drift Mirror fixture
+import {
+  drawAvatar, drawAvatarPortrait, fxMirror, AVATAR_KINDS, AVATAR_CHANNELS,
+} from "../game/render/sprites";
+{
+  const AV_ANIMS = [["idle", 2], ["walk", 6], ["swing", 4]] as const;
+  for (const kind of AVATAR_KINDS) {
+    for (const facing of FACINGS) {
+      for (const [anim, n] of AV_ANIMS) {
+        for (let f = 0; f < n; f++) {
+          try {
+            const g = drawAvatar(kind, facing, anim, f); frames++;
+            if (g.w !== 32 || g.h !== 40) { failures++; console.error(`FAIL avatar ${kind} ${facing}-${anim}#${f}: grid ${g.w}×${g.h}`); }
+            else if (g.d.filter(Boolean).length < 100) { failures++; console.error(`FAIL avatar ${kind} ${facing}-${anim}#${f}: too few pixels`); }
+          } catch (e) { failures++; console.error(`THROW avatar ${kind} ${facing}-${anim}#${f}:`, e); }
+        }
+      }
+    }
+    // both channels swap pixels (option 1 vs the default must differ)
+    const [aOpts, bOpts] = Object.values(AVATAR_CHANNELS[kind]);
+    const base = drawAvatar(kind, "s", "idle", 0);
+    for (const [chan, look] of [["a", { a: aOpts[1] }], ["b", { b: bOpts[1] }]] as const) {
+      const g = drawAvatar(kind, "s", "idle", 0, look); frames++;
+      if (JSON.stringify(g.d) === JSON.stringify(base.d)) {
+        failures++; console.error(`FAIL avatar ${kind}: channel ${chan} swap changed nothing`);
+      }
+    }
+    for (let f = 0; f < 2; f++) {
+      const g = drawAvatarPortrait(kind, f); frames++;
+      if (g.w !== 48 || g.h !== 64 || g.d.filter(Boolean).length < 300) { failures++; console.error(`FAIL portrait ${kind}#${f}`); }
+    }
+  }
+  for (let f = 0; f < 2; f++) {
+    const g = fxMirror(f); frames++;
+    if (g.w !== 32 || g.h !== 48 || g.d.filter(Boolean).length < 400) { failures++; console.error(`FAIL mirror#${f}`); }
+  }
+  if (JSON.stringify(fxMirror(0).d) === JSON.stringify(fxMirror(1).d)) {
+    failures++; console.error("FAIL mirror: ripple frames identical");
+  }
+}
+
 console.log(
   failures === 0
     ? `All ${frames} sprites (beasts + buildings + interiors) generated cleanly.`

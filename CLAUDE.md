@@ -157,6 +157,25 @@ docs whitepaper embeds DS art via its `Art` component (frame-sheet aware:
 hero_vista intro, gate_door in the gate chapter, emblem-64 in the DRIFTS
 chapter).
 
+**AVATAR SET (done, 2026-06-12):** `_gen/avatars.js` ported — 17/17 byte-exact
+(`tmp-compare-avatars.ts`): 4 premium playable characters (ashbound/mireborn/
+bonecaller/veilborn), wanderer-rig compatible (32×40, 5 facings, idle 2f/walk
+6f/swing 4f, same swing pivot; worn gear overlays line up via
+`avatarWornGear`). Two ramp-swap cosmetic channels per kind — the channel
+table `AVATAR_CHANNELS` lives in game/types.ts (shared truth: sprites render,
+server validates, HUD lists). 48×64 shop portraits (`drawAvatarPortrait`) +
+the Drift Mirror interior fixture (`fxMirror` 32×48 2f, in the Dyeworks at
+7,5). FEATURE: avatars are PRESTIGE cosmetics (PRESTIGE_CATALOG kind
+"avatar", keys = the kinds, `prestigeAvatar` 30k◆ in BURN_COSTS) riding the
+existing generic prestige burn rail; SOUL-BOUND (relicList refuses them).
+PlayerState syncs avatar/avA/avB (identity handler prestige-gates the kind,
+whitelists channel options; verify-multiplayer covers the spoof rejection).
+Try-on: Dyeworks keeper menu "The glass" → `avatarPreview` bus event →
+engine draws it on YOUR sprite only (cleared on interior exit/dialogue
+close, never synced/saved). Equip + channel pickers also in the You panel
+(owned only). Ownership restores via the profile prestige list; ownedAvatars
+in SaveData is cache only, never grandfathered from the worn look.
+
 **TOWN SET (done):** `_gen/town.js` is ported in `makeBuildingSprite()` —
 verified pixel-identical to the DS SVG exports. Key mapping: DS `casino` → our
 `wheel`, DS `tavern` → our `lantern`. Houses 144×152, shrine 112×128 (3 flame

@@ -5,6 +5,7 @@ import LandingShell from "@/components/LandingShell";
 import {
   BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET,
+  PRESTIGE_CATALOG, AVATAR_KINDS, AVATAR_CHANNELS,
 } from "@/game/types";
 
 // The whitepaper: everything the realm is and how it works, in one document.
@@ -262,7 +263,9 @@ export default function DocsPage() {
           <H id="waystation">The Waystation</H>
           <P>Nine structures stand in and around town, each with a keeper and a purpose:</P>
           <P>
-            <Gold>The Dyeworks</Gold> sells cloak dyes, eye glows and auras.{" "}
+            <Gold>The Dyeworks</Gold> sells cloak dyes, eye glows and auras,
+            and keeps the Drift Mirror: premium avatars are tried on at the
+            glass before any DRIFTS burn.{" "}
             <Gold>The Vault</Gold> holds gold safe from your tombstone (2%
             withdrawal fee). <Gold>The Wheel</Gold> spins for gold, shards or
             nothing, jackpot 500g. <Gold>The Last Lantern</Gold> pours drinks
@@ -452,6 +455,7 @@ export default function DocsPage() {
                   ["prestigeDye", "Drift-touched cloak dye (burn-only)"],
                   ["prestigeAura", "Drift-touched aura (burn-only)"],
                   ["prestigeTitle", "Drift-touched title (burn-only)"],
+                  ["prestigeAvatar", "Premium avatar: a whole other body (burn-only)"],
                   ["guildFound", "Found a guild (also requires holding 25,000)"],
                   ["guildTerritory", "Stake a guild banner over a region (48h)"],
                   ["guildUpkeep", "Feed the banner (+48h, any member)"],
@@ -480,6 +484,36 @@ export default function DocsPage() {
             it forever: the Founder title and the Ashen Crown, never grantable
             again after the window closes.
           </P>
+          <P>
+            <Gold>Premium avatars</Gold> are the top of that shelf: four whole
+            other bodies, each <Gold>{burnAmt(BURN_COSTS.prestigeAvatar)} DRIFTS</Gold>,
+            each with two dye channels of its own. Every one is tried on at the
+            Dyeworks&apos; Drift Mirror before the burn; what the glass shows
+            is exactly what the realm sees. They are bound to the buyer and
+            never trade.
+          </P>
+          <div style={{ overflowX: "auto", margin: "12px 0" }}>
+            <table style={{ borderCollapse: "collapse", font: "400 12px/1.5 var(--font-ui)", color: "var(--text-secondary)", minWidth: 480 }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
+                  <th style={{ padding: "5px 10px" }}>Avatar</th>
+                  <th style={{ padding: "5px 10px" }}>Who they were</th>
+                  <th style={{ padding: "5px 10px" }}>Dye channels</th>
+                </tr>
+              </thead>
+              <tbody>
+                {AVATAR_KINDS.map((k) => (
+                  <tr key={k}>
+                    <td style={{ padding: "5px 10px", color: "#d8b4fe" }}>{PRESTIGE_CATALOG[k].label}</td>
+                    <td style={{ padding: "5px 10px" }}>{PRESTIGE_CATALOG[k].desc}.</td>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>
+                      {Object.keys(AVATAR_CHANNELS[k]).join(" · ")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <P>
             The server builds and fee-pays every burn transaction, so players
             need zero SOL; your wallet only countersigns the burn itself. A
@@ -580,8 +614,8 @@ export default function DocsPage() {
             seller's wallet directly on-chain; the realm takes{" "}
             <Gold>{Math.round(RELIC_MARKET.feePct * 100)}% and burns it</Gold>.
             Worked through: a relic sold at 30,000 DRIFTS pays the seller
-            28,500 and burns 1,500 forever. Titles are soul-bound and never
-            trade. The server verifies both legs of every sale and moves the
+            28,500 and burns 1,500 forever. Titles and premium avatars are
+            soul-bound and never trade. The server verifies both legs of every sale and moves the
             ownership itself — a relic worn is a relic owned, provably.
           </P>
 
@@ -649,14 +683,45 @@ export default function DocsPage() {
           </P>
 
           <H id="tokenomics">Tokenomics</H>
+          <Sub>At a glance</Sub>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.7 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <tbody>
+                {([
+                  ["Ticker", "DRIFTS"],
+                  ["Network", "Solana"],
+                  ["Standard", "SPL Token"],
+                  ["Total supply", "1,000,000,000 (fixed, minted once)"],
+                  ["Decimals", "6"],
+                  ["Launch", "pump.fun, fair-launch bonding curve"],
+                  ["New issuance", "none. Mint authority revoked at launch"],
+                  ["Entry gate", "hold 1,000 DRIFTS to enter the realm"],
+                  ["Contract", "posted here at launch (verify on Solscan)"],
+                ] as [string, string][]).map(([k, v]) => (
+                  <tr key={k}>
+                    <td style={{ padding: "5px 10px", color: "var(--drift-gold)", whiteSpace: "nowrap", verticalAlign: "top", borderBottom: "1px solid rgba(124,58,237,0.12)" }}>{k}</td>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)", borderBottom: "1px solid rgba(124,58,237,0.12)" }}>{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <P>
-            <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana (6
-            decimals). The beta runs on a devnet test mint with no value; the
-            real coin launches on pump.fun, a fair-launch bonding curve: no
-            presale, no allocation rounds, pump.fun's standard fixed supply of
-            one billion minted once, with the realm's keepers buying on the
-            same curve as everyone else. After launch nothing can mint more.
-            The realm's design only ever removes coins from circulation.
+            <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana with six
+            decimals. The beta runs on a devnet test mint with no value; the
+            real coin launches on pump.fun. The supply is one billion, minted
+            once; after launch nothing can mint more, and the realm's design
+            only ever removes coins from circulation.
+          </P>
+          <P>
+            <Gold>Distribution.</Gold> It is a fair launch, not a raise. There
+            is <Gold>no presale, no private round, no venture allocation, no
+            team set-aside and no vesting schedule</Gold>. The entire supply
+            enters circulation through pump.fun's public bonding curve, where
+            the first coin and the last are bought on the same terms. Any DRIFTS
+            the realm's keepers hold were bought on that open curve, like yours.
+            Nothing was minted to insiders, and there are no locked tranches
+            waiting to unlock on you.
           </P>
           <P>
             <Gold>Demand.</Gold> Three forces pull DRIFTS into wallets, all of
@@ -705,6 +770,31 @@ export default function DocsPage() {
             math, working as a sink; claims erode every season; the vault
             takes up to 2% on withdrawal; death drops half your purse.
           </P>
+          <Sub>The treasury · where the other half goes</Sub>
+          <P>
+            The tithed half is not profit skimmed off players; it funds the
+            realm and, by design, pushes back toward the coin. It pays for{" "}
+            <Gold>development and servers</Gold>, tops up the{" "}
+            <Gold>relayer wallet</Gold> that fee-pays every burn so players need
+            zero SOL, and seeds the <Gold>Exchange's float</Gold> once that
+            opens. After the mainnet launch the treasury also funds{" "}
+            <Gold>buyback-and-burn</Gold>: coins bought back off the open market
+            and destroyed, the same direction as every rite. The treasury is a
+            wallet the keepers control and post publicly; every coin it receives
+            arrives as an on-chain tithe leg anyone can read.
+          </P>
+          <Sub>Liquidity and the curve</Sub>
+          <P>
+            pump.fun provides liquidity from the first second through its
+            bonding curve: the curve itself is the market, so there is always a
+            price to buy or sell at. As the curve fills it{" "}
+            <Gold>graduates</Gold> to a decentralized exchange, where its
+            liquidity migrates into an open pool and ordinary on-chain trading
+            takes over. Price is whatever the market sets, moment to moment.
+            There is <Gold>no price floor, no guaranteed buyback, and no promise
+            the pool stays deep</Gold>. Liquidity can thin and the price can
+            fall to zero.
+          </P>
           <P>
             <Gold>The flywheel.</Gold> The loop is mechanical, not a promise:
             rites consume DRIFTS; half of every rite is burned, shrinking
@@ -725,6 +815,17 @@ export default function DocsPage() {
             on the realm's ledgers and is not the coin. Anything that would
             make DRIFTS flow FROM the realm TO players is designed out on
             purpose.
+          </P>
+          <Sub>Verify it yourself</Sub>
+          <P>
+            None of this asks for trust. The coin is an SPL token anyone can
+            inspect on a Solana explorer: total supply, the revoked mint
+            authority, every holder and every burn. Each rite's burn and tithe
+            are on-chain transactions; the realm's{" "}
+            <Gold>lifetime burn counter</Gold> sums them in public, and the{" "}
+            <Gold>leaderboard</Gold> shows the live wealth distribution. The
+            entry gate and the standing tiers only ever READ balances; you can
+            confirm that on-chain too. When in doubt, read the chain.
           </P>
           <P>
             <Gold>Ahead.</Gold> After the mainnet launch comes the Exchange: a

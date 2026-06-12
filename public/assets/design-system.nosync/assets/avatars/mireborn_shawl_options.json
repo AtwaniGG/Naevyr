@@ -1,0 +1,74 @@
+{
+  "image": "avatars/mireborn_shawl_options.svg",
+  "channel": "shawl",
+  "options": [
+    "grass",
+    "dirt",
+    "stone",
+    "water",
+    "bone"
+  ],
+  "layout": "s-facing idle row (idle0,idle1) per option",
+  "frames": {
+    "grass_idle0": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "grass_idle1": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "dirt_idle0": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "dirt_idle1": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "stone_idle0": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "stone_idle1": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "water_idle0": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "water_idle1": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "bone_idle0": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    },
+    "bone_idle1": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40
+    }
+  }
+}

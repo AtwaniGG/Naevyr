@@ -433,6 +433,92 @@ function drawMine() {
   return g;
 }
 
+// Drift Mirror — tall standing mirror, bone-and-iron frame, 32×48, bottom-center
+// anchor (16,47). The glass is NOT reflective: it swirls dark with drift-ramp
+// motes ("what the Drift could make of you"). 2-frame ripple. Stands in the
+// Dyeworks. RAMP only, 1px void outline, dither not blur.
+function fxMirror(frame) {
+  frame = frame || 0;
+  const g = makeGrid(32, 48);
+  const bn = RAMP.bone, st = RAMP.stone, dr = RAMP.drift;
+  const cx = 16, baseY = 46;
+
+  // --- iron feet / splayed base ---
+  for (let x = cx - 8; x <= cx + 8; x++) { P(g, x, baseY, st[3]); if (Math.abs(x - cx) > 4) P(g, x, baseY - 1, st[2]); }
+  P(g, cx - 8, baseY - 1, st[3]); P(g, cx + 8, baseY - 1, st[3]);
+  // base post
+  for (let y = baseY - 4; y <= baseY - 1; y++) for (let x = cx - 2; x <= cx + 2; x++) P(g, x, y, x < cx ? st[1] : st[3]);
+
+  // --- bone-and-iron frame (rounded-arch top), glass cavity y 6..40, x 6..25 ---
+  const gx0 = 6, gx1 = 25, gTop = 6, gBot = 40, arch = 6;
+  function inGlass(x, y) {
+    if (x < gx0 || x > gx1 || y > gBot) return false;
+    if (y >= gTop + arch) return true;
+    const mx = (gx0 + gx1) / 2;
+    return (x - mx) * (x - mx) + (y - gTop - arch) * (y - gTop - arch) <= (arch + 3.5) * (arch + 3.5) * ((gx1 - gx0) / 2 / (arch + 3.5)) * ((gx1 - gx0) / 2 / (arch + 3.5));
+  }
+  // frame: a 3px band around the glass cavity, bone outer + iron inner, with arch
+  for (let y = 1; y <= baseY - 4; y++) for (let x = 2; x <= 29; x++) {
+    if (inGlass(x, y)) continue;
+    // distance-to-cavity test: draw frame where near the glass region box
+    const nearX = x >= gx0 - 4 && x <= gx1 + 4, nearY = y >= gTop - 4 && y <= gBot + 4;
+    if (!nearX || !nearY) continue;
+    // inner iron ring (touching glass) vs outer bone
+    let touchesGlass = false;
+    for (let oy = -1; oy <= 1 && !touchesGlass; oy++) for (let ox = -1; ox <= 1; ox++) if (inGlass(x + ox, y + oy)) { touchesGlass = true; break; }
+    let c;
+    if (touchesGlass) c = st[3];                                  // iron lip on the glass
+    else {
+      c = bn[1];
+      if (x < gx0 - 1) c = bn[0];                                  // moonlit left
+      if (x > gx1 + 1) c = bn[2];                                  // shadow right
+      if (y < gTop) c = bn[0];
+      if (hash2(x, y, 51) < 0.10) c = bn[2];                       // bone grain
+      // iron rivets at the corners + arch crown
+      if ((Math.abs(x - gx0) < 2 || Math.abs(x - gx1) < 2) && (Math.abs(y - gBot) < 2)) c = st[2];
+    }
+    P(g, x, y, c);
+  }
+  // arch crown ornament (a small drift crystal set in the bone)
+  P(g, cx, gTop - 4, dr[0]); P(g, cx, gTop - 3, dr[1]); P(g, cx - 1, gTop - 2, dr[2]); P(g, cx + 1, gTop - 2, dr[2]); P(g, cx, gTop - 2, dr[1]);
+
+  // --- the glass: dark swirling Drift (NOT reflective), 2-frame ripple ---
+  const mx = (gx0 + gx1) / 2, my = (gTop + arch + gBot) / 2;
+  for (let y = gTop - arch; y <= gBot; y++) for (let x = gx0; x <= gx1; x++) {
+    if (!inGlass(x, y)) continue;
+    const dx = x - mx, dy = (y - my) * 1.4;
+    const rad = Math.sqrt(dx * dx + dy * dy);
+    const ang = Math.atan2(dy, dx);
+    // swirl field: phase shifts between frames for the ripple
+    const swirl = Math.sin(ang * 2 + rad * 0.5 - frame * 1.7);
+    let c;
+    if (swirl > 0.55) c = dr[2];
+    else if (swirl > 0.0) c = dr[3];
+    else c = RAMP.void;
+    // dithered mid tone so it reads as depth, not flat
+    if (c === dr[3] && (x + y) % 2 === 0) c = dr[4] || dr[3];
+    P(g, x, y, c);
+  }
+  // floating drift motes in the glass (drift up, reposition per frame)
+  const mr = mulberry(frame + 3);
+  for (let i = 0; i < 9; i++) {
+    let mxx = gx0 + 1 + Math.floor(mr() * (gx1 - gx0 - 1));
+    let myy = gTop + arch - 2 + Math.floor(mr() * (gBot - gTop - arch));
+    myy -= frame * 2;                                              // rise between frames
+    if (!inGlass(mxx, myy)) continue;
+    const bright = i % 3 === 0;
+    P(g, mxx, myy, bright ? dr[0] : dr[1]);
+    if (bright) { P(g, mxx, myy - 1, dr[2]); }
+  }
+  // a faint pale "figure" hint deep in the glass (what the Drift could make of you)
+  const fy = my + (frame ? 1 : 0);
+  for (let y = fy - 6; y <= fy + 6; y++) { const w = y < fy - 2 ? 1 : 2; for (let x = mx - w; x <= mx + w; x++) if (inGlass(x, y) && hash2(x, y, 60 + frame) < 0.5) P(g, x, y, dr[2]); }
+  P(g, mx, fy - 5, dr[1]); P(g, mx - 1, fy - 4, dr[1]); P(g, mx + 1, fy - 4, dr[1]);  // shoulders/head hint
+
+  outline(g, RAMP.void);
+  return g;
+}
+
 /* ============================ REGISTRIES ============================ */
 const FLOORS = { floor_wood: 'wood', floor_stone: 'stone', floor_cave: 'cave' };
 
@@ -455,10 +541,11 @@ const FIX = {
   anvil:      { fn: fxAnvil,      cell: [28, 24], anchor: [14, 23] },
   wheel_stand:{ fn: fxWheelStand, cell: [34, 40], anchor: [17, 39] },
   ore_cart:   { fn: fxOreCart,    cell: [36, 28], anchor: [18, 26] },
+  mirror:     { fn: fxMirror,     cell: [32, 48], anchor: [16, 47], frames: 2, fps: 2 },
 };
 
 Object.assign(globalThis, {
   makeFloorTile, wallSegment, isoCuboid,
-  fxCounter, fxShelf, fxTable, fxBarrel, fxVat, fxCage, fxAnvil, fxWheelStand, fxHearth, fxRug, fxGoldVein, fxOreCart,
+  fxCounter, fxShelf, fxTable, fxBarrel, fxVat, fxCage, fxAnvil, fxWheelStand, fxHearth, fxRug, fxGoldVein, fxOreCart, fxMirror,
   drawMine, FLOORS, WALLS, FIX, VAT_LIQUIDS,
 });

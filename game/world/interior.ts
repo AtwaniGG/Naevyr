@@ -9,7 +9,7 @@ import { BuildingKey } from "@/game/world/tilemap";
 export type FixtureKind =
   | "counter" | "vat" | "shelf" | "table" | "barrel"
   | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart" | "herbrack"
-  | "exchange";
+  | "exchange" | "mirror";
 
 export interface InteriorFixture {
   kind: FixtureKind;
@@ -47,7 +47,7 @@ export interface InteriorSpec {
 
 const SOLID_KINDS: FixtureKind[] = [
   "counter", "vat", "shelf", "table", "barrel", "cage", "anvil", "wheelDisc", "hearth", "oreCart", "herbrack",
-  "exchange",
+  "exchange", "mirror",
 ];
 
 export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
@@ -63,6 +63,8 @@ export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
       { kind: "vat", x: 7, y: 3, accent: "#4d7c4d" },
       { kind: "shelf", x: 6, y: 1 },
       { kind: "rug", x: 4, y: 4 },
+      // the Drift Mirror: premium avatars are tried on at the glass
+      { kind: "mirror", x: 7, y: 5 },
     ],
   },
   vault: {

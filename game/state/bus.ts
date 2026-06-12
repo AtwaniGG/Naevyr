@@ -28,6 +28,10 @@ type Events = {
   challenge: { target: string; wager: number };
   /** accept the pending duel challenge */
   duelAccept: boolean;
+  /** post a stake and wait in the Pit's ring (the arena queue) */
+  pitJoin: number;
+  /** abandon the open arena challenge */
+  pitLeave: boolean;
   /** start the Solana wallet link flow (devnet); false = unlink */
   walletLink: boolean;
   /** burn-paid Wheel spin (holders only) */
@@ -42,6 +46,9 @@ type Events = {
   reinforceBurn: boolean;
   /** burn-paid Drift-touched cosmetic (payload = prestige catalog key) */
   prestigeBurn: string;
+  /** the Dyeworks glass: try a premium avatar on your own draw (null = take
+   *  it off; never synced, cleared on interior exit) */
+  avatarPreview: { kind: string; a: string; b: string } | null;
   /** burn-paid Drift Wheel spin (gacha cosmetics) */
   driftSpinBurn: boolean;
   /** burn-paid Drift Cache (3 spins bundled) */

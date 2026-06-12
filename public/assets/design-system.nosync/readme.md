@@ -491,7 +491,17 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `social-preview.html` — coin/avatar marks, banner & an X-profile mock with safe-zone notes.
   - `threshold-preview.html` — gate (sealed/open), gatewarden facings, beacon, drift-wall tiling & path accents, all cycling live.
   - `systems-preview.html` — wheel faces (with segment angles), guild banner sway + fallen, drift cache states, the Exchange counter.
+  - `avatars-preview.html` — the four premium avatars animating (idle/walk/swing) beside the wanderer for scale, with channel swatches & shop portraits.
+  - `mirror-preview.html` — the Drift Mirror rippling beside the hearth for scale.
   - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
+  - `avatars/` — **four premium playable avatars** (DRIFTS cosmetics, drop-in on the wanderer
+    rig: 32×40, 5 facings, idle 2f/walk 6f/swing 4f, identical swing pivot/arc + hit-spark, so
+    baked gear overlays still line up). `ashbound` (burned penitent — ember seams, chest straps,
+    topknot), `mireborn` (bog seer — reed shawl, belt lantern, root-staff), `bonecaller` (skull-
+    mask priest — hanging-bone mantle, bandage arms), `veilborn` (weightless — floating veil,
+    drift-mote feet, afterimage). Each has two ramp-swap cosmetic channels (5 locked-ramp
+    options each, baked at draw time — `look {a,b}`), a `<kind>_<channel>_options.svg` proof
+    strip per channel, and a `portrait_<kind>` 48×64 shop bust (2f idle). Ramps per kind in JSON.
   - `wheel/` — **spin-wheel faces** (DOM HUD art, 240×240, 2-frame rim shimmer @2fps):
     `wheel_of_the_drift` (gold, 6 segments — house/coin_poor/coin_rich/jackpot/drift_shard/coin_mid)
     and `the_drift_wheel` (dark gacha, 8 segments incl. a searing relic sliver). Each JSON lists
@@ -505,8 +515,12 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     `states` table gives each state's start frame + fps. Ramp: iron(stone)+drift+gold.
   - `interiors/exchange_counter` — **the Exchange** (48×48, anchor 24,47): brass balance scales,
     gold pan vs violet-glow DRIFTS pan, 2-frame tip-totter @2fps. Ramp: gold(brass)+drift+dirt.
+  - `interiors/mirror` — **the Drift Mirror** (32×48, anchor 16,47): tall bone-and-iron standing
+    mirror whose glass is NOT reflective — it swirls dark with drift motes (2-frame ripple @2fps),
+    a faint figure hint deep inside. Stands in the Dyeworks for premium-avatar try-on. Ramp:
+    drift(glass) + bone/stone(frame).
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
-    `character.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
+    `character.js`, `avatars.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
     `landing.js`, `social.js`, `threshold.js`, `auras.js`, `wheelfaces.js`, `guildbanner.js`,
     `cache.js`, `exchange.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.

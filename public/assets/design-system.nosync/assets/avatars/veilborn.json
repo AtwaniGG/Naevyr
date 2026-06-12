@@ -1,0 +1,797 @@
+{
+  "image": "avatars/veilborn.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "rig": "wanderer-compatible",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "ramp": "stone/drift(veil) + drift(mote)",
+  "frameByFrameXOffset": true,
+  "channels": {
+    "veil": [
+      "stone",
+      "drift",
+      "blood",
+      "water",
+      "bone"
+    ],
+    "mote": [
+      "drift",
+      "ember",
+      "gold",
+      "water",
+      "blood"
+    ]
+  },
+  "channelNote": "look {a,b}: a=veil, b=mote; each value is a locked RAMP name. Baked at draw time.",
+  "frames": {
+    "veilborn-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_04": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-s_05": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-s_00": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-s_01": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-s_02": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-s_03": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_00": {
+      "x": 64,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_01": {
+      "x": 96,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_02": {
+      "x": 128,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_03": {
+      "x": 160,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_04": {
+      "x": 192,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-se_05": {
+      "x": 224,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-se_00": {
+      "x": 256,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-se_01": {
+      "x": 288,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-se_02": {
+      "x": 320,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-se_03": {
+      "x": 352,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_00": {
+      "x": 64,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_01": {
+      "x": 96,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_02": {
+      "x": 128,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_03": {
+      "x": 160,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_04": {
+      "x": 192,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-e_05": {
+      "x": 224,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-e_00": {
+      "x": 256,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-e_01": {
+      "x": 288,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-e_02": {
+      "x": 320,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-e_03": {
+      "x": 352,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_00": {
+      "x": 64,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_01": {
+      "x": 96,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_02": {
+      "x": 128,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_03": {
+      "x": 160,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_04": {
+      "x": 192,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-ne_05": {
+      "x": 224,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-ne_00": {
+      "x": 256,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-ne_01": {
+      "x": 288,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-ne_02": {
+      "x": 320,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-ne_03": {
+      "x": 352,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_00": {
+      "x": 64,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_01": {
+      "x": 96,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_02": {
+      "x": 128,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_03": {
+      "x": 160,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_04": {
+      "x": 192,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-walk-n_05": {
+      "x": 224,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-n_00": {
+      "x": 256,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-n_01": {
+      "x": 288,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-n_02": {
+      "x": 320,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "veilborn-swing-n_03": {
+      "x": 352,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "veilborn-idle-s_00",
+        "veilborn-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "veilborn-walk-s_00",
+        "veilborn-walk-s_01",
+        "veilborn-walk-s_02",
+        "veilborn-walk-s_03",
+        "veilborn-walk-s_04",
+        "veilborn-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-s": {
+      "frames": [
+        "veilborn-swing-s_00",
+        "veilborn-swing-s_01",
+        "veilborn-swing-s_02",
+        "veilborn-swing-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "veilborn-idle-se_00",
+        "veilborn-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "veilborn-walk-se_00",
+        "veilborn-walk-se_01",
+        "veilborn-walk-se_02",
+        "veilborn-walk-se_03",
+        "veilborn-walk-se_04",
+        "veilborn-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-se": {
+      "frames": [
+        "veilborn-swing-se_00",
+        "veilborn-swing-se_01",
+        "veilborn-swing-se_02",
+        "veilborn-swing-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "veilborn-idle-e_00",
+        "veilborn-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "veilborn-walk-e_00",
+        "veilborn-walk-e_01",
+        "veilborn-walk-e_02",
+        "veilborn-walk-e_03",
+        "veilborn-walk-e_04",
+        "veilborn-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-e": {
+      "frames": [
+        "veilborn-swing-e_00",
+        "veilborn-swing-e_01",
+        "veilborn-swing-e_02",
+        "veilborn-swing-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "veilborn-idle-ne_00",
+        "veilborn-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "veilborn-walk-ne_00",
+        "veilborn-walk-ne_01",
+        "veilborn-walk-ne_02",
+        "veilborn-walk-ne_03",
+        "veilborn-walk-ne_04",
+        "veilborn-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-ne": {
+      "frames": [
+        "veilborn-swing-ne_00",
+        "veilborn-swing-ne_01",
+        "veilborn-swing-ne_02",
+        "veilborn-swing-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "veilborn-idle-n_00",
+        "veilborn-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "veilborn-walk-n_00",
+        "veilborn-walk-n_01",
+        "veilborn-walk-n_02",
+        "veilborn-walk-n_03",
+        "veilborn-walk-n_04",
+        "veilborn-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-n": {
+      "frames": [
+        "veilborn-swing-n_00",
+        "veilborn-swing-n_01",
+        "veilborn-swing-n_02",
+        "veilborn-swing-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

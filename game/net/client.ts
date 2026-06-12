@@ -17,6 +17,9 @@ export interface NetPlayer {
   title: string;
   aura: string;
   pet: string;
+  avatar: string;
+  avA: string;
+  avB: string;
   guildTag: string;
 }
 
@@ -262,7 +265,7 @@ export class NetClient {
 
   sendIdentity(id: {
     name: string; dye: string; eye: string; title: string;
-    aura: string; pet: string;
+    aura: string; pet: string; avatar: string; avA: string; avB: string;
   }) {
     this.safeSend("identity", id);
   }
@@ -377,6 +380,14 @@ export class NetClient {
 
   sendDuelHit(dmg: number) {
     this.safeSend("duelHit", { dmg });
+  }
+
+  sendPitJoin(wager: number) {
+    this.safeSend("pitJoin", { wager });
+  }
+
+  sendPitLeave() {
+    this.safeSend("pitLeave");
   }
 
   requestWalletNonce() {

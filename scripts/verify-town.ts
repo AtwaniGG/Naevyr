@@ -19,7 +19,7 @@ const MUTE = [
   "claimPlaced", "claimFallen", "listResult", "unlistResult", "buyResult", "sold",
   "bankResult", "spinResult", "cleansing", "propResult", "challenged",
   "duelStart", "duelHp", "duelEnd", "claimResult", "goldSync", "invSync",
-  "donateResult", "duelRefused",
+  "donateResult", "duelRefused", "pitQueue",
 ];
 function mute(room: Room<any>) {
   for (const t of MUTE) room.onMessage(t, () => {});
@@ -153,6 +153,41 @@ async function main() {
   clearInterval(hitTimer);
   check("duel ends with A victorious", de?.winner === a2.sessionId, de ? `winner=${de.winnerName}, pot=${de.pot}g` : "timed out");
   check("pot equals both wagers", de?.pot === 100, `pot=${de?.pot}`);
+
+  // ---- the arena queue: post a stake, the next wanderer who steps up matches -------
+  {
+    const posted = once<any>(b, "pitQueue");
+    a2.send("pitJoin", { wager: 30 });
+    const q = await posted;
+    check("arena stake posted to the realm", q?.wager === 30 && q?.sessionId === a2.sessionId,
+      q ? `${q.name} waits at ${q.wager}g` : "timed out");
+
+    const qStarted = once<any>(b, "duelStart");
+    b.send("pitJoin", { wager: 30 });
+    const qs = await qStarted;
+    check("queue match starts the duel", qs !== null && qs.wager === 30,
+      qs ? `${qs.nameA} vs ${qs.nameB}` : "timed out");
+
+    // both fighters were seated INSIDE the ring (the arena seal)
+    await wait(400);
+    const pa = b.state.players.get(a2.sessionId);
+    const pb = b.state.players.get(b.sessionId);
+    const inRing = (p: any) => p && Math.abs(p.x - 20) <= 2 && Math.abs(p.y - 32) <= 2;
+    check("both fighters seated in the ring", inRing(pa) && inRing(pb),
+      `a=(${pa?.x},${pa?.y}) b=(${pb?.x},${pb?.y})`);
+
+    // a sealed duelist cannot walk out: a move far away clamps to the ring
+    b.send("move", { x: 5, y: 5 });
+    await wait(1200);
+    const pb2 = b.state.players.get(b.sessionId);
+    check("the seal holds (move clamped to the ring)", inRing(pb2), `b=(${pb2?.x},${pb2?.y})`);
+
+    const qEnded = once<any>(a2, "duelEnd", 20_000);
+    const t2 = setInterval(() => a2.send("duelHit", { dmg: 25 }), 950);
+    const qe = await qEnded;
+    clearInterval(t2);
+    check("queue duel ends with a winner", qe?.winner === a2.sessionId, `pot=${qe?.pot}`);
+  }
 
   await a2.leave();
   await b.leave();

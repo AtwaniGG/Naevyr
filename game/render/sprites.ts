@@ -3,6 +3,8 @@
 // All sprites are generated once at init() into OffscreenCanvas objects and
 // drawn with imageSmoothingEnabled=false for crisp pixel scaling at any zoom.
 
+import { AVATAR_CHANNELS, AVATAR_KINDS, type AvatarKind } from '@/game/types';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Grid = { w: number; h: number; d: (Pixel | null)[] };
@@ -466,10 +468,15 @@ export const EYE_GLOWS = {
 } as const;
 export type EyeKey = keyof typeof EYE_GLOWS;
 
-/** how the wanderer presents: dye + eye glow (cosmetic, multiplayer-synced) */
+/** how the wanderer presents: dye + eye glow (cosmetic, multiplayer-synced).
+ *  A premium avatar replaces the whole body; avA/avB are its two channel
+ *  options (locked-ramp names) and dye/eye are ignored while it's worn. */
 export interface LookVisual {
   dye?: DyeKey;
   eye?: EyeKey;
+  avatar?: AvatarKind | '';
+  avA?: string;
+  avB?: string;
 }
 
 // (exported for the headless smoke test — engine code goes through SpriteCache)
@@ -625,6 +632,374 @@ export function drawWanderer(
   }
 
   outline(g);
+  return g;
+}
+
+// ─── avatars.js — PREMIUM AVATAR SET (4 cosmetic characters, DRIFTS-bought) ──
+// Drop-in compatible with the wanderer rig: 32×40, feet y=37, 5 facings,
+// idle 2f · walk 6f · swing 4f. Two ramp-swap cosmetic channels per kind.
+
+const AV_RAMP: Record<string, readonly string[]> = {
+  ember: RAMP.ember, gold: RAMP.gold, blood: RAMP.blood, drift: RAMP.drift,
+  bone: RAMP.bone, stone: RAMP.stone, dirt: RAMP.dirt, grass: RAMP.grass, water: RAMP.water,
+};
+
+// two cosmetic channels per character (shared table in game/types.ts — the
+// server validates identity against the same truth); re-exported for the
+// smoke test + byte-diff script.
+export { AVATAR_CHANNELS, AVATAR_KINDS, type AvatarKind };
+
+/** avatar cosmetic channels: a/b are locked-ramp names (or option indices) */
+export interface AvatarLook { a?: string | number; b?: string | number }
+
+function resolveAvatarLook(kind: AvatarKind, look?: AvatarLook) {
+  const ch = AVATAR_CHANNELS[kind] as Record<string, readonly string[]>;
+  const names = Object.keys(ch);
+  function pick(chanName: string, v: string | number | undefined) {
+    const opts = ch[chanName];
+    if (v == null) return AV_RAMP[opts[0]];
+    if (typeof v === 'number') return AV_RAMP[opts[Math.max(0, Math.min(opts.length - 1, v))]];
+    if (AV_RAMP[v]) return AV_RAMP[v];
+    return AV_RAMP[opts[0]];
+  }
+  return { rA: pick(names[0], look?.a), rB: pick(names[1], look?.b), names };
+}
+
+interface AvatarRig {
+  cx: number; dir: number; off: number; showFace: boolean; back: boolean;
+  bob: number; step: number; hemSway: number; top: number; shoulderY: number;
+}
+
+function avatarRig(facing: IsoFacing, anim: AnimName, f: number): AvatarRig {
+  const cx = 16;
+  const dir = ({ s: 0, se: 1, e: 2, ne: 3, n: 4 } as Record<IsoFacing, number>)[facing];
+  const off = [0, 1, 2, 1, 0][dir];
+  const showFace = dir <= 2;
+  const back = dir >= 3;
+  let bob = 0, step = 0, hemSway = 0;
+  if (anim === 'walk') { bob = [0, -1, 0, 0, -1, 0][f]; step = [2, 1, 0, -2, -1, 0][f]; hemSway = [0, 1, 1, 0, -1, -1][f]; }
+  if (anim === 'idle') { hemSway = f === 1 ? 1 : 0; }
+  return { cx, dir, off, showFace, back, bob, step, hemSway, top: 9 + bob, shoulderY: 18 + bob };
+}
+
+// shared two-foot draw (skip for veilborn). soleRamp solid, toe void.
+function avatarFeet(g: Grid, R: AvatarRig, soleRamp: readonly string[], extraStomp = 0) {
+  const footY = 37 + extraStomp;
+  const fo = R.dir >= 1 ? 1 : 0;
+  P(g, R.cx - 3 + fo + R.step, footY, soleRamp[3]); P(g, R.cx - 2 + fo + R.step, footY, RAMP.void);
+  P(g, R.cx - 3 + fo + R.step, footY - 1, soleRamp[2]);
+  P(g, R.cx + 2 + fo - R.step, footY, RAMP.void); P(g, R.cx + 3 + fo - R.step, footY, soleRamp[3]);
+  P(g, R.cx + 3 + fo - R.step, footY - 1, soleRamp[2]);
+}
+
+// shared swing arm; toolFn(g, ex, ey, f) paints the per-kind weapon head/haft.
+function avatarSwingArm(
+  g: Grid, R: AvatarRig, anim: AnimName, f: number,
+  armRamp: readonly string[], toolFn: (g: Grid, ex: number, ey: number, f: number) => void,
+) {
+  if (anim !== 'swing') return;
+  const hx = R.cx + R.off + 4, hy = R.shoulderY + 2;
+  const ang = [-2.1, -1.35, -0.45, 0.35][f];
+  for (let k = 2; k < 8; k++) {
+    const x = Math.round(hx + Math.cos(ang) * k), y = Math.round(hy + Math.sin(ang) * k);
+    P(g, x, y, k < 4 ? armRamp[2] : RAMP.dirt[0]);    // sleeve/forearm → haft start
+  }
+  const ex = Math.round(hx + Math.cos(ang) * 8), ey = Math.round(hy + Math.sin(ang) * 8);
+  toolFn(g, ex, ey, f);
+}
+
+// 1 · THE ASHBOUND — burned penitent. Broad, no hood, topknot, ember seams.
+function bodyAshbound(g: Grid, R: AvatarRig, anim: AnimName, f: number, seam: readonly string[], wrap: readonly string[]) {
+  const sk = RAMP.bone;                 // ash-grey skin = bone-ramp greys (mids/darks)
+  const { cx, off, dir, top, shoulderY } = R;
+  const flare = anim === 'idle' && f === 1;  // ember seam flares on idle f1
+
+  // broad torso (widest of the set)
+  for (let y = shoulderY; y <= 31; y++) {
+    const t = (y - shoulderY) / (31 - shoulderY);
+    const halfw = Math.round(5 + (1 - t) * 3);        // 8 at shoulders → 5 at waist
+    const cxx = cx + Math.round(off * 0.5);
+    for (let x = cxx - halfw; x <= cxx + halfw; x++) {
+      let c = sk[2];
+      if (x <= cxx - halfw + 1) c = sk[1];            // moonlit
+      if (x >= cxx + halfw - 1) c = sk[3];            // shadow
+      if (hash2(x, y, 71) < 0.10) c = sk[3];          // scars/soot
+      P(g, x, y, c);
+    }
+  }
+  // cracked ember seams glowing through (vertical-ish, dithered)
+  const seamPts: [number, number][] = [[-3, 21], [2, 24], [-1, 27], [4, 22], [-4, 29], [1, 30]];
+  seamPts.forEach((p) => {
+    const x = cx + Math.round(off * 0.5) + p[0], y = p[1];
+    P(g, x, y, flare ? seam[0] : seam[1]);
+    if (flare) { P(g, x, y - 1, seam[2]); P(g, x + 1, y, seam[2]); }
+    else P(g, x, y + 1, seam[3]);
+  });
+  // chest straps (wrap ramp), crossing — symmetric so it mirrors clean
+  for (let k = 0; k <= 9; k++) { const y = shoulderY + 1 + k; P(g, cx + off - 4 + k, y, wrap[1]); P(g, cx + off + 4 - k, y, wrap[2]); }
+  for (let x = cx + off - 5; x <= cx + off + 5; x++) P(g, x, 31, wrap[3]);   // belt
+  // bare scarred arms (shoulders bulge out)
+  ([[-1, sk[1]], [1, sk[3]]] as [number, string][]).forEach(([s, c]) => {
+    const ax = cx + off + s * 7;
+    for (let y = shoulderY + 1; y <= 28; y++) { P(g, ax, y, c); P(g, ax - s, y, sk[2]); if (hash2(ax, y, 72) < 0.12) P(g, ax, y, seam[3]); }
+  });
+  // head (no hood), heavy brow
+  for (let y = top + 1; y <= shoulderY; y++) { const hw = y < top + 4 ? 3 : 4; for (let x = cx + off - hw; x <= cx + off + hw; x++) { let c = sk[2]; if (x < cx + off - hw + 1) c = sk[1]; if (x > cx + off + hw - 1) c = sk[3]; P(g, x, y, c); } }
+  // short brutal topknot (spike up + bound base)
+  P(g, cx + off, top - 2, sk[3]); P(g, cx + off, top - 1, sk[2]); P(g, cx + off, top, sk[1]);
+  P(g, cx + off - 1, top, wrap[3]); P(g, cx + off + 1, top, wrap[3]);   // hair tie
+  // face: ember eyes + grim mouth
+  if (R.showFace) {
+    const fcx = cx + off + (dir === 2 ? 1 : 0); const ey = top + 5;
+    P(g, fcx - 2, ey, seam[1]); P(g, fcx + 2, ey, flare ? seam[0] : seam[1]);
+    for (let x = fcx - 2; x <= fcx + 2; x++) P(g, x, top + 8, sk[3]);   // jaw shadow
+  }
+}
+function toolAshbound(g: Grid, ex: number, ey: number, f: number) {       // haymaker fist (no haft)
+  const sk = RAMP.bone;
+  fillRect(g, ex - 1, ey - 1, 3, 3, sk[2]); P(g, ex, ey - 1, sk[1]);
+  P(g, ex - 1, ey, RAMP.ember[2]); P(g, ex + 1, ey, RAMP.ember[2]);     // ember knuckles
+  if (f === 2) { P(g, ex + 2, ey - 1, RAMP.ember[0]); P(g, ex + 3, ey, RAMP.ember[1]); P(g, ex + 2, ey + 1, RAMP.gold[0]); }
+}
+
+// 2 · THE MIREBORN — bog seer. Lean, hunched, reed shawl, belt lantern.
+function bodyMireborn(g: Grid, R: AvatarRig, anim: AnimName, f: number, flame: readonly string[], shawl: readonly string[]) {
+  const { cx, off, dir, top, shoulderY, hemSway } = R;
+  const gutter = anim === 'idle' && f === 1;
+  const hunch = 1;  // pushed-forward head
+
+  // reed shawl: rounded dome over hunched shoulders → trailing wet hem
+  for (let y = shoulderY - 1; y <= 37; y++) {
+    const t = (y - (shoulderY - 1)) / (37 - (shoulderY - 1));
+    const halfw = Math.round(3.4 + t * 3.0 + (y > 33 ? 1 : 0));
+    const cxx = cx + Math.round(off * 0.5) + (y > 31 ? Math.round(hemSway * 0.6) : 0);
+    for (let x = cxx - halfw; x <= cxx + halfw; x++) {
+      let c = shawl[1];
+      if (x <= cxx - halfw + 1) c = shawl[0];
+      if (x >= cxx + halfw - 1) c = shawl[2];
+      // reed weave texture (diagonal dashes)
+      if ((x + 2 * y) % 5 === 0) c = shawl[2];
+      if (hash2(x, y, 81) < 0.05) c = shawl[3];
+      P(g, x, y, c);
+    }
+  }
+  // wet hem: darker, dripping
+  for (let x = 0; x < 32; x++) { const v = G(g, x, 37); if (v) { P(g, x, 37, shawl[3]); if (hash2(x, 0, 82) < 0.3 && G(g, x, 36)) P(g, x, 36, shawl[3]); } }
+  // hunched head (forward/down), cowl peak low
+  const hy0 = top + hunch;
+  for (let y = hy0; y <= shoulderY; y++) { const hw = 3; const hcx = cx + off + (dir <= 2 ? 1 : 0); for (let x = hcx - hw; x <= hcx + hw; x++) { let c = shawl[1]; if (x < hcx - hw + 1) c = shawl[0]; if (x > hcx + hw - 1) c = shawl[2]; if (y === hy0) c = shawl[2]; P(g, x, y, c); } }
+  // face in shadow + pale seer eyes (flame-tinted)
+  if (R.showFace) {
+    const fcx = cx + off + (dir === 2 ? 2 : 1); const ey = hy0 + 5;
+    for (let y = hy0 + 3; y <= hy0 + 7; y++) for (let x = fcx - 2; x <= fcx + 1; x++) P(g, x, y, RAMP.void);
+    P(g, fcx - 1, ey, gutter ? flame[2] : flame[1]); P(g, fcx + 1, ey, gutter ? flame[3] : flame[0]);
+  }
+  // belt bone-charm lantern hanging front, sways on walk / gutters on idle f1
+  const lsw = (anim === 'walk') ? [0, 1, 1, 0, -1, -1][f] : 0;
+  const lx = cx + off - 4 + lsw, ly = 30;
+  P(g, lx, ly - 1, RAMP.bone[2]);                 // hook/charm
+  for (let j = 0; j < 4; j++) for (let i = -1; i <= 1; i++) { let c = RAMP.bone[3]; if (i === 0 && j > 0 && j < 3) c = gutter ? flame[2] : flame[1]; P(g, lx + i, ly + j, c); }
+  P(g, lx, ly + 1, gutter ? flame[0] : flame[1]);  // flame core
+  if (!gutter) P(g, lx, ly - 0, flame[0]);
+}
+function toolMireborn(g: Grid, ex: number, ey: number, f: number) {       // crooked root-staff (longer, gnarled)
+  const dt = RAMP.dirt;
+  // the haft is drawn by avatarSwingArm; add a gnarled root knob + side roots
+  fillRect(g, ex - 1, ey - 1, 2, 3, dt[1]); P(g, ex, ey - 2, dt[2]); P(g, ex + 1, ey - 1, dt[3]);
+  P(g, ex - 2, ey, dt[2]); P(g, ex + 1, ey + 1, dt[3]);   // twisted roots
+  if (f === 2) { P(g, ex + 2, ey - 1, RAMP.drift[0]); P(g, ex + 2, ey, RAMP.ember[1]); P(g, ex + 3, ey, RAMP.drift[1]); }
+}
+
+// 3 · THE BONECALLER — ossuary priest. Skull mask, hanging-bone mantle.
+function bodyBonecaller(g: Grid, R: AvatarRig, anim: AnimName, f: number, socket: readonly string[], mantle: readonly string[]) {
+  const { cx, off, dir, top, shoulderY, hemSway } = R;
+  const robe = RAMP.stone;
+  const click = anim === 'idle' && f === 1;     // one hanging bone clicks (1px shift)
+
+  // narrow tall robe
+  for (let y = shoulderY; y <= 37; y++) {
+    const t = (y - shoulderY) / (37 - shoulderY);
+    const halfw = Math.round(2.8 + t * 2.6);
+    const cxx = cx + Math.round(off * 0.5) + (y > 31 ? Math.round(hemSway * 0.5) : 0);
+    for (let x = cxx - halfw; x <= cxx + halfw; x++) {
+      let c = robe[1]; if (x <= cxx - halfw + 1) c = robe[0]; if (x >= cxx + halfw - 1) c = robe[3];
+      if (hash2(x, y, 91) < 0.05) c = robe[2];
+      P(g, x, y, c);
+    }
+  }
+  // bone mantle: small bones hanging from the shoulders, sway OPPOSITE the hem
+  const msw = (anim === 'walk') ? -[0, 1, 1, 0, -1, -1][f] : 0;
+  for (let i = -3; i <= 3; i++) {
+    if (i === 0) continue;
+    const bx = cx + off + i * 2 + (Math.abs(i) > 1 ? msw : 0);
+    const len = 3 - (Math.abs(i) === 3 ? 1 : 0);
+    const clickShift = (click && i === 2) ? 1 : 0;
+    for (let j = 0; j < len; j++) P(g, bx, shoulderY + 1 + j + clickShift, j === len - 1 ? mantle[0] : mantle[1]);
+    P(g, bx, shoulderY + 1 + len + clickShift, mantle[3]);   // bead/knot tip
+  }
+  // bandage-wrapped arms (thin, at sides)
+  ([[-1, robe[0]], [1, robe[3]]] as [number, string][]).forEach(([s, c]) => {
+    const ax = cx + off + s * 4;
+    for (let y = shoulderY + 2; y <= 30; y++) { P(g, ax, y, c); if ((y % 2) === 0) P(g, ax, y, RAMP.bone[2]); }   // wrap stripes
+  });
+  // tall beast-skull half-mask head
+  const hy0 = top - 1;
+  for (let y = hy0; y <= shoulderY; y++) { const hw = y < hy0 + 3 ? 2 : 3; const hcx = cx + off; for (let x = hcx - hw; x <= hcx + hw; x++) { let c = mantle[1]; if (x < hcx - hw + 1) c = mantle[0]; if (x > hcx + hw - 1) c = mantle[2]; P(g, x, y, c); } }
+  // skull snout juts forward (toward facing) for profile silhouette
+  if (dir >= 1) { P(g, cx + off + 3, top + 3, mantle[1]); P(g, cx + off + 4, top + 3, mantle[2]); P(g, cx + off + 3, top + 4, mantle[3]); }
+  // horns
+  P(g, cx + off - 2, hy0 - 1, mantle[2]); P(g, cx + off + 2, hy0 - 1, mantle[2]); P(g, cx + off - 2, hy0 - 2, mantle[3]); P(g, cx + off + 2, hy0 - 2, mantle[3]);
+  // glowing eye sockets
+  if (R.showFace) {
+    const fcx = cx + off + (dir === 2 ? 1 : 0); const ey = top + 3;
+    for (let y = ey - 1; y <= ey + 1; y++) { P(g, fcx - 2, y, RAMP.void); P(g, fcx + 2, y, RAMP.void); }
+    P(g, fcx - 2, ey, socket[0]); P(g, fcx + 2, ey, socket[0]); P(g, fcx - 2, ey + 1, socket[1]); P(g, fcx + 2, ey + 1, socket[1]);
+  }
+}
+function toolBonecaller(g: Grid, ex: number, ey: number, f: number) {     // ritual bone wand; spark bone-white then ember
+  const bn = RAMP.bone;
+  fillRect(g, ex - 1, ey - 1, 2, 3, bn[1]); P(g, ex, ey - 2, bn[0]); P(g, ex + 1, ey, bn[3]);
+  if (f === 2) { P(g, ex + 2, ey - 1, bn[0]); P(g, ex + 3, ey, bn[0]); P(g, ex + 2, ey + 1, RAMP.ember[1]); P(g, ex + 3, ey + 1, RAMP.ember[0]); }
+}
+
+// 4 · THE VEILBORN — one the Drift gave back. Weightless, layered veil.
+function bodyVeilborn(g: Grid, R: AvatarRig, anim: AnimName, f: number, veil: readonly string[], mote: readonly string[]) {
+  const { cx, off, dir, top, shoulderY, hemSway, step } = R;
+  const detach = anim === 'idle' && f === 1;
+
+  // afterimage trail on walk (faint veil pixels offset behind motion)
+  if (anim === 'walk' && (f === 1 || f === 4)) {
+    const tdir = f === 1 ? -1 : 1;
+    for (let y = shoulderY + 2; y <= 30; y += 2) P(g, cx + off + tdir * 4, y, veil[3]);
+  }
+  // layered veil: scalloped tiers, hem floats (stops ~y34, never touches ground)
+  for (let y = shoulderY; y <= 34; y++) {
+    const t = (y - shoulderY) / (34 - shoulderY);
+    const halfw = Math.round(3.2 + t * 3.2);
+    const cxx = cx + Math.round(off * 0.5) + (y > 28 ? Math.round(hemSway * 0.7) : 0);
+    for (let x = cxx - halfw; x <= cxx + halfw; x++) {
+      let c = veil[1];
+      if (x <= cxx - halfw + 1) c = veil[0];
+      if (x >= cxx + halfw - 1) c = veil[2];
+      // translucent dither holes (weightless, wrong)
+      if (hash2(x, y, 101) < 0.10) continue;
+      // scallop tier lines
+      if ((y - shoulderY) % 5 === 0) c = veil[2];
+      P(g, x, y, c);
+    }
+  }
+  // ragged floating hem (scalloped bottom, drift-tinted)
+  for (let x = cx + off - 6; x <= cx + off + 6; x++) {
+    const s = Math.sin((x - cx) * 0.9 + hemSway);
+    if (s > 0.2) { const y = 34 - Math.round(s); if (G(g, x, y - 1)) { P(g, x, y, veil[2]); P(g, x, y + 1, mote[3]); } }
+  }
+  // veil head (no face, just a hollow with mote eyes)
+  for (let y = top; y <= shoulderY; y++) { const hw = 3; const hcx = cx + off; for (let x = hcx - hw; x <= hcx + hw; x++) { if (hash2(x, y, 102) < 0.10) continue; let c = veil[1]; if (x < hcx - hw + 1) c = veil[0]; if (x > hcx + hw - 1) c = veil[2]; if (y === top) c = veil[2]; P(g, x, y, c); } }
+  if (R.showFace) {
+    const fcx = cx + off + (dir === 2 ? 1 : 0); const ey = top + 5;
+    P(g, fcx - 1, ey, mote[0]); P(g, fcx + 1, ey, mote[1]);
+  }
+  // drift-mote gap where feet would be (weightless) — replaces avatarFeet
+  const gy = 36;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + f;
+    const x = Math.round(cx + off + Math.cos(a) * 3 - step * 0.5), y = Math.round(gy + Math.sin(a) * 1.2);
+    P(g, x, y, i % 2 ? mote[1] : mote[2]);
+  }
+  P(g, cx + off, 37, mote[3]);
+  // idle f1: a mote detaches and rises
+  if (detach) { P(g, cx + off + 5, top + 1, mote[0]); P(g, cx + off + 5, top, mote[1]); }
+}
+function toolVeilborn(g: Grid, ex: number, ey: number, f: number, mote?: readonly string[]) { // drift shard + smear behind arm
+  const dr = mote || RAMP.drift;
+  fillRect(g, ex - 1, ey - 1, 2, 2, dr[1]); P(g, ex, ey - 2, dr[0]);
+  // smear trail behind the arc
+  P(g, ex - 2, ey + 1, dr[3]); P(g, ex - 3, ey + 2, dr[3]);
+  if (f === 2) { P(g, ex + 2, ey - 1, dr[0]); P(g, ex + 2, ey, dr[1]); P(g, ex + 3, ey, dr[2]); }
+}
+
+/** worn equipment overlay for premium avatars (same anchors as the wanderer's
+ *  worn-gear block, stone ramp standing in for the cloak dye; the avatar's own
+ *  signature swing prop replaces the wanderer's held-blade swap) */
+function avatarWornGear(g: Grid, R: AvatarRig, anim: AnimName, f: number, equip: EquipVisual) {
+  const { cx, off, shoulderY, showFace } = R;
+  const st = RAMP.stone, dr = RAMP.drift, bn = RAMP.bone;
+  if (equip.weapon && !(anim === 'swing' && equip.held === 'weapon')) {
+    const t2 = equip.weapon >= 2;
+    const hx = cx + off + 6, hy = shoulderY + 4;
+    P(g, hx - 1, hy - 1, st[2]);
+    P(g, hx, hy - 1, RAMP.dirt[2]);
+    P(g, hx, hy - 2, RAMP.dirt[1]);
+    for (let k = 0; k < 6; k++) {
+      const bx = hx + (k >= 3 ? 1 : 0);
+      P(g, bx, hy + k, t2 ? st[0] : bn[2]);
+      if (t2 && k % 2 === 0) P(g, bx + 1, hy + k, dr[1]);
+      else if (!t2 && k === 1) P(g, bx + 1, hy + k, bn[1]);
+    }
+    P(g, hx + 1, hy + 6, t2 ? dr[0] : bn[0]);
+  }
+  if (equip.tool && !(anim === 'swing' && equip.held === 'tool')) {
+    const t2 = (equip.tool ?? 0) >= 2;
+    for (let k = 0; k < 3; k++) P(g, cx + off + 4 + (k >> 1), shoulderY - 3 - k, RAMP.dirt[0]);
+    P(g, cx + off + 6, shoulderY - 6, t2 ? RAMP.ember[1] : bn[2]);
+  }
+  if (equip.ward && showFace) {
+    const wx = cx + off, wy = shoulderY + 3;
+    if (equip.ward >= 2) {
+      P(g, wx, wy, dr[0]); P(g, wx - 1, wy, dr[2]); P(g, wx + 1, wy, dr[2]);
+      P(g, wx, wy + 1, dr[3]);
+      if (anim === 'idle' && f === 1) P(g, wx + 1, wy - 2, dr[1]);
+    } else {
+      P(g, wx, wy, bn[1]); P(g, wx, wy + 1, bn[2]);
+    }
+  }
+}
+
+// (exported for the smoke test + byte-diff — engine code goes through SpriteCache)
+export function drawAvatar(
+  kind: AvatarKind, facing: IsoFacing, anim: AnimName, f: number,
+  look?: AvatarLook, equip?: EquipVisual,
+): Grid {
+  const g = makeGrid(32, 40);
+  const R = avatarRig(facing, anim, f);
+  const { rA, rB } = resolveAvatarLook(kind, look);
+
+  if (kind === 'ashbound') {
+    const stomp = (anim === 'walk' && (f === 1 || f === 4)) ? 1 : 0;
+    bodyAshbound(g, R, anim, f, rA, rB);
+    avatarFeet(g, R, rB, stomp);
+    avatarSwingArm(g, R, anim, f, RAMP.bone, toolAshbound);
+  } else if (kind === 'mireborn') {
+    bodyMireborn(g, R, anim, f, rA, rB);
+    avatarFeet(g, R, rB, 0);
+    avatarSwingArm(g, R, anim, f, rB, toolMireborn);
+  } else if (kind === 'bonecaller') {
+    bodyBonecaller(g, R, anim, f, rA, rB);
+    avatarFeet(g, R, RAMP.stone, 0);
+    avatarSwingArm(g, R, anim, f, RAMP.stone, toolBonecaller);
+  } else if (kind === 'veilborn') {
+    bodyVeilborn(g, R, anim, f, rA, rB);   // draws its own mote "feet"
+    avatarSwingArm(g, R, anim, f, rA, (gg, ex, ey, ff) => toolVeilborn(gg, ex, ey, ff, rB));
+  }
+  if (equip && (equip.weapon || equip.tool || equip.ward)) avatarWornGear(g, R, anim, f, equip);
+  outline(g, RAMP.void);
+  return g;
+}
+
+/** shop portrait: 48×64 bust, s-facing, 2f idle (the DS bust crop of the sheet) */
+export function drawAvatarPortrait(kind: AvatarKind, f = 0, look?: AvatarLook): Grid {
+  const g = makeGrid(48, 64);
+  const cx = 24, top = 10;
+  const src = drawAvatar(kind, 's', 'idle', f || 0, look);
+  // bust crop: take src rows ~6..27 (head+shoulders) and 2× scale into the portrait
+  for (let y = 6; y <= 27; y++) for (let x = 4; x <= 27; x++) {
+    const v = G(src, x, y); if (!v) continue;
+    const px = cx - 24 + (x - 4) * 2, py = top + (y - 6) * 2;
+    fillRect(g, px, py, 2, 2, v.c);
+  }
+  // pedestal shadow + frame hint
+  for (let x = cx - 16; x <= cx + 16; x++) if ((x + 1) % 2 === 0) P(g, x, 61, RAMP.void);
+  outline(g, RAMP.void);
   return g;
 }
 
@@ -2614,7 +2989,7 @@ export type FixtureSpriteKind =
   | 'counter' | 'vat' | 'shelf' | 'table' | 'barrel'
   | 'cage' | 'anvil' | 'rug' | 'wheelDisc'
   | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart' | 'herbrack'
-  | 'exchange';
+  | 'exchange' | 'mirror';
 
 // generic iso cuboid: front (lit) + right side (shadow) + top
 function isoCuboid(g: Grid, x0: number, baseY: number, w: number, h: number, dep: number, ramp: readonly string[]) {
@@ -2824,6 +3199,90 @@ function fxOreCart(): Grid {
   outline(g, RAMP.void); return g;
 }
 
+// Drift Mirror — tall standing mirror, bone-and-iron frame, 32×48, bottom-center
+// anchor (16,47). The glass is NOT reflective: it swirls dark with drift-ramp
+// motes ("what the Drift could make of you"). 2-frame ripple. Stands in the
+// Dyeworks (the avatar try-on anchor).
+export function fxMirror(frame = 0): Grid {
+  const g = makeGrid(32, 48);
+  const bn = RAMP.bone, st = RAMP.stone, dr = RAMP.drift;
+  const cx = 16, baseY = 46;
+
+  // iron feet / splayed base
+  for (let x = cx - 8; x <= cx + 8; x++) { P(g, x, baseY, st[3]); if (Math.abs(x - cx) > 4) P(g, x, baseY - 1, st[2]); }
+  P(g, cx - 8, baseY - 1, st[3]); P(g, cx + 8, baseY - 1, st[3]);
+  // base post
+  for (let y = baseY - 4; y <= baseY - 1; y++) for (let x = cx - 2; x <= cx + 2; x++) P(g, x, y, x < cx ? st[1] : st[3]);
+
+  // bone-and-iron frame (rounded-arch top), glass cavity y 6..40, x 6..25
+  const gx0 = 6, gx1 = 25, gTop = 6, gBot = 40, arch = 6;
+  function inGlass(x: number, y: number): boolean {
+    if (x < gx0 || x > gx1 || y > gBot) return false;
+    if (y >= gTop + arch) return true;
+    const mx = (gx0 + gx1) / 2;
+    return (x - mx) * (x - mx) + (y - gTop - arch) * (y - gTop - arch) <= (arch + 3.5) * (arch + 3.5) * ((gx1 - gx0) / 2 / (arch + 3.5)) * ((gx1 - gx0) / 2 / (arch + 3.5));
+  }
+  // frame: a 3px band around the glass cavity, bone outer + iron inner, with arch
+  for (let y = 1; y <= baseY - 4; y++) for (let x = 2; x <= 29; x++) {
+    if (inGlass(x, y)) continue;
+    const nearX = x >= gx0 - 4 && x <= gx1 + 4, nearY = y >= gTop - 4 && y <= gBot + 4;
+    if (!nearX || !nearY) continue;
+    // inner iron ring (touching glass) vs outer bone
+    let touchesGlass = false;
+    for (let oy = -1; oy <= 1 && !touchesGlass; oy++) for (let ox = -1; ox <= 1; ox++) if (inGlass(x + ox, y + oy)) { touchesGlass = true; break; }
+    let c: string;
+    if (touchesGlass) c = st[3];                                  // iron lip on the glass
+    else {
+      c = bn[1];
+      if (x < gx0 - 1) c = bn[0];                                  // moonlit left
+      if (x > gx1 + 1) c = bn[2];                                  // shadow right
+      if (y < gTop) c = bn[0];
+      if (hash2(x, y, 51) < 0.10) c = bn[2];                       // bone grain
+      // iron rivets at the corners + arch crown
+      if ((Math.abs(x - gx0) < 2 || Math.abs(x - gx1) < 2) && (Math.abs(y - gBot) < 2)) c = st[2];
+    }
+    P(g, x, y, c);
+  }
+  // arch crown ornament (a small drift crystal set in the bone)
+  P(g, cx, gTop - 4, dr[0]); P(g, cx, gTop - 3, dr[1]); P(g, cx - 1, gTop - 2, dr[2]); P(g, cx + 1, gTop - 2, dr[2]); P(g, cx, gTop - 2, dr[1]);
+
+  // the glass: dark swirling Drift (NOT reflective), 2-frame ripple
+  const mx = (gx0 + gx1) / 2, my = (gTop + arch + gBot) / 2;
+  for (let y = gTop - arch; y <= gBot; y++) for (let x = gx0; x <= gx1; x++) {
+    if (!inGlass(x, y)) continue;
+    const dx = x - mx, dy = (y - my) * 1.4;
+    const rad = Math.sqrt(dx * dx + dy * dy);
+    const ang = Math.atan2(dy, dx);
+    // swirl field: phase shifts between frames for the ripple
+    const swirl = Math.sin(ang * 2 + rad * 0.5 - frame * 1.7);
+    let c: string;
+    if (swirl > 0.55) c = dr[2];
+    else if (swirl > 0.0) c = dr[3];
+    else c = RAMP.void;
+    // dithered mid tone so it reads as depth, not flat
+    if (c === dr[3] && (x + y) % 2 === 0) c = dr[4] || dr[3];
+    P(g, x, y, c);
+  }
+  // floating drift motes in the glass (drift up, reposition per frame)
+  const mr = mulberry(frame + 3);
+  for (let i = 0; i < 9; i++) {
+    let mxx = gx0 + 1 + Math.floor(mr() * (gx1 - gx0 - 1));
+    let myy = gTop + arch - 2 + Math.floor(mr() * (gBot - gTop - arch));
+    myy -= frame * 2;                                              // rise between frames
+    if (!inGlass(mxx, myy)) continue;
+    const bright = i % 3 === 0;
+    P(g, mxx, myy, bright ? dr[0] : dr[1]);
+    if (bright) { P(g, mxx, myy - 1, dr[2]); }
+  }
+  // a faint pale "figure" hint deep in the glass (what the Drift could make of you)
+  const fy = my + (frame ? 1 : 0);
+  for (let y = fy - 6; y <= fy + 6; y++) { const w = y < fy - 2 ? 1 : 2; for (let x = mx - w; x <= mx + w; x++) if (inGlass(x, y) && hash2(x, y, 60 + frame) < 0.5) P(g, x, y, dr[2]); }
+  P(g, mx, fy - 5, dr[1]); P(g, mx - 1, fy - 4, dr[1]); P(g, mx + 1, fy - 4, dr[1]);  // shoulders/head hint
+
+  outline(g, RAMP.void);
+  return g;
+}
+
 /** dispatch by engine fixture kind (accent hex → DS liquid/ramp; frame for
  *  animated kinds: goldVein sparkle 2f, hearth flame 3f) */
 export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0): Grid {
@@ -2843,6 +3302,7 @@ export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0):
     case 'oreCart':       return fxOreCart();
     case 'exchange':      return drawExchangeCounter(frame % 2);
     case 'herbrack':      return drawHerbRack();
+    case 'mirror':        return fxMirror(frame % 2);
   }
 }
 
@@ -4098,7 +4558,8 @@ export class SpriteCache {
     const frame =
       kind === 'hearth' ? Math.floor(performance.now() / 250) % 3 :
       kind === 'goldVein' ? Math.floor(performance.now() / 500) % 2 :
-      kind === 'exchange' ? Math.floor(performance.now() / 500) % 2 : 0;
+      kind === 'exchange' ? Math.floor(performance.now() / 500) % 2 :
+      kind === 'mirror' ? Math.floor(performance.now() / 500) % 2 : 0;
     const k = `${kind}-${accent}-${frame}`;
     let cv = this.fixtures.get(k);
     if (!cv) {
@@ -4246,15 +4707,20 @@ export class SpriteCache {
     ctx.imageSmoothingEnabled = false;
     const f = frame % ANIM_FRAMES.find(a => a[0] === anim)![1];
     const hasGear = !!(equip && (equip.weapon || equip.tool || equip.ward));
+    const avatar = look?.avatar && AVATAR_CHANNELS[look.avatar as AvatarKind]
+      ? (look.avatar as AvatarKind) : null;
     const hasLook = !!(look && ((look.dye && look.dye !== 'stone') || (look.eye && look.eye !== 'drift')));
     let sig = '';
     if (hasGear) sig += `-w${equip!.weapon ?? 0}t${equip!.tool ?? 0}d${equip!.ward ?? 0}h${equip!.held ?? ''}`;
-    if (hasLook) sig += `-c${look!.dye ?? 'stone'}.${look!.eye ?? 'drift'}`;
+    if (avatar) sig += `-av${avatar}.${look!.avA ?? ''}.${look!.avB ?? ''}`;
+    else if (hasLook) sig += `-c${look!.dye ?? 'stone'}.${look!.eye ?? 'drift'}`;
     const key = `${facing}-${anim}-${f}${mirrored ? '-m' : ''}${sig}`;
     let cv = this.charMap.get(key);
-    if (!cv && (hasGear || hasLook)) {
+    if (!cv && (hasGear || hasLook || avatar)) {
       // gear/cosmetics change rarely — bake the variant frame on first sight
-      let g = drawWanderer(facing, anim, f, equip, look);
+      let g = avatar
+        ? drawAvatar(avatar, facing, anim, f, { a: look!.avA, b: look!.avB }, equip)
+        : drawWanderer(facing, anim, f, equip, look);
       if (mirrored) g = mirrorX(g);
       cv = gridToCanvas(g);
       this.charMap.set(key, cv);

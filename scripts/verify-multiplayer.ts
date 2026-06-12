@@ -120,6 +120,23 @@ async function main() {
     `name len=${a.state.players.get(b.sessionId).name.length} dye=${a.state.players.get(b.sessionId).dye}`,
   );
 
+  // ---- premium avatars: unowned kinds are rejected, "" reverts cleanly ----------
+  b.send("identity", { avatar: "ashbound", avA: "gold", avB: "blood" });
+  await wait(400);
+  check(
+    "unowned avatar is rejected (prestige-gated)",
+    a.state.players.get(b.sessionId).avatar === "",
+    `avatar=${a.state.players.get(b.sessionId).avatar}`,
+  );
+  b.send("identity", { avatar: "" }); // a non-owner clearing stays clear
+  await wait(300);
+  check(
+    "avatar clear is accepted",
+    a.state.players.get(b.sessionId).avatar === "" &&
+      a.state.players.get(b.sessionId).avA === "",
+    `avatar=${a.state.players.get(b.sessionId).avatar}`,
+  );
+
   // ---- chat: B speaks, A hears it with B's name attached -------------------------
   b.send("identity", { name: "Testovia" }); // restore after the sanitize test
   await wait(300);

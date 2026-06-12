@@ -1,4 +1,4 @@
-// The Naevyr launch trailer. 1920×1080 @ 30fps, ~35s, seven scenes.
+// The Naevyr launch trailer. 1920×1080 @ 30fps, 42s, fourteen scenes.
 // All art is the game's own: SVG exports from the design system (hero vista,
 // gate, logos) + live procedural sprites (the wanderer, the prestige auras)
 // imported straight from game/render/sprites.ts.
@@ -35,21 +35,22 @@ export const FPS = 30;
 
 // scene cut list (frames). The G* scenes are REAL gameplay footage captured
 // from the live game by scripts/capture*.mjs (see MARK timestamps there).
-const S1 = 75;   // cold open
-const S2 = 110;  // wordmark reveal
-const G1 = 150;  // gameplay · town walk
-const G2 = 150;  // gameplay · gathering
-const G3 = 165;  // gameplay · combat
-const G4 = 135;  // gameplay · keeper interior
-const G5 = 150;  // gameplay · vista + the Drift wash
-const E1 = 150;  // economy · the Drift Wheel spins onto a relic
-const E2 = 135;  // economy · raise a guild banner
-const E3 = 135;  // economy · the Exchange (gold ↔ DRIFTS)
-const S5 = 140;  // prestige auras · burn DRIFTS
-const S6 = 115;  // the gate · hold to enter
-const S7 = 115;  // end card · PLAY NOW
-const CUTS = [S1, S2, G1, G2, G3, G4, G5, E1, E2, E3, S5, S6, S7];
-export const TRAILER_FRAMES = CUTS.reduce((a, b) => a + b, 0); // 1725 ≈ 57.5s
+const S1 = 60;   // cold open
+const S2 = 80;   // wordmark reveal
+const G1 = 95;   // gameplay · town walk
+const G2 = 95;   // gameplay · gathering
+const G3 = 105;  // gameplay · combat
+const PVP = 90;  // gameplay · a wagered Pit duel (two real clients)
+const G4 = 80;   // gameplay · keeper interior
+const G5 = 100;  // gameplay · vista + the Drift wash
+const E1 = 100;  // economy · the Drift Wheel spins onto a relic
+const E2 = 85;   // economy · raise a guild banner
+const E3 = 85;   // economy · the Exchange (gold ↔ DRIFTS)
+const S5 = 100;  // prestige auras · burn DRIFTS
+const S6 = 85;   // the gate · hold to enter
+const S7 = 100;  // end card · PLAY NOW
+const CUTS = [S1, S2, G1, G2, G3, PVP, G4, G5, E1, E2, E3, S5, S6, S7];
+export const TRAILER_FRAMES = CUTS.reduce((a, b) => a + b, 0); // 1260 = 42s
 
 // the locked palette
 const VOID = "#0a0810";
@@ -178,10 +179,10 @@ const Scene: React.FC<{ children: React.ReactNode; noFadeIn?: boolean }> = ({
 const ColdOpen: React.FC = () => (
   <Scene noFadeIn>
     <Motes count={26} seed={3} drift={0.7} />
-    <Line at={18} out={100} size={58}>
+    <Line at={8} size={58}>
       A realm is being eaten.
     </Line>
-    <Line at={58} out={104} size={40} color={BONE_DIM} y="56%">
+    <Line at={28} size={40} color={BONE_DIM} y="56%">
       Season by season. Tile by tile.
     </Line>
   </Scene>
@@ -230,7 +231,10 @@ const GameplayScene: React.FC<{
   caption: string;
   sub?: string;
   driftWash?: boolean; // G6: the corruption creeps over the closing shot
-}> = ({ src, fromSec, caption, sub, driftWash }) => {
+  /** extra crop-in (1.04 default); pair with origin to push map-edge void out of frame */
+  zoom?: number;
+  origin?: string;
+}> = ({ src, fromSec, caption, sub, driftWash, zoom = 1.04, origin = "center" }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const creep = interpolate(frame, [10, durationInFrames], [-30, 115], {
@@ -242,12 +246,14 @@ const GameplayScene: React.FC<{
         <OffthreadVideo
           src={staticFile(src)}
           startFrom={Math.round(fromSec * FPS)}
+          playbackRate={1.5}
           muted
           style={{
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: "scale(1.04)", // hide any window-edge artifacts
+            transform: `scale(${zoom})`, // ≥1.04 hides window-edge artifacts
+            transformOrigin: origin,
           }}
         />
       </AbsoluteFill>
@@ -290,7 +296,7 @@ const CHAR_SCALE = 11;
 
 const Auras: React.FC = () => {
   const frame = useCurrentFrame();
-  const per = 42; // frames each aura holds the stage
+  const per = 24; // frames each aura holds the stage (4 auras inside S5)
   const idx = Math.min(Math.floor(frame / per), AURA_ORDER.length - 1);
   const { key, label } = AURA_ORDER[idx];
   const spec = PRESTIGE_AURAS[key];
@@ -347,7 +353,7 @@ const Auras: React.FC = () => {
 // ── E1 · the Drift Wheel (spins onto the 1% relic) ──────────────────────────
 const DriftWheelScene: React.FC = () => {
   const frame = useCurrentFrame();
-  const SPIN_F = 82; // ~2.7s of spin
+  const SPIN_F = 60; // ~2s of spin (the reveal needs the scene's last third)
   const relic = wheelSegmentAngles("dark").find((s) => s.label === "relic")!;
   const center = relic.start + relic.sweep / 2;
   const targetRot = 5 * 360 + (360 - center); // bring the relic wedge to the top pointer
@@ -586,14 +592,24 @@ export const Trailer: React.FC = () => (
         caption="Fight what the Drift sends."
       />
     </Sequence>
-    <Sequence from={at(5)} durationInFrames={G4}>
+    <Sequence from={at(5)} durationInFrames={PVP}>
+      <GameplayScene
+        src="gameplay/pit.webm"
+        fromSec={22}
+        caption="Settle it in the Pit."
+        sub="Wagered duels. Winner takes the pot."
+        zoom={1.45}
+        origin="56% 42%"
+      />
+    </Sequence>
+    <Sequence from={at(6)} durationInFrames={G4}>
       <GameplayScene
         src="gameplay/gameplay.webm"
         fromSec={90}
         caption="Trade with the keepers."
       />
     </Sequence>
-    <Sequence from={at(6)} durationInFrames={G5}>
+    <Sequence from={at(7)} durationInFrames={G5}>
       <GameplayScene
         src="gameplay/gameplay.webm"
         fromSec={104}
@@ -602,22 +618,22 @@ export const Trailer: React.FC = () => (
         driftWash
       />
     </Sequence>
-    <Sequence from={at(7)} durationInFrames={E1}>
+    <Sequence from={at(8)} durationInFrames={E1}>
       <DriftWheelScene />
     </Sequence>
-    <Sequence from={at(8)} durationInFrames={E2}>
+    <Sequence from={at(9)} durationInFrames={E2}>
       <GuildScene />
     </Sequence>
-    <Sequence from={at(9)} durationInFrames={E3}>
+    <Sequence from={at(10)} durationInFrames={E3}>
       <ExchangeScene />
     </Sequence>
-    <Sequence from={at(10)} durationInFrames={S5}>
+    <Sequence from={at(11)} durationInFrames={S5}>
       <Auras />
     </Sequence>
-    <Sequence from={at(11)} durationInFrames={S6}>
+    <Sequence from={at(12)} durationInFrames={S6}>
       <Gate />
     </Sequence>
-    <Sequence from={at(12)} durationInFrames={S7}>
+    <Sequence from={at(13)} durationInFrames={S7}>
       <EndCard />
     </Sequence>
     {/* drop a music bed here when you have one:

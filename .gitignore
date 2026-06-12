@@ -13,3 +13,8 @@ tsconfig.tsbuildinfo
 server/node_modules
 server/.data
 .next.nosync/
+
+# never commit Solana keypair files
+relayer.json
+escrow.json
+*.keypair.json

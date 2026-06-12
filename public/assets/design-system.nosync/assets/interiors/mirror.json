@@ -1,0 +1,47 @@
+{
+  "image": "interiors/mirror.svg",
+  "cell": {
+    "w": 32,
+    "h": 48
+  },
+  "anchor": {
+    "x": 16,
+    "y": 47
+  },
+  "ramp": "drift(glass) + bone/stone(frame)",
+  "solid": true,
+  "note": "Drift Mirror — non-reflective; glass swirls with the Drift. Stands in the Dyeworks for avatar try-on.",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "mirror_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 48,
+      "anchor": {
+        "x": 16,
+        "y": 47
+      }
+    },
+    "mirror_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 48,
+      "anchor": {
+        "x": 16,
+        "y": 47
+      }
+    }
+  },
+  "animations": {
+    "ripple": {
+      "frames": [
+        "mirror_00",
+        "mirror_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

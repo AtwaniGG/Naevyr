@@ -19,17 +19,18 @@
 set -euo pipefail
 
 # ─── inputs — prompted at runtime so nothing secret lands in this committed file ─
-RELAYER_KEYPAIR_FILE="${RELAYER_KEYPAIR_FILE:-relayer.json}"  # the solana-keygen file
+RELAYER_KEYPAIR_FILE="${RELAYER_KEYPAIR_FILE:-$HOME/naevyr-keys/relayer.json}"  # the relayer secret-key file
 MINT="${MINT:-}"
 RPC="${RPC:-}"
 [[ -n "$MINT" ]] || read -r -p "pump.fun mint address (base58, no 0x): " MINT
 [[ -n "$RPC"  ]] || read -r -p "mainnet RPC URL (https://mainnet.helius-rpc.com/?api-key=…): " RPC
 
 # ─── these are already decided — leave them ───────────────────────────────────
-TREASURY_ADDRESS="F9PxeNqrpjvtYjSrXVde3EzTqPXqSLviNibE3yBF13rF"
-ESCROW_ADDRESS="8FuXwL3siaNQ3AptnRKaf9JicsBkz3yFeohvsX1LEbLA"
+TREASURY_ADDRESS="Adckn2PDPuX6JdQjDsaaV3TAjjTLjuRipR4ksfKWS9Z9"  # your Phantom wallet (receives the tithe)
+# Exchange is OFF at launch — no escrow needed. Set ESCROW_ADDRESS later to open
+# the buy side, and ESCROW_KEYPAIR later still to open the sell side.
 GATE_TOKENS="1000"
-RAILWAY_SERVICE="driftlands-server"
+RAILWAY_SERVICE="naevyr-server"   # the Railway service name (NOT the URL — that kept the old driftlands prefix)
 SERVER_URL="https://driftlands-server-production.up.railway.app"
 
 # ─── safety checks (catch the launch-bricking mistakes) ───────────────────────
@@ -49,7 +50,7 @@ echo "About to flip the LIVE stack to mainnet:"
 echo "  mint     : $MINT"
 echo "  rpc      : ${RPC%%\?*}?…(key hidden)"
 echo "  treasury : $TREASURY_ADDRESS"
-echo "  escrow   : $ESCROW_ADDRESS   (buy side only — ESCROW_KEYPAIR stays unset)"
+echo "  exchange : OFF (no escrow set)"
 echo "  gate     : $GATE_TOKENS DRIFTS"
 read -r -p $'\nType  LAUNCH  to proceed: ' confirm
 [[ "$confirm" == "LAUNCH" ]] || die "Aborted."
@@ -63,7 +64,6 @@ railway variables --service "$RAILWAY_SERVICE" \
   --set "SOLANA_RPC=$RPC" \
   --set "AUTHORITY_KEYPAIR=$KEYPAIR_CONTENTS" \
   --set "TREASURY_ADDRESS=$TREASURY_ADDRESS" \
-  --set "ESCROW_ADDRESS=$ESCROW_ADDRESS" \
   --set "GATE_TOKENS=$GATE_TOKENS" \
   --set "NODE_ENV=production"
 # (ESCROW_KEYPAIR deliberately NOT set — sell side stays dark.
@@ -85,4 +85,4 @@ echo $'\n\nDone. Now verify by hand:'
 echo "  • the /gate JSON above shows your NEW mint and online:true"
 echo "  • load the site, connect a wallet holding >= $GATE_TOKENS DRIFTS, confirm it lets you in"
 echo "  • do one small burn (a wheel spin) and confirm it lands on-chain"
-echo "  • fund the relayer (69pQX…wRbS) with ~1-2 SOL if you haven't — burns fail without it"
+echo "  • fund the relayer wallet (the address import-relayer-key.ts printed) with ~1-2 SOL — burns fail without it"

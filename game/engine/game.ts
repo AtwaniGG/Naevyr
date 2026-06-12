@@ -23,7 +23,7 @@ import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/syst
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
-  walletLinkMessage, PRESTIGE_CATALOG,
+  walletLinkMessage, PRESTIGE_CATALOG, AvatarKind,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -51,6 +51,23 @@ import { Transaction } from "@solana/web3.js";
 
 /** where each region's guild banner stands (decor only — no walkability
  *  change; cells chosen clear of every structure sprite) */
+// the Pit's ring (duels seal fighters inside it; the client veils the realm)
+const ARENA = (() => {
+  const b = TOWN_BUILDINGS.find((s) => s.key === "pit")!;
+  return { x: b.x, y: b.y, r: b.r };
+})();
+// conjured ring-side crowd: cell, facing toward the sand, and a fixed look
+const ARENA_CROWD: {
+  x: number; y: number; f: "s" | "se" | "e" | "ne" | "n"; m: boolean; dye: string; eye: string;
+}[] = [
+  { x: ARENA.x - 3, y: ARENA.y - 1, f: "se", m: false, dye: "blood", eye: "ember" },
+  { x: ARENA.x - 3, y: ARENA.y + 1, f: "e",  m: false, dye: "moss",  eye: "gold" },
+  { x: ARENA.x + 3, y: ARENA.y - 1, f: "s",  m: true,  dye: "bone",  eye: "blood" },
+  { x: ARENA.x + 3, y: ARENA.y + 1, f: "n",  m: true,  dye: "void",  eye: "water" },
+  { x: ARENA.x - 1, y: ARENA.y - 3, f: "s",  m: false, dye: "water", eye: "drift" },
+  { x: ARENA.x + 1, y: ARENA.y + 3, f: "n",  m: false, dye: "gold",  eye: "ember" },
+];
+
 const REGION_BANNER_CELLS: Record<string, { x: number; y: number }> = {
   "Palewater": { x: 33, y: 5 },
   "The Ashen Flats": { x: 5, y: 12 },
@@ -142,6 +159,8 @@ export class Game {
   /** opponent sessionId while dueling */
   private duelOpp: string | null = null;
   private duelLastSwing = 0;
+  /** any live duel (everyone sees the ring crowd; fighters get the arena veil) */
+  private activeDuel: { a: string; b: string } | null = null;
   /** ids of market listings this player owns */
   private myListingIds = new Set<number>();
   /** gold already deducted for an in-flight buy (refunded on failure) */
@@ -227,6 +246,12 @@ export class Game {
       bus.on("challenge", (c) => this.net?.sendChallenge(c.target, c.wager)),
     );
     this.cleanupFns.push(
+      bus.on("pitJoin", (wager) => this.net?.sendPitJoin(wager)),
+    );
+    this.cleanupFns.push(
+      bus.on("pitLeave", () => this.net?.sendPitLeave()),
+    );
+    this.cleanupFns.push(
       bus.on("walletLink", (link) => {
         if (link) void this.startWalletLink();
         else this.net?.sendUnlinkWallet();
@@ -251,6 +276,11 @@ export class Game {
       bus.on("prestigeBurn", (key) => {
         const entry = PRESTIGE_CATALOG[key];
         if (entry) this.startBurn(entry.action, { key });
+      }),
+    );
+    this.cleanupFns.push(
+      bus.on("avatarPreview", (pv) => {
+        this.avatarPreview = pv ? { kind: pv.kind as AvatarKind, a: pv.a, b: pv.b } : null;
       }),
     );
     this.cleanupFns.push(bus.on("driftSpinBurn", () => this.startBurn("driftSpin")));
@@ -381,10 +411,13 @@ export class Game {
   private pendingExGold = 0;
   /** a relic purchase awaiting its quote (listing id) */
   private pendingRelicId = 0;
+  /** the Dyeworks glass: a premium-avatar try-on (your own draw only, never
+   *  synced; cleared on interior exit / dialogue close) */
+  avatarPreview: { kind: AvatarKind; a: string; b: string } | null = null;
 
   private startBurn(
     action: "spin" | "claim" | "aura" | "cleanse" | "obelisk" | "reinforce"
-      | "prestigeDye" | "prestigeAura" | "prestigeTitle"
+      | "prestigeDye" | "prestigeAura" | "prestigeTitle" | "prestigeAvatar"
       | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep",
     extra: { x?: number; y?: number; key?: string; name?: string; tag?: string; region?: string } = {},
   ) {
@@ -448,6 +481,7 @@ export class Game {
         case "prestigeDye":
         case "prestigeAura":
         case "prestigeTitle":
+        case "prestigeAvatar":
           this.net.sendPrestige(pending.key ?? "", signature); break;
         case "driftSpin": this.net.sendDriftSpin(signature); break;
         case "cache": this.net.sendCache(signature); break;
@@ -904,6 +938,17 @@ export class Game {
         } else if (m.kind === "title") {
           store.grantCosmetic("title", entry?.label ?? m.key);
           store.pushLog(`The realm will know you as ${entry?.label ?? m.key}.`, "#d8b4fe");
+        } else if (m.kind === "avatar") {
+          store.grantCosmetic("avatar", m.key);
+          // wear it with whatever the glass was showing (or the defaults)
+          const pv = this.avatarPreview;
+          store.setCosmetics({
+            avatar: m.key as AvatarKind,
+            avA: pv?.kind === m.key ? pv.a : "",
+            avB: pv?.kind === m.key ? pv.b : "",
+          });
+          this.avatarPreview = null;
+          store.pushLog(`The glass empties. ${entry?.label ?? m.key} walks out wearing you.`, "#d8b4fe");
         }
         play("coin");
       },
@@ -1285,6 +1330,7 @@ export class Game {
       (m) => {
         const store = useGame.getState();
         const meId = net.sessionId;
+        this.activeDuel = { a: m.a, b: m.b }; // the ring crowd gathers for everyone
         if (m.a === meId || m.b === meId) {
           // the server ledger already staked both wagers (goldSync carries it)
           this.duelOpp = m.a === meId ? m.b : m.a;
@@ -1294,7 +1340,8 @@ export class Game {
             oppHp: 100,
             wager: m.wager,
           });
-          this.banner = { name: "TO THE PIT", t0: performance.now() };
+          useGame.getState().setOpenShop(null); // the Pit panel yields to the ring
+          this.banner = { name: "THE ARENA TAKES YOU", t0: performance.now() };
         }
         play("boss");
         store.pushLog(`${m.nameA} and ${m.nameB} enter the Pit (${m.wager}g pot).`, "#dc2626");
@@ -1334,6 +1381,20 @@ export class Game {
           this.duelOpp = null;
         } else if (m.winnerName) {
           store.pushLog(`${m.winnerName} wins the duel (${m.pot}g).`, "#a99fb8");
+        }
+        this.activeDuel = null; // the crowd disperses, the realm returns
+      },
+    );
+    // the arena queue: someone waits in the ring (or it just emptied)
+    net.onMessage<{ name: string; wager: number; sessionId: string } | null>(
+      "pitQueue",
+      (m) => {
+        const store = useGame.getState();
+        if (!m) return store.setPitQueue(null);
+        const mine = m.sessionId === net.sessionId;
+        store.setPitQueue({ name: m.name, wager: m.wager, mine });
+        if (!mine) {
+          store.pushLog(`${m.name} waits in the Pit's ring (${m.wager}g stake).`, "#dc2626");
         }
       },
     );
@@ -1555,8 +1616,11 @@ export class Game {
       title: currentTitle(s),
       aura: s.cosmetics.aura,
       pet: s.cosmetics.pet,
+      avatar: s.cosmetics.avatar,
+      avA: s.cosmetics.avA,
+      avB: s.cosmetics.avB,
     };
-    const sig = `${id.name}|${id.dye}|${id.eye}|${id.title}|${id.aura}|${id.pet}`;
+    const sig = `${id.name}|${id.dye}|${id.eye}|${id.title}|${id.aura}|${id.pet}|${id.avatar}|${id.avA}|${id.avB}`;
     if (sig !== this.sentIdentity) {
       this.sentIdentity = sig;
       net.sendIdentity(id);
@@ -1624,6 +1688,13 @@ export class Game {
           this.world.inBounds(gx, gy) &&
           this.world.isWalkable(gx, gy) &&
           !buildingAt(gx, gy),
+        // duel triggers for the trailer capture (ride the REAL bus → net rails;
+        // only the HUD click is bypassed — the server validates as always)
+        others: () =>
+          [...this.remotes.entries()].map(([id, r]) => ({ id, name: r.name || "", x: r.px, y: r.py })),
+        challenge: (target: string, wager: number) => bus.emit("challenge", { target, wager }),
+        acceptDuel: () => bus.emit("duelAccept", true),
+        duel: () => useGame.getState().duel,
       };
     }
   }
@@ -1721,6 +1792,8 @@ export class Game {
   /** click on a town building: open if close, otherwise walk to its door */
   private handleBuildingClick(b: TownBuilding): boolean {
     if (b.key === "pit" && useGame.getState().claimMode) return false;
+    // a sealed duelist clicks the sand to MOVE, not to open the Pit panel
+    if (b.key === "pit" && this.duelOpp) return false;
     const dist = Math.max(Math.abs(this.player.cell.x - b.x), Math.abs(this.player.cell.y - b.y));
     if (dist <= b.r + 2) {
       this.enterInterior(b.key);
@@ -1895,7 +1968,10 @@ export class Game {
       this.pushMinimap();
     }
 
-    const iso = gridToIso(this.player.px, this.player.py);
+    // sealed in the arena: the camera holds the ring, not the wanderer
+    const iso = this.duelOpp
+      ? gridToIso(ARENA.x, ARENA.y)
+      : gridToIso(this.player.px, this.player.py);
     this.camera.follow(iso.x, iso.y);
     this.camera.update(dt);
   }
@@ -2169,6 +2245,9 @@ export class Game {
       r.title = p.title;
       r.aura = p.aura;
       r.pet = p.pet;
+      r.avatar = p.avatar ?? "";
+      r.avA = p.avA ?? "";
+      r.avB = p.avB ?? "";
       r.guildTag = p.guildTag ?? "";
       const dx = p.x - r.px;
       const dy = p.y - r.py;
@@ -2349,6 +2428,7 @@ export class Game {
     if (!this.interior) return;
     const { outX, outY } = this.interior;
     this.interior = null;
+    this.avatarPreview = null; // the glass keeps nothing
     useGame.getState().setOpenShop(null);
     this.player.px = outX;
     this.player.py = outY;
@@ -3419,6 +3499,31 @@ export class Game {
         fn: () => this.drawWandererEntity(ctx, r, false),
       });
     }
+    // while a duel runs, a crowd gathers at the ring's edge (decor, everyone sees it)
+    if (this.activeDuel) {
+      ARENA_CROWD.forEach((c, i) => {
+        draws.push({
+          depth: c.x + c.y,
+          fn: () => {
+            const s = this.tileScreen(c.x, c.y);
+            const z = this.camera.zoom;
+            ctx.fillStyle = "rgba(0,0,0,0.4)";
+            ctx.beginPath();
+            ctx.ellipse(s.x, s.y, 9 * z, 4.5 * z, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // each watcher breathes on their own clock; one throws a fist up
+            const t = performance.now() + i * 530;
+            const cheer = Math.floor(t / 2400) % ARENA_CROWD.length === i;
+            const anim = cheer ? "swing" : "idle";
+            const frame = cheer ? Math.floor(t / 240) % 4 : Math.floor(t / 500) % 2;
+            spriteCache.drawChar(
+              ctx, c.f, c.m, anim, frame, s.x, s.y, z,
+              undefined, { dye: c.dye as DyeKey, eye: c.eye as EyeKey },
+            );
+          },
+        });
+      });
+    }
     if (this.tomb) {
       const t = this.tomb;
       draws.push({
@@ -3495,6 +3600,28 @@ export class Game {
 
     draws.sort((a, b) => a.depth - b.depth);
     for (const d of draws) d.fn();
+
+    // THE ARENA VEIL: for a sealed duelist the realm falls away — only the
+    // torch-ringed sand remains, floating in the Drift's void. (Floaters,
+    // banners and the HUD draw after this, so the fight reads through it.)
+    if (this.duelOpp) {
+      const c = this.tileScreen(ARENA.x, ARENA.y);
+      const rim = this.tileScreen(ARENA.x + ARENA.r + 1, ARENA.y + ARENA.r + 1);
+      const rIn = Math.hypot(rim.x - c.x, rim.y - c.y);
+      const g = ctx.createRadialGradient(c.x, c.y, rIn, c.x, c.y, rIn * 2.1);
+      g.addColorStop(0, "rgba(10, 8, 16, 0)");
+      g.addColorStop(0.45, "rgba(10, 8, 16, 0.88)");
+      g.addColorStop(1, "rgba(5, 4, 8, 0.99)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      // a faint violet breath at the void's edge — the Drift watches too
+      const pulse = 0.05 + 0.03 * Math.sin(performance.now() / 900);
+      const g2 = ctx.createRadialGradient(c.x, c.y, rIn * 1.1, c.x, c.y, rIn * 1.6);
+      g2.addColorStop(0, "rgba(168, 85, 247, 0)");
+      g2.addColorStop(1, `rgba(168, 85, 247, ${pulse})`);
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
   }
 
   private drawNode(ctx: CanvasRenderingContext2D, node: ResourceNode) {
@@ -3586,12 +3713,24 @@ export class Game {
           held: action === 'attack' ? 'weapon' : action === 'gather' ? 'tool' : null,
         };
       }
-      look = { dye: state.cosmetics.dye, eye: state.cosmetics.eye };
+      look = {
+        dye: state.cosmetics.dye, eye: state.cosmetics.eye,
+        avatar: state.cosmetics.avatar, avA: state.cosmetics.avA, avB: state.cosmetics.avB,
+      };
+      // the Dyeworks glass: a try-on overrides your own body only, locally
+      if (this.avatarPreview) {
+        look.avatar = this.avatarPreview.kind as AvatarKind;
+        look.avA = this.avatarPreview.a;
+        look.avB = this.avatarPreview.b;
+      }
       name = state.cosmetics.name;
       title = currentTitle(state);
       if (state.myGuildTag) name = `[${state.myGuildTag}] ${name}`;
     } else {
-      look = { dye: p.dye as DyeKey, eye: p.eye as EyeKey };
+      look = {
+        dye: p.dye as DyeKey, eye: p.eye as EyeKey,
+        avatar: p.avatar as never, avA: p.avA, avB: p.avB,
+      };
       name = p.name || "Wanderer";
       title = p.title;
       if (p.guildTag) name = `[${p.guildTag}] ${name}`;

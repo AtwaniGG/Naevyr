@@ -18,6 +18,9 @@ import {
   SPIN_COST,
   BURN_COSTS,
   PRESTIGE_CATALOG,
+  AVATAR_CHANNELS,
+  AVATAR_KINDS,
+  AvatarKind,
   RELIC_MARKET,
   GUILD,
   burnAmt,
@@ -211,6 +214,12 @@ interface TalkOpt {
 /** the DRIFTS coin emblem, inline at text size */
 const DriftsMark = () => <span className="drifts-mark" aria-label="DRIFTS" />;
 
+/** locked-ramp swatch colors for the avatar channel pickers */
+const RAMP_SWATCH: Record<string, string> = {
+  grass: "#7fae5e", dirt: "#7a6048", stone: "#4a4360", water: "#4a7fa0",
+  drift: "#a855f7", ember: "#f59e0b", gold: "#e7c873", blood: "#dc2626", bone: "#d8cfe0",
+};
+
 function KeeperDialogue() {
   const openShop = useGame((st) => st.openShop);
   const setOpenShop = useGame((st) => st.setOpenShop);
@@ -218,9 +227,17 @@ function KeeperDialogue() {
   const [menu, setMenu] = useState("root");
   const [say, setSay] = useState<string | null>(null);
   const [greet, setGreet] = useState("");
+  // the Dyeworks glass: the avatar being tried on (engine draws it on you)
+  const [pv, setPv] = useState<{ kind: AvatarKind; a: string; b: string } | null>(null);
+  const preview = (p: { kind: AvatarKind; a: string; b: string } | null) => {
+    setPv(p);
+    bus.emit("avatarPreview", p);
+  };
   useEffect(() => {
     setMenu("root");
     setSay(null);
+    setPv(null);
+    bus.emit("avatarPreview", null); // walking away empties the glass
     if (openShop && KEEPER_TALK[openShop]) setGreet(pickLine(KEEPER_TALK[openShop].greet));
   }, [openShop]);
   if (!openShop || !KEEPERS[openShop]) return null;
@@ -249,6 +266,11 @@ function KeeperDialogue() {
       opts.push({ label: "Cloak dyes", sub: `${DYE_PRICE}g each`, onClick: () => setMenu("dyes") });
       opts.push({ label: "Eye glow", sub: `${EYE_PRICE}g each`, onClick: () => setMenu("eyes") });
       opts.push({ label: "Auras", sub: "the costly kind of beautiful", onClick: () => setMenu("auras") });
+      opts.push({
+        label: "The glass", swatch: "#a855f7",
+        sub: "other bodies · try them on before the burn",
+        onClick: () => setMenu("avatars"),
+      });
       if (s.wallet && s.holder) {
         opts.push({
           label: "Drift-touched", swatch: "#a855f7",
@@ -256,8 +278,101 @@ function KeeperDialogue() {
           onClick: () => setMenu("prestige"),
         });
       }
+    } else if (menu === "avatars") {
+      AVATAR_KINDS.forEach((k) => {
+        const entry = PRESTIGE_CATALOG[k];
+        const owned = s.ownedAvatars.includes(k);
+        const worn = s.cosmetics.avatar === k;
+        opts.push({
+          label: entry.label, swatch: "#a855f7", sub: entry.desc,
+          right: worn ? "worn" : owned ? "wear"
+            : <>{burnAmt(BURN_COSTS.prestigeAvatar)} <DriftsMark /></>,
+          onClick: () => {
+            // step to the glass: show it on you while you decide
+            preview({
+              kind: k,
+              a: worn ? s.cosmetics.avA : "",
+              b: worn ? s.cosmetics.avB : "",
+            });
+            setMenu(`avatar:${k}`);
+            setSay("The glass shows what the Drift could make of you.");
+          },
+        });
+      });
+      if (s.cosmetics.avatar) {
+        opts.push({
+          label: "Your own face again",
+          onClick: () => {
+            s.setCosmetics({ avatar: "", avA: "", avB: "" });
+            preview(null);
+            respond("The glass lets you go.");
+          },
+        });
+      }
+      opts.push(back());
+    } else if (menu.startsWith("avatar:")) {
+      const k = menu.slice(7) as AvatarKind;
+      const entry = PRESTIGE_CATALOG[k];
+      const owned = s.ownedAvatars.includes(k);
+      const worn = s.cosmetics.avatar === k;
+      const chans = Object.entries(AVATAR_CHANNELS[k]);
+      const cur = pv?.kind === k ? pv : { kind: k, a: "", b: "" };
+      info = entry?.desc ?? null;
+      chans.forEach(([chan, options], ci) => {
+        const sel = (ci === 0 ? cur.a : cur.b) || options[0];
+        opts.push({
+          label: chan, swatch: RAMP_SWATCH[sel], right: sel,
+          sub: "tap to turn the dye",
+          onClick: () => {
+            const next = options[(options.indexOf(sel) + 1) % options.length];
+            const p = { ...cur, [ci === 0 ? "a" : "b"]: next };
+            preview(p);
+            if (worn) s.setCosmetics(ci === 0 ? { avA: next } : { avB: next });
+          },
+        });
+      });
+      if (worn) {
+        opts.push({
+          label: "Take it off",
+          onClick: () => {
+            s.setCosmetics({ avatar: "", avA: "", avB: "" });
+            preview(null);
+            setMenu("avatars");
+            respond("The glass lets you go.");
+          },
+        });
+      } else if (owned) {
+        opts.push({
+          label: "Wear it",
+          onClick: () => {
+            s.setCosmetics({ avatar: k, avA: cur.a, avB: cur.b });
+            preview(null);
+            respond("It walks out wearing you.");
+          },
+        });
+      } else if (s.wallet && s.holder) {
+        opts.push({
+          label: `Become ${entry.label}`,
+          right: <>{burnAmt(BURN_COSTS.prestigeAvatar)} <DriftsMark /></>,
+          onClick: () => {
+            bus.emit("prestigeBurn", k);
+            respond("The chain takes its due. Hold still.");
+          },
+        });
+      } else {
+        opts.push({
+          label: `Become ${entry.label}`,
+          right: <>{burnAmt(BURN_COSTS.prestigeAvatar)} <DriftsMark /></>,
+          onClick: () => respond("The glass trades in burned DRIFTS only. Link a wallet that holds them."),
+        });
+      }
+      opts.push({
+        label: "Step away from the glass",
+        onClick: () => { preview(null); setMenu("avatars"); setSay(null); },
+      });
     } else if (menu === "prestige") {
       Object.entries(PRESTIGE_CATALOG).forEach(([k, entry]) => {
+        if (entry.kind === "avatar") return; // the glass has its own menu
         const owned =
           entry.kind === "dye" ? s.ownedDyes.includes(k as never) :
           entry.kind === "aura" ? s.ownedAuras.includes(k as never) :
@@ -669,24 +784,65 @@ function PitPanel() {
   const [wager, setWager] = useState(50);
   if (!s.online) return <OfflineNote what="The Pit" />;
   const others = s.roster.filter((r) => !r.self);
+  const q = s.pitQueue;
   return (
     <>
       <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
         Honorable violence. Both fighters stake the wager; the winner takes the pot.
-        No tombstones, no grudges. (Some grudges.)
+        The arena seals until one of you falls. No tombstones, no grudges. (Some grudges.)
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
-        <input type="number" min={0} max={5000} value={wager}
-          onChange={(e) => setWager(Math.max(0, Math.min(5000, Number(e.target.value) | 0)))}
-          className="drift-well"
-          style={{ width: 70, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }} />
-        <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>gold each</span>
-      </div>
-      {others.length === 0 && (
+      {/* the ring: post an open stake, or meet the one already waiting */}
+      {q && !q.mine ? (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--drift-corrupt)", marginBottom: 6 }}>
+            {q.name} waits in the ring. The stake is {q.wager}g.
+          </div>
+          <Button size="sm" variant="primary"
+            style={s.gold < q.wager ? { opacity: 0.45 } : undefined}
+            onClick={() => {
+              if (s.gold < q.wager) return;
+              bus.emit("pitJoin", q.wager);
+            }}>
+            Meet them in the ring · {q.wager}g
+          </Button>
+        </div>
+      ) : q && q.mine ? (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--drift-gold)", marginBottom: 6 }}>
+            You wait in the ring ({q.wager}g staked). The sand is patient.
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => bus.emit("pitLeave", true)}>
+            Step out of the ring
+          </Button>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
+            <input type="number" min={0} max={5000} value={wager}
+              onChange={(e) => setWager(Math.max(0, Math.min(5000, Number(e.target.value) | 0)))}
+              className="drift-well"
+              style={{ width: 70, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }} />
+            <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>gold each</span>
+          </div>
+          <Button size="sm" variant="primary"
+            style={s.gold < wager ? { opacity: 0.45 } : undefined}
+            onClick={() => {
+              if (s.gold < wager) return;
+              bus.emit("pitJoin", wager);
+              s.pushLog(`You step into the ring (${wager}g staked).`, "#dc2626");
+            }}>
+            Step into the ring
+          </Button>
+        </div>
+      )}
+      {/* or call someone out by name (the old way still stands) */}
+      {others.length === 0 ? (
         <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
           No one else walks the Drift right now. The sand waits.
         </div>
+      ) : (
+        <div className="drift-label" style={{ fontSize: 9, margin: "6px 0 4px" }}>Or call someone out</div>
       )}
       {others.map((r) =>
         shopRow(r.name, r.title, (
@@ -1253,6 +1409,7 @@ function IdentityDock() {
   const stats = useGame((s) => s.stats);
   const ownedDyes = useGame((s) => s.ownedDyes);
   const ownedEyes = useGame((s) => s.ownedEyes);
+  const ownedAvatars = useGame((s) => s.ownedAvatars);
   const ownedTitles = useGame((s) => s.ownedTitles);
   const title = currentTitle({ skills, kills, stats, ownedTitles });
 
@@ -1338,6 +1495,54 @@ function IdentityDock() {
                   swatchBtn(c, cosmetics.eye === k, () => setCosmetics({ eye: k as never }), k),
                 )}
             </div>
+            {/* premium avatars (burn-bought at the Dyeworks glass) */}
+            {ownedAvatars.length > 0 && (
+              <>
+                <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+                  Skin <span style={{ color: "var(--text-muted)" }}>· from the Dyeworks glass</span>
+                </label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+                  <Button
+                    size="sm"
+                    variant={cosmetics.avatar === "" ? "primary" : "ghost"}
+                    onClick={() => setCosmetics({ avatar: "", avA: "", avB: "" })}
+                  >
+                    Wanderer
+                  </Button>
+                  {ownedAvatars.map((k) => (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant={cosmetics.avatar === k ? "primary" : "ghost"}
+                      onClick={() => setCosmetics({ avatar: k, avA: "", avB: "" })}
+                    >
+                      {PRESTIGE_CATALOG[k]?.label ?? k}
+                    </Button>
+                  ))}
+                </div>
+                {cosmetics.avatar && (
+                  <div style={{ marginBottom: 10 }}>
+                    {Object.entries(AVATAR_CHANNELS[cosmetics.avatar]).map(([chan, options], ci) => (
+                      <div key={chan} style={{ marginBottom: 4 }}>
+                        <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>
+                          {chan}
+                        </label>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          {options.map((opt) =>
+                            swatchBtn(
+                              RAMP_SWATCH[opt] ?? "#a855f7",
+                              ((ci === 0 ? cosmetics.avA : cosmetics.avB) || options[0]) === opt,
+                              () => setCosmetics(ci === 0 ? { avA: opt } : { avB: opt }),
+                              `${chan} · ${opt}`,
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
             {/* lifetime deeds */}
             <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
               Deeds

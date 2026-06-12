@@ -63,6 +63,8 @@ export function buildThreshold(world: World) {
 interface Step {
   objective: string;
   warden: string;
+  /** a plain one-line explanation of WHY this matters (basic, no lore) */
+  explain?: string;
   onEnter?: (d: TutorialDirector) => void;
   done: (d: TutorialDirector) => boolean;
   /** the cell a guiding beacon hovers over for this step (null = no world target) */
@@ -76,12 +78,14 @@ const STEPS: Step[] = [
   {
     objective: "Walk to the gold arrow (click the ground beneath it)",
     warden: "So the door let another one through. Follow the mark; the realm only respects motion.",
+    explain: "Click any ground tile to walk there. The minimap (top right) shows where you stand.",
     target: () => THRESHOLD.beacon,
     done: (d) => at(d.player.px, d.player.py, THRESHOLD.beacon, 1),
   },
   {
     objective: "Chop the marked tree for Driftwood (click it)",
     warden: "Everything you will ever build starts as something you took. The tree first.",
+    explain: "Gathering raises your skills. Higher skill means faster swings and richer hauls.",
     target: () => THRESHOLD.tree,
     onEnter: (d) => (d.base.wood = useGame.getState().inventory.wood),
     done: (d) => useGame.getState().inventory.wood > d.base.wood,
@@ -89,6 +93,7 @@ const STEPS: Step[] = [
   {
     objective: "Mine the marked stone (click it)",
     warden: "Stone next. The Drift eats wood faster.",
+    explain: "Wood and stone feed the Forge: gear, tools and props all start as materials.",
     target: () => THRESHOLD.rock,
     onEnter: (d) => (d.base.stone = useGame.getState().inventory.stone),
     done: (d) => useGame.getState().inventory.stone > d.base.stone,
@@ -96,6 +101,7 @@ const STEPS: Step[] = [
   {
     objective: "Catch a Hollowfish at the marked pool (click it)",
     warden: "The pool is older than the realm. What you pull out of it is food, mostly.",
+    explain: "Hollowfish are the realm's catch: cooked, they restore your hearts; spare ones sell for gold at the market. Fishing is a skill too, and it grows like the others.",
     target: () => THRESHOLD.fish,
     onEnter: (d) => (d.base.fish = useGame.getState().inventory.fish),
     done: (d) => useGame.getState().inventory.fish > d.base.fish,
@@ -103,12 +109,29 @@ const STEPS: Step[] = [
   {
     objective: "Open the Satchel (top right) and press COOK",
     warden: "Raw Hollowfish is a mistake you make once. The Satchel knows fire.",
+    explain: "Cooked fish heals when you eat it from the Satchel. Raw fish does nothing.",
     onEnter: (d) => (d.base.cooked = useGame.getState().inventory.cooked_fish),
     done: (d) => useGame.getState().inventory.cooked_fish > d.base.cooked,
   },
   {
     objective: "A husk crawls from the Drift. Put it down (click it)",
     warden: "Behind you. A husk: what the Drift leaves of the ones who stopped moving.",
+    explain: "Husks are wanderers the Drift hollowed out. Click one to fight it; each kill pays gold and combat experience, and some drop hide or drift shards for the Forge. The purple ground is the Drift itself: it spreads every season, and standing on it hurts.",
+    target: (d) => {
+      const husk = d.combat.mobs.find((m) => m.state !== "dead");
+      return husk ? { x: Math.round(husk.px), y: Math.round(husk.py) } : THRESHOLD.huskAround;
+    },
+    onEnter: (d) => {
+      d.base.kills = useGame.getState().kills;
+      d.combat.spawnPackAt(d.world, THRESHOLD.huskAround.x, THRESHOLD.huskAround.y, 1, 1);
+      play("kill");
+    },
+    done: (d) => useGame.getState().kills > d.base.kills,
+  },
+  {
+    objective: "Another husk rises. Put that one down too",
+    warden: "They rarely come alone. Again, wanderer; the second swing should feel easier than the first.",
+    explain: "Your combat skill grew with that kill. Higher combat means harder swings; the Forge's blades and wards stack on top of it.",
     target: (d) => {
       const husk = d.combat.mobs.find((m) => m.state !== "dead");
       return husk ? { x: Math.round(husk.px), y: Math.round(husk.py) } : THRESHOLD.huskAround;
@@ -124,7 +147,16 @@ const STEPS: Step[] = [
     objective: "The Threshold opens. Step through the gate",
     warden: "That is the whole of it: take, make, fight, and never stand still. Go. The realm is louder than I am.",
     target: () => THRESHOLD.gateApproach,
-    onEnter: (d) => (d.gateOpen = true),
+    onEnter: (d) => {
+      d.gateOpen = true;
+      // a basic briefing on what waits beyond, before the realm gets loud
+      const s = useGame.getState();
+      s.pushLog("Beyond the gate stands the Waystation: shops, a vault for your gold, a wheel, a shrine.", "#d8cfe0");
+      s.pushLog("Gold is the realm's coin. Gathering, beasts and caravans pay it; gear, claims and drinks take it.", "#d8cfe0");
+      s.pushLog("DRIFTS is the realm's token. Holding it sets your standing; burning it works the rites.", "#d8cfe0");
+      s.pushLog("You will not wander alone. Others share the realm: trade with them, or duel them in the Pit.", "#d8cfe0");
+      s.pushLog("The Drift eats the map season by season. Outlast it. That is the game.", "#a855f7");
+    },
     done: (d) => at(d.player.px, d.player.py, THRESHOLD.gate, 1),
   },
 ];
@@ -160,6 +192,7 @@ export class TutorialDirector {
     const s = useGame.getState();
     s.setTutorialObjective(st.objective);
     s.pushLog(`Gatewarden: ${st.warden}`, "#e7c873");
+    if (st.explain) s.pushLog(st.explain, "#9b93ad");
     // the Drift takes another column of the path behind you, lesson by lesson
     if (this.step >= 2) this.eatColumn();
   }

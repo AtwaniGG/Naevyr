@@ -5,7 +5,7 @@ import LandingShell, { PageFrame } from "@/components/LandingShell";
 import {
   INVENTORY_ORDER, ITEM_META, RECIPES, DRINK_CATALOG, AURA_CATALOG,
   PET_CATALOG, PROP_CATALOG, DYE_PRICE, EYE_PRICE, SPIN_COST, CLAIM_COST,
-  BURN_COSTS, burnAmt,
+  BURN_COSTS, burnAmt, PRESTIGE_CATALOG, AVATAR_KINDS, AVATAR_CHANNELS,
   type ItemKey, type DrinkKey, type AuraKey, type PetKey, type PropKey,
 } from "@/game/types";
 import { TOWN_BUILDINGS, WILD_STRUCTURES } from "@/game/world/tilemap";
@@ -180,6 +180,18 @@ export default function IndexPage() {
                       ? <>{burnAmt(BURN_COSTS.prestigeAura)} ◆ only</>
                       : <>{AURA_CATALOG[k].price}g · or {burnAmt(BURN_COSTS.aura)} ◆</>}
                   </span>
+                </div>
+              ))}
+              <Section title="The Dyeworks glass · premium avatars" />
+              {AVATAR_KINDS.map((k, i) => (
+                <div key={k} style={{ ...ROW, ...odd(i) }}>
+                  <span style={NAME}>{PRESTIGE_CATALOG[k].label}</span>
+                  <span style={DESC}>
+                    {PRESTIGE_CATALOG[k].desc}. Two dye channels (
+                    {Object.keys(AVATAR_CHANNELS[k]).join(" · ")}). Tried on at
+                    the glass before the burn. Bound to the buyer.
+                  </span>
+                  <span style={VAL}>{burnAmt(BURN_COSTS.prestigeAvatar)} ◆ only</span>
                 </div>
               ))}
               <Section title="The Menagerie · followers" />

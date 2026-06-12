@@ -38,14 +38,14 @@ import {
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
   RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode, walletLinkMessage,
   CLAIM_COST, SPIN_COST, PROP_CATALOG, PropKey, ItemKey, RECIPES,
   ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks, REINFORCE_INTEGRITY,
-  PRESTIGE_CATALOG,
+  PRESTIGE_CATALOG, AVATAR_CHANNELS, AvatarKind,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
   GUILD, EXCHANGE, RELIC_MARKET,
 } from "@/game/types";
@@ -93,6 +93,12 @@ const EYE_KEYS = ["drift", "ember", "blood", "gold", "water"];
 const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo", ...PRESTIGE_AURA_KEYS];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
 const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
+
+// the Pit's arena ring: duels are sealed inside it (move clamp + client veil)
+const PIT = (() => {
+  const b = TOWN_BUILDINGS.find((s) => s.key === "pit")!;
+  return { x: b.x, y: b.y, r: b.r };
+})();
 
 // ---- Phase 6: the Founder window -----------------------------------------------
 // Any verified burn while now < FOUNDER_UNTIL stamps the one-time Founder mark
@@ -376,6 +382,8 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** prop id → owner token */
   private propOwner = new Map<number, string>();
   private duels: Duel[] = [];
+  /** one open arena challenge: the wanderer waiting in the ring + their stake */
+  private pitQueue: { sessionId: string; wager: number; name: string } | null = null;
   /** guild id → row mirror (region/until/founder live server-side only) */
   private guildRows = new Map<number, GuildRow>();
   /** guild id → member headcount */
@@ -497,6 +505,12 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!this.allow(sim, "move", 12, 1000)) return;
       const goal = { x: Math.round(msg.x), y: Math.round(msg.y) };
       if (!this.world.inBounds(goal.x, goal.y)) return;
+      // a duelist is SEALED in the arena: the realm beyond the ring is gone
+      // until one of them falls (the client renders the void to match)
+      if (this.inDuel(client.sessionId)) {
+        goal.x = Math.max(PIT.x - PIT.r, Math.min(PIT.x + PIT.r, goal.x));
+        goal.y = Math.max(PIT.y - PIT.r, Math.min(PIT.y + PIT.r, goal.y));
+      }
       const path = findPath(this.world, this.cellOf(sim), goal);
       if (path) {
         this.cancelGather(sim);
@@ -548,7 +562,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       "identity",
       (client, msg: {
         name?: string; dye?: string; eye?: string; title?: string;
-        aura?: string; pet?: string;
+        aura?: string; pet?: string; avatar?: string; avA?: string; avB?: string;
       }) => {
         const ps = this.state.players.get(client.sessionId);
         if (!ps || !msg) return;
@@ -567,6 +581,20 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (typeof msg.aura === "string" && AURA_KEYS.includes(msg.aura) &&
             (!PRESTIGE_AURA_KEYS.has(msg.aura) || simI.prestige.has(msg.aura))) ps.aura = msg.aura;
         if (typeof msg.pet === "string" && PET_KEYS.includes(msg.pet)) ps.pet = msg.pet;
+        // premium avatars: "" reverts to the wanderer; a kind is accepted only
+        // from its owner (burned for it). Channel options must name a real
+        // ramp choice for that kind ("" = the default).
+        if (typeof msg.avatar === "string") {
+          if (msg.avatar === "") { ps.avatar = ""; ps.avA = ""; ps.avB = ""; }
+          else if (AVATAR_CHANNELS[msg.avatar as AvatarKind] && simI.prestige.has(msg.avatar)) {
+            ps.avatar = msg.avatar;
+          }
+        }
+        if (ps.avatar) {
+          const [aOpts, bOpts] = Object.values(AVATAR_CHANNELS[ps.avatar as AvatarKind]);
+          if (typeof msg.avA === "string" && (msg.avA === "" || aOpts.includes(msg.avA))) ps.avA = msg.avA;
+          if (typeof msg.avB === "string" && (msg.avB === "" || bOpts.includes(msg.avB))) ps.avB = msg.avB;
+        }
       },
     );
 
@@ -717,41 +745,40 @@ export class DriftRoom extends Room<DriftRoomState> {
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
       if (!a || !b || this.inDuel(a.client.sessionId) || this.inDuel(b.client.sessionId)) return;
       if (!this.allow(b, "acceptDuel", 3, 5000)) return;
-      // both stakes leave the ledgers up front; the pot pays out at the end
-      if (wager > 0) {
-        if (a.gold < wager || b.gold < wager) {
-          const light = a.gold < wager ? a : b;
-          for (const s of [a, b]) {
-            s.client.send("duelRefused", {
-              reason: light === s ? "Your purse can't cover the wager" : "Their purse can't cover the wager",
-            });
-          }
+      this.startDuel(a, b, wager);
+    });
+
+    // ---- the arena queue: click the Pit, post a stake, the next wanderer who
+    //      steps up meets you in the ring ----------------------------------------
+    this.onMessage("pitJoin", (client, msg: { wager?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "pitJoin", 4, 10_000)) return;
+      if (this.inDuel(client.sessionId)) return;
+      const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
+      const q = this.pitQueue;
+      if (!q || q.sessionId === client.sessionId || !this.sims.get(q.sessionId)) {
+        // post (or repost) the open challenge at this stake
+        if (sim.gold < wager) {
+          client.send("duelRefused", { reason: "Your purse can't cover the wager" });
           return;
         }
-        this.debit(a, wager);
-        this.debit(b, wager);
+        const name = this.state.players.get(client.sessionId)?.name ?? "Wanderer";
+        this.pitQueue = { sessionId: client.sessionId, wager, name };
+        this.broadcast("pitQueue", { name, wager, sessionId: client.sessionId });
+        return;
       }
-      // both fighters step into the Pit
-      a.px = 18; a.py = 32; a.path = []; a.action = "idle";
-      b.px = 22; b.py = 32; b.path = []; b.action = "idle";
-      this.cancelGather(a);
-      this.cancelGather(b);
-      this.duels.push({
-        a: a.client.sessionId,
-        b: b.client.sessionId,
-        wager,
-        hpA: 100,
-        hpB: 100,
-        until: Date.now() + 90_000,
-        lastHitA: 0,
-        lastHitB: 0,
-      });
-      const nameA = this.state.players.get(a.client.sessionId)?.name ?? "?";
-      const nameB = this.state.players.get(b.client.sessionId)?.name ?? "?";
-      this.broadcast("duelStart", {
-        a: a.client.sessionId, b: b.client.sessionId,
-        nameA, nameB, wager,
-      });
+      // someone already waits: meet them at THEIR stake
+      const a = this.sims.get(q.sessionId)!;
+      this.pitQueue = null;
+      this.broadcast("pitQueue", null);
+      this.startDuel(a, sim, q.wager);
+    });
+
+    this.onMessage("pitLeave", (client) => {
+      if (this.pitQueue?.sessionId !== client.sessionId) return;
+      this.pitQueue = null;
+      this.broadcast("pitQueue", null);
     });
 
     this.onMessage("duelHit", (client) => {
@@ -1213,7 +1240,9 @@ export class DriftRoom extends Room<DriftRoomState> {
       const key = String(msg?.key ?? "");
       const price = Math.round(Number(msg?.price ?? 0));
       const entry = PRESTIGE_CATALOG[key];
-      if (!entry || entry.kind === "title") return fail("That cannot be traded");
+      // titles AND avatars are soul-bound (avatars would need live-strip +
+      // re-validation of the worn body on both sides — revisit after review)
+      if (!entry || entry.kind === "title" || entry.kind === "avatar") return fail("That cannot be traded");
       if (!sim.prestige.has(key)) return fail("You do not own that relic");
       if (price < RELIC_MARKET.minPrice || price > RELIC_MARKET.maxPrice) {
         return fail(`Relics trade between ${RELIC_MARKET.minPrice.toLocaleString()} and ${RELIC_MARKET.maxPrice.toLocaleString()} DRIFTS`);
@@ -1852,6 +1881,11 @@ export class DriftRoom extends Room<DriftRoomState> {
     if (duel) {
       this.endDuel(duel, duel.a === client.sessionId ? duel.b : duel.a);
     }
+    // an open arena challenge leaves with its poster
+    if (this.pitQueue?.sessionId === client.sessionId) {
+      this.pitQueue = null;
+      this.broadcast("pitQueue", null);
+    }
     const sim = this.sims.get(client.sessionId);
     const ps = this.state.players.get(client.sessionId);
     this.sims.delete(client.sessionId);
@@ -1988,6 +2022,45 @@ export class DriftRoom extends Room<DriftRoomState> {
 
   private inDuel(sessionId: string): boolean {
     return this.duels.some((d) => d.a === sessionId || d.b === sessionId);
+  }
+
+  /** stake both wagers and seal two fighters into the arena ring */
+  private startDuel(a: PlayerSim, b: PlayerSim, wager: number) {
+    // both stakes leave the ledgers up front; the pot pays out at the end
+    if (wager > 0) {
+      if (a.gold < wager || b.gold < wager) {
+        const light = a.gold < wager ? a : b;
+        for (const s of [a, b]) {
+          s.client.send("duelRefused", {
+            reason: light === s ? "Your purse can't cover the wager" : "Their purse can't cover the wager",
+          });
+        }
+        return;
+      }
+      this.debit(a, wager);
+      this.debit(b, wager);
+    }
+    // both fighters step into the ring, facing each other across the sand
+    a.px = PIT.x - 1; a.py = PIT.y; a.path = []; a.action = "idle";
+    b.px = PIT.x + 1; b.py = PIT.y; b.path = []; b.action = "idle";
+    this.cancelGather(a);
+    this.cancelGather(b);
+    this.duels.push({
+      a: a.client.sessionId,
+      b: b.client.sessionId,
+      wager,
+      hpA: 100,
+      hpB: 100,
+      until: Date.now() + 90_000,
+      lastHitA: 0,
+      lastHitB: 0,
+    });
+    const nameA = this.state.players.get(a.client.sessionId)?.name ?? "?";
+    const nameB = this.state.players.get(b.client.sessionId)?.name ?? "?";
+    this.broadcast("duelStart", {
+      a: a.client.sessionId, b: b.client.sessionId,
+      nameA, nameB, wager,
+    });
   }
 
   /** winner=null → draw (timeout) */
