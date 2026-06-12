@@ -99,9 +99,50 @@ import {
   createBurnCheckedInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 
 const DECIMALS = 6;
+
+// The mint may live on the classic SPL Token program (devnet mint, verify
+// suites) OR on Token-2022 / Token Extensions (pump.fun's current default —
+// the live DRIFTS mint). ATA derivation and every *Checked instruction must
+// target the SAME program the mint belongs to, or the wrong account address is
+// derived and the burn/transfer is rejected. Resolve it once from the mint's
+// owner and thread it everywhere. (Balance reads filter by {mint}, which is
+// program-agnostic, so they need no change.)
+let _tokenProgram: PublicKey | undefined; // undefined = not resolved yet
+
+async function tokenProgramId(c: Connection): Promise<PublicKey> {
+  if (_tokenProgram) return _tokenProgram;
+  if (!MINT) return TOKEN_PROGRAM_ID;
+  try {
+    const info = await withDeadline(c.getAccountInfo(new PublicKey(MINT)), 4000);
+    _tokenProgram = info?.owner.equals(TOKEN_2022_PROGRAM_ID)
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+  } catch {
+    return TOKEN_PROGRAM_ID; // transient RPC failure: don't cache, retry next call
+  }
+  return _tokenProgram;
+}
+
+/** synchronous best-effort for the few sync ATA derivations; the boot warmup
+ *  below populates this within ~1s, classic until then */
+function cachedTokenProgram(): PublicKey {
+  return _tokenProgram ?? TOKEN_PROGRAM_ID;
+}
+
+// warm the cache at boot so sync ATA derivations are correct from the first use
+if (MINT) {
+  void (async () => {
+    try {
+      conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
+      await tokenProgramId(conn);
+    } catch { /* resolved lazily on first instruction build */ }
+  })();
+}
 
 let treasuryPk: PublicKey | null | undefined; // undefined = not parsed yet
 
@@ -162,27 +203,28 @@ export async function buildBurnTx(
     if (balance < amount) {
       return { ok: false, reason: `That rite burns ${amount} tokens; you hold ${balance}` };
     }
+    const tp = await tokenProgramId(conn);
     const mintPk = new PublicKey(MINT);
     const owner = new PublicKey(wallet);
-    const ata = getAssociatedTokenAddressSync(mintPk, owner);
+    const ata = getAssociatedTokenAddressSync(mintPk, owner, false, tp);
     const split = burnSplit(amount);
     const tx = new Transaction().add(
       createBurnCheckedInstruction(
         ata, mintPk, owner,
-        BigInt(Math.round(split.burn * 10 ** DECIMALS)), DECIMALS,
+        BigInt(Math.round(split.burn * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
     const treasury = treasuryAddress();
     if (treasury && split.treasury > 0) {
-      const treasuryAta = getAssociatedTokenAddressSync(mintPk, treasury);
+      const treasuryAta = getAssociatedTokenAddressSync(mintPk, treasury, false, tp);
       tx.add(
         // authority pays rent if the treasury ATA doesn't exist yet (no-op after)
         createAssociatedTokenAccountIdempotentInstruction(
-          payer.publicKey, treasuryAta, treasury, mintPk,
+          payer.publicKey, treasuryAta, treasury, mintPk, tp,
         ),
         createTransferCheckedInstruction(
           ata, mintPk, treasuryAta, owner,
-          BigInt(Math.round(split.treasury * 10 ** DECIMALS)), DECIMALS,
+          BigInt(Math.round(split.treasury * 10 ** DECIMALS)), DECIMALS, [], tp,
         ),
       );
     }
@@ -208,10 +250,12 @@ export async function verifyBurn(
   const treasury = treasuryAddress();
   const legs: TxLeg[] = [{ type: "burn", from: wallet, min: split.burn }];
   if (treasury && split.treasury > 0) {
+    conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
+    const tp = await tokenProgramId(conn);
     legs.push({
       type: "transfer",
       from: wallet,
-      destAta: getAssociatedTokenAddressSync(new PublicKey(MINT), treasury).toBase58(),
+      destAta: getAssociatedTokenAddressSync(new PublicKey(MINT), treasury, false, tp).toBase58(),
       min: split.treasury,
     });
   }
@@ -278,15 +322,16 @@ export async function buildExchangeBuyTx(
     if (balance < amount) {
       return { ok: false, reason: `That trade costs ${amount} DRIFTS; you hold ${balance}` };
     }
+    const tp = await tokenProgramId(conn);
     const mintPk = new PublicKey(MINT);
     const owner = new PublicKey(wallet);
-    const ata = getAssociatedTokenAddressSync(mintPk, owner);
-    const escrowAta = getAssociatedTokenAddressSync(mintPk, escrow);
+    const ata = getAssociatedTokenAddressSync(mintPk, owner, false, tp);
+    const escrowAtaAddr = getAssociatedTokenAddressSync(mintPk, escrow, false, tp);
     const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, escrowAta, escrow, mintPk),
+      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, escrowAtaAddr, escrow, mintPk, tp),
       createTransferCheckedInstruction(
-        ata, mintPk, escrowAta, owner,
-        BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS,
+        ata, mintPk, escrowAtaAddr, owner,
+        BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
     tx.feePayer = payer.publicKey;
@@ -317,20 +362,21 @@ export async function buildRelicTx(
     }
     const fee = Math.ceil(price * feePct);
     const toSeller = price - fee;
+    const tp = await tokenProgramId(conn);
     const mintPk = new PublicKey(MINT);
     const buyerPk = new PublicKey(buyer);
     const sellerPk = new PublicKey(seller);
-    const buyerAta = getAssociatedTokenAddressSync(mintPk, buyerPk);
-    const sellerAta = getAssociatedTokenAddressSync(mintPk, sellerPk);
+    const buyerAta = getAssociatedTokenAddressSync(mintPk, buyerPk, false, tp);
+    const sellerAta = getAssociatedTokenAddressSync(mintPk, sellerPk, false, tp);
     const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, sellerAta, sellerPk, mintPk),
+      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, sellerAta, sellerPk, mintPk, tp),
       createTransferCheckedInstruction(
         buyerAta, mintPk, sellerAta, buyerPk,
-        BigInt(Math.round(toSeller * 10 ** DECIMALS)), DECIMALS,
+        BigInt(Math.round(toSeller * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
       createBurnCheckedInstruction(
         buyerAta, mintPk, buyerPk,
-        BigInt(Math.round(fee * 10 ** DECIMALS)), DECIMALS,
+        BigInt(Math.round(fee * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
     tx.feePayer = payer.publicKey;
@@ -413,7 +459,7 @@ export async function verifyTxLegs(
 export function escrowAta(): string {
   const escrow = escrowAddress();
   return escrow && MINT
-    ? getAssociatedTokenAddressSync(new PublicKey(MINT), escrow).toBase58()
+    ? getAssociatedTokenAddressSync(new PublicKey(MINT), escrow, false, cachedTokenProgram()).toBase58()
     : "";
 }
 
@@ -445,18 +491,19 @@ export async function payFromEscrow(
   const escrowKey = escrow.publicKey.toBase58();
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
+    const tp = await tokenProgramId(conn);
     const mintPk = new PublicKey(MINT);
     const destPk = new PublicKey(wallet);
-    const escrowAtaPk = getAssociatedTokenAddressSync(mintPk, escrow.publicKey);
-    const destAta = getAssociatedTokenAddressSync(mintPk, destPk);
+    const escrowAtaPk = getAssociatedTokenAddressSync(mintPk, escrow.publicKey, false, tp);
+    const destAta = getAssociatedTokenAddressSync(mintPk, destPk, false, tp);
     // the authority pays the fee + any ATA rent (it is the one SOL-funded
     // account in the system); the escrow only signs the token transfer
     const payer = feePayer() ?? escrow;
     tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, destAta, destPk, mintPk),
+      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, destAta, destPk, mintPk, tp),
       createTransferCheckedInstruction(
         escrowAtaPk, mintPk, destAta, escrow.publicKey,
-        BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS,
+        BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
     tx.feePayer = payer.publicKey;
@@ -494,7 +541,7 @@ export async function payFromEscrow(
 export function walletAta(wallet: string): string {
   if (!MINT) return "";
   try {
-    return getAssociatedTokenAddressSync(new PublicKey(MINT), new PublicKey(wallet)).toBase58();
+    return getAssociatedTokenAddressSync(new PublicKey(MINT), new PublicKey(wallet), false, cachedTokenProgram()).toBase58();
   } catch {
     return "";
   }
