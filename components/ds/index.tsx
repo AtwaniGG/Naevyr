@@ -6,9 +6,9 @@ export { Icon, ICON_NAMES, TOOL_NAMES } from "./Icon";
 export type { IconName } from "./Icon";
 
 /* ============================================================
-   DriftLands design-system components, ported to TSX from
+   Naevyr design-system components, ported to TSX from
    public/assets/design-system/components. Chrome (clip-paths,
-   bevels, glows) lives in app/driftlands.css.
+   bevels, glows) lives in app/naevyr.css.
    ============================================================ */
 
 // ---- Panel ------------------------------------------------------------------

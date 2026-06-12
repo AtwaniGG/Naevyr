@@ -1,4 +1,4 @@
-// DriftLands INTERIOR WALL SET (corrected) — eval after pixlib.js + tiles.js.
+// Naevyr INTERIOR WALL SET (corrected) — eval after pixlib.js + tiles.js.
 // Skewed parallelogram faces that follow the 2:1 iso diagonal and TILE
 // seamlessly. Rect-grid, RAMP only, dither not blur, deterministic.
 // One segment = one floor tile's back edge: 32 wide, bottom drops 16 across it.

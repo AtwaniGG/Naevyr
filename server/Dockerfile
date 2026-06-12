@@ -1,4 +1,4 @@
-# Driftlands authoritative game server (Colyseus 0.16) — Railway image.
+# Naevyr authoritative game server (Colyseus 0.16) — Railway image.
 #
 # BUILD CONTEXT = repo root (NOT server/): the server reuses game/types.ts and
 # game/world/* through the @/* path alias (server/tsconfig baseUrl ".."), so

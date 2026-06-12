@@ -1,4 +1,4 @@
-// Procedural WebAudio for Driftlands — no audio files, everything synthesized
+// Procedural WebAudio for Naevyr — no audio files, everything synthesized
 // to match the pixel aesthetic. Lazy: the AudioContext starts on the first
 // user gesture (browsers require it), ambient bed starts with it.
 

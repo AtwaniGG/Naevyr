@@ -1,7 +1,7 @@
 import React from 'react';
 
 /* ============================================================
-   DriftLands PIXEL ICONS
+   Naevyr PIXEL ICONS
    Each icon is a 16×16 grid of chars; every char maps to a palette
    entry below and renders as one 1×1 <rect> with crisp edges. Tune
    pixels by editing the grids — keep the 'k' outline + 2–3 shade

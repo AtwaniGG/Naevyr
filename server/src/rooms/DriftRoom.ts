@@ -26,16 +26,17 @@ import {
   setInv as persistInv,
   PlayerRow,
 } from "../db";
-import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens } from "../solana";
+import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens, burnSplit } from "../solana";
 import { verifyGateProof } from "../gate";
-import { tryInsertBurn, deleteBurn } from "../db";
+import { tryInsertBurn, deleteBurn, setFounder } from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
   RESOURCE_META, INVENTORY_ORDER, Cell, ResourceNode, walletLinkMessage,
   CLAIM_COST, SPIN_COST, PROP_CATALOG, PropKey, ItemKey, RECIPES,
-  ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks,
+  ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks, REINFORCE_INTEGRITY,
+  PRESTIGE_CATALOG,
 } from "@/game/types";
 import {
   DriftRoomState,
@@ -63,11 +64,18 @@ const CLAIM_SIEGE_EROSION = 15; // …when corruption is at the fence
 const VALID_ITEMS = new Set<string>(INVENTORY_ORDER);
 
 // mirror of the client's cosmetic catalogs (whitelists)
-const DYE_KEYS = ["stone", "ember", "moss", "blood", "gold", "bone", "water", "void"];
+const DYE_KEYS = ["stone", "ember", "moss", "blood", "gold", "bone", "water", "void", "drift"];
 const EYE_KEYS = ["drift", "ember", "blood", "gold", "water"];
-const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo"];
+const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo",
+  "ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
 const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
+
+// ---- Phase 6: the Founder window -----------------------------------------------
+// Any verified burn while now < FOUNDER_UNTIL stamps the one-time Founder mark
+// (title + Ashen Crown, granted client-side off the profile/founder messages).
+// Unset = feature off, so dev and the verify suites run unchanged.
+const FOUNDER_UNTIL = Date.parse(process.env.FOUNDER_UNTIL ?? "") || 0;
 
 // ---- Caravans: a wagon runs the Waystation → map-edge gate gauntlet ----------
 // Env overrides exist so the verify script can compress the timeline.
@@ -799,6 +807,48 @@ export class DriftRoom extends Room<DriftRoomState> {
         : { ok: true, action: "obelisk" });
     });
 
+    // Phase 6: Drift-touched cosmetics — DRIFTS burns only, never gold. The
+    // catalog (and each entry's burn action) is shared via types.ts.
+    this.onMessage("prestige", async (client, msg: { key?: string; burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "prestige", 4, 10_000)) return;
+      const key = String(msg?.key ?? "");
+      const entry = PRESTIGE_CATALOG[key];
+      if (!entry) {
+        return client.send("prestigeResult", { ok: false, reason: "Unknown rite" });
+      }
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), entry.action);
+      if (err) return client.send("prestigeResult", { ok: false, reason: err });
+      client.send("prestigeResult", { ok: true, key, kind: entry.kind });
+    });
+
+    // Phase 6: reinforce — a verified burn shores up your WEAKEST claim
+    // (+REINFORCE_INTEGRITY, capped at 100: a delay bought again and again,
+    // never immunity — the Drift always comes back).
+    this.onMessage("reinforce", async (client, msg: { burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "reinforce", 4, 10_000)) return;
+      const fail = (reason: string) =>
+        client.send("reinforceResult", { ok: false, reason });
+      let weakest: ClaimState | null = null;
+      for (const cs of this.state.claims.values()) {
+        if (this.claimOwner.get(cs.id) !== sim.token) continue;
+        if (!weakest || cs.integrity < weakest.integrity) weakest = cs;
+      }
+      if (!weakest) return fail("You hold no claims to reinforce");
+      if (weakest.integrity >= 100) return fail("Your wardings already stand whole");
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "reinforce");
+      if (err) return fail(err);
+      weakest.integrity = Math.min(100, weakest.integrity + REINFORCE_INTEGRITY);
+      void setClaimIntegrity(weakest.id, weakest.integrity).catch(() => {});
+      client.send("reinforceResult", {
+        ok: true, id: weakest.id, x: weakest.x, y: weakest.y, integrity: weakest.integrity,
+      });
+      this.broadcast("claimReinforced", { x: weakest.x, y: weakest.y });
+    });
+
     this.onMessage("unlinkWallet", async (client) => {
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
@@ -843,6 +893,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         tokenBalance,
         holder: tokenBalance >= 1,
         mint: tokenMint() || null,
+        founder: row.founder,
       });
     });
 
@@ -1714,16 +1765,29 @@ export class DriftRoom extends Room<DriftRoomState> {
     if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(burnSig)) return "Malformed burn signature";
     const row = await loadOrCreatePlayer(sim.token);
     if (!row.walletAddress) return "No wallet linked";
+    const cost = BURN_COSTS[action] ?? 1;
+    const split = burnSplit(cost); // 50/50 with TREASURY_ADDRESS set, else 100% burn
     // insert-first so a signature can never be spent twice, even concurrently
-    if (!(await tryInsertBurn(burnSig, sim.token, action))) {
+    if (!(await tryInsertBurn(burnSig, sim.token, action, split.burn, split.treasury))) {
       return "That burn was already spent";
     }
-    const v = await verifyBurn(burnSig, row.walletAddress, BURN_COSTS[action] ?? 1);
+    const v = await verifyBurn(burnSig, row.walletAddress, cost);
     if (!v.ok) {
       await deleteBurn(burnSig).catch(() => {}); // free it for a retry
       return v.reason ?? "The burn could not be verified";
     }
+    void this.markFounder(sim, row);
     return null;
+  }
+
+  /** Founder window: the FIRST verified burn before FOUNDER_UNTIL marks the
+   *  player for the one-time beta cosmetics; never grantable again after. */
+  private async markFounder(sim: PlayerSim, row: PlayerRow) {
+    if (!FOUNDER_UNTIL || Date.now() >= FOUNDER_UNTIL || row.founder) return;
+    await setFounder(sim.token).catch(() => {});
+    for (const c of this.clients) {
+      if (this.sims.get(c.sessionId) === sim) { c.send("founder", {}); break; }
+    }
   }
 
   // ---- shared mobs ------------------------------------------------------------------

@@ -1,11 +1,11 @@
-/* DriftLands UI kit — the HUD overlay.
+/* Naevyr UI kit — the HUD overlay.
    Composes the design-system components (Panel, Hotbar, XPBar, Slot,
    ActivityLog, SeasonBadge, Button, Icon) into the full in-game HUD,
    sitting over the canvas world. Light interactivity: pick a tool,
    gather → XP + loot + log. */
 
-const NS = window.DriftLandsDesignSystem_3de3e2
-  || window[Object.keys(window).find(k => k.startsWith('DriftLandsDesignSystem'))];
+const NS = window.NaevyrDesignSystem_3de3e2
+  || window[Object.keys(window).find(k => k.startsWith('NaevyrDesignSystem'))];
 const { Panel, Button, Badge, SeasonBadge, Slot, Hotbar, XPBar, ActivityLog, Icon } = NS;
 
 const TOOLS = [

@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — Slot
+/* Naevyr — Slot
    Inventory / hotbar cell. Pixel well with a hard inset bevel; a
    rarity edge, a stack count, an optional keybind cap, and the Drift
    selection glow. Pass `icon` as a node (e.g. <Icon name="axe" />). */

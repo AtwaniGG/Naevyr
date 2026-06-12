@@ -1,4 +1,4 @@
-// DriftLands "THE THRESHOLD" tutorial micro-set — eval after pixlib.js + tiles.js.
+// Naevyr "THE THRESHOLD" tutorial micro-set — eval after pixlib.js + tiles.js.
 // Rect-grid, RAMP only, 1px void outline, dither not blur, deterministic.
 // Gate 96x128 (sealed+open, 3 rune-pulse frames each) · Gatewarden 32x40 (5
 // facings, idle 2f) · Objective beacon 64x64 (3f) + arrow pip 16x16 (2f) ·

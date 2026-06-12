@@ -1,4 +1,4 @@
-// DriftLands THE WILDS PACK — eval after pixlib.js + tiles.js (+ town.js for
+// Naevyr THE WILDS PACK — eval after pixlib.js + tiles.js (+ town.js for
 // foundation, interiors.js for wallSegment). Rect-grid, RAMP only, 1px void
 // auto-outline, dither not blur, deterministic. Moonlit-left/shadowed-right.
 // Top 6px of every cell kept clear for labels.

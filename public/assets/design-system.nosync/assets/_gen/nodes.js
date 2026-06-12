@@ -1,4 +1,4 @@
-// DriftLands resource-node generators — eval after pixlib.js + tiles.js.
+// Naevyr resource-node generators — eval after pixlib.js + tiles.js.
 // tree 48×56 · rock 40×30 · fish ripple 40×20. Bottom-center anchored.
 
 function inEllipse(x, y, cx, cy, rx, ry) {

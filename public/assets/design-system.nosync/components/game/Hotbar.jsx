@@ -1,7 +1,7 @@
 import React from 'react';
 import { Slot } from './Slot.jsx';
 
-/* DriftLands — Hotbar
+/* Naevyr — Hotbar
    The 6-slot action bar (keys 1–6). Pass `slots` as an array of up to
    6 items ({ icon, count, rarity }); `selected` is the active index.
    Empty positions render as quiet wells. */

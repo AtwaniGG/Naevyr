@@ -1,4 +1,8 @@
-# Driftlands — CLAUDE.md
+# Naevyr — CLAUDE.md
+
+(Formerly "Driftlands" — renamed 2026-06-12. Storage keys, the local DB dir,
+the GitHub repo and the deployed Railway/Vercel project names keep the old
+`driftlands` prefix on purpose: renaming them wipes saves or breaks live URLs.)
 
 Browser-based isometric play-to-earn MMO ("Kintara-inspired, not a clone"). Dark-fantasy
 pixel art. A creeping corruption ("the Drift") relocates resource nodes and eats the map
@@ -78,7 +82,7 @@ something works without running these.
 
 All art is **procedural rect-grid pixel generation in code** — no image files at
 runtime. The art SOURCE OF TRUTH is the Claude Design packages the user drops as a zip
-named `DriftLands Design System.zip` into `public/assets/`, extracted to
+named `Naevyr Design System.zip` into `public/assets/`, extracted to
 `public/assets/design-system.nosync/` (MUST be *.nosync — iCloud's agent
 half-deleted a fresh plain-named extraction mid-session on 2026-06-11; the
 zip itself is the durable copy). Key contents:
@@ -88,17 +92,17 @@ zip itself is the durable copy). Key contents:
 - `assets/<category>/*.svg + *.json` — rendered exports + frame metadata (cell dims,
   anchors, facings, anim names/counts). Use the JSON to get anchors/frame tables right.
 - `tokens/*.css`, `readme.md`, preview HTMLs — palette/typography reference. HUD design
-  tokens already live in `app/driftlands.css` + `components/ds/`.
+  tokens already live in `app/naevyr.css` + `components/ds/`.
 
 **Integration workflow when the user says "zip uploaded / new design dropped":**
-1. `rm -rf public/assets/design-system.nosync && unzip -o "public/assets/DriftLands
+1. `rm -rf public/assets/design-system.nosync && unzip -o "public/assets/Naevyr
    Design System.zip" -d public/assets/design-system.nosync`
 2. Read the new `_gen/*.js` generators + their `.json` metadata.
 3. Port to TS in `game/render/sprites.ts` (same names/structure as existing ports),
    register in `SpriteCache.init()` (or lazy maps), add draw method, wire into
    `game/engine/game.ts`. EXCEPTION — art for DOM pages (the landing) uses the
    SVG exports directly from public/ (CSS steps() sheets per the JSON frame
-   tables; classes in driftlands.css), no engine port.
+   tables; classes in naevyr.css), no engine port.
 4. Extend `scripts/smoke-sprites.ts` to cover the new generators; run it + tsc + build.
    Byte-diff ports against exports (`scripts/tmp-compare-walls.ts` /
    `tmp-compare-wilds.ts` pattern: exports emit rects FRAME BY FRAME with
@@ -140,12 +144,12 @@ for export parity but NOT placed (it builds on the dead flat v1 wall set).
 **LANDING SET (done):** `_gen/landing.js` is used as DOM art, not an engine
 port: hero_vista 480×270 2f, wordmark_plate 320×96 2f, gate_door 96×128 3f,
 nav_icons 9×16×16 — all served straight from the design-system.nosync SVG
-exports and animated with CSS steps() classes in driftlands.css
+exports and animated with CSS steps() classes in naevyr.css
 (`.landing-hero/-plate/-door/-icon`, icon picked via `--icon-index`).
 
 **BRAND SET (done):** `assets/brand/` exports (emblem-16/32/64 + logo-horizontal/
 stacked, each with -mono) are DOM art, no engine port. The emblem is the DRIFTS
-coin mark: `.drifts-mark` class in driftlands.css (1em inline, pixelated) used
+coin mark: `.drifts-mark` class in naevyr.css (1em inline, pixelated) used
 wherever the currency shows (nav balance chip, HUD burn buttons/keeper rights,
 codex legend, docs). `_gen/fxlogo.js` regenerates it. The currency is named
 **DRIFTS** in ALL user-facing copy (never "tokens"/"the token"/"coins"); the
@@ -577,7 +581,7 @@ hardening both landed 2026-06-11 — see the tutorial + entry-gate sections.)
 - Writing voice: dark-fantasy laconic ("The Drift takes you…", "the stalls stand
   empty"). Keep log lines/copy in that voice. No emoji in game UI (pixel `Icon`s only).
   **No em dashes (—) in any user-facing text** (user rule; use periods, commas, or "·").
-- HUD panels scale via `--hud-scale` in driftlands.css (0.8): anchored containers
+- HUD panels scale via `--hud-scale` in naevyr.css (0.8): anchored containers
   apply `scale(var(--hud-scale))` with a matching transform-origin.
   **HUD invariant: the right edge is ONE flex column** (`RightColumn` in Hud.tsx:
   satchel → rail/minimap → activity, space-between, height pre-divided by the

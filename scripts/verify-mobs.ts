@@ -13,7 +13,7 @@ import { Client, Room } from "colyseus.js";
 
 const PORT = 2592;
 const URL = `ws://localhost:${PORT}`;
-const DATA_DIR = `/tmp/driftlands-verify-mobs-${Date.now()}`;
+const DATA_DIR = `/tmp/naevyr-verify-mobs-${Date.now()}`;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;

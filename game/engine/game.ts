@@ -22,7 +22,7 @@ import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/syst
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
-  walletLinkMessage,
+  walletLinkMessage, PRESTIGE_CATALOG,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -31,7 +31,7 @@ import { NetClient } from "@/game/net/client";
 import {
   spriteCache, hash2,
   TileType, BeastKind, BeastAnim, DoodadKind, EquipVisual, LookVisual,
-  DyeKey, EyeKey,
+  DyeKey, EyeKey, PRESTIGE_AURAS, PrestigeAuraKey,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
 import {
@@ -105,6 +105,8 @@ export class Game {
   /** corruption thresholds that wake a Colossus (consumed in order) */
   private bossThresholds = [10, 25, 40, 60, 80];
   private driftfallFx: { gx: number; gy: number; t0: number } | null = null;
+  /** reinforce ward-pulse: a gold ring closing over the claim, ~1.8s */
+  private wardFx: { gx: number; gy: number; t0: number } | null = null;
   private minimapTimer = 0;
 
   // ---- danger & depth ----
@@ -194,7 +196,7 @@ export class Game {
     this.running = true;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
-    if (!this.tutorial) useGame.getState().pushLog("You awaken in the Driftlands.", "#d8cfe0");
+    if (!this.tutorial) useGame.getState().pushLog("You awaken in Naevyr.", "#d8cfe0");
     this.cleanupFns.push(bus.on("chat", (text) => this.handleChatInput(text)));
     this.cleanupFns.push(bus.on("emote", (e) => this.handleChatInput(`/${e}`)));
     this.cleanupFns.push(bus.on("stake", () => this.toggleClaimMode()));
@@ -234,6 +236,13 @@ export class Game {
     this.cleanupFns.push(bus.on("cleanseBurn", () => this.startBurn("cleanse")));
     this.cleanupFns.push(bus.on("auraBurn", (key) => this.startBurn("aura", { key })));
     this.cleanupFns.push(bus.on("obeliskBurn", () => this.startBurn("obelisk")));
+    this.cleanupFns.push(bus.on("reinforceBurn", () => this.startBurn("reinforce")));
+    this.cleanupFns.push(
+      bus.on("prestigeBurn", (key) => {
+        const entry = PRESTIGE_CATALOG[key];
+        if (entry) this.startBurn(entry.action, { key });
+      }),
+    );
     this.cleanupFns.push(
       bus.on("duelAccept", () => {
         const store = useGame.getState();
@@ -320,7 +329,8 @@ export class Game {
   private pendingBurn: { action: string; x?: number; y?: number; key?: string } | null = null;
 
   private startBurn(
-    action: "spin" | "claim" | "aura" | "cleanse" | "obelisk",
+    action: "spin" | "claim" | "aura" | "cleanse" | "obelisk" | "reinforce"
+      | "prestigeDye" | "prestigeAura" | "prestigeTitle",
     extra: { x?: number; y?: number; key?: string } = {},
   ) {
     const store = useGame.getState();
@@ -355,6 +365,11 @@ export class Game {
         case "aura":    this.net.sendBuyAura(pending.key ?? "", signature); break;
         case "claim":   this.net.sendClaim(pending.x ?? 0, pending.y ?? 0, signature); break;
         case "obelisk": this.net.sendObeliskBurn(signature); break;
+        case "reinforce": this.net.sendReinforce(signature); break;
+        case "prestigeDye":
+        case "prestigeAura":
+        case "prestigeTitle":
+          this.net.sendPrestige(pending.key ?? "", signature); break;
       }
     } catch {
       store.pushLog(
@@ -782,6 +797,62 @@ export class Game {
       store.pushLog("The Dyeworks takes your burned DRIFTS. The aura clings to you.", "#d8b4fe");
     });
 
+    // Drift-touched cosmetics (burn-only): the server's word grants ownership
+    net.onMessage<{ ok: boolean; key?: string; kind?: string; reason?: string }>(
+      "prestigeResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok || !m.key) {
+          store.pushLog(m.reason ?? "The rite failed. Nothing was taken.", "#dc2626");
+          return;
+        }
+        const entry = PRESTIGE_CATALOG[m.key];
+        if (m.kind === "dye") {
+          store.grantCosmetic("dye", m.key);
+          store.setCosmetics({ dye: m.key as DyeKey });
+          store.pushLog("The vat drinks your DRIFTS. The cloth comes out wrong, and beautiful.", "#d8b4fe");
+        } else if (m.kind === "aura") {
+          store.grantCosmetic("aura", m.key);
+          store.setCosmetics({ aura: m.key as AuraKey });
+          store.pushLog("The burned DRIFTS settle around you and stay.", "#d8b4fe");
+        } else if (m.kind === "title") {
+          store.grantCosmetic("title", entry?.label ?? m.key);
+          store.pushLog(`The realm will know you as ${entry?.label ?? m.key}.`, "#d8b4fe");
+        }
+        play("coin");
+      },
+    );
+
+    // claim reinforcement: the schema sync carries the integrity; this is the word
+    net.onMessage<{ ok: boolean; x?: number; y?: number; integrity?: number; reason?: string }>(
+      "reinforceResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok) {
+          store.pushLog(m.reason ?? "The warding would not take.", "#dc2626");
+          return;
+        }
+        store.pushLog(
+          `The burned DRIFTS seep into the boundary stones. Your warding stands at ${m.integrity}%.`,
+          "#d8b4fe",
+        );
+      },
+    );
+    net.onMessage<{ x: number; y: number }>("claimReinforced", (m) => {
+      this.wardFx = { gx: m.x, gy: m.y, t0: performance.now() };
+    });
+
+    // the Founder window: first burn inside it marks the wanderer forever
+    net.onMessage("founder", () => {
+      const store = useGame.getState();
+      store.grantCosmetic("title", "Founder");
+      store.grantCosmetic("aura", "ashen_crown");
+      store.pushLog(
+        "You burned when the realm was young. The Ashen Crown is yours, Founder.",
+        "#e7c873",
+      );
+    });
+
     // server-stored progress: apply it, or seed the server with local progress
     net.onMessage<{
       snapshot: SaveData | null;
@@ -794,6 +865,7 @@ export class Game {
       wallet?: string | null;
       tokenBalance?: number;
       holder?: boolean;
+      founder?: boolean;
     }>("profile", (m) => {
       const store = useGame.getState();
       const sworn = takeDoorName(); // the door outranks the stored snapshot
@@ -814,6 +886,11 @@ export class Game {
       if (typeof m.banked === "number") store.setBanked(m.banked);
       store.setWallet(m.wallet ?? null);
       store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
+      if (m.founder) {
+        // idempotent: the server flag re-grants on every device
+        store.grantCosmetic("title", "Founder");
+        store.grantCosmetic("aura", "ashen_crown");
+      }
       if (m.escrowGold && m.escrowGold > 0) {
         store.bumpStat("goldEarned", m.escrowGold); // ledger already paid
         play("coin");
@@ -1264,6 +1341,32 @@ export class Game {
       () => window.removeEventListener("keydown", onKey),
       () => window.removeEventListener("resize", onResize),
     );
+
+    // ?demo: a READ-ONLY coordinate bridge for the trailer capture script.
+    // Playwright reads positions here and drives REAL canvas clicks through
+    // the normal input path; nothing in the sim behaves differently.
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).has("demo")) {
+      (window as unknown as Record<string, unknown>).__demo = {
+        toScreen: (gx: number, gy: number) => {
+          const iso = gridToIso(gx, gy);
+          return this.camera.worldToScreen(iso.x, iso.y);
+        },
+        player: () => ({ ...this.player.cell, action: this.player.action }),
+        nodes: () =>
+          this.world.nodes
+            .filter((n) => n.amount > 0 && n.regrowIn <= 0)
+            .map((n) => ({ kind: n.kind, x: n.gx, y: n.gy })),
+        mobs: () =>
+          this.combat.mobs
+            .filter((m) => m.hp > 0)
+            .map((m) => ({ x: m.cell.x, y: m.cell.y, hp: m.hp, level: m.level })),
+        // plain ground only — keeps scripted walk clicks off building doors
+        walkable: (gx: number, gy: number) =>
+          this.world.inBounds(gx, gy) &&
+          this.world.isWalkable(gx, gy) &&
+          !buildingAt(gx, gy),
+      };
+    }
   }
 
   private cellUnderCursor(sx: number, sy: number) {
@@ -2542,6 +2645,29 @@ export class Game {
       this.driftfallFx = null;
     }
 
+    // claim reinforcement: a gold warding ring closing in over the 3×3, ~1.8s
+    if (this.wardFx && now - this.wardFx.t0 < 1800) {
+      const t = (now - this.wardFx.t0) / 1800;
+      const iso = gridToIso(this.wardFx.gx, this.wardFx.gy);
+      const s = this.camera.worldToScreen(iso.x, iso.y);
+      ctx.save();
+      ctx.globalAlpha = 0.9 * (1 - t);
+      ctx.strokeStyle = "#e7c873";
+      ctx.lineWidth = 2 * z;
+      const rr = (60 - t * 38) * z; // closes inward: the warding takes hold
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, rr, rr * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.5 * (1 - t);
+      ctx.strokeStyle = "#f6e0a6";
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, rr * 0.7, rr * 0.35, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (this.wardFx && now - this.wardFx.t0 >= 1800) {
+      this.wardFx = null;
+    }
+
     // level-up: expanding gold ring + light pillar, ~750ms
     if (this.levelFlashT0 && now - this.levelFlashT0 < 750) {
       const t = (now - this.levelFlashT0) / 750;
@@ -3173,9 +3299,13 @@ export class Game {
 
     spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, s.x, s.y, z, equip, look);
 
-    // aura: orbiting motes
+    // aura: prestige keys draw the baked DS sprite; legacy keys orbit motes
     const auraKey = (isSelf ? state.cosmetics.aura : p.aura) as AuraKey | "";
-    if (auraKey && AURA_CATALOG[auraKey]) {
+    if (auraKey && PRESTIGE_AURAS[auraKey as PrestigeAuraKey]) {
+      const spec = PRESTIGE_AURAS[auraKey as PrestigeAuraKey];
+      const frame = Math.floor((performance.now() / 1000) * spec.fps) % spec.frames;
+      spriteCache.drawPrestigeAura(ctx, auraKey as PrestigeAuraKey, frame, s.x, s.y, z);
+    } else if (auraKey && AURA_CATALOG[auraKey]) {
       const col = AURA_CATALOG[auraKey].color;
       const t = performance.now() / 700;
       ctx.globalAlpha = 0.85;

@@ -1,4 +1,5 @@
 import {
+  boolean,
   jsonb,
   pgTable,
   real,
@@ -37,6 +38,8 @@ export const players = pgTable("players", {
   gold: real("gold"),
   /** Phase 6: authoritative item counts (same seed-once rules as gold) */
   inv: jsonb("inv"),
+  /** burned DRIFTS during the beta window — one-time Founder cosmetics */
+  founder: boolean("founder").notNull().default(false),
 
   // where the wanderer last stood
   lastX: real("last_x"),
@@ -91,10 +94,14 @@ export const props = pgTable("props", {
 export type PropRow = typeof props.$inferSelect;
 
 // Phase 5: consumed burn-tx signatures (replay protection for token burns).
+// Phase 6: burned/treasury record the fee split per sink, so the public
+// counter ("N DRIFTS burned forever") reads straight off this table.
 export const burns = pgTable("burns", {
   sig: text("sig").primaryKey(),
   token: text("token").notNull(),
   action: text("action").notNull(),
+  burned: real("burned").notNull().default(0),
+  treasury: real("treasury").notNull().default(0),
 });
 
 // The Shrine of the Pale Flame: one communal pot (single row, id=1).

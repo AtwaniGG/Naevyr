@@ -138,7 +138,7 @@ export default function DocsPage() {
         {/* ---- the paper ---- */}
         <div style={{ flex: 1, minWidth: 0, maxWidth: 720 }}>
           <div style={{ font: "700 11px/1 var(--font-ui)", color: "#a855f7", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-            The Driftlands Papers
+            The Naevyr Papers
             <button
               onClick={() => setOpen(!open)}
               style={{ float: "right", background: "none", border: 0, color: "var(--text-muted)", cursor: "pointer", font: "500 11px var(--font-ui)" }}
@@ -162,7 +162,7 @@ export default function DocsPage() {
 
           <H id="introduction">Introduction</H>
           <P>
-            Driftlands is a browser-based isometric MMO set in a realm being
+            Naevyr is a browser-based isometric MMO set in a realm being
             eaten, season by season, by a creeping corruption called <Gold>the
             Drift</Gold>. You wander a shared world with everyone else online:
             gather, cook, forge, fight, trade, stake land, escort caravans, and
@@ -337,6 +337,12 @@ export default function DocsPage() {
             the fence; when the warding breaks, the land falls at once. Hold
             three claims at most. Furnish them; the campfires are yours.
           </P>
+          <P>
+            Holders can <Gold>reinforce</Gold>: a burn of{" "}
+            {burnAmt(BURN_COSTS.reinforce)} DRIFTS mends your weakest claim's
+            warding by 25 points, never past 100. It buys time, not immunity;
+            the Drift always comes back, and the warding always needs feeding.
+          </P>
 
           <H id="market">The Market</H>
           <P>
@@ -381,21 +387,67 @@ export default function DocsPage() {
             <Gold>DRIFTS</Gold> lives on Solana and is pure
             utility. It does two things: <Gold>opens the door</Gold> (the entry
             gate, when warded) and <Gold>pays for rites by burning</Gold>.
-            Burned DRIFTS are destroyed on-chain, verified by the realm's
-            server before any effect lands:
+            Every rite paid in DRIFTS splits the same way, by formula: for a
+            rite costing <Gold>c</Gold>, the realm burns{" "}
+            <Gold>⌈c/2⌉</Gold> on-chain, destroyed forever, and tithes{" "}
+            <Gold>⌊c/2⌋</Gold> to the realm's treasury, the protocol fee that
+            funds development. The burn always rounds up; you can never
+            under-burn. (Until the treasury wallet is posted, the split rests
+            and the full cost burns.)
           </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Rite", "Cost", "Burned ⌈c/2⌉", "Treasury ⌊c/2⌋"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {([
+                  ["spin", "Wheel spin"],
+                  ["claim", "Stake a 3×3 claim (auto for holders in claim mode)"],
+                  ["reinforce", "Reinforce your weakest claim (+25 warding)"],
+                  ["aura", "Dyeworks aura"],
+                  ["cleanse", "Shrine cleansing (+150g to the pot)"],
+                  ["obelisk", "Obelisk quest reroll"],
+                  ["prestigeDye", "Drift-touched cloak dye (burn-only)"],
+                  ["prestigeAura", "Drift-touched aura (burn-only)"],
+                  ["prestigeTitle", "Drift-touched title (burn-only)"],
+                ] as [keyof typeof BURN_COSTS, string][]).map(([k, label]) => {
+                  const c = BURN_COSTS[k];
+                  const burned = Math.ceil(c / 2);
+                  return (
+                    <tr key={k}>
+                      <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>{label}</td>
+                      <td style={{ padding: "5px 10px" }}>{c.toLocaleString()}</td>
+                      <td style={{ padding: "5px 10px" }}>{burned.toLocaleString()}</td>
+                      <td style={{ padding: "5px 10px" }}>{(c - burned).toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           <P>
-            {burnAmt(BURN_COSTS.spin)} DRIFTS spins the Wheel ·{" "}
-            {burnAmt(BURN_COSTS.claim)} stakes a claim ·{" "}
-            {burnAmt(BURN_COSTS.aura)} buys an aura ·{" "}
-            {burnAmt(BURN_COSTS.cleanse)} feeds the Shrine's pot (+150g
-            equivalent) · {burnAmt(BURN_COSTS.obelisk)} rewrites the day's
-            quests at the Obelisk.
+            <Gold>Drift-touched</Gold> cosmetics are the prestige shelf at the
+            Dyeworks: a cloak dyed in corruption, four auras (the Ashen Crown,
+            the Corruption Halo, the Ember Cinder, the Bonewisp) and titles
+            that outrank every earned one. They can only be burned into being,
+            never bought with gold. While the <Gold>Founder window</Gold>{" "}
+            stands during the beta, the first verified burn from a wallet marks
+            it forever: the Founder title and the Ashen Crown, never grantable
+            again after the window closes.
           </P>
           <P>
             The server builds and fee-pays every burn transaction, so players
             need zero SOL; your wallet only countersigns the burn itself. A
-            burn signature spends exactly once; replays are refused.
+            burn signature spends exactly once; replays are refused. The
+            server verifies both halves of the split on-chain, the burn and
+            the tithe, before any effect lands. The realm's lifetime burn
+            count is public: the counter rides the site's nav, fed by the
+            same table that rules the replays.
           </P>
           <P>
             <Gold>Holding tiers.</Gold> What you hold is also what you are.
@@ -433,12 +485,13 @@ export default function DocsPage() {
 
           <H id="tokenomics">Tokenomics</H>
           <P>
-            <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana. The beta
-            runs on a test mint with no value; the real coin launches on
-            pump.fun, a fair-launch bonding curve: no presale, no allocation
-            rounds, a fixed supply minted once with the realm's keepers buying
-            on the same curve as everyone else. After launch nothing can mint
-            more. The realm's design only ever removes coins from circulation.
+            <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana (6
+            decimals). The beta runs on a devnet test mint with no value; the
+            real coin launches on pump.fun, a fair-launch bonding curve: no
+            presale, no allocation rounds, pump.fun's standard fixed supply of
+            one billion minted once, with the realm's keepers buying on the
+            same curve as everyone else. After launch nothing can mint more.
+            The realm's design only ever removes coins from circulation.
           </P>
           <P>
             <Gold>Demand.</Gold> Three forces pull DRIFTS into wallets, all of
@@ -446,35 +499,56 @@ export default function DocsPage() {
           </P>
           <P>
             1. <Gold>The door.</Gold> Entering the shared realm requires
-            holding the posted amount in a connected wallet. Every active
-            wanderer is a holder by definition.
+            holding the posted amount in a connected wallet; the production
+            door posts <Gold>1,000 DRIFTS</Gold>, proven by a signed message,
+            checked again at every join. Every active wanderer is a holder by
+            definition.
             <br />
             2. <Gold>Standing.</Gold> The holding tiers above: claims, stalls,
             vault fees, rich strikes and caravan weight all scale with what the
             wallet holds. The realm reads balances live; standing follows the
             coins.
             <br />
-            3. <Gold>The rites.</Gold> Spins, claims, auras, cleansings and
-            rerolls can be paid in DRIFTS instead of gold, for those who carry
-            them.
+            3. <Gold>The rites.</Gold> Spins, claims, reinforcements, auras,
+            cleansings and rerolls can be paid in DRIFTS, and the Drift-touched
+            shelf takes nothing else.
           </P>
           <P>
-            <Gold>Supply sinks.</Gold> Every rite paid in DRIFTS is a burn:
-            the coins are destroyed on-chain, verified by the server before
-            the effect lands, and the supply never recovers. Gold sinks
-            (claims eroding, vault fees, death drops, the Wheel's house edge)
-            keep the in-game economy hungry so the rites stay used. The design
-            is deflationary by construction: coins enter wallets only through
-            the market, and leave circulation through play.
+            <Gold>Supply sinks, by the numbers.</Gold> Every rite splits by
+            the formula above: half burned forever, half tithed to the
+            treasury. Worked through: a {burnAmt(BURN_COSTS.spin)} spin burns{" "}
+            {Math.ceil(BURN_COSTS.spin / 2).toLocaleString()} and tithes{" "}
+            {Math.floor(BURN_COSTS.spin / 2).toLocaleString()}; a{" "}
+            {burnAmt(BURN_COSTS.claim)} claim burns{" "}
+            {Math.ceil(BURN_COSTS.claim / 2).toLocaleString()} and tithes{" "}
+            {Math.floor(BURN_COSTS.claim / 2).toLocaleString()}; a{" "}
+            {burnAmt(BURN_COSTS.prestigeTitle)} Drift-touched title burns{" "}
+            {Math.ceil(BURN_COSTS.prestigeTitle / 2).toLocaleString()} and
+            tithes {Math.floor(BURN_COSTS.prestigeTitle / 2).toLocaleString()}.
+            Burned coins are destroyed on-chain and the supply never recovers.
+            Gold sinks keep the in-game economy hungry so the rites stay used:
+            the Wheel takes 50g a spin and returns about 42.5g in gold and a
+            sixth of a shard on average, a house edge near 10-15%, verified
+            math, working as a sink; claims erode every season; the vault
+            takes up to 2% on withdrawal; death drops half your purse.
           </P>
           <P>
-            <Gold>What the house never does.</Gold> The realm holds no
-            treasury that pays players, sells no coins in-game, takes no
-            custody (the gate reads balances; linking signs a message; burns
-            are countersigned by your own wallet), and promises no yield.
-            Gold, the earnable currency, lives on the realm's ledgers and is
-            not the coin. Anything that would make DRIFTS flow FROM the realm
-            TO players is designed out on purpose.
+            <Gold>The flywheel.</Gold> The loop is mechanical, not a promise:
+            rites consume DRIFTS; half of every rite is burned, shrinking
+            supply with play; the other half funds development and, after the
+            mainnet launch, buyback-and-burn and the Exchange's float. More
+            play means more rites; more rites mean fewer coins. No part of the
+            loop mints, yields, or pays holders.
+          </P>
+          <P>
+            <Gold>What the house never does.</Gold> The realm's treasury only
+            ever <Gold>receives</Gold> the protocol fee; it pays no players,
+            sells no coins in-game, takes no custody (the gate reads balances;
+            linking signs a message; burns are countersigned by your own
+            wallet), and promises no yield. Gold, the earnable currency, lives
+            on the realm's ledgers and is not the coin. Anything that would
+            make DRIFTS flow FROM the realm TO players is designed out on
+            purpose.
           </P>
           <P>
             <Gold>Ahead.</Gold> After the mainnet launch comes the Exchange: a
@@ -502,14 +576,15 @@ export default function DocsPage() {
 
           <H id="roadmap">Roadmap</H>
           <P>
-            Hardening (rate limits and validation across every message), then
-            deployment to public infrastructure, then, and only then, the
-            DRIFTS mainnet launch. The realm does not rush its own door.
+            The realm is hardened and deployed; the beta stands on public
+            infrastructure now. Next, and only on its own word: the DRIFTS
+            mainnet launch on pump.fun, then the Exchange. The realm does not
+            rush its own door.
           </P>
 
           <H id="disclaimer">Disclaimer</H>
           <P>
-            Driftlands is in beta. DRIFTS is game utility: it opens the
+            Naevyr is in beta. DRIFTS is game utility: it opens the
             door and feeds the burn rites. It is not an investment, promises
             no return, and its market price can fall to zero. Nothing in the
             realm, this paper, or its keepers' mouths is financial advice.

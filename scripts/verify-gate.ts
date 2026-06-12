@@ -18,7 +18,7 @@ import { gateMessage } from "../game/types";
 const PORT = 2591;
 const WS_URL = `ws://localhost:${PORT}`;
 const HTTP_URL = `http://localhost:${PORT}`;
-const DATA_DIR = `/tmp/driftlands-verify-gate-${Date.now()}`;
+const DATA_DIR = `/tmp/naevyr-verify-gate-${Date.now()}`;
 const SERVER_DIR = resolve(process.cwd(), "server");
 const MINT_FILE = resolve(SERVER_DIR, ".data/devnet-mint.json");
 const GATE = 2;

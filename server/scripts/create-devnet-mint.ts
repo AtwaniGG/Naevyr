@@ -1,4 +1,4 @@
-// Devnet test SPL mint for Driftlands (Phase 5). DEVNET ONLY.
+// Devnet test SPL mint for Naevyr (Phase 5). DEVNET ONLY.
 // - default run: ensures an authority keypair (server/.data/devnet-authority.json),
 //   airdrops devnet SOL if needed, creates the mint once (6 decimals, recorded in
 //   server/.data/devnet-mint.json) and prints the env lines to use.

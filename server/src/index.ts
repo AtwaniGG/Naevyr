@@ -4,7 +4,7 @@ import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Encoder } from "@colyseus/schema";
 import { DriftRoom } from "./rooms/DriftRoom";
-import { initDb, leaderboards } from "./db";
+import { initDb, leaderboards, burnTotals } from "./db";
 import { gateTokens, getTokenBalance, tokenMint } from "./solana";
 import { issueGateNonce, verifyGateProof } from "./gate";
 
@@ -77,13 +77,26 @@ async function main() {
         });
       return;
     }
+    // the public scarcity counter: lifetime burned/treasury DRIFTS by sink
+    if (url.pathname === "/stats") {
+      void burnTotals()
+        .then((totals) => {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(totals));
+        })
+        .catch(() => {
+          res.writeHead(500);
+          res.end();
+        });
+      return;
+    }
     res.writeHead(404);
     res.end();
   });
   const server = new Server({ transport: new WebSocketTransport({ server: http }) });
   server.define("drift", DriftRoom);
   await server.listen(port);
-  console.log(`Driftlands server listening on ws://localhost:${port}`);
+  console.log(`Naevyr server listening on ws://localhost:${port}`);
   const gate = gateTokens();
   console.log(gate > 0
     ? `Entry gate: ${gate} tokens (mint ${tokenMint()})`

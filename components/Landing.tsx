@@ -132,7 +132,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
         <div className="relative flex items-center justify-center" style={{ width: 640, maxWidth: "92vw", height: 160 }}>
           <div className="landing-plate absolute" style={{ maxWidth: "100%", backgroundPosition: "center" }} />
           <div className="drift-wordmark drift-wordmark-bleed relative" style={{ fontSize: 50, lineHeight: 1, letterSpacing: "0.04em" }}>
-            DRIFTLANDS
+            NAEVYR
           </div>
         </div>
 
@@ -235,7 +235,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
         {step === "offline" && (
           <>
             <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "var(--text-secondary)", maxWidth: 420 }}>
-              No shared world answers. You can still wander the Driftlands
+              No shared world answers. You can still wander Naevyr
               alone; claims, markets and the town wait for the realm to return.
             </div>
             <Button size="lg" variant="ghost" onClick={proceed} style={{ minWidth: 230 }}>

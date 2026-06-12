@@ -1,5 +1,5 @@
 /* ============================================================
-   DriftLands — Master Palette (PIXEL-ART system)
+   Naevyr — Master Palette (PIXEL-ART system)
    Locked base mirrors the Tailwind `drift.*` namespace. On top of
    the base we declare a LIGHT→SHADOW ramp per material so every
    sprite, tile and icon shades from the same color logic.

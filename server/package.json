@@ -1,8 +1,8 @@
 {
-  "name": "driftlands-server",
+  "name": "naevyr-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Driftlands authoritative game server (Colyseus)",
+  "description": "Naevyr authoritative game server (Colyseus)",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts"

@@ -1,4 +1,4 @@
-// DriftLands TOWN SET — the Waystation. Eval after pixlib.js (+ tiles.js for hash2).
+// Naevyr TOWN SET — the Waystation. Eval after pixlib.js (+ tiles.js for hash2).
 // Isometric 2:1 weathered frontier structures. Each house: south door + a warm
 // lit window + a purpose sign/roof feature. Moonlit left, shadowed right. 1px
 // void auto-outline, RAMP palette only, dithering not blur, deterministic.

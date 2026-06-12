@@ -1,4 +1,4 @@
-/* DriftLands UI kit — representative isometric world backdrop.
+/* Naevyr UI kit — representative isometric world backdrop.
    NOT part of the design system: the real world is Canvas sprites
    handled by the engine. This is a stand-in so the HUD can be shown
    reading over a busy, moving scene. Iso 2:1, tiles 64×32. */

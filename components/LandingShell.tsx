@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ds";
-import { useGate, shortAddr } from "@/components/gate";
+import { useGate, useBurnStats, shortAddr } from "@/components/gate";
 
 // The landing site's chrome: one fixed nav across every page (Kintara-style),
 // wordmark left, section links, socials, balance chip, Connect. Pages render
@@ -28,6 +28,7 @@ export default function LandingShell({
 }) {
   const path = usePathname();
   const { info, wallet, balance, busy, connect, disconnect } = useGate();
+  const burnStats = useBurnStats();
 
   return (
     <div
@@ -70,7 +71,7 @@ export default function LandingShell({
       >
         <Link href="/" style={{ textDecoration: "none", flexShrink: 0 }}>
           <span className="drift-wordmark" style={{ fontSize: 20, lineHeight: 1, whiteSpace: "nowrap" }}>
-            DRIFTLANDS
+            NAEVYR
           </span>
         </Link>
         <span
@@ -109,6 +110,19 @@ export default function LandingShell({
             />
           ))}
         </span>
+        {burnStats && burnStats.burned > 0 && (
+          <span
+            className="drift-num"
+            style={{
+              font: "600 11px/1 var(--font-ui)", color: "#d8b4fe",
+              padding: "7px 10px", whiteSpace: "nowrap", flexShrink: 0,
+              background: "rgba(168, 85, 247, 0.08)", marginRight: 4,
+            }}
+            title={`${burnStats.burned.toLocaleString()} DRIFTS burned forever across ${burnStats.count.toLocaleString()} rites${burnStats.treasury > 0 ? ` · ${burnStats.treasury.toLocaleString()} tithed to the keep` : ""}`}
+          >
+            {burnStats.burned.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" /> burned
+          </span>
+        )}
         {wallet && balance !== null && (
           <span
             className="drift-num"
@@ -155,7 +169,7 @@ export default function LandingShell({
             font: "400 10.5px/1.5 var(--font-ui)", color: "var(--text-muted)",
           }}
         >
-          Driftlands · a realm at the edge of the Drift · beta build · DRIFTS is game utility, not an investment, and promises no return
+          Naevyr · a realm at the edge of the Drift · beta build · DRIFTS is game utility, not an investment, and promises no return
           {info && info.gate > 0 && <> · the door is warded: {info.gate.toLocaleString()} DRIFTS</>}
         </div>
       )}

@@ -21,7 +21,7 @@ export default function Home() {
           <div className="relative flex items-center justify-center" style={{ width: 640, maxWidth: "92vw", height: 192 }}>
             <div className="landing-plate absolute" style={{ maxWidth: "100%", backgroundPosition: "center" }} />
             <div className="drift-wordmark drift-wordmark-bleed relative" style={{ fontSize: 58, lineHeight: 1, letterSpacing: "0.04em" }}>
-              DRIFTLANDS
+              NAEVYR
             </div>
           </div>
           <div style={{ font: "400 15px/1.6 var(--font-ui)", color: "var(--text-secondary)", maxWidth: 480, textShadow: "0 1px 8px #0a0810" }}>

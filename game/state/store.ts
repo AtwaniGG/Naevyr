@@ -101,12 +101,16 @@ export interface MarketListing {
   mine: boolean;
 }
 
-/** Earned title, best first. Derived — never stored. */
+/** Earned title, best first. Derived — never stored.
+ *  Drift-touched titles (burn-bought) outrank every earned one. */
 export function currentTitle(s: {
   skills: Record<SkillKey, SkillState>;
   kills: number;
   stats?: LifetimeStats;
+  ownedTitles?: string[];
 }): string {
+  if (s.ownedTitles && s.ownedTitles.length > 0)
+    return s.ownedTitles[s.ownedTitles.length - 1];
   if (s.kills >= 50) return "Beastbane";
   if (s.stats && s.stats.donated >= 500) return "Flamekeeper";
   if (s.stats && s.stats.goldEarned >= 1000) return "Gilded";
@@ -155,6 +159,8 @@ interface GameState {
   ownedEyes: EyeKey[];
   ownedAuras: AuraKey[];
   ownedPets: PetKey[];
+  /** Drift-touched titles, burn-bought (latest outranks earned titles) */
+  ownedTitles: string[];
   /** active drink buffs: expiry timestamps (ms) */
   buffs: { gather: number; damage: number; sight: number };
   /** gold stored safely in the Vault (server-held; display copy) */
@@ -193,7 +199,7 @@ interface GameState {
   setListings: (l: MarketListing[]) => void;
   setOpenShop: (k: string | null) => void;
   /** record ownership of a bought cosmetic (gold is spent by the caller) */
-  grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet", key: string) => void;
+  grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet" | "title", key: string) => void;
   drink: (kind: DrinkKey) => boolean;
   setBanked: (n: number) => void;
   setWallet: (a: string | null) => void;
@@ -307,6 +313,7 @@ export const useGame = create<GameState>((set, get) => ({
   ownedEyes: ["drift"],
   ownedAuras: [],
   ownedPets: [],
+  ownedTitles: [],
   buffs: { gather: 0, damage: 0, sight: 0 },
   banked: 0,
   wallet: null,
@@ -354,6 +361,8 @@ export const useGame = create<GameState>((set, get) => ({
         return { ownedAuras: [...s.ownedAuras, key as AuraKey] };
       if (kind === "pet" && !s.ownedPets.includes(key as PetKey))
         return { ownedPets: [...s.ownedPets, key as PetKey] };
+      if (kind === "title" && !s.ownedTitles.includes(key))
+        return { ownedTitles: [...s.ownedTitles, key] };
       return {};
     }),
   drink: (kind) => {

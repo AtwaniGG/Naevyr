@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Pixelify_Sans, Silkscreen, Sora } from "next/font/google";
 import "./globals.css";
-import "./driftlands.css";
+import "./naevyr.css";
 
 const pixelify = Pixelify_Sans({
   subsets: ["latin"],
@@ -22,7 +22,7 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "Driftlands",
+  title: "Naevyr",
   description: "A dark-fantasy play-to-earn MMO consumed by the Drift.",
 };
 

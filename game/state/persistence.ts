@@ -25,6 +25,7 @@ export interface SaveData {
   ownedEyes?: string[];
   ownedAuras?: string[];
   ownedPets?: string[];
+  ownedTitles?: string[];
   gold: number;
   driftSeason: number;
   driftPct?: number;
@@ -108,6 +109,7 @@ export function buildSnapshot(): SaveData {
     ownedEyes: s.ownedEyes,
     ownedAuras: s.ownedAuras,
     ownedPets: s.ownedPets,
+    ownedTitles: s.ownedTitles,
     gold: s.gold,
     driftSeason: s.driftSeason,
     driftPct: s.driftPct,
@@ -148,6 +150,7 @@ export function applySnapshot(data: SaveData) {
     ownedEyes: ownedEyes as never,
     ownedAuras: (data.ownedAuras ?? []) as never,
     ownedPets: (data.ownedPets ?? []) as never,
+    ownedTitles: data.ownedTitles ?? [],
     ...(data.stats
       ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never }
       : {}),

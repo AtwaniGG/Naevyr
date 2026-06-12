@@ -1,4 +1,4 @@
-// DriftLands sprite generator library — evaled inside run_script.
+// Naevyr sprite generator library — evaled inside run_script.
 // Pixel grids -> auto outline -> row-run-merged <rect> SVG (crispEdges).
 // Deterministic RNG only; alpha used ONLY for the corruption overlay.
 

@@ -1,4 +1,4 @@
-Cohesive SVG icon set for DriftLands — the 6-tool kit plus resource & HUD glyphs; inherits `currentColor` so it tints to any token.
+Cohesive SVG icon set for Naevyr — the 6-tool kit plus resource & HUD glyphs; inherits `currentColor` so it tints to any token.
 
 ```jsx
 <Icon name="axe" size={24} />

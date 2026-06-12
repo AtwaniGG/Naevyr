@@ -1,16 +1,304 @@
-/* @ds-bundle: {"format":3,"namespace":"DriftLandsDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/beasts.js":"4a960edc3f84","assets/_gen/character.js":"bfa95973ee9e","assets/_gen/fxlogo.js":"3f5a0b6e4d3d","assets/_gen/interiors.js":"2e10fd7f9917","assets/_gen/landing.js":"8c3c768caf1c","assets/_gen/nodes.js":"76c3d5ae0969","assets/_gen/pixlib.js":"9e04175a932b","assets/_gen/social.js":"f49d4633a307","assets/_gen/threshold.js":"ceff51b3cd99","assets/_gen/tiles.js":"22b604e5b061","assets/_gen/town.js":"e1016422c4f1","assets/_gen/walls.js":"25eb80a182bc","assets/_gen/wilds.js":"da5373598c06","components/core/Badge.jsx":"ccdd07c8772a","components/core/Button.jsx":"19a408191a59","components/core/Panel.jsx":"bd9e204398e5","components/game/ActivityLog.jsx":"9dd668351d97","components/game/Hotbar.jsx":"1dc48c13f595","components/game/Slot.jsx":"9dd86e4254ac","components/game/XPBar.jsx":"ec7638c938cb","components/icons/Icon.jsx":"807bd0992422","ui_kits/hud/Hud.jsx":"161da3666ec3","ui_kits/hud/Scene.jsx":"23d63aaee578"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"NaevyrDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/auras.js":"01e9d29f4e14","assets/_gen/beasts.js":"f237a8bd4969","assets/_gen/character.js":"c39fb75c7f1b","assets/_gen/fxlogo.js":"d75e9312c3e4","assets/_gen/interiors.js":"d91f90a460f0","assets/_gen/landing.js":"6ccb614cb388","assets/_gen/nodes.js":"423b0fe786d3","assets/_gen/pixlib.js":"68d1e384c31c","assets/_gen/social.js":"117e1c91be46","assets/_gen/threshold.js":"9a7b8510e4f6","assets/_gen/tiles.js":"6d77bc55b2e1","assets/_gen/town.js":"a7f2517c52fe","assets/_gen/walls.js":"034bfd562504","assets/_gen/wilds.js":"19f44fe8beb5","components/core/Badge.jsx":"85e7377ebd5a","components/core/Button.jsx":"1e68b0d79a01","components/core/Panel.jsx":"13ea472f5db3","components/game/ActivityLog.jsx":"cd0eda105b42","components/game/Hotbar.jsx":"b8493e549497","components/game/Slot.jsx":"a18ee855c625","components/game/XPBar.jsx":"8cd5c827574d","components/icons/Icon.jsx":"5150976deb7d","ui_kits/hud/Hud.jsx":"8fa35d5b4c86","ui_kits/hud/Scene.jsx":"572c11e0e9fa"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
-const __ds_ns = (window.DriftLandsDesignSystem_3de3e2 = window.DriftLandsDesignSystem_3de3e2 || {});
+const __ds_ns = (window.NaevyrDesignSystem_3de3e2 = window.NaevyrDesignSystem_3de3e2 || {});
 
 const __ds_scope = {};
 
 (__ds_ns.__errors = __ds_ns.__errors || []);
 
+// assets/_gen/auras.js
+try { (() => {
+// NAEVYR PRESTIGE AURAS — eval after pixlib.js + tiles.js (+ character.js for
+// preview). Procedural orbiting-mote cosmetics baked per-frame around the
+// wanderer (32×40, bottom-center anchor 16,39). Each aura canvas is 64×64 with
+// its own bottom-center FEET anchor at (32,56): align that point to the
+// wanderer's (16,39) anchor (engine offset = aura(32,56) over char(16,39)).
+//
+// Rules: rect-grid, dither not blur, RAMP ramps only, crispEdges. Particles/
+// motes are outline-free glow (like ambient drift motes); only solid wisp forms
+// get the 1px void outline. Frames emitted left-to-right (per-frame x offset).
+
+const AURA_N = 64,
+  AURA_CX = 32,
+  AURA_FEET = 56,
+  AURA_HEAD = 18;
+
+// glow mote: optional plus-halo (dimmer) + core; outline-free
+function gmote(g, x, y, core, halo) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (halo) {
+    P(g, x - 1, y, halo);
+    P(g, x + 1, y, halo);
+    P(g, x, y - 1, halo);
+    P(g, x, y + 1, halo);
+  }
+  P(g, x, y, core);
+}
+// big premium mote: 2×2 core + diamond halo
+function gmoteBig(g, x, y, core, hi, halo) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (halo) {
+    P(g, x - 2, y, halo);
+    P(g, x + 2, y, halo);
+    P(g, x, y - 2, halo);
+    P(g, x, y + 2, halo);
+    P(g, x - 1, y - 1, halo);
+    P(g, x + 1, y - 1, halo);
+    P(g, x - 1, y + 1, halo);
+    P(g, x + 1, y + 1, halo);
+  }
+  P(g, x, y, core);
+  P(g, x + 1, y, hi);
+  P(g, x, y + 1, hi);
+  P(g, x + 1, y + 1, hi);
+}
+// draw a solid form on a temp grid, 1px void outline, stamp onto dest
+function solidOn(dest, drawFn) {
+  const t = makeGrid(AURA_N, AURA_N);
+  drawFn(t);
+  outline(t, RAMP.void);
+  stamp(dest, t, 0, 0);
+}
+
+/* ===================== 1 · ASHEN CROWN (gold + bone + ash) ===================== */
+// A slow ring of drifting ash flecks hovering above/around the head, crowned by
+// a faint gold arc. 8 frames, 6 fps.
+function drawAshenCrown(frame) {
+  const g = makeGrid(AURA_N, AURA_N);
+  const gd = RAMP.gold,
+    bn = RAMP.bone,
+    ash = RAMP.ash;
+  const cx = AURA_CX,
+    cy = AURA_HEAD - 3,
+    rx = 15,
+    ry = 6;
+  const fp = frame / 8;
+
+  // floating crown arc (solid, outlined) — prongs riding a gentle curved band
+  solidOn(g, t => {
+    const span = 13;
+    // curved band: y dips at the ends (a tiara arc over the head)
+    for (let x = cx - span; x <= cx + span; x++) {
+      const u = (x - cx) / span; // -1..1
+      const yb = Math.round(cy + 2 + u * u * 3 + Math.sin(fp * Math.PI * 2 + x * 0.25) * 0.4);
+      P(t, x, yb, gd[2]);
+      if ((x - cx) % 4 === 0) P(t, x, yb - 1, gd[1]); // beaded highlights, not a solid rail
+    }
+    // five prongs of unequal height rising off the band
+    for (let i = -2; i <= 2; i++) {
+      const px = cx + i * 6;
+      const u = i / 2;
+      const bandY = Math.round(cy + 2 + u * u * 3);
+      const bob = Math.sin(fp * Math.PI * 2 + i) * 0.6;
+      const h = i === 0 ? 6 : Math.abs(i) === 1 ? 4 : 3;
+      for (let k = 0; k < h; k++) P(t, px, Math.round(bandY - 1 - k + bob), k === h - 1 ? gd[0] : gd[1]);
+    }
+  });
+  // gem on the center prong
+  gmote(g, cx, cy - 7 + Math.round(Math.sin(fp * Math.PI * 2) * 0.6), bn[0], gd[1]);
+
+  // orbiting ash flecks (outline-free), slow drift, depth-dimmed on the far arc
+  const M = 14;
+  for (let i = 0; i < M; i++) {
+    const ang = i / M * Math.PI * 2 + fp * Math.PI * 2 * 0.5;
+    const x = cx + Math.cos(ang) * rx;
+    const y = cy + Math.sin(ang) * ry + Math.sin(fp * Math.PI * 2 + i) * 0.8;
+    const far = Math.sin(ang) < -0.2; // upper/back arc
+    const pick = i % 5;
+    let c = pick === 0 ? gd[0] : pick === 1 ? bn[0] : pick === 2 ? bn[1] : pick === 3 ? gd[1] : ash;
+    if (far) c = pick < 2 ? gd[2] : bn[3];
+    if (i % 4 === frame % 4) gmote(g, x, y, c, far ? null : pick === 0 ? gd[2] : bn[3]);else P(g, Math.round(x), Math.round(y), c);
+    // trailing ash speck
+    if (!far && i % 3 === 0) P(g, Math.round(x - Math.cos(ang)), Math.round(y - Math.sin(ang)), ash);
+  }
+  return g;
+}
+
+/* =================== 2 · CORRUPTION HALO (drift ramp) =================== */
+// A pulsing violet ring around the whole figure with motes spiraling inward —
+// the player reads as a small Drift. 6 frames, 8 fps.
+function drawCorruptionHalo(frame) {
+  const g = makeGrid(AURA_N, AURA_N);
+  const dr = RAMP.drift;
+  const cx = AURA_CX,
+    cy = 35,
+    fp = frame / 6;
+  const pulse = Math.sin(fp * Math.PI * 2);
+  const rx = 17 + pulse * 2,
+    ry = 9 + pulse;
+
+  // the pulsing ring (dotted drift motes on an iso ellipse)
+  const RING = 26;
+  for (let i = 0; i < RING; i++) {
+    const ang = i / RING * Math.PI * 2 + fp * Math.PI * 0.5;
+    const x = cx + Math.cos(ang) * rx,
+      y = cy + Math.sin(ang) * ry;
+    const far = Math.sin(ang) < 0;
+    if ((i + frame) % 2 === 0) {
+      const bright = pulse > 0.4 && i % 4 === 0;
+      gmote(g, x, y, far ? dr[3] : bright ? dr[0] : dr[2], far ? null : dr[4]);
+    }
+  }
+  // motes spiraling INWARD toward the core
+  const SP = 10;
+  for (let i = 0; i < SP; i++) {
+    const t = (frame + i * 0.6) % 6 / 6; // 0 outer .. 1 core
+    const r = (1 - t) * 22 + 3;
+    const ang = i / SP * Math.PI * 2 + t * Math.PI * 2.2;
+    const x = cx + Math.cos(ang) * r,
+      y = cy + Math.sin(ang) * r * 0.5;
+    const c = t > 0.7 ? dr[0] : t > 0.4 ? dr[1] : dr[2];
+    gmote(g, x, y, c, t > 0.5 ? dr[3] : null);
+  }
+  // pulsing core (the small Drift) at chest height
+  const corec = pulse > 0 ? dr[0] : dr[1];
+  gmoteBig(g, cx, cy - 1, corec, dr[1], dr[3]);
+  if (pulse > 0.5) {
+    P(g, cx, cy - 4, dr[2]);
+    P(g, cx, cy + 2, dr[2]);
+    P(g, cx - 3, cy - 1, dr[2]);
+    P(g, cx + 3, cy - 1, dr[2]);
+  }
+  return g;
+}
+
+/* ===================== 3 · EMBER CINDER (ember + blood) ===================== */
+// Rising ember sparks that swirl upward and fade to blood-ash. 6 frames, 8 fps.
+function drawEmberCinder(frame) {
+  const g = makeGrid(AURA_N, AURA_N);
+  const em = RAMP.ember,
+    bl = RAMP.blood;
+  const cx = AURA_CX;
+  const K = 16;
+  for (let i = 0; i < K; i++) {
+    const t = (frame + i * 1.7) % 6 / 6; // 0 born at feet .. 1 spent at top
+    const y = AURA_FEET - 2 - t * 46;
+    const swirl = Math.sin(t * Math.PI * 2 + i * 1.3) * (11 * (1 - t * 0.35));
+    const x = cx + swirl + (i % 2 ? 1 : -1) * 2;
+    if (t > 0.92) continue; // fade out at the crest
+    let core, halo;
+    if (t < 0.3) {
+      core = em[0];
+      halo = em[1];
+    } // hot newborn spark
+    else if (t < 0.6) {
+      core = em[1];
+      halo = em[2];
+    } else {
+      core = bl[1];
+      halo = i % 2 ? bl[2] : em[3];
+    } // cooling to blood-ash
+    if (t < 0.25 && i % 3 === 0) gmoteBig(g, x, y, em[0], em[1], em[2]);else gmote(g, x, y, core, t < 0.7 && i % 2 === 0 ? halo : null);
+    // upward trailing wisp
+    if (t < 0.7) P(g, Math.round(x), Math.round(y + 1), t < 0.4 ? em[2] : bl[3]);
+  }
+  // a low ember glow at the feet (source)
+  for (let x = cx - 5; x <= cx + 5; x++) if ((x + frame) % 2 === 0) P(g, x, AURA_FEET, x % 3 ? em[3] : em[2]);
+  return g;
+}
+
+/* ======================== 4 · BONEWISP (bone ramp) ======================== */
+// Pale skeletal wisps orbiting low around the feet/legs — eerie and cold.
+// 8 frames, 6 fps.
+function drawBonewisp(frame) {
+  const g = makeGrid(AURA_N, AURA_N);
+  const bn = RAMP.bone,
+    dr = RAMP.drift;
+  const cx = AURA_CX,
+    cy = 49,
+    rx = 15,
+    ry = 5,
+    fp = frame / 8;
+  const W = 5;
+  // back wisps first (drawn dimmer), then front
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < W; i++) {
+      const ang = i / W * Math.PI * 2 + fp * Math.PI * 2;
+      const far = Math.sin(ang) < 0;
+      if (pass === 0 !== far) continue;
+      const x = cx + Math.cos(ang) * rx;
+      const y = cy + Math.sin(ang) * ry;
+      const flick = Math.sin(fp * Math.PI * 2 * 2 + i) > 0 ? 1 : 0;
+      // small flame/comma wisp, solid + void outline
+      solidOn(g, t => {
+        const tip = far ? bn[2] : bn[0],
+          body = far ? bn[3] : bn[1],
+          base = bn[3];
+        P(t, Math.round(x), Math.round(y - 2 - flick), tip);
+        P(t, Math.round(x), Math.round(y - 1), body);
+        P(t, Math.round(x), Math.round(y), body);
+        P(t, Math.round(x + (i % 2 ? 1 : -1)), Math.round(y), base);
+        P(t, Math.round(x), Math.round(y + 1), base);
+      });
+      // cold drift glint in the wisp's eye-hollow (sparingly)
+      if (!far && i === frame % W) P(g, Math.round(x), Math.round(y - 1), dr[1]);
+      // trailing cold spark
+      if (!far) gmote(g, x - Math.cos(ang) * 2, y - Math.sin(ang) * 2, bn[2], null);
+    }
+  }
+  // faint ground mist ring at the feet
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2 + fp * Math.PI;
+    const x = cx + Math.cos(a) * (rx - 2);
+    const y = cy + 3 + Math.sin(a) * (ry - 1);
+    if ((i + frame) % 2 === 0) P(g, Math.round(x), Math.round(y), bn[3]);
+  }
+  return g;
+}
+const AURAS = {
+  ashen_crown: {
+    fn: drawAshenCrown,
+    frames: 8,
+    fps: 6,
+    ramp: 'gold + bone + ash',
+    desc: 'Slow ring of drifting ash flecks crowning the head.'
+  },
+  corruption_halo: {
+    fn: drawCorruptionHalo,
+    frames: 6,
+    fps: 8,
+    ramp: 'drift',
+    desc: 'Pulsing violet ring with motes spiraling inward; the player as a small Drift.'
+  },
+  ember_cinder: {
+    fn: drawEmberCinder,
+    frames: 6,
+    fps: 8,
+    ramp: 'ember + blood',
+    desc: 'Rising ember sparks swirling upward, cooling to blood-ash.'
+  },
+  bonewisp: {
+    fn: drawBonewisp,
+    frames: 8,
+    fps: 6,
+    ramp: 'bone',
+    desc: 'Pale skeletal wisps orbiting low around the feet; eerie and cold.'
+  }
+};
+Object.assign(globalThis, {
+  AURA_N,
+  AURA_CX,
+  AURA_FEET,
+  AURA_HEAD,
+  gmote,
+  gmoteBig,
+  solidOn,
+  drawAshenCrown,
+  drawCorruptionHalo,
+  drawEmberCinder,
+  drawBonewisp,
+  AURAS,
+  solidOn
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/auras.js", error: String((e && e.message) || e) }); }
+
 // assets/_gen/beasts.js
 try { (() => {
-// DriftLands creature generators — eval after pixlib.js (+ tiles.js for RAMP/helpers).
+// Naevyr creature generators — eval after pixlib.js (+ tiles.js for RAMP/helpers).
 // Same conventions as character.js: drawX(facing, anim, frame) -> grid.
 // 5 facings s/se/e/ne/n (engine mirrors w/sw/nw), bottom-center anchor (base on
 // last row), 1px void auto-outline, locked RAMP only, deterministic.
@@ -609,7 +897,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/character.js
 try { (() => {
-// DriftLands character generator — hooded Drift-touched wanderer.
+// Naevyr character generator — hooded Drift-touched wanderer.
 // 32×40 cell, ~30px tall, feet at bottom-center. 5 facings (s,se,e,ne,n);
 // engine mirrors for w/sw/nw. Anim: idle 2f · walk 6f · swing 4f.
 
@@ -755,7 +1043,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/fxlogo.js
 try { (() => {
-// DriftLands FX + logo generators — eval after pixlib.js.
+// Naevyr FX + logo generators — eval after pixlib.js.
 
 // ---- FX ----
 function makeMotes() {
@@ -815,7 +1103,7 @@ function makeRingFrames() {
 }
 
 // ---- LOGO ----
-// custom 12px-tall pixel letterset (only the letters DRIFTLANDS needs)
+// custom 12px-tall pixel letterset (only the letters NAEVYR needs)
 const GLYPHS = {
   D: ['######..', '#######.', '##...##.', '##....##', '##....##', '##....##', '##....##', '##....##', '##....##', '##...##.', '#######.', '######..'],
   R: ['#######.', '########', '##....##', '##....##', '##...###', '#######.', '######..', '##.###..', '##..##..', '##...##.', '##...###', '##....##'],
@@ -825,7 +1113,10 @@ const GLYPHS = {
   L: ['##......', '##......', '##......', '##......', '##......', '##......', '##......', '##......', '##......', '##......', '########', '########'],
   A: ['..####..', '.######.', '##....##', '##....##', '##....##', '########', '########', '##....##', '##....##', '##....##', '##....##', '##....##'],
   N: ['##....##', '##....##', '###...##', '####..##', '##.##.##', '##.##.##', '##..####', '##..####', '##...###', '##...###', '##....##', '##....##'],
-  S: ['.#######', '########', '##......', '##......', '########', '.#######', '......##', '......##', '......##', '......##', '########', '#######.']
+  S: ['.#######', '########', '##......', '##......', '########', '.#######', '......##', '......##', '......##', '......##', '########', '#######.'],
+  E: ['########', '########', '##......', '##......', '##......', '#######.', '#######.', '##......', '##......', '##......', '########', '########'],
+  V: ['##....##', '##....##', '##....##', '##....##', '##....##', '.##..##.', '.##..##.', '.##..##.', '..####..', '..####..', '...##...', '...##...'],
+  Y: ['##....##', '##....##', '.##..##.', '.##..##.', '..####..', '...##...', '...##...', '...##...', '...##...', '...##...', '...##...', '...##...']
 };
 function scaleGrid(g, k) {
   const m = makeGrid(g.w * k, g.h * k);
@@ -835,9 +1126,9 @@ function scaleGrid(g, k) {
   }
   return m;
 }
-// build the DRIFTLANDS wordmark at 1× (12 tall) with corruption bleed
+// build the NAEVYR wordmark at 1× (12 tall) with corruption bleed
 function wordmarkGrid(mono) {
-  const word = 'DRIFTLANDS';
+  const word = 'NAEVYR';
   const bn = RAMP.bone,
     dr = RAMP.drift;
   let widths = [],
@@ -898,8 +1189,8 @@ function logoHorizontal(mono) {
 function logoStacked(mono) {
   const g = makeGrid(256, 220);
   stamp(g, scaleGrid(emblemGrid(mono), 6), 80, 12);
-  const wm = scaleGrid(wordmarkGrid(mono), 3); // 255 × 36
-  stamp(g, wm, 0, 132);
+  const wm = scaleGrid(wordmarkGrid(mono), 3); // centered (name length varies)
+  stamp(g, wm, Math.round((256 - wm.w) / 2), 132);
   if (!mono) {
     const dr = RAMP.drift;
     [[60, 190], [128, 198], [196, 188]].forEach((m, i) => {
@@ -926,7 +1217,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/interiors.js
 try { (() => {
-// DriftLands INTERIOR SET + THE MINE — eval after pixlib.js + tiles.js.
+// Naevyr INTERIOR SET + THE MINE — eval after pixlib.js + tiles.js.
 // Rect-grid, RAMP only, 1px void auto-outline, dither not blur, deterministic.
 // Moonlit-left / shadowed-right. Floors 64×36 (tiles.js format). Walls 64×56.
 // Fixtures bottom-center anchored; top 6px of every fixture/building cell kept
@@ -1730,7 +2021,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/landing.js
 try { (() => {
-// DriftLands LANDING PAGE ART PACK — eval after pixlib.js + tiles.js (+ town.js
+// Naevyr LANDING PAGE ART PACK — eval after pixlib.js + tiles.js (+ town.js
 // & interiors.js for silhouette cues, fxlogo.js for the emblem). Rect-grid,
 // RAMP only, 1px void outline, dither not blur, deterministic. Moonlit-left.
 
@@ -2198,7 +2489,7 @@ function drawGateDoor(frame) {
 }
 
 /* ============================ WORDMARK PLATE (320×96, 2 frames) ============================
-   Ornate bone-and-gold frame with drift-purple inlay to sit behind DRIFTLANDS. */
+   Ornate bone-and-gold frame with drift-purple inlay to sit behind NAEVYR. */
 function drawWordmarkPlate(frame) {
   frame = frame || 0;
   const W = 320,
@@ -2312,7 +2603,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/nodes.js
 try { (() => {
-// DriftLands resource-node generators — eval after pixlib.js + tiles.js.
+// Naevyr resource-node generators — eval after pixlib.js + tiles.js.
 // tree 48×56 · rock 40×30 · fish ripple 40×20. Bottom-center anchored.
 
 function inEllipse(x, y, cx, cy, rx, ry) {
@@ -2496,7 +2787,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/pixlib.js
 try { (() => {
-// DriftLands sprite generator library — evaled inside run_script.
+// Naevyr sprite generator library — evaled inside run_script.
 // Pixel grids -> auto outline -> row-run-merged <rect> SVG (crispEdges).
 // Deterministic RNG only; alpha used ONLY for the corruption overlay.
 
@@ -2665,7 +2956,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/social.js
 try { (() => {
-// DriftLands SOCIAL / LAUNCH pack — eval after pixlib.js + tiles.js + fxlogo.js.
+// Naevyr SOCIAL / LAUNCH pack — eval after pixlib.js + tiles.js + fxlogo.js.
 // Coin/pfp sigil + widescreen X banner. Rect-grid, RAMP only, 1px void feel,
 // dither not blur, deterministic. Export with nearest-neighbor integer upscale.
 
@@ -3063,7 +3354,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/threshold.js
 try { (() => {
-// DriftLands "THE THRESHOLD" tutorial micro-set — eval after pixlib.js + tiles.js.
+// Naevyr "THE THRESHOLD" tutorial micro-set — eval after pixlib.js + tiles.js.
 // Rect-grid, RAMP only, 1px void outline, dither not blur, deterministic.
 // Gate 96x128 (sealed+open, 3 rune-pulse frames each) · Gatewarden 32x40 (5
 // facings, idle 2f) · Objective beacon 64x64 (3f) + arrow pip 16x16 (2f) ·
@@ -3533,7 +3824,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/tiles.js
 try { (() => {
-// DriftLands tile generators — eval after pixlib.js.
+// Naevyr tile generators — eval after pixlib.js.
 // Tiles: 64×35 (32px diamond face + 3px south lip). Overlay: 64×32.
 
 function hash2(x, y, s) {
@@ -3721,7 +4012,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/town.js
 try { (() => {
-// DriftLands TOWN SET — the Waystation. Eval after pixlib.js (+ tiles.js for hash2).
+// Naevyr TOWN SET — the Waystation. Eval after pixlib.js (+ tiles.js for hash2).
 // Isometric 2:1 weathered frontier structures. Each house: south door + a warm
 // lit window + a purpose sign/roof feature. Moonlit left, shadowed right. 1px
 // void auto-outline, RAMP palette only, dithering not blur, deterministic.
@@ -4621,7 +4912,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/walls.js
 try { (() => {
-// DriftLands INTERIOR WALL SET (corrected) — eval after pixlib.js + tiles.js.
+// Naevyr INTERIOR WALL SET (corrected) — eval after pixlib.js + tiles.js.
 // Skewed parallelogram faces that follow the 2:1 iso diagonal and TILE
 // seamlessly. Rect-grid, RAMP only, dither not blur, deterministic.
 // One segment = one floor tile's back edge: 32 wide, bottom drops 16 across it.
@@ -4841,7 +5132,7 @@ Object.assign(globalThis, {
 
 // assets/_gen/wilds.js
 try { (() => {
-// DriftLands THE WILDS PACK — eval after pixlib.js + tiles.js (+ town.js for
+// Naevyr THE WILDS PACK — eval after pixlib.js + tiles.js (+ town.js for
 // foundation, interiors.js for wallSegment). Rect-grid, RAMP only, 1px void
 // auto-outline, dither not blur, deterministic. Moonlit-left/shadowed-right.
 // Top 6px of every cell kept clear for labels.
@@ -5478,7 +5769,7 @@ Object.assign(globalThis, {
 // components/core/Badge.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — Badge
+/* Naevyr — Badge
    Pixel chip for statuses, counts, rarity & the seasonal "Drift"
    marker. variant="season" is the ornate HUD season badge; the rest
    are compact inline tags. */
@@ -5623,7 +5914,7 @@ Object.assign(__ds_scope, { Badge, SeasonBadge });
 // components/core/Button.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — Button
+/* Naevyr — Button
    Pixel button: hard bevel + hard drop shadow that presses down on
    :active (chrome in styles.css → .drift-pixel-btn). Variants tie to
    the palette; React only sets the --btn-* vars + size + content. */
@@ -5701,7 +5992,7 @@ Object.assign(__ds_scope, { Button });
 // components/core/Panel.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — Panel
+/* Naevyr — Panel
    The canonical pixel HUD frame: notched corners, hard bevel, a thin
    corruption-purple edge, semi-transparent fill, purple corner pips.
    Composes into every HUD surface (inventory, log, skills). */
@@ -5787,7 +6078,7 @@ Object.assign(__ds_scope, { Panel });
 // components/game/ActivityLog.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — ActivityLog
+/* Naevyr — ActivityLog
    The scrolling HUD feed: gathers, level-ups, loot, Drift events.
    Pass `entries` newest-first; each = { kind, text, meta }. kind tints
    the bullet + accent: loot/xp/info/warning/danger/drift. */
@@ -5880,7 +6171,7 @@ Object.assign(__ds_scope, { ActivityLog });
 // components/game/Slot.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — Slot
+/* Naevyr — Slot
    Inventory / hotbar cell. Pixel well with a hard inset bevel; a
    rarity edge, a stack count, an optional keybind cap, and the Drift
    selection glow. Pass `icon` as a node (e.g. <Icon name="axe" />). */
@@ -5960,7 +6251,7 @@ Object.assign(__ds_scope, { Slot });
 // components/game/Hotbar.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — Hotbar
+/* Naevyr — Hotbar
    The 6-slot action bar (keys 1–6). Pass `slots` as an array of up to
    6 items ({ icon, count, rarity }); `selected` is the active index.
    Empty positions render as quiet wells. */
@@ -6004,7 +6295,7 @@ Object.assign(__ds_scope, { Hotbar });
 // components/game/XPBar.jsx
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-/* DriftLands — XPBar
+/* Naevyr — XPBar
    A skill progress row: icon + name on the left, level chip on the
    right, a pixel track with a stepped corruption fill, and the
    value/next readout. `color` tints the fill per skill. */
@@ -6099,7 +6390,7 @@ Object.assign(__ds_scope, { XPBar });
 try { (() => {
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 /* ============================================================
-   DriftLands PIXEL ICONS
+   Naevyr PIXEL ICONS
    Each icon is a 16×16 grid of chars; every char maps to a palette
    entry below and renders as one 1×1 <rect> with crisp edges. Tune
    pixels by editing the grids — keep the 'k' outline + 2–3 shade
@@ -6218,13 +6509,13 @@ Object.assign(__ds_scope, { ICON_NAMES, TOOL_NAMES, Icon });
 
 // ui_kits/hud/Hud.jsx
 try { (() => {
-/* DriftLands UI kit — the HUD overlay.
+/* Naevyr UI kit — the HUD overlay.
    Composes the design-system components (Panel, Hotbar, XPBar, Slot,
    ActivityLog, SeasonBadge, Button, Icon) into the full in-game HUD,
    sitting over the canvas world. Light interactivity: pick a tool,
    gather → XP + loot + log. */
 
-const NS = window.DriftLandsDesignSystem_3de3e2 || window[Object.keys(window).find(k => k.startsWith('DriftLandsDesignSystem'))];
+const NS = window.NaevyrDesignSystem_3de3e2 || window[Object.keys(window).find(k => k.startsWith('NaevyrDesignSystem'))];
 const {
   Panel,
   Button,
@@ -6630,7 +6921,7 @@ window.HUD = HUD;
 
 // ui_kits/hud/Scene.jsx
 try { (() => {
-/* DriftLands UI kit — representative isometric world backdrop.
+/* Naevyr UI kit — representative isometric world backdrop.
    NOT part of the design system: the real world is Canvas sprites
    handled by the engine. This is a stand-in so the HUD can be shown
    reading over a busy, moving scene. Iso 2:1, tiles 64×32. */

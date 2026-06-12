@@ -19,7 +19,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
- * The DriftLands icon set — one cohesive line/solid family on a 24×24 grid.
+ * The Naevyr icon set — one cohesive line/solid family on a 24×24 grid.
  * Inherits currentColor so it tints to any drift.* token.
  */
 export function Icon(props: IconProps): React.ReactElement;

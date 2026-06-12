@@ -1,0 +1,23 @@
+{
+  "name": "naevyr-launch-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Naevyr launch trailer (Remotion). Render: npm run render",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render NaevyrLaunch out/naevyr-launch.mp4",
+    "still": "remotion still NaevyrLaunch"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.245",
+    "@remotion/google-fonts": "^4.0.475",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.245"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.7",
+    "playwright": "^1.60.0",
+    "typescript": "^5.7.3"
+  }
+}

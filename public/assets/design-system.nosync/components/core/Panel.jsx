@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — Panel
+/* Naevyr — Panel
    The canonical pixel HUD frame: notched corners, hard bevel, a thin
    corruption-purple edge, semi-transparent fill, purple corner pips.
    Composes into every HUD surface (inventory, log, skills). */

@@ -1,4 +1,4 @@
-// Shared game types for Driftlands.
+// Shared game types for Naevyr.
 
 export type TileType = "grass" | "dirt" | "stone" | "water" | "corrupt";
 
@@ -19,11 +19,62 @@ export const CLAIM_MAX = 3;
 
 // ─── the Waystation catalogs ───────────────────────────────────────────────────
 
-export type AuraKey = "driftmote" | "emberwake" | "goldhalo";
-export const AURA_CATALOG: Record<AuraKey, { label: string; price: number; color: string }> = {
+export type AuraKey =
+  | "driftmote" | "emberwake" | "goldhalo"
+  // Drift-touched (prestige): burned into being, never bought with gold
+  | "ashen_crown" | "corruption_halo" | "ember_cinder" | "bonewisp";
+export const AURA_CATALOG: Record<
+  AuraKey,
+  { label: string; price: number; color: string; driftsOnly?: boolean }
+> = {
   driftmote: { label: "Driftmote Orbit", price: 1000, color: "#a855f7" },
   emberwake: { label: "Emberwake", price: 1000, color: "#f59e0b" },
   goldhalo:  { label: "Gilded Halo", price: 1500, color: "#e7c873" },
+  ashen_crown:     { label: "Ashen Crown", price: 0, color: "#e7c873", driftsOnly: true },
+  corruption_halo: { label: "Corruption Halo", price: 0, color: "#a855f7", driftsOnly: true },
+  ember_cinder:    { label: "Ember Cinder", price: 0, color: "#f59e0b", driftsOnly: true },
+  bonewisp:        { label: "Bonewisp", price: 0, color: "#d8cfe0", driftsOnly: true },
+};
+
+// ─── Drift-touched cosmetics (Phase 6): DRIFTS burns only, never gold ─────────
+// One shared catalog so the Dyeworks panel, the server's burn validation and
+// the codex all read the same truth. `action` keys into BURN_COSTS.
+export type PrestigeKind = "dye" | "aura" | "title";
+export interface PrestigeEntry {
+  kind: PrestigeKind;
+  label: string;
+  desc: string;
+  action: "prestigeDye" | "prestigeAura" | "prestigeTitle";
+}
+export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
+  drift: {
+    kind: "dye", label: "Driftweave Cloak", action: "prestigeDye",
+    desc: "cloth dyed in the corruption itself; it never quite holds still",
+  },
+  ashen_crown: {
+    kind: "aura", label: "Ashen Crown", action: "prestigeAura",
+    desc: "a slow ring of drifting ash, crowned in old gold",
+  },
+  corruption_halo: {
+    kind: "aura", label: "Corruption Halo", action: "prestigeAura",
+    desc: "the Drift orbits you now, not the other way around",
+  },
+  ember_cinder: {
+    kind: "aura", label: "Ember Cinder", action: "prestigeAura",
+    desc: "sparks rise off you and cool to blood-ash",
+  },
+  bonewisp: {
+    kind: "aura", label: "Bonewisp", action: "prestigeAura",
+    desc: "pale wisps circle your feet; they remember being people",
+  },
+  ashgilded: {
+    kind: "title", label: "Ashgilded", action: "prestigeTitle",
+    desc: "a name written in what the fire left",
+  },
+  driftmarked: {
+    kind: "title", label: "Drift-Marked", action: "prestigeTitle",
+    desc: "the corruption knows you on sight",
+  },
 };
 
 export type PetKey = "wisp" | "crow" | "emberling";
@@ -64,7 +115,13 @@ export const BURN_COSTS = {
   aura: 15_000,    // any Dyeworks aura
   cleanse: 10_000, // feeds the Shrine pot
   obelisk: 5_000,  // the Ash Obelisk rewrites the day's quests
+  reinforce: 10_000, // shore up your weakest claim against the Drift
+  prestigeDye: 15_000,   // Drift-touched cloak dye (burn-only, never gold)
+  prestigeAura: 25_000,  // Drift-touched aura (burn-only, never gold)
+  prestigeTitle: 40_000, // Drift-touched title (burn-only, never gold)
 } as const;
+/** integrity restored per reinforce burn (cap 100 — delay, never immunity) */
+export const REINFORCE_INTEGRITY = 25;
 /** short display form: 5_000 → "5k" (pixel HUD space is tight) */
 export const burnAmt = (n: number) => (n >= 1000 ? `${n / 1000}k` : String(n));
 
@@ -394,7 +451,7 @@ export type ItemReason =
 // it for signMessage; the server rebuilds it verbatim to verify the signature.
 export function walletLinkMessage(address: string, nonce: string): string {
   return [
-    "Driftlands (beta)",
+    "Naevyr (beta)",
     "Link this wallet to your wanderer.",
     `Wallet: ${address}`,
     `Nonce: ${nonce}`,
@@ -406,7 +463,7 @@ export function walletLinkMessage(address: string, nonce: string): string {
  *  what is actually being authorized) */
 export function gateMessage(address: string, nonce: string): string {
   return [
-    "Driftlands (beta)",
+    "Naevyr (beta)",
     "Prove this wallet to pass the gate.",
     `Wallet: ${address}`,
     `Nonce: ${nonce}`,

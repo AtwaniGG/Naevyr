@@ -1,4 +1,4 @@
-// DriftLands SOCIAL / LAUNCH pack — eval after pixlib.js + tiles.js + fxlogo.js.
+// Naevyr SOCIAL / LAUNCH pack — eval after pixlib.js + tiles.js + fxlogo.js.
 // Coin/pfp sigil + widescreen X banner. Rect-grid, RAMP only, 1px void feel,
 // dither not blur, deterministic. Export with nearest-neighbor integer upscale.
 

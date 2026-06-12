@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — ActivityLog
+/* Naevyr — ActivityLog
    The scrolling HUD feed: gathers, level-ups, loot, Drift events.
    Pass `entries` newest-first; each = { kind, text, meta }. kind tints
    the bullet + accent: loot/xp/info/warning/danger/drift. */

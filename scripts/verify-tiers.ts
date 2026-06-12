@@ -19,7 +19,7 @@ import { walletLinkMessage, HOLDER_TIERS, BASE_PERKS } from "../game/types";
 const PORT = 2593;
 const WS_URL = `ws://localhost:${PORT}`;
 const SERVER_DIR = resolve(process.cwd(), "server");
-const DATA_DIR = `/tmp/driftlands-verify-tiers-${Date.now()}`;
+const DATA_DIR = `/tmp/naevyr-verify-tiers-${Date.now()}`;
 const MINT_FILE = resolve(SERVER_DIR, ".data/devnet-mint.json");
 const KEEPER = HOLDER_TIERS.find((t) => t.key === "keeper")!;
 const MINT_AMT = KEEPER.min + 5000; // comfortably Keeper, well short of Warden

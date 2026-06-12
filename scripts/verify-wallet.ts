@@ -15,7 +15,7 @@ import { walletLinkMessage } from "../game/types";
 
 const PORT = 2597;
 const WS_URL = `ws://localhost:${PORT}`;
-const DATA_DIR = `/tmp/driftlands-verify-wallet-${Date.now()}`;
+const DATA_DIR = `/tmp/naevyr-verify-wallet-${Date.now()}`;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;

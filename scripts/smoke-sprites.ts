@@ -190,7 +190,7 @@ if (JSON.stringify(makeBuildingSprite("obelisk", 0).d) === JSON.stringify(makeBu
 // the Threshold tutorial set (DS threshold.js port)
 import {
   drawThresholdGate, drawGatewarden, drawBeacon, drawArrowPip,
-  drawDriftWall, drawThresholdTile,
+  drawDriftWall, drawThresholdTile, PRESTIGE_AURAS, PrestigeAuraKey,
 } from "../game/render/sprites";
 for (const open of [false, true]) for (let f = 0; f < 3; f++) {
   try {
@@ -243,6 +243,21 @@ for (let f = 0; f < 2; f++) {
 // animated fixtures must actually animate
 if (JSON.stringify(makeFixture("hearth", "", 0).d) === JSON.stringify(makeFixture("hearth", "", 1).d)) {
   failures++; console.error("FAIL hearth: frames 0 and 1 are identical");
+}
+
+// prestige auras (burn-only cosmetics, DS auras.js port): every frame, 64×64, animated
+for (const key of Object.keys(PRESTIGE_AURAS) as PrestigeAuraKey[]) {
+  const spec = PRESTIGE_AURAS[key];
+  for (let f = 0; f < spec.frames; f++) {
+    try {
+      const g = spec.fn(f); frames++;
+      if (g.w !== 64 || g.h !== 64) { failures++; console.error(`FAIL aura ${key}#${f}: grid ${g.w}×${g.h}`); }
+      else if (g.d.filter(Boolean).length < 20) { failures++; console.error(`FAIL aura ${key}#${f}: too few pixels`); }
+    } catch (e) { failures++; console.error(`THROW aura ${key}#${f}:`, e); }
+  }
+  if (JSON.stringify(spec.fn(0).d) === JSON.stringify(spec.fn(1).d)) {
+    failures++; console.error(`FAIL aura ${key}: frames 0 and 1 are identical`);
+  }
 }
 
 console.log(

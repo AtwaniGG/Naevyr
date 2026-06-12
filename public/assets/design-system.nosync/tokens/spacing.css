@@ -1,5 +1,5 @@
 /* ============================================================
-   DriftLands — Spacing, sizing & radii
+   Naevyr — Spacing, sizing & radii
    8px base grid. Game UI is dense — most padding lands at 8/12px.
    Isometric engine constants are mirrored here as read-only
    reference tokens (do NOT restyle the canvas; these exist so HUD

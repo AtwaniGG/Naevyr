@@ -1,6 +1,6 @@
 ---
-name: driftlands-design
-description: Use this skill to generate well-branded interfaces and assets for DriftLands — a dark-fantasy isometric play-to-earn pixel-art MMO — for production or throwaway prototypes/mocks. Contains the pixel-art design guidelines, palette ramps, type, fonts, the pixel icon set, and HUD UI-kit components for prototyping.
+name: naevyr-design
+description: Use this skill to generate well-branded interfaces and assets for Naevyr — a dark-fantasy isometric play-to-earn pixel-art MMO — for production or throwaway prototypes/mocks. Contains the pixel-art design guidelines, palette ramps, type, fonts, the pixel icon set, and HUD UI-kit components for prototyping.
 user-invocable: true
 ---
 
@@ -15,9 +15,11 @@ signature accent; use it sparingly.
 - **Tokens:** link `styles.css` (it `@import`s `tokens/`). Use the `drift.*` base colours and
   material ramps; never invent new hues. Effects live in `tokens/effects.css`
   (`--clip-notch`, bevels, stepped `--glow-corrupt-*`, dither).
-- **Components:** load `_ds_bundle.js`, read `window.DriftLandsDesignSystem_3de3e2.<Name>`
+- **Components:** load `_ds_bundle.js`, read `window.NaevyrDesignSystem_3de3e2.<Name>`
   (`Panel`, `Button`, `Badge`, `SeasonBadge`, `Slot`, `Hotbar`, `XPBar`, `ActivityLog`,
-  `Icon`). Each component dir has a `.prompt.md` with usage.
+  `Icon`). Each component dir has a `.prompt.md` with usage. (That `window.<…>` symbol is the
+  compiler-generated runtime namespace, bound to the project ID — not the brand name — so it
+  stays literal even though the brand is Naevyr.)
 - **Icons:** use the `Icon` pixel set (`<Icon name="axe" size={32} />`). Don't substitute
   smooth icon-library glyphs — author new icons on the 16×16 grid instead.
 - **World art:** for sprites you can't draw inline, use the generation prompts in `readme.md`
@@ -27,4 +29,4 @@ If creating visual artifacts (slides, mocks, throwaway prototypes), copy the ass
 and produce static HTML for the user to view. If working on production code, copy assets and
 apply the rules here to design natively with the brand. If the user invokes this skill without
 guidance, ask what they want to build, ask a few focused questions, and act as an expert
-DriftLands designer who outputs HTML artifacts **or** production code as needed.
+Naevyr designer who outputs HTML artifacts **or** production code as needed.

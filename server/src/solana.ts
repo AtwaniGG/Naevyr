@@ -87,14 +87,43 @@ export function gateTokens(): number {
 // The server builds the burn tx and pays the fee with the devnet authority
 // (players need zero SOL); the wallet only adds the burn signature. After the
 // client submits, verifyBurn() checks the confirmed tx on-chain.
+//
+// Phase 6: the 50/50 fee-split rail. With TREASURY_ADDRESS set, every sink
+// burns half (rounded UP) and transfers the other half (rounded DOWN) to the
+// treasury — a receive-only wallet, no key on the server. Unset = 100% burn,
+// exactly the old behavior, so dev and every verify suite run unchanged.
 
 import { Keypair, Transaction } from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
   createBurnCheckedInstruction,
+  createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
 const DECIMALS = 6;
+
+let treasuryPk: PublicKey | null | undefined; // undefined = not parsed yet
+
+/** the protocol-fee treasury (receive-only); null = fee split dormant */
+export function treasuryAddress(): PublicKey | null {
+  if (treasuryPk !== undefined) return treasuryPk;
+  const raw = (process.env.TREASURY_ADDRESS ?? "").trim();
+  try {
+    treasuryPk = raw ? new PublicKey(raw) : null;
+  } catch {
+    console.error("TREASURY_ADDRESS is not a valid public key — fee split stays dormant");
+    treasuryPk = null;
+  }
+  return treasuryPk;
+}
+
+/** how a sink cost divides: burn rounds UP so a player can never under-burn */
+export function burnSplit(amount: number): { burn: number; treasury: number } {
+  if (!treasuryAddress()) return { burn: amount, treasury: 0 };
+  const burn = Math.ceil(amount / 2);
+  return { burn, treasury: amount - burn };
+}
 
 let authority: Keypair | null | undefined; // undefined = not tried yet
 
@@ -136,12 +165,27 @@ export async function buildBurnTx(
     const mintPk = new PublicKey(MINT);
     const owner = new PublicKey(wallet);
     const ata = getAssociatedTokenAddressSync(mintPk, owner);
+    const split = burnSplit(amount);
     const tx = new Transaction().add(
       createBurnCheckedInstruction(
         ata, mintPk, owner,
-        BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS,
+        BigInt(Math.round(split.burn * 10 ** DECIMALS)), DECIMALS,
       ),
     );
+    const treasury = treasuryAddress();
+    if (treasury && split.treasury > 0) {
+      const treasuryAta = getAssociatedTokenAddressSync(mintPk, treasury);
+      tx.add(
+        // authority pays rent if the treasury ATA doesn't exist yet (no-op after)
+        createAssociatedTokenAccountIdempotentInstruction(
+          payer.publicKey, treasuryAta, treasury, mintPk,
+        ),
+        createTransferCheckedInstruction(
+          ata, mintPk, treasuryAta, owner,
+          BigInt(Math.round(split.treasury * 10 ** DECIMALS)), DECIMALS,
+        ),
+      );
+    }
     tx.feePayer = payer.publicKey;
     tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
     tx.partialSign(payer);
@@ -151,7 +195,8 @@ export async function buildBurnTx(
   }
 }
 
-/** confirm a submitted burn on-chain: right mint, owner, and amount */
+/** confirm a submitted burn on-chain: right mint, owner, and amount — and,
+ *  when the fee split is live, the matching treasury transfer leg too */
 export async function verifyBurn(
   sig: string,
   wallet: string,
@@ -159,6 +204,11 @@ export async function verifyBurn(
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
   conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
+  const split = burnSplit(minAmount);
+  const treasury = treasuryAddress();
+  const treasuryAta = treasury
+    ? getAssociatedTokenAddressSync(new PublicKey(MINT), treasury).toBase58()
+    : "";
   // poll: wallets return the signature before the cluster confirms it. A
   // throttled/flaky RPC read (429s on public endpoints) is NOT terminal —
   // keep polling until the attempts run out.
@@ -174,23 +224,38 @@ export async function verifyBurn(
       );
       if (tx) {
         if (tx.meta?.err) return { ok: false, reason: "The burn failed on-chain" };
+        let burnOk = false, feeOk = !treasury || split.treasury <= 0;
         for (const ix of tx.transaction.message.instructions) {
           const parsed = (ix as { parsed?: { type?: string; info?: Record<string, unknown> } }).parsed;
-          if (!parsed || (parsed.type !== "burnChecked" && parsed.type !== "burn")) continue;
+          if (!parsed) continue;
           const info = parsed.info ?? {};
           const amt =
             (info.tokenAmount as { uiAmount?: number } | undefined)?.uiAmount ??
             Number(info.amount ?? 0) / 10 ** DECIMALS;
           if (
+            (parsed.type === "burnChecked" || parsed.type === "burn") &&
             info.mint === MINT &&
             (info.authority === wallet || info.owner === wallet) &&
-            amt >= minAmount
-          ) {
-            cache.delete(wallet); // balance just changed
-            return { ok: true };
-          }
+            amt >= split.burn
+          ) burnOk = true;
+          if (
+            !feeOk &&
+            (parsed.type === "transferChecked" || parsed.type === "transfer") &&
+            (info.mint === MINT || parsed.type === "transfer") &&
+            info.destination === treasuryAta &&
+            (info.authority === wallet || info.owner === wallet) &&
+            amt >= split.treasury
+          ) feeOk = true;
         }
-        return { ok: false, reason: "No matching burn in that transaction" };
+        if (burnOk && feeOk) {
+          cache.delete(wallet); // balance just changed
+          return { ok: true };
+        }
+        return {
+          ok: false,
+          reason: burnOk ? "The treasury tithe is missing from that transaction"
+                         : "No matching burn in that transaction",
+        };
       }
     } catch (e) {
       lastError = `Chain unreachable: ${(e as Error).message}`.slice(0, 120);

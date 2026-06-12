@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — Button
+/* Naevyr — Button
    Pixel button: hard bevel + hard drop shadow that presses down on
    :active (chrome in styles.css → .drift-pixel-btn). Variants tie to
    the palette; React only sets the --btn-* vars + size + content. */

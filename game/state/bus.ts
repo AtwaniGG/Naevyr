@@ -38,6 +38,10 @@ type Events = {
   auraBurn: string;
   /** burn-paid Obelisk quest reroll */
   obeliskBurn: boolean;
+  /** burn-paid claim reinforcement (server shores up your weakest claim) */
+  reinforceBurn: boolean;
+  /** burn-paid Drift-touched cosmetic (payload = prestige catalog key) */
+  prestigeBurn: string;
   /** client-trusted gold change, forwarded to the server ledger when online */
   goldDelta: { amount: number; reason: GoldReason };
   /** client-trusted item change, forwarded to the inventory ledger when online */

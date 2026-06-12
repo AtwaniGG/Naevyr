@@ -20,7 +20,7 @@ const USDC_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const RPC = "https://api.devnet.solana.com";
 const PORT = 2596;
 const WS_URL = `ws://localhost:${PORT}`;
-const DATA_DIR = `/tmp/driftlands-verify-token-${Date.now()}`;
+const DATA_DIR = `/tmp/naevyr-verify-token-${Date.now()}`;
 const SERVER_DIR = resolve(process.cwd(), "server");
 const MINT_FILE = resolve(SERVER_DIR, ".data/devnet-mint.json");
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

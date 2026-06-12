@@ -1,0 +1,120 @@
+{
+  "image": "auras/bonewisp.svg",
+  "cell": {
+    "w": 64,
+    "h": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 56
+  },
+  "alignTo": {
+    "sprite": "character/wanderer",
+    "anchor": {
+      "x": 16,
+      "y": 39
+    },
+    "note": "draw aura so anchor(32,56) coincides with wanderer anchor(16,39); top-left offset = (-16,-17) vs the 32x40 char cell"
+  },
+  "ramp": "bone",
+  "tier": "prestige",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "bonewisp_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_03": {
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_04": {
+      "x": 256,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_05": {
+      "x": 320,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_06": {
+      "x": 384,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "bonewisp_07": {
+      "x": 448,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    }
+  },
+  "animations": {
+    "orbit": {
+      "frames": [
+        "bonewisp_00",
+        "bonewisp_01",
+        "bonewisp_02",
+        "bonewisp_03",
+        "bonewisp_04",
+        "bonewisp_05",
+        "bonewisp_06",
+        "bonewisp_07"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

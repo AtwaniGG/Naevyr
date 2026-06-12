@@ -17,6 +17,7 @@ import {
   PropKey,
   SPIN_COST,
   BURN_COSTS,
+  PRESTIGE_CATALOG,
   burnAmt,
   holderPerks,
   INVENTORY_ORDER,
@@ -89,6 +90,15 @@ const HOTBAR_TOOLS: { slot: number; icon: IconName; name: string; locked?: boole
 ];
 
 export default function Hud() {
+  // ?demo hides the DOM HUD for clean trailer capture (canvas labels stay).
+  // Read once on mount so SSR and first client render agree.
+  const [demo, setDemo] = useState(false);
+  useEffect(() => {
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).has("demo")) {
+      setDemo(true);
+    }
+  }, []);
+  if (demo) return null;
   return (
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />
@@ -235,6 +245,43 @@ function KeeperDialogue() {
       opts.push({ label: "Cloak dyes", sub: `${DYE_PRICE}g each`, onClick: () => setMenu("dyes") });
       opts.push({ label: "Eye glow", sub: `${EYE_PRICE}g each`, onClick: () => setMenu("eyes") });
       opts.push({ label: "Auras", sub: "the costly kind of beautiful", onClick: () => setMenu("auras") });
+      if (s.wallet && s.holder) {
+        opts.push({
+          label: "Drift-touched", swatch: "#a855f7",
+          sub: "burned into being · DRIFTS only, never gold",
+          onClick: () => setMenu("prestige"),
+        });
+      }
+    } else if (menu === "prestige") {
+      Object.entries(PRESTIGE_CATALOG).forEach(([k, entry]) => {
+        const owned =
+          entry.kind === "dye" ? s.ownedDyes.includes(k as never) :
+          entry.kind === "aura" ? s.ownedAuras.includes(k as never) :
+          s.ownedTitles.includes(entry.label);
+        const worn =
+          entry.kind === "dye" ? s.cosmetics.dye === k :
+          entry.kind === "aura" ? s.cosmetics.aura === k : false;
+        const swatch =
+          entry.kind === "dye" ? "#a855f7" :
+          entry.kind === "aura" ? AURA_CATALOG[k as keyof typeof AURA_CATALOG]?.color : keeper.swatch;
+        opts.push({
+          label: entry.label, swatch, sub: entry.desc,
+          right: worn ? "worn" : owned ? (entry.kind === "title" ? "yours" : "wear")
+            : <>{burnAmt(BURN_COSTS[entry.action])} <DriftsMark /></>,
+          onClick: () => {
+            if (worn) return;
+            if (owned) {
+              if (entry.kind === "dye") { s.setCosmetics({ dye: k as never }); respond("It suits you."); }
+              else if (entry.kind === "aura") { s.setCosmetics({ aura: k as never }); respond("It clings to you."); }
+              else respond("The realm already knows that name.");
+              return;
+            }
+            bus.emit("prestigeBurn", k);
+            respond("The chain takes its due. Hold still.");
+          },
+        });
+      });
+      opts.push(back());
     } else if (menu === "dyes") {
       Object.entries(DYE_SWATCH).forEach(([k, c]) => {
         const owned = s.ownedDyes.includes(k as never);
@@ -271,6 +318,7 @@ function KeeperDialogue() {
       opts.push(back());
     } else {
       Object.entries(AURA_CATALOG).forEach(([k, meta]) => {
+        if (meta.driftsOnly) return; // Drift-touched live in their own menu
         const owned = s.ownedAuras.includes(k as never);
         const worn = s.cosmetics.aura === k;
         const canBurn = !owned && !!s.wallet && s.holder;
@@ -795,6 +843,7 @@ function RightRail() {
       <MarketDock />
       <IdentityDock />
       <StakeButton />
+      <ReinforceButton />
       <MinimapPanel />
     </div>
   );
@@ -994,6 +1043,26 @@ function StakeButton() {
   );
 }
 
+/** burn DRIFTS to shore up your weakest claim (+25 integrity, capped at 100) */
+function ReinforceButton() {
+  const online = useGame((s) => s.online);
+  const myClaims = useGame((s) => s.myClaims);
+  const wallet = useGame((s) => s.wallet);
+  const holder = useGame((s) => s.holder);
+  if (!online || !wallet || !holder || myClaims === 0) return null;
+  return (
+    <Button
+      variant="ghost"
+      size="md"
+      onClick={() => bus.emit("reinforceBurn", true)}
+      iconLeft={<Icon name="sigil" size={16} />}
+      title={`Burn ${burnAmt(BURN_COSTS.reinforce)} DRIFTS to shore up your weakest claim against the Drift (+25 warding, to 100)`}
+    >
+      Reinforce · {burnAmt(BURN_COSTS.reinforce)} <DriftsMark />
+    </Button>
+  );
+}
+
 // ---- right-middle (below Forge): wanderer identity ------------------------------
 
 const DYE_SWATCH: Record<string, string> = {
@@ -1017,7 +1086,8 @@ function IdentityDock() {
   const stats = useGame((s) => s.stats);
   const ownedDyes = useGame((s) => s.ownedDyes);
   const ownedEyes = useGame((s) => s.ownedEyes);
-  const title = currentTitle({ skills, kills, stats });
+  const ownedTitles = useGame((s) => s.ownedTitles);
+  const title = currentTitle({ skills, kills, stats, ownedTitles });
 
   const swatchBtn = (
     color: string,
@@ -1211,7 +1281,7 @@ function TopLeft() {
         className="drift-wordmark drift-wordmark-bleed drift-hud-text pointer-events-auto"
         style={{ fontSize: "var(--text-xl)", lineHeight: 1, textShadow: "none", textDecoration: "none", cursor: "pointer" }}
       >
-        DRIFTLANDS
+        NAEVYR
       </a>
       <a
         href="/"

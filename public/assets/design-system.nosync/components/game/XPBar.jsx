@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — XPBar
+/* Naevyr — XPBar
    A skill progress row: icon + name on the left, level chip on the
    right, a pixel track with a stepped corruption fill, and the
    value/next readout. `color` tints the fill per skill. */

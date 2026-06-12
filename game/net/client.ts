@@ -266,6 +266,14 @@ export class NetClient {
     this.safeSend("obeliskBurn", { burnSig });
   }
 
+  sendReinforce(burnSig: string) {
+    this.safeSend("reinforce", { burnSig });
+  }
+
+  sendPrestige(key: string, burnSig: string) {
+    this.safeSend("prestige", { key, burnSig });
+  }
+
   sendPlaceProp(kind: string, x: number, y: number) {
     this.safeSend("placeProp", { kind, x, y });
   }

@@ -1,4 +1,4 @@
-# DriftLands — Design System
+# Naevyr — Design System
 
 A dark-fantasy, browser-based **isometric play-to-earn MMO**. A crumbling realm is being
 devoured by **the Drift** — a creeping purple corruption that spreads across the land each
@@ -18,8 +18,9 @@ world (sprites are authored separately by the engine).
 
 ## Sources
 
-- **GitHub:** [`AtwaniGG/Driftlands`](https://github.com/AtwaniGG/Driftlands) — the live
-  Next.js + HTML5-Canvas + React/Tailwind/Zustand/TypeScript build. At time of authoring the
+- **GitHub:** [`AtwaniGG/Naevyr`](https://github.com/AtwaniGG/Naevyr) — the live
+  Next.js + HTML5-Canvas + React/Tailwind/Zustand/TypeScript build (the source repo predates the
+  rename to **Naevyr**; update this link if/when the repo itself is renamed). At time of authoring the
   public repo contains the README/design brief; the engine constants, the locked `drift.*`
   Tailwind palette, and the HUD requirements below come from that brief. **Explore the repo**
   for the authoritative `tailwind.config.ts` token names and the `components/Hud` structure
@@ -45,13 +46,15 @@ world (sprites are authored separately by the engine).
 | `SKILL.md` | Agent-Skill manifest for reuse in Claude Code |
 
 The Design System tab renders every `@dsCard`-tagged file. Components are consumed at
-`window.DriftLandsDesignSystem_3de3e2.<Name>` after loading `_ds_bundle.js`.
+`window.NaevyrDesignSystem_3de3e2.<Name>` after loading `_ds_bundle.js` (that `window.<…>`
+symbol is the compiler-generated runtime namespace bound to the project ID — not the brand
+name — so it stays literal even though the brand is now Naevyr).
 
 ---
 
 # 1 · Logo / brand mark
 
-A pixel/bitmap **DRIFTLANDS** wordmark (Pixelify Sans) with the Drift corruption bleeding
+A pixel/bitmap **NAEVYR** wordmark (Pixelify Sans) with the Drift corruption bleeding
 **up** through the letters via a clipped bone→purple ramp, plus a square **emblem**: a stone
 iso-tile cradling a glowing Drift mote. See `guidelines/logo.card.html`.
 
@@ -296,7 +299,7 @@ authored at 1× on the 64×32 iso grid:
 
 ---
 
-# Content fundamentals — how DriftLands writes
+# Content fundamentals — how Naevyr writes
 
 The voice is **terse, melancholic, and diegetic** — the world narrating itself, not a UI
 talking to a user. It treats the player as a wary traveller in a dying realm.
@@ -445,7 +448,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     scroll, banner, book, trophy, ledger, discord, telegram, x_bird — single-ramp tintable),
     `gate_door` 96×128 (3 frames: shut → runes pulsing → opening glow; the token-gate visual),
     `wordmark_plate` 320×96 (2-frame inlay pulse — bone-and-gold frame with drift inlay to sit
-    behind the DRIFTLANDS wordmark).
+    behind the NAEVYR wordmark).
   - `social/` — **social / launch pack** (PNG, nearest-neighbor upscaled, opaque sRGB) for the
     **$DRIFTS** coin: `pfp_coin.png` 1024×1024 (pump.fun coin — the warded gate rune struck in
     gold over a drift field with the **$DRIFTS** ticker on the lower face, 128px grid ×8),
@@ -465,6 +468,19 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     (2f bob), `drift_wall` 64×96 (advancing corruption front — 3f boil, **seam-continuous**
     left/right so it tiles along iso rows), `ground` 64×36 (2 cracked pale-flagstone path
     accents with gold rune fragments, drawn under entities over grass).
+  - `auras/` — **prestige auras** (premium orbiting-mote cosmetics; rect-grid SVG strips +
+    atlas JSON, frames emitted left-to-right with per-frame x offsets). Each is a 64×64 canvas
+    that surrounds the 32×40 wanderer; the aura's bottom-center FEET anchor (32,56) aligns to
+    the wanderer's bottom-center anchor (16,39). Loops bake per-frame; draw back motes behind
+    the figure, front motes over it:
+    - `ashen_crown` — **gold + bone + ash** — slow ring of drifting ash flecks under a curved
+      gold tiara arc crowning the head (8f @6fps).
+    - `corruption_halo` — **drift** — pulsing violet ring with motes spiraling into a small
+      Drift-core at the chest (6f @8fps).
+    - `ember_cinder` — **ember + blood** — sparks rising from the feet, swirling up and cooling
+      to blood-ash (6f @8fps).
+    - `bonewisp` — **bone** — pale skeletal wisps orbiting low around the feet, with cold drift
+      glints; eerie (8f @6fps).
   - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
   - `creatures-preview.html` — every creature, facing & animation cycling live.
   - `town-preview.html` — all eight structures with anchor pins & label-clearance guides.
@@ -474,9 +490,10 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `landing-preview.html` — hero composition (vista + plate + nav + buttons), icons, gate.
   - `social-preview.html` — coin/avatar marks, banner & an X-profile mock with safe-zone notes.
   - `threshold-preview.html` — gate (sealed/open), gatewarden facings, beacon, drift-wall tiling & path accents, all cycling live.
+  - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `social.js`, `threshold.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
+    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

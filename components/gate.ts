@@ -152,3 +152,29 @@ export function useGate() {
 
   return { info, wallet, balance, busy, connect, disconnect };
 }
+
+// ---- the public scarcity counter (GET /stats) ---------------------------------
+
+export interface BurnStats {
+  /** DRIFTS burned forever, lifetime */
+  burned: number;
+  /** DRIFTS tithed to the treasury (the protocol fee that funds development) */
+  treasury: number;
+  /** verified burns, lifetime */
+  count: number;
+  bySink: Record<string, number>;
+}
+
+/** lifetime burn totals off the game server; null while loading/offline */
+export function useBurnStats(): BurnStats | null {
+  const [stats, setStats] = useState<BurnStats | null>(null);
+  useEffect(() => {
+    let dead = false;
+    fetch(`${httpBase()}/stats`, { signal: AbortSignal.timeout(5000) })
+      .then((r) => r.json())
+      .then((s: BurnStats) => { if (!dead) setStats(s); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, []);
+  return stats;
+}

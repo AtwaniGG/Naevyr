@@ -170,8 +170,16 @@ export default function IndexPage() {
               {(Object.keys(AURA_CATALOG) as AuraKey[]).map((k, i) => (
                 <div key={k} style={{ ...ROW, ...odd(i) }}>
                   <span style={NAME}>{AURA_CATALOG[k].label}</span>
-                  <span style={DESC}>An aura. The costly kind of beautiful.</span>
-                  <span style={VAL}>{AURA_CATALOG[k].price}g · or {burnAmt(BURN_COSTS.aura)} ◆</span>
+                  <span style={DESC}>
+                    {AURA_CATALOG[k].driftsOnly
+                      ? "Drift-touched. Burned into being, never bought with gold."
+                      : "An aura. The costly kind of beautiful."}
+                  </span>
+                  <span style={VAL}>
+                    {AURA_CATALOG[k].driftsOnly
+                      ? <>{burnAmt(BURN_COSTS.prestigeAura)} ◆ only</>
+                      : <>{AURA_CATALOG[k].price}g · or {burnAmt(BURN_COSTS.aura)} ◆</>}
+                  </span>
                 </div>
               ))}
               <Section title="The Menagerie · followers" />

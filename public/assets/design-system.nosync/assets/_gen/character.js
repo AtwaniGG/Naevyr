@@ -1,4 +1,4 @@
-// DriftLands character generator — hooded Drift-touched wanderer.
+// Naevyr character generator — hooded Drift-touched wanderer.
 // 32×40 cell, ~30px tall, feet at bottom-center. 5 facings (s,se,e,ne,n);
 // engine mirrors for w/sw/nw. Anim: idle 2f · walk 6f · swing 4f.
 

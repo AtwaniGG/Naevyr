@@ -1,4 +1,4 @@
-// DriftLands LANDING PAGE ART PACK — eval after pixlib.js + tiles.js (+ town.js
+// Naevyr LANDING PAGE ART PACK — eval after pixlib.js + tiles.js (+ town.js
 // & interiors.js for silhouette cues, fxlogo.js for the emblem). Rect-grid,
 // RAMP only, 1px void outline, dither not blur, deterministic. Moonlit-left.
 
@@ -267,7 +267,7 @@ function drawGateDoor(frame) {
 }
 
 /* ============================ WORDMARK PLATE (320×96, 2 frames) ============================
-   Ornate bone-and-gold frame with drift-purple inlay to sit behind DRIFTLANDS. */
+   Ornate bone-and-gold frame with drift-purple inlay to sit behind NAEVYR. */
 function drawWordmarkPlate(frame) {
   frame = frame || 0;
   const W = 320, Hh = 96, g = makeGrid(W, Hh);

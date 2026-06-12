@@ -1,4 +1,4 @@
-// DriftLands creature generators — eval after pixlib.js (+ tiles.js for RAMP/helpers).
+// Naevyr creature generators — eval after pixlib.js (+ tiles.js for RAMP/helpers).
 // Same conventions as character.js: drawX(facing, anim, frame) -> grid.
 // 5 facings s/se/e/ne/n (engine mirrors w/sw/nw), bottom-center anchor (base on
 // last row), 1px void auto-outline, locked RAMP only, deterministic.

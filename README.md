@@ -1,4 +1,4 @@
-# Driftlands
+# Naevyr
 
 A dark-fantasy, browser-based isometric play-to-earn MMO — built in the spirit of Kintara but with its own world and economy. A crumbling realm is being consumed by **the Drift**, a creeping corruption that keeps the resource map alive and shifting.
 

@@ -68,6 +68,9 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS inv jsonb
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS founder boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS props (
       id serial PRIMARY KEY,
       claim_id real NOT NULL,
@@ -89,6 +92,12 @@ export async function initDb(): Promise<Db> {
       token text NOT NULL,
       action text NOT NULL
     )
+  `);
+  await db.execute(sql`
+    ALTER TABLE burns ADD COLUMN IF NOT EXISTS burned real NOT NULL DEFAULT 0
+  `);
+  await db.execute(sql`
+    ALTER TABLE burns ADD COLUMN IF NOT EXISTS treasury real NOT NULL DEFAULT 0
   `);
   await db.execute(sql`
     INSERT INTO shrine (id, pot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING
@@ -160,18 +169,48 @@ export async function findPlayerByWallet(address: string): Promise<PlayerRow | n
 // ---- Phase 5: burn replay protection --------------------------------------------
 
 /** claim a burn signature exactly once; false = already spent */
-export async function tryInsertBurn(sig: string, token: string, action: string): Promise<boolean> {
+export async function tryInsertBurn(
+  sig: string,
+  token: string,
+  action: string,
+  burned = 0,
+  treasury = 0,
+): Promise<boolean> {
   const inserted = await db
     .insert(burns)
-    .values({ sig, token, action })
+    .values({ sig, token, action, burned, treasury })
     .onConflictDoNothing()
     .returning();
   return inserted.length > 0;
 }
 
+/** lifetime fee-split totals + per-sink counts (the public scarcity counter) */
+export async function burnTotals(): Promise<{
+  burned: number;
+  treasury: number;
+  count: number;
+  bySink: Record<string, number>;
+}> {
+  const rows = await db
+    .select({ action: burns.action, burned: burns.burned, treasury: burns.treasury })
+    .from(burns);
+  const out = { burned: 0, treasury: 0, count: rows.length, bySink: {} as Record<string, number> };
+  for (const r of rows) {
+    out.burned += r.burned;
+    out.treasury += r.treasury;
+    out.bySink[r.action] = (out.bySink[r.action] ?? 0) + 1;
+  }
+  return out;
+}
+
 /** release a signature whose on-chain verification failed (allows retry) */
 export async function deleteBurn(sig: string) {
   await db.delete(burns).where(eq(burns.sig, sig));
+}
+
+/** stamp the one-time Founder mark (burned DRIFTS inside the beta window) */
+export async function setFounder(token: string) {
+  await db.update(players).set({ founder: true }).where(eq(players.token, token));
 }
 
 // ---- land claims -----------------------------------------------------------------

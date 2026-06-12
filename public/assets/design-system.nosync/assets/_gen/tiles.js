@@ -1,4 +1,4 @@
-// DriftLands tile generators — eval after pixlib.js.
+// Naevyr tile generators — eval after pixlib.js.
 // Tiles: 64×35 (32px diamond face + 3px south lip). Overlay: 64×32.
 
 function hash2(x, y, s) {

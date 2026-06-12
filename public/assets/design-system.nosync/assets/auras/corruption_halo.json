@@ -1,0 +1,98 @@
+{
+  "image": "auras/corruption_halo.svg",
+  "cell": {
+    "w": 64,
+    "h": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 56
+  },
+  "alignTo": {
+    "sprite": "character/wanderer",
+    "anchor": {
+      "x": 16,
+      "y": 39
+    },
+    "note": "draw aura so anchor(32,56) coincides with wanderer anchor(16,39); top-left offset = (-16,-17) vs the 32x40 char cell"
+  },
+  "ramp": "drift",
+  "tier": "prestige",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "corruption_halo_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "corruption_halo_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "corruption_halo_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "corruption_halo_03": {
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "corruption_halo_04": {
+      "x": 256,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    },
+    "corruption_halo_05": {
+      "x": 320,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 56
+      }
+    }
+  },
+  "animations": {
+    "orbit": {
+      "frames": [
+        "corruption_halo_00",
+        "corruption_halo_01",
+        "corruption_halo_02",
+        "corruption_halo_03",
+        "corruption_halo_04",
+        "corruption_halo_05"
+      ],
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

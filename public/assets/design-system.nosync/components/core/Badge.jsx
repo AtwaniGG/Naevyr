@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* DriftLands — Badge
+/* Naevyr — Badge
    Pixel chip for statuses, counts, rarity & the seasonal "Drift"
    marker. variant="season" is the ornate HUD season badge; the rest
    are compact inline tags. */

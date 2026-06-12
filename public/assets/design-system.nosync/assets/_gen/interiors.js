@@ -1,4 +1,4 @@
-// DriftLands INTERIOR SET + THE MINE — eval after pixlib.js + tiles.js.
+// Naevyr INTERIOR SET + THE MINE — eval after pixlib.js + tiles.js.
 // Rect-grid, RAMP only, 1px void auto-outline, dither not blur, deterministic.
 // Moonlit-left / shadowed-right. Floors 64×36 (tiles.js format). Walls 64×56.
 // Fixtures bottom-center anchored; top 6px of every fixture/building cell kept

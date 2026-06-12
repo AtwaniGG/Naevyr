@@ -1,4 +1,4 @@
-// DriftLands FX + logo generators — eval after pixlib.js.
+// Naevyr FX + logo generators — eval after pixlib.js.
 
 // ---- FX ----
 function makeMotes() {
@@ -39,7 +39,7 @@ function makeRingFrames() {
 }
 
 // ---- LOGO ----
-// custom 12px-tall pixel letterset (only the letters DRIFTLANDS needs)
+// custom 12px-tall pixel letterset (only the letters NAEVYR needs)
 const GLYPHS = {
   D: ['######..','#######.','##...##.','##....##','##....##','##....##','##....##','##....##','##....##','##...##.','#######.','######..'],
   R: ['#######.','########','##....##','##....##','##...###','#######.','######..','##.###..','##..##..','##...##.','##...###','##....##'],
@@ -50,6 +50,9 @@ const GLYPHS = {
   A: ['..####..','.######.','##....##','##....##','##....##','########','########','##....##','##....##','##....##','##....##','##....##'],
   N: ['##....##','##....##','###...##','####..##','##.##.##','##.##.##','##..####','##..####','##...###','##...###','##....##','##....##'],
   S: ['.#######','########','##......','##......','########','.#######','......##','......##','......##','......##','########','#######.'],
+  E: ['########','########','##......','##......','##......','#######.','#######.','##......','##......','##......','########','########'],
+  V: ['##....##','##....##','##....##','##....##','##....##','.##..##.','.##..##.','.##..##.','..####..','..####..','...##...','...##...'],
+  Y: ['##....##','##....##','.##..##.','.##..##.','..####..','...##...','...##...','...##...','...##...','...##...','...##...','...##...'],
 };
 function scaleGrid(g, k) {
   const m = makeGrid(g.w * k, g.h * k);
@@ -59,9 +62,9 @@ function scaleGrid(g, k) {
   }
   return m;
 }
-// build the DRIFTLANDS wordmark at 1× (12 tall) with corruption bleed
+// build the NAEVYR wordmark at 1× (12 tall) with corruption bleed
 function wordmarkGrid(mono) {
-  const word = 'DRIFTLANDS';
+  const word = 'NAEVYR';
   const bn = RAMP.bone, dr = RAMP.drift;
   let widths = [], total = 0;
   for (const ch of word) { const w = GLYPHS[ch][0].length; widths.push(w); total += w + 1; }
@@ -117,8 +120,8 @@ function logoHorizontal(mono) {
 function logoStacked(mono) {
   const g = makeGrid(256, 220);
   stamp(g, scaleGrid(emblemGrid(mono), 6), 80, 12);
-  const wm = scaleGrid(wordmarkGrid(mono), 3); // 255 × 36
-  stamp(g, wm, 0, 132);
+  const wm = scaleGrid(wordmarkGrid(mono), 3); // centered (name length varies)
+  stamp(g, wm, Math.round((256 - wm.w) / 2), 132);
   if (!mono) {
     const dr = RAMP.drift;
     [[60, 190], [128, 198], [196, 188]].forEach((m, i) => {
