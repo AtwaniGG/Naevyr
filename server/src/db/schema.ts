@@ -38,6 +38,8 @@ export const players = pgTable("players", {
   gold: real("gold"),
   /** Phase 6: authoritative item counts (same seed-once rules as gold) */
   inv: jsonb("inv"),
+  /** Phase 6: authoritative daily quest board { day, list:[{id,progress,claimed}] } */
+  quests: jsonb("quests"),
   /** burned DRIFTS during the beta window — one-time Founder cosmetics */
   founder: boolean("founder").notNull().default(false),
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative

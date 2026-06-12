@@ -515,6 +515,24 @@ export const QUEST_POOL: QuestDef[] = [
   },
 ];
 
+/** Pick the 3 daily quest ids, deterministic for a given UTC day index
+ *  (Math.floor(Date.now()/86_400_000)). Shared truth: the client builds the
+ *  offline board from this and the server rolls the authoritative board from it,
+ *  so the same day yields the same three quests everywhere. */
+export function rollDailyQuestIds(day: number): string[] {
+  const ids: string[] = [];
+  const pool = QUEST_POOL.map((q) => q.id);
+  let seed = day;
+  for (let i = 0; i < 3 && pool.length > 0; i++) {
+    // simple LCG so the same day always rolls the same board
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    const idx = seed % pool.length;
+    ids.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return ids;
+}
+
 // ---- seasons ----------------------------------------------------------------
 
 /** evocative season names, cycled by season number (voice: place-like, decaying) */

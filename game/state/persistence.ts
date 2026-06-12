@@ -126,7 +126,7 @@ export function buildSnapshot(): SaveData {
 
 /** restore a snapshot into the store (quests rehydrated; stale boards reroll) */
 export function applySnapshot(data: SaveData) {
-  const quests: QuestState[] =
+  const rehydrated: QuestState[] =
     data.day === today() && Array.isArray(data.quests)
       ? data.quests.flatMap((q) => {
           const def = QUEST_POOL.find((d) => d.id === q.id);
@@ -134,7 +134,10 @@ export function applySnapshot(data: SaveData) {
             ? [{ def, progress: q.progress, claimed: q.claimed }]
             : [];
         })
-      : rollDailyQuests();
+      : [];
+  // a stale day OR a board whose ids no longer resolve (the live empty-board
+  // bug) falls back to a fresh roll instead of showing nothing
+  const quests: QuestState[] = rehydrated.length ? rehydrated : rollDailyQuests();
   // grandfather old saves: whatever is equipped counts as owned
   const cos = (data.cosmetics ?? {}) as { dye?: string; eye?: string };
   const ownedDyes = [...new Set(["stone", ...(data.ownedDyes ?? []), ...(cos.dye ? [cos.dye] : [])])];

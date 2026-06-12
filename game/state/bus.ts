@@ -42,6 +42,10 @@ type Events = {
   auraBurn: string;
   /** burn-paid Obelisk quest reroll */
   obeliskBurn: boolean;
+  /** claim a completed daily quest (server validates + pays) */
+  questClaim: string;
+  /** reroll the daily board for 75g (server debits + rerolls) */
+  questReroll: boolean;
   /** burn-paid claim reinforcement (server shores up your weakest claim) */
   reinforceBurn: boolean;
   /** burn-paid Drift-touched cosmetic (payload = prestige catalog key) */

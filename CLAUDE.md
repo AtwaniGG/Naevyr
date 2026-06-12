@@ -35,6 +35,7 @@ cd server && npx tsc --noEmit -p tsconfig.json     # server typecheck
 ./server/node_modules/.bin/tsx scripts/verify-ledger.ts        # Phase 6: gold + inventory ledgers (seeding, caps, cook/craft, persistence)
 ./server/node_modules/.bin/tsx scripts/verify-mobs.ts          # SELF-HOSTED (port 2592): shared mobs + den + Colossus kill/loot/respawn
 ./server/node_modules/.bin/tsx scripts/verify-tiers.ts         # SELF-HOSTED (port 2593): holder tiers (real devnet mint: Keeper vault fee + stall cap)
+./server/node_modules/.bin/tsx scripts/verify-quests.ts       # server quest ledger: board/progress/claim/reroll
 ```
 
 **The workflow rule:** after any change — typecheck both sides, build, run the relevant

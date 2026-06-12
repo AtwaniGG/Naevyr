@@ -24,6 +24,7 @@ import {
   deletePropsForClaim,
   setGold as persistGold,
   setInv as persistInv,
+  setQuests as persistQuests,
   PlayerRow,
 } from "../db";
 import {
@@ -48,6 +49,7 @@ import {
   PRESTIGE_CATALOG, AVATAR_CHANNELS, AvatarKind,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
   GUILD, EXCHANGE, RELIC_MARKET,
+  QUEST_POOL, rollDailyQuestIds, type QuestEvent,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
 import {
@@ -363,6 +365,8 @@ interface PlayerSim {
   wheelPity: number;
   /** guild membership (null = guildless) */
   guildId: number | null;
+  /** Phase 6: authoritative daily quest board (write-through to players.quests) */
+  quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] };
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -907,6 +911,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!sim) return;
       if (!this.allow(sim, "obeliskBurn", 4, 10_000)) return;
       const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "obelisk");
+      if (!err) this.rerollQuestsFor(sim);
       client.send("burnResult", err
         ? { ok: false, action: "obelisk", reason: err }
         : { ok: true, action: "obelisk" });
@@ -1657,6 +1662,34 @@ export class DriftRoom extends Room<DriftRoomState> {
       sim.invSeeded = true;
       void persistInv(sim.token, sim.inv).catch(() => {});
       this.syncInv(sim);
+      this.advanceQuests(sim, { type: "cook", qty: n });
+    });
+
+    // ---- claim a completed daily quest: gold rides the ledger, XP stays client-side
+    this.onMessage("claimQuest", (client, msg: { id?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "claimQuest", 8, 2000)) return;
+      if (this.ensureFreshQuests(sim)) this.syncQuests(sim);
+      const id = String(msg?.id ?? "");
+      const q = sim.quests.list.find((x) => x.id === id);
+      if (!q || q.claimed) return; // unknown or replay → ignore
+      const def = QUEST_POOL.find((d) => d.id === id);
+      if (!def || q.progress < def.target) return; // early-claim → refused
+      q.claimed = true;
+      this.credit(sim, def.goldReward); // gold ledger + goldSync
+      void persistQuests(sim.token, sim.quests).catch(() => {});
+      client.send("questClaimed", { id, xp: def.xpReward }); // client applies XP
+      this.syncQuests(sim);
+    });
+
+    // ---- Obelisk: rewrite the day's tasks for 75g (the burn path is obeliskBurn)
+    this.onMessage("questReroll", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "questReroll", 4, 5000)) return;
+      if (!this.debit(sim, 75)) return; // purse too light → no change
+      this.rerollQuestsFor(sim);
     });
 
     // ---- vendor sales: goods leave the ledger, gold arrives at house prices -------
@@ -1742,6 +1775,9 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("mobKill", {
         id: mob.id, kind: mob.kind, level: mob.level, xp: mob.xp, ...loot,
       });
+      // any overworld mob death advances the kill quest (matches the current
+      // client behavior where any mob death fired the kill event)
+      this.advanceQuests(sim, { type: "kill" });
 
       // real deaths feed the event quotas (no more trusted kill intents)
       if (mob.eventTag === "night" && this.state.nightActive) {
@@ -1856,6 +1892,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
       wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
       guildId: row.guildId != null ? Math.round(row.guildId) : null,
+      quests: sanitizeQuests(row.quests),
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -1871,6 +1908,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     if (sim.guildId) ps.guildTag = this.guildRows.get(sim.guildId)?.tag ?? "";
     this.state.players.set(client.sessionId, ps);
 
+    this.syncQuests(sim);
   }
 
   async onLeave(client: Client) {
@@ -1975,6 +2013,7 @@ export class DriftRoom extends Room<DriftRoomState> {
           (this.inGuildRegion(sim) ? GUILD.richStrikeBonus : 0);
         const qty = rich ? 2 : 1;
         this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
+        this.advanceQuests(sim, { type: "gather", item: RESOURCE_META[node.kind].item });
         sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
         if (depleted) {
           this.drift.depleteNode(this.world, node.gx, node.gy);
@@ -2310,6 +2349,58 @@ export class DriftRoom extends Room<DriftRoomState> {
     void persistInv(sim.token, sim.inv).catch(() => {});
     this.syncInv(sim);
     return true;
+  }
+
+  // ---- the quest ledger -------------------------------------------------------
+
+  /** push the authoritative quest board to its owner */
+  private syncQuests(sim: PlayerSim) {
+    sim.client.send("questSync", { day: sim.quests.day, quests: sim.quests.list });
+  }
+
+  /** re-roll the board for the current day if the stored one is stale; returns
+   *  true if it changed (caller may want to sync) */
+  private ensureFreshQuests(sim: PlayerSim): boolean {
+    const day = serverDay();
+    if (sim.quests.day === day) return false;
+    sim.quests = freshQuestBoard(day);
+    void persistQuests(sim.token, sim.quests).catch(() => {});
+    return true;
+  }
+
+  /** feed a server-adjudicated event through the shared matchers; sync on change */
+  private advanceQuests(sim: PlayerSim, e: QuestEvent) {
+    if (this.ensureFreshQuests(sim)) this.syncQuests(sim);
+    let changed = false;
+    for (const q of sim.quests.list) {
+      if (q.claimed) continue;
+      const def = QUEST_POOL.find((d) => d.id === q.id);
+      if (!def || q.progress >= def.target) continue;
+      const inc = def.matches(e);
+      if (inc > 0) {
+        q.progress = Math.min(def.target, q.progress + inc);
+        changed = true;
+      }
+    }
+    if (changed) {
+      void persistQuests(sim.token, sim.quests).catch(() => {});
+      this.syncQuests(sim);
+    }
+  }
+
+  /** replace the board with a fresh roll (Obelisk reroll); progress reset */
+  private rerollQuestsFor(sim: PlayerSim) {
+    // a reroll should actually change the board, so roll off a random seed
+    // rather than the deterministic day index
+    const day = serverDay();
+    sim.quests = {
+      day,
+      list: rollDailyQuestIds((Math.random() * 2147483648) | 0).map((id) => ({
+        id, progress: 0, claimed: false,
+      })),
+    };
+    void persistQuests(sim.token, sim.quests).catch(() => {});
+    this.syncQuests(sim);
   }
 
   // ---- Phase 5: burns ------------------------------------------------------------
@@ -3055,4 +3146,34 @@ function sanitizeInv(raw: unknown): Record<ItemKey, number> {
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : 1));
+}
+
+/** UTC day index — identical expression to the client's today() */
+function serverDay(): number {
+  return Math.floor(Date.now() / 86_400_000);
+}
+
+/** a fresh board for a given day: the deterministic 3, all unstarted */
+function freshQuestBoard(day: number) {
+  return {
+    day,
+    list: rollDailyQuestIds(day).map((id) => ({ id, progress: 0, claimed: false })),
+  };
+}
+
+/** load a stored quest board, re-rolling if absent or for a stale UTC day */
+function sanitizeQuests(raw: unknown): { day: number; list: { id: string; progress: number; claimed: boolean }[] } {
+  const day = serverDay();
+  const r = raw as { day?: unknown; list?: unknown } | null | undefined;
+  if (!r || r.day !== day || !Array.isArray(r.list)) return freshQuestBoard(day);
+  const valid = new Set(QUEST_POOL.map((q) => q.id));
+  const list = (r.list as unknown[])
+    .map((q) => q as { id?: unknown; progress?: unknown; claimed?: unknown } | null)
+    .filter((q): q is { id: unknown; progress?: unknown; claimed?: unknown } => !!q && valid.has(String(q.id)))
+    .map((q) => ({
+      id: String(q.id),
+      progress: Math.max(0, Math.trunc(Number(q.progress) || 0)),
+      claimed: Boolean(q.claimed),
+    }));
+  return list.length ? { day, list } : freshQuestBoard(day);
 }

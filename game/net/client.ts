@@ -455,6 +455,14 @@ export class NetClient {
     this.safeSend("sell", { item, qty });
   }
 
+  sendQuestClaim(id: string) {
+    this.safeSend("claimQuest", { id });
+  }
+
+  sendQuestReroll() {
+    this.safeSend("questReroll", {});
+  }
+
   // ---- lifecycle -----------------------------------------------------------------
 
   onMessage<T>(type: string, cb: (msg: T) => void) {

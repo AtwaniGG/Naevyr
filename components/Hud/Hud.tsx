@@ -651,6 +651,11 @@ function KeeperDialogue() {
     opts.push({
       label: "Rewrite the day's tasks", sub: "a fresh set of dailies", right: "75g",
       onClick: () => {
+        if (s.online) {
+          bus.emit("questReroll", true); // server debits 75g + rerolls + syncs
+          respond("THE ASH ACCEPTS. THE DAY IS REWRITTEN.");
+          return;
+        }
         if (!s.spendGold(75, "shop")) return respond("THE ASH TAKES COIN. 75.");
         s.rerollQuests();
         respond("THE ASH ACCEPTS. THE DAY IS REWRITTEN.");

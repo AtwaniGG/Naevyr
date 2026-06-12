@@ -8,6 +8,7 @@ import {
   SkillKey,
   INVENTORY_ORDER,
   QUEST_POOL,
+  rollDailyQuestIds,
   SKILL_META,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
@@ -308,6 +309,8 @@ interface GameState {
   applyBuff: (buff: "gather" | "damage" | "sight", ms: number) => void;
   /** the Ash Obelisk: trade coin for a fresh set of dailies */
   rerollQuests: () => void;
+  /** adopt the server's authoritative quest board (online; wholesale replace) */
+  setQuests: (list: { id: string; progress: number; claimed: boolean }[]) => void;
   addXp: (skill: SkillKey, xp: number) => { leveledTo: number | null };
   setHp: (hp: number) => void;
   damage: (amount: number) => number; // returns remaining hp
@@ -325,20 +328,13 @@ const emptyInventory = () =>
 
 export const MAX_HP = 50;
 
-/** Pick 3 daily quests, deterministic for the calendar day (UTC). */
+/** Build today's 3 daily quests (offline path); deterministic per UTC day. */
 export function rollDailyQuests(): QuestState[] {
   const day = Math.floor(Date.now() / 86_400_000);
-  const picks: QuestState[] = [];
-  const pool = [...QUEST_POOL];
-  let seed = day;
-  for (let i = 0; i < 3 && pool.length > 0; i++) {
-    // simple LCG so the same day always rolls the same board
-    seed = (seed * 1103515245 + 12345) % 2147483648;
-    const idx = seed % pool.length;
-    picks.push({ def: pool[idx], progress: 0, claimed: false });
-    pool.splice(idx, 1);
-  }
-  return picks;
+  return rollDailyQuestIds(day).flatMap((id) => {
+    const def = QUEST_POOL.find((d) => d.id === id);
+    return def ? [{ def, progress: 0, claimed: false }] : [];
+  });
 }
 
 /** Total XP required to have reached a given level (gentle curve). */
@@ -501,20 +497,35 @@ export const useGame = create<GameState>((set, get) => ({
 
   setGold: (amount) => set({ gold: Math.max(0, amount) }),
 
-  questEvent: (e) =>
-    set((s) => ({
-      quests: s.quests.map((q) => {
-        if (q.claimed || q.progress >= q.def.target) return q;
-        const inc = q.def.matches(e);
-        return inc > 0
-          ? { ...q, progress: Math.min(q.def.target, q.progress + inc) }
-          : q;
+  setQuests: (list) =>
+    set({
+      quests: list.flatMap((q) => {
+        const def = QUEST_POOL.find((d) => d.id === q.id);
+        return def ? [{ def, progress: q.progress, claimed: q.claimed }] : [];
       }),
-    })),
+    }),
+
+  questEvent: (e) =>
+    set((s) => {
+      if (s.online) return s; // server drives quest progress via questSync
+      return {
+        quests: s.quests.map((q) => {
+          if (q.claimed || q.progress >= q.def.target) return q;
+          const inc = q.def.matches(e);
+          return inc > 0
+            ? { ...q, progress: Math.min(q.def.target, q.progress + inc) }
+            : q;
+        }),
+      };
+    }),
 
   claimQuest: (id) => {
     const q = get().quests.find((x) => x.def.id === id);
     if (!q || q.claimed || q.progress < q.def.target) return;
+    if (get().online) {
+      bus.emit("questClaim", id); // server validates, pays the ledger, syncs
+      return;
+    }
     set((s) => ({
       quests: s.quests.map((x) =>
         x.def.id === id ? { ...x, claimed: true } : x,

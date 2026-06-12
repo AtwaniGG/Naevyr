@@ -80,6 +80,9 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS wheel_pity real NOT NULL DEFAULT 0
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS quests jsonb
+  `);
+  await db.execute(sql`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS guild_id real
   `);
   await db.execute(sql`
@@ -420,6 +423,14 @@ export async function setGold(token: string, amount: number) {
 /** write-through persist of the authoritative item counts */
 export async function setInv(token: string, inv: Record<string, number>) {
   await db.update(players).set({ inv }).where(eq(players.token, token));
+}
+
+/** write-through persist of the authoritative daily quest board */
+export async function setQuests(
+  token: string,
+  quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] },
+) {
+  await db.update(players).set({ quests }).where(eq(players.token, token));
 }
 
 // ---- the Shrine ------------------------------------------------------------------

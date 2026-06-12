@@ -23,7 +23,7 @@ import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/syst
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
-  walletLinkMessage, PRESTIGE_CATALOG, AvatarKind,
+  walletLinkMessage, PRESTIGE_CATALOG, AvatarKind, SkillKey, SKILL_META,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -243,6 +243,8 @@ export class Game {
     this.cleanupFns.push(bus.on("marketUnlist", (id) => this.net?.sendUnlist(id)));
     this.cleanupFns.push(bus.on("bank", (delta) => this.net?.sendBank(delta)));
     this.cleanupFns.push(bus.on("spin", () => this.net?.sendSpin()));
+    this.cleanupFns.push(bus.on("questClaim", (id) => this.net?.sendQuestClaim(id)));
+    this.cleanupFns.push(bus.on("questReroll", () => this.net?.sendQuestReroll()));
     this.cleanupFns.push(bus.on("donate", (amt) => this.net?.sendDonate(amt)));
     this.cleanupFns.push(
       bus.on("placeProp", (kind) => {
@@ -663,6 +665,22 @@ export class Game {
     );
     net.onMessage<{ inv: Record<string, number> }>("invSync", (m) =>
       useGame.getState().setInventory(m.inv as never),
+    );
+    net.onMessage<{ day: number; quests: { id: string; progress: number; claimed: boolean }[] }>(
+      "questSync",
+      (m) => useGame.getState().setQuests(m.quests),
+    );
+    net.onMessage<{ id: string; xp: { skill: SkillKey; xp: number } }>(
+      "questClaimed",
+      (m) => {
+        const store = useGame.getState();
+        // gold already arrived via goldSync; board state via questSync. Apply
+        // the XP (still client-side) and the flavor line.
+        const { leveledTo } = store.addXp(m.xp.skill, m.xp.xp);
+        play("coin");
+        store.pushLog(`Quest complete. +${m.xp.xp} ${SKILL_META[m.xp.skill].label} XP`, "#e7c873");
+        if (leveledTo) store.pushLog(`${SKILL_META[m.xp.skill].label} is now level ${leveledTo}!`, "#e7c873");
+      },
     );
 
     // ---- shared mobs: the server retaliates and confirms kills ----
