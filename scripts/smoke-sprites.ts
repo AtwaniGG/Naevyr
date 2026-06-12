@@ -133,6 +133,10 @@ for (const [kind, nFrames] of FIXTURES) {
 // wall2: skewed segments + corners (DS walls.js port)
 import { makeWall2, makeWall2Corner } from "../game/render/sprites";
 import {
+  drawArenaFloor, drawArenaRing, drawArenaGate, drawArenaTorch,
+  drawArenaWatcher, drawVictoryPlate, drawBloodFx,
+} from "../game/render/sprites";
+import {
   makeWildDoodad, drawLostTombstone, drawWallTimberCharms, WildDoodadKey,
 } from "../game/render/sprites";
 const WALL2_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
@@ -342,6 +346,45 @@ import {
   }
   if (JSON.stringify(fxMirror(0).d) === JSON.stringify(fxMirror(1).d)) {
     failures++; console.error("FAIL mirror: ripple frames identical");
+  }
+}
+
+// ---- the arena set (the Pit's ring: floor, palisade, torch, watchers, plate) ----
+{
+  for (const v of ["a", "b", "c", "blood"] as const) {
+    const g = drawArenaFloor(v, v === "blood" ? 22 : 1); frames++;
+    if (g.w !== 64 || g.h !== 36 || g.d.filter(Boolean).length < 800) { failures++; console.error(`FAIL arena floor ${v}`); }
+  }
+  for (const side of ["ne", "nw"] as const) {
+    for (const v of ["a", "b"] as const) {
+      const g = drawArenaRing(side, v); frames++;
+      if (g.w !== 32 || g.h !== 72 || g.d.filter(Boolean).length < 300) { failures++; console.error(`FAIL arena ring ${side}-${v}`); }
+    }
+    const gg = drawArenaGate(side); frames++;
+    if (gg.w !== 32 || gg.h !== 72 || gg.d.filter(Boolean).length < 300) { failures++; console.error(`FAIL arena gate ${side}`); }
+  }
+  for (let f = 0; f < 3; f++) {
+    const g = drawArenaTorch(f); frames++;
+    if (g.w !== 32 || g.h !== 64 || g.d.filter(Boolean).length < 200) { failures++; console.error(`FAIL arena torch#${f}`); }
+  }
+  if (JSON.stringify(drawArenaTorch(0).d) === JSON.stringify(drawArenaTorch(1).d)) {
+    failures++; console.error("FAIL arena torch: flame frames identical");
+  }
+  for (const v of ["bone", "blood", "void"] as const) {
+    for (const anim of ["idle", "cheer"] as const) {
+      for (let f = 0; f < 2; f++) {
+        const g = drawArenaWatcher(v, anim, f); frames++;
+        if (g.w !== 32 || g.h !== 40 || g.d.filter(Boolean).length < 150) { failures++; console.error(`FAIL watcher ${v}-${anim}#${f}`); }
+      }
+    }
+  }
+  for (let f = 0; f < 2; f++) {
+    const g = drawVictoryPlate(f); frames++;
+    if (g.w !== 96 || g.h !== 48 || g.d.filter(Boolean).length < 150) { failures++; console.error(`FAIL victory plate#${f}`); }
+  }
+  for (let v = 0; v < 3; v++) {
+    const g = drawBloodFx(v); frames++;
+    if (g.w !== 48 || g.h !== 24 || g.d.filter(Boolean).length < 20) { failures++; console.error(`FAIL blood fx#${v}`); }
   }
 }
 

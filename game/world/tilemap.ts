@@ -1,4 +1,4 @@
-import { ResourceKind, ResourceNode, TileType } from "@/game/types";
+import { ResourceKind, ResourceNode, TileType } from "../types";
 
 // The world grid: tiles + resource nodes. Owns walkability used by pathfinding.
 

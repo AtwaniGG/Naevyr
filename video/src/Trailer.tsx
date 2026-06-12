@@ -595,11 +595,11 @@ export const Trailer: React.FC = () => (
     <Sequence from={at(5)} durationInFrames={PVP}>
       <GameplayScene
         src="gameplay/pit.webm"
-        fromSec={22}
+        fromSec={18.5}
         caption="Settle it in the Pit."
-        sub="Wagered duels. Winner takes the pot."
-        zoom={1.45}
-        origin="56% 42%"
+        sub="Wagered duels in a sealed ring. Winner takes the pot."
+        zoom={1.3}
+        origin="50% 45%"
       />
     </Sequence>
     <Sequence from={at(6)} durationInFrames={G4}>

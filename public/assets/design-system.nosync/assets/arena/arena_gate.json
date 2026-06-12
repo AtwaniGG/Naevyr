@@ -1,0 +1,35 @@
+{
+  "image": "arena/arena_gate.svg",
+  "cell": {
+    "w": 32,
+    "h": 72
+  },
+  "anchor": {
+    "x": 16,
+    "y": 55
+  },
+  "ramp": "stone + bone + ember",
+  "note": "fighters entrance, raised iron portcullis; tiles like ring",
+  "frames": {
+    "gate_ne": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    },
+    "gate_nw": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    }
+  }
+}

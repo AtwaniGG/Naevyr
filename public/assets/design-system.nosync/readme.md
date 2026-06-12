@@ -493,6 +493,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `systems-preview.html` — wheel faces (with segment angles), guild banner sway + fallen, drift cache states, the Exchange counter.
   - `avatars-preview.html` — the four premium avatars animating (idle/walk/swing) beside the wanderer for scale, with channel swatches & shop portraits.
   - `mirror-preview.html` — the Drift Mirror rippling beside the hearth for scale.
+  - `arena-preview.html` — composed Pit scene + catalog: floors, ring/gate tiling, torch, watchers, victory plate, blood decals.
   - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
   - `avatars/` — **four premium playable avatars** (DRIFTS cosmetics, drop-in on the wanderer
     rig: 32×40, 5 facings, idle 2f/walk 6f/swing 4f, identical swing pivot/arc + hit-spark, so
@@ -519,10 +520,18 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     mirror whose glass is NOT reflective — it swirls dark with drift motes (2-frame ripple @2fps),
     a faint figure hint deep inside. Stands in the Dyeworks for premium-avatar try-on. Ramp:
     drift(glass) + bone/stone(frame).
+  - `arena/` — **the Arena Set ("The Pit")** — a torch-lit duel ring floating in the Drift's
+    void. `arena_floor` (64×32 blood-sand, variants a/b/c + blood-flecked), `arena_ring`
+    (modular palisade ne/nw ×2 variants — blackstone kerb, bone-capped posts, iron-chain swag;
+    tiles +32x,±16y with NO side seam), `arena_gate` (ne/nw, raised iron portcullis), `arena_torch`
+    (32×64 brazier, 3-frame flame @4fps, the only light), `watcher_{bone,blood,void}` (32×40
+    wanderer-rig spectators, idle + cheer 2f each, ember eyes), `victory_plate` (96×48, crossed
+    gold blades + finger-bone laurel on void, 2-frame shimmer), `blood_fx` (48×24 ground decals
+    ×3). All inside the locked RAMP — no palette seam beside the town.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `avatars.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
     `landing.js`, `social.js`, `threshold.js`, `auras.js`, `wheelfaces.js`, `guildbanner.js`,
-    `cache.js`, `exchange.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
+    `cache.js`, `exchange.js`, `arena.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

@@ -56,16 +56,23 @@ const ARENA = (() => {
   const b = TOWN_BUILDINGS.find((s) => s.key === "pit")!;
   return { x: b.x, y: b.y, r: b.r };
 })();
-// conjured ring-side crowd: cell, facing toward the sand, and a fixed look
-const ARENA_CROWD: {
-  x: number; y: number; f: "s" | "se" | "e" | "ne" | "n"; m: boolean; dye: string; eye: string;
-}[] = [
-  { x: ARENA.x - 3, y: ARENA.y - 1, f: "se", m: false, dye: "blood", eye: "ember" },
-  { x: ARENA.x - 3, y: ARENA.y + 1, f: "e",  m: false, dye: "moss",  eye: "gold" },
-  { x: ARENA.x + 3, y: ARENA.y - 1, f: "s",  m: true,  dye: "bone",  eye: "blood" },
-  { x: ARENA.x + 3, y: ARENA.y + 1, f: "n",  m: true,  dye: "void",  eye: "water" },
-  { x: ARENA.x - 1, y: ARENA.y - 3, f: "s",  m: false, dye: "water", eye: "drift" },
-  { x: ARENA.x + 1, y: ARENA.y + 3, f: "n",  m: false, dye: "gold",  eye: "ember" },
+// ring-side watchers (DS arena set: hooded, faceless, ember-eyed)
+const ARENA_CROWD: { x: number; y: number; v: "bone" | "blood" | "void" }[] = [
+  { x: ARENA.x - 3, y: ARENA.y - 1, v: "bone" },
+  { x: ARENA.x - 3, y: ARENA.y + 1, v: "blood" },
+  { x: ARENA.x + 3, y: ARENA.y - 1, v: "void" },
+  { x: ARENA.x + 3, y: ARENA.y + 1, v: "bone" },
+  { x: ARENA.x - 1, y: ARENA.y - 3, v: "blood" },
+  { x: ARENA.x + 1, y: ARENA.y + 3, v: "void" },
+];
+// torches at the sand's corners (the only light in the void)
+const ARENA_TORCHES: { x: number; y: number }[] = [
+  { x: ARENA.x - 3, y: ARENA.y - 3 }, { x: ARENA.x + 3, y: ARENA.y - 3 },
+  { x: ARENA.x - 3, y: ARENA.y + 3 }, { x: ARENA.x + 3, y: ARENA.y + 3 },
+];
+// dried blood on the sand (the ring remembers every duel before this one)
+const ARENA_BLOOD: { x: number; y: number; v: number }[] = [
+  { x: ARENA.x - 1, y: ARENA.y + 1, v: 0 }, { x: ARENA.x + 1, y: ARENA.y - 1, v: 2 },
 ];
 
 const REGION_BANNER_CELLS: Record<string, { x: number; y: number }> = {
@@ -161,6 +168,8 @@ export class Game {
   private duelLastSwing = 0;
   /** any live duel (everyone sees the ring crowd; fighters get the arena veil) */
   private activeDuel: { a: string; b: string } | null = null;
+  /** when I last won in the Pit (drives the floating victory plate) */
+  private victoryAt = 0;
   /** ids of market listings this player owns */
   private myListingIds = new Set<number>();
   /** gold already deducted for an in-flight buy (refunded on failure) */
@@ -1369,6 +1378,7 @@ export class Game {
             store.bumpStat("goldEarned", m.pot); // ledger already paid
             play("levelup");
             this.banner = { name: "VICTORY", t0: performance.now() };
+            this.victoryAt = performance.now(); // the plate floats over the sand
             store.pushLog(`You win the duel. ${m.pot}g pot.`, "#e7c873");
           } else if (m.winner === null) {
             store.pushLog("The duel ends in a draw. Stakes returned.", "#a99fb8");
@@ -3499,26 +3509,85 @@ export class Game {
         fn: () => this.drawWandererEntity(ctx, r, false),
       });
     }
-    // while a duel runs, a crowd gathers at the ring's edge (decor, everyone sees it)
+    // while a duel runs, the Pit DRESSES: blood-sand floor, the ring palisade,
+    // corner torches, old blood, and hooded watchers (decor, everyone sees it)
     if (this.activeDuel) {
+      const z = this.camera.zoom;
+      // blood-sand floor over the ring cells (under everything that stands)
+      for (let ax = ARENA.x - ARENA.r; ax <= ARENA.x + ARENA.r; ax++) {
+        for (let ay = ARENA.y - ARENA.r; ay <= ARENA.y + ARENA.r; ay++) {
+          const v: "a" | "b" | "c" | "blood" =
+            ax === ARENA.x && ay === ARENA.y ? "blood"
+            : (["a", "b", "c"] as const)[(ax * 7 + ay * 13) % 3];
+          const seed = v === "blood" ? 22 : 1 + ((ax * 7 + ay * 13) % 3) * 7;
+          const fx = ax, fy = ay;
+          draws.push({
+            depth: -900 + (fx + fy) * 0.001,
+            fn: () => {
+              const s = this.tileScreen(fx, fy);
+              spriteCache.drawArenaFloor(ctx, v, seed, s.x, s.y, z);
+            },
+          });
+        }
+      }
+      // old blood on the sand
+      for (const b of ARENA_BLOOD) {
+        draws.push({
+          depth: -890,
+          fn: () => {
+            const s = this.tileScreen(b.x, b.y);
+            spriteCache.drawBloodFx(ctx, b.v, s.x, s.y, z);
+          },
+        });
+      }
+      // the palisade: nw face down the west edge (gate at its middle), ne face
+      // along the north edge — same seam math as the interior W2 walls
+      for (let ay = ARENA.y - ARENA.r; ay <= ARENA.y + ARENA.r; ay++) {
+        const fy = ay;
+        const isGate = ay === ARENA.y;
+        draws.push({
+          depth: (ARENA.x - ARENA.r) + fy - 0.5,
+          fn: () => {
+            const s = this.tileScreen(ARENA.x - ARENA.r, fy);
+            if (isGate) spriteCache.drawArenaGate(ctx, "nw", s.x - 32 * z, s.y, z);
+            else spriteCache.drawArenaRing(ctx, "nw", fy % 2 ? "b" : "a", s.x - 32 * z, s.y, z);
+          },
+        });
+      }
+      for (let ax = ARENA.x - ARENA.r; ax <= ARENA.x + ARENA.r; ax++) {
+        const fx = ax;
+        draws.push({
+          depth: fx + (ARENA.y - ARENA.r) - 0.5,
+          fn: () => {
+            const s = this.tileScreen(fx, ARENA.y - ARENA.r);
+            spriteCache.drawArenaRing(ctx, "ne", fx % 2 ? "b" : "a", s.x, s.y - 16 * z, z);
+          },
+        });
+      }
+      // corner torches (4fps flame)
+      for (const t of ARENA_TORCHES) {
+        draws.push({
+          depth: t.x + t.y,
+          fn: () => {
+            const s = this.tileScreen(t.x, t.y);
+            spriteCache.drawArenaTorch(ctx, Math.floor(performance.now() / 250) % 3, s.x, s.y, z);
+          },
+        });
+      }
+      // the watchers: each breathes on their own clock; one cheers in turn
       ARENA_CROWD.forEach((c, i) => {
         draws.push({
           depth: c.x + c.y,
           fn: () => {
             const s = this.tileScreen(c.x, c.y);
-            const z = this.camera.zoom;
             ctx.fillStyle = "rgba(0,0,0,0.4)";
             ctx.beginPath();
             ctx.ellipse(s.x, s.y, 9 * z, 4.5 * z, 0, 0, Math.PI * 2);
             ctx.fill();
-            // each watcher breathes on their own clock; one throws a fist up
             const t = performance.now() + i * 530;
             const cheer = Math.floor(t / 2400) % ARENA_CROWD.length === i;
-            const anim = cheer ? "swing" : "idle";
-            const frame = cheer ? Math.floor(t / 240) % 4 : Math.floor(t / 500) % 2;
-            spriteCache.drawChar(
-              ctx, c.f, c.m, anim, frame, s.x, s.y, z,
-              undefined, { dye: c.dye as DyeKey, eye: c.eye as EyeKey },
+            spriteCache.drawArenaWatcher(
+              ctx, c.v, cheer ? "cheer" : "idle", Math.floor(t / 500) % 2, s.x, s.y, z,
             );
           },
         });
@@ -3621,6 +3690,21 @@ export class Game {
       g2.addColorStop(1, `rgba(168, 85, 247, ${pulse})`);
       ctx.fillStyle = g2;
       ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+
+    // the victory plate floats over the sand for a breath after a won duel
+    const sinceWin = performance.now() - this.victoryAt;
+    if (this.victoryAt > 0 && sinceWin < 2600) {
+      const c = this.tileScreen(ARENA.x, ARENA.y);
+      const z = this.camera.zoom;
+      ctx.save();
+      ctx.globalAlpha = sinceWin > 2100 ? 1 - (sinceWin - 2100) / 500 : 1;
+      const rise = Math.min(1, sinceWin / 400) * 10 * z;
+      spriteCache.drawVictoryPlate(
+        ctx, Math.floor(performance.now() / 333) % 2,
+        c.x, c.y - 70 * z - rise, z,
+      );
+      ctx.restore();
     }
   }
 

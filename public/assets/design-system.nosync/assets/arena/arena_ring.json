@@ -1,0 +1,63 @@
+{
+  "image": "arena/arena_ring.svg",
+  "cell": {
+    "w": 32,
+    "h": 72
+  },
+  "anchor": {
+    "x": 16,
+    "y": 55
+  },
+  "ramp": "stone(blackstone) + bone(posts) + ember",
+  "tiling": "place adjacent at +32x,±16y; NO side outline (seam-continuous)",
+  "sides": [
+    "ne",
+    "nw"
+  ],
+  "variants": [
+    "a",
+    "b"
+  ],
+  "frames": {
+    "ring_ne_a": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    },
+    "ring_ne_b": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    },
+    "ring_nw_a": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    },
+    "ring_nw_b": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 72,
+      "anchor": {
+        "x": 16,
+        "y": 55
+      }
+    }
+  }
+}

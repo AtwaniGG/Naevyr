@@ -3,7 +3,7 @@
 // All sprites are generated once at init() into OffscreenCanvas objects and
 // drawn with imageSmoothingEnabled=false for crisp pixel scaling at any zoom.
 
-import { AVATAR_CHANNELS, AVATAR_KINDS, type AvatarKind } from '@/game/types';
+import { AVATAR_CHANNELS, AVATAR_KINDS, type AvatarKind } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -4190,6 +4190,273 @@ export type TileType = 'grass' | 'dirt' | 'stone' | 'water' | 'corrupt';
 const FACINGS: IsoFacing[]             = ['s', 'se', 'e', 'ne', 'n'];
 const ANIM_FRAMES: [AnimName, number][] = [['idle', 2], ['walk', 6], ['swing', 4]];
 
+// ─── arena.js — ARENA SET ("The Pit": duels float in the Drift's void) ─────────
+// Faithful port of _gen/arena.js. Torch-lit ring + watchers + victory plate;
+// floors are 64×36 iso diamonds, ring segments tile at +32x,±16y (no side
+// outline — seam-continuous like the W2 walls).
+
+export function drawArenaFloor(variant: 'a' | 'b' | 'c' | 'blood', seedN: number): Grid {
+  const g = makeGrid(64, 36);
+  const rows = diamondRows();
+  const dt = RAMP.dirt, em = RAMP.ember, bl = RAMP.blood;
+  const face = dt[1], hi = dt[0], sh = dt[2], dp = dt[3];
+
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) P(g, x, y, face);
+  // 3px south lip
+  for (let x = 0; x < 64; x++) { const my = contourMaxY(rows, x); if (my >= 0) for (let k = 1; k <= 3; k++) P(g, x, my + k, sh); }
+  // 1px void north edge
+  for (let x = 0; x < 64; x++) for (let y = 0; y < 32; y++) if (inDiamond(rows, x, y)) { P(g, x, y, RAMP.void); break; }
+
+  // packed-sand grain + warm ember-red flecks
+  for (let y = 1; y < 31; y++) for (let x = rows[y].x0 + 1; x <= rows[y].x1 - 1; x++) {
+    const h = hash2(x, y, seedN);
+    if (h < 0.05) P(g, x, y, sh);                       // trodden grain
+    else if (h < 0.075) P(g, x, y, hi);                 // lit grit
+    else if (h < 0.088) P(g, x, y, em[2]);              // faint ember-red warmth
+    if (hash2(x, y, seedN + 5) < 0.012) P(g, x, y, dp); // raked groove
+  }
+  // raked concentric arcs (subtle, arena-swept)
+  for (let y = 4; y < 30; y += 6) for (let x = rows[y].x0 + 2; x <= rows[y].x1 - 2; x++) if ((x + 2 * y) % 9 === 0) P(g, x, y, sh);
+
+  if (variant === 'blood') {
+    // dark dried spatter, dithered
+    const rng = mulberry(seedN + 40);
+    for (let s = 0; s < 5; s++) {
+      const cxp = 14 + Math.floor(rng() * 36), cyp = 8 + Math.floor(rng() * 18), r = 2 + Math.floor(rng() * 4);
+      for (let yy = -r; yy <= r; yy++) for (let xx = -r - 1; xx <= r + 1; xx++) {
+        const x = cxp + xx, y = cyp + yy;
+        if (!inDiamond(rows, x, y) || y < 1) continue;
+        const d = xx * xx + yy * yy;
+        if (d <= r * r && (x + y) % 2 === 0) P(g, x, y, bl[3]);
+        else if (d <= (r + 1) * (r + 1) && hash2(x, y, 41) < 0.4) P(g, x, y, bl[3]);
+      }
+      // a drip tail
+      for (let k = 0; k < 4; k++) if (hash2(s, k, 42) < 0.6) P(g, cxp + (k % 2), cyp + r + k, bl[3]);
+    }
+  }
+  return g;
+}
+
+/* ring segments: modular circular palisade (skewed-segment style, +32x/±16y) */
+function ringBottomY(side: 'ne' | 'nw', x: number): number {
+  return side === 'ne' ? 55 + Math.round(x * 16 / 31) : 55 + Math.round((31 - x) * 16 / 31);
+}
+function ringP(g: Grid, side: 'ne' | 'nw', x: number, hAbove: number, c: string) {
+  const by = ringBottomY(side, x); P(g, x, by - hAbove, c);
+}
+
+export function drawArenaRing(side: 'ne' | 'nw', variant: 'a' | 'b'): Grid {
+  const g = makeGrid(32, 72);
+  const st = RAMP.stone, bn = RAMP.bone, em = RAMP.ember;
+  const FACE = 44;
+  // low blackstone kerb wall (continuous, periodic mod 32 so seams match)
+  for (let x = 0; x < 32; x++) {
+    for (let h = 0; h <= 12; h++) {
+      let c = st[2];
+      if (h >= 11) c = st[0];                         // top lit lip
+      else if (h <= 1) c = st[3];                     // base shadow
+      if ((x % 8) < 1) c = st[3];                      // block joints (periodic)
+      if (hash2(x, h, 211) < 0.05) c = st[3];
+      ringP(g, side, x, h, c);
+    }
+  }
+  // posts every 16px: bone-capped blackstone
+  const postXs = variant === 'b' ? [4, 20] : [0, 16];
+  postXs.forEach(px => {
+    for (let h = 12; h <= FACE; h++) {
+      const w = 2;
+      for (let o = -w; o <= w; o++) {
+        const x = px + o; if (x < 0 || x > 31) continue;
+        let c = st[1]; if (o <= -w + 0) c = st[0]; if (o >= w) c = st[3];
+        if (hash2(x, h, 212) < 0.06) c = st[2];
+        ringP(g, side, x, h, c);
+      }
+    }
+    // bone skull/cap finial
+    for (let o = -2; o <= 2; o++) for (let k = 0; k <= 3; k++) { const x = px + o; if (x < 0 || x > 31) continue; let c = bn[1]; if (o <= -1) c = bn[0]; if (o >= 1) c = bn[2]; if (k === 0) c = bn[0]; ringP(g, side, x, FACE + 1 + k, c); }
+    ringP(g, side, px - 1, FACE + 2, RAMP.void); ringP(g, side, px + 1, FACE + 2, RAMP.void);   // skull eye sockets
+    if (variant === 'b') { ringP(g, side, px - 1, FACE + 2, em[1]); ringP(g, side, px + 1, FACE + 2, em[1]); }  // lit watcher-skulls
+  });
+  // iron chain swag strung between the posts (catenary dip)
+  const x0 = postXs[0], x1 = postXs[0] + 16;
+  for (let x = x0; x <= Math.min(31, x1); x++) {
+    const t = (x - x0) / 16;
+    const dip = Math.round(Math.sin(t * Math.PI) * 5);
+    const h = FACE - 4 - dip;
+    ringP(g, side, x, h, (x % 2 === 0) ? st[3] : st[0]);          // chain links alternate
+  }
+  return g;
+}
+
+/* gate segment: fighters' entrance with a raised iron portcullis (32×72) */
+export function drawArenaGate(side: 'ne' | 'nw'): Grid {
+  const g = makeGrid(32, 72);
+  const st = RAMP.stone, bn = RAMP.bone, em = RAMP.ember;
+  const FACE = 48;
+  // two heavy jambs framing a dark archway
+  [3, 28].forEach(px => {
+    for (let h = 0; h <= FACE; h++) for (let o = -2; o <= 2; o++) { const x = px + o; if (x < 0 || x > 31) continue; let c = st[1]; if (o <= -2) c = st[0]; if (o >= 2) c = st[3]; if ((h % 6) === 0) c = st[3]; ringP(g, side, x, h, c); }
+  });
+  // dark archway void between jambs
+  for (let x = 6; x <= 25; x++) for (let h = 0; h <= FACE - 6; h++) { const arch = (h > FACE - 14) ? Math.round(Math.sqrt(Math.max(0, 49 - (x - 15.5) * (x - 15.5)))) : 99; if (h < FACE - 6 - 0 && (FACE - 6 - h) < arch + 8) ringP(g, side, x, h, RAMP.void); }
+  // lintel + bone trophy over the arch
+  for (let x = 3; x <= 28; x++) ringP(g, side, x, FACE, st[2]);
+  for (let x = 3; x <= 28; x++) ringP(g, side, x, FACE + 1, st[0]);
+  for (let o = -2; o <= 2; o++) { ringP(g, side, 15 + o, FACE + 3, bn[1]); } ringP(g, side, 15, FACE + 4, bn[0]);
+  ringP(g, side, 14, FACE + 3, RAMP.void); ringP(g, side, 16, FACE + 3, RAMP.void);
+  // RAISED iron portcullis: bars pulled up into the lintel, fangs hanging down
+  for (let x = 7; x <= 24; x += 3) for (let h = FACE - 6; h >= FACE - 11; h--) ringP(g, side, x, h, st[3]);   // retracted bars
+  for (let x = 7; x <= 24; x += 3) { ringP(g, side, x, FACE - 12, st[2]); ringP(g, side, x, FACE - 13, st[3]); }  // fang tips
+  for (let x = 6; x <= 25; x++) ringP(g, side, x, FACE - 6, st[3]);                                            // portcullis rail
+  // ember cresset on the left jamb
+  ringP(g, side, 2, 30, em[2]); ringP(g, side, 2, 31, em[1]); ringP(g, side, 2, 32, em[0]); ringP(g, side, 1, 31, em[2]);
+  return g;
+}
+
+export function drawArenaTorch(frame: number): Grid {
+  const g = makeGrid(32, 64);
+  const st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold;
+  const cx = 16, baseY = 60;
+  // tripod legs
+  ([[-6, 0], [6, 0], [0, 2]] as const).forEach(([dx]) => { for (let k = 0; k < 16; k++) { const x = cx + Math.round(dx * (1 - k / 16)), y = baseY - k; P(g, x, y, st[2]); P(g, x, y + 1, st[3]); } });
+  for (let x = cx - 7; x <= cx + 7; x++) if ((x + 1) % 2 === 0) P(g, x, baseY + 1, RAMP.void);   // ground contact
+  // brazier bowl
+  for (let j = 0; j < 7; j++) for (let i = -7 + j; i <= 7 - j; i++) { let c = st[1]; if (i < -4) c = st[0]; if (i > 4) c = st[3]; if (j === 0) c = st[3]; P(g, cx + i, baseY - 16 + j, c); }
+  for (let i = -7; i <= 7; i++) P(g, cx + i, baseY - 17, st[3]);       // rim
+  for (let i = -5; i <= 5; i++) P(g, cx + i, baseY - 16, RAMP.void);   // coals shadow
+  // coals
+  for (let i = -4; i <= 4; i++) if ((i + frame) % 2 === 0) P(g, cx + i, baseY - 16, em[2]);
+  // FLAME (3-frame), strong + tall, the only light in the void
+  const sway = [0, 1, -1][frame], tall = [0, 2, 1][frame];
+  const fb = baseY - 17;
+  for (let yy = 0; yy <= 22 + tall; yy++) {
+    const t = yy / (22 + tall);
+    const hw = Math.round((1 - t) * 6 * (1 - t * 0.25)) + (yy < 4 ? 1 : 0);
+    const sx = cx + Math.round(Math.sin(yy * 0.45 + frame) * 1.3) + Math.round(sway * t * 2);
+    for (let xx = -hw; xx <= hw; xx++) {
+      let c = em[1];
+      if (Math.abs(xx) >= hw - 1) c = em[2];
+      if (yy < 7 && Math.abs(xx) < 2) c = em[0];
+      if (t > 0.78 && Math.abs(xx) <= 1) c = gd[0];        // white-hot tip
+      P(g, sx + xx, fb - yy, c);
+    }
+  }
+  // inner gold core
+  for (let yy = 2; yy <= 12 + tall; yy++) { const hw = Math.max(0, Math.round((1 - yy / (13 + tall)) * 3)); for (let xx = -hw; xx <= hw; xx++) P(g, cx + xx, fb - yy - 1, gd[0]); }
+  // escaping spark
+  if (frame !== 1) P(g, cx + sway * 2, fb - 26 - tall, em[0]);
+  outline(g, RAMP.void);
+  // strong glow pixels (outline-free, added after) — stepped ember halo into the void
+  for (let yy = -20; yy <= 6; yy++) for (let xx = -14; xx <= 14; xx++) {
+    const d = Math.abs(xx) + Math.abs(yy * 1.2);
+    if (d > 8 && d < 13 && (xx + yy + frame) % 2 === 0) { const gy = fb - 8 + yy; if (gy > 4 && !G(g, cx + xx, gy)) P(g, cx + xx, gy, em[3]); }
+  }
+  return g;
+}
+
+export type ArenaWatcherVariant = 'bone' | 'blood' | 'void';
+export function drawArenaWatcher(variant: ArenaWatcherVariant, anim: 'idle' | 'cheer', f: number): Grid {
+  const g = makeGrid(32, 40);
+  const ramp = variant === 'blood' ? RAMP.blood : variant === 'void' ? RAMP.stone : RAMP.bone;
+  const dark = variant === 'void';
+  const cx = 16, em = RAMP.ember;
+  let bob = 0, armUp = 0;
+  if (anim === 'idle') bob = f === 1 ? 1 : 0;            // sway
+  if (anim === 'cheer') armUp = f === 1 ? 1 : 0;         // fist up on f1
+  const top = 11 + bob, shoulderY = 19 + bob;
+
+  // hooded cloak (rounded, faceless)
+  for (let y = shoulderY; y <= 37; y++) {
+    const t = (y - shoulderY) / (37 - shoulderY);
+    const hw = Math.round(4 + t * 3);
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      let c = dark ? RAMP.void : ramp[1];
+      if (x <= cx - hw + 1) c = dark ? RAMP.stone[3] : ramp[0];
+      if (x >= cx + hw - 1) c = dark ? '#0a0810' : ramp[2];
+      if (!dark && hash2(x, y, 221) < 0.06) c = ramp[2];
+      P(g, x, y, c);
+    }
+  }
+  // hood dome
+  for (let y = top; y <= shoulderY; y++) {
+    const hy = (y - top) / (shoulderY - top);
+    const hw = Math.round(2 + Math.sin(Math.min(1, hy * 1.3) * Math.PI * 0.5) * 3.2);
+    for (let x = cx - hw; x <= cx + hw; x++) { let c = dark ? RAMP.stone[3] : ramp[1]; if (x === cx - hw) c = dark ? RAMP.stone[2] : ramp[0]; if (x >= cx + hw - 1) c = '#0a0810'; if (y === top) c = dark ? RAMP.stone[2] : ramp[0]; P(g, x, y, c); }
+  }
+  P(g, cx, top - 1, dark ? RAMP.stone[2] : ramp[1]);
+  // faceless void + ember eyes
+  for (let y = top + 3; y <= top + 7; y++) for (let x = cx - 2; x <= cx + 2; x++) P(g, x, y, RAMP.void);
+  const eyOn = !(anim === 'idle' && f === 1);
+  P(g, cx - 1, top + 5, eyOn ? em[0] : em[2]); P(g, cx + 1, top + 5, eyOn ? em[0] : em[2]);
+  // arms: resting, or fist raised on cheer f1
+  if (anim === 'cheer' && armUp) {
+    for (let k = 0; k < 8; k++) P(g, cx + 5, shoulderY + 2 - k, dark ? RAMP.stone[2] : ramp[2]);   // raised arm
+    fillRect(g, cx + 4, shoulderY - 7, 3, 3, dark ? RAMP.stone[1] : ramp[1]);                       // fist
+  } else {
+    P(g, cx - 5, shoulderY + 3, dark ? RAMP.stone[2] : ramp[2]); P(g, cx + 5, shoulderY + 3, dark ? RAMP.stone[2] : ramp[2]);
+  }
+  // hem
+  for (let x = 0; x < 32; x++) { const v = G(g, x, 37); if (v) P(g, x, 37, dark ? '#0a0810' : ramp[3]); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function drawVictoryPlate(frame: number): Grid {
+  const g = makeGrid(96, 48);
+  const gd = RAMP.gold, bn = RAMP.bone;
+  const cx = 48, cy = 24;
+  // floating gold plaque on void (no bg fill = transparent void)
+  // laurel of finger-bones (two arcs)
+  for (let s = -1; s <= 1; s += 2) {
+    for (let a = 0; a < 11; a++) {
+      const ang = Math.PI * (0.15 + a * 0.07);
+      const x = Math.round(cx + s * Math.cos(ang) * 38), y = Math.round(cy + Math.sin(ang) * 20 - 0);
+      // each bone: 2px with knuckle ends
+      P(g, x, y, bn[1]); P(g, x, y + 1, bn[2]); P(g, x + s, y, bn[0]);
+      if (a % 2 === 0) { P(g, x, y - 1, bn[0]); }
+    }
+  }
+  // crossed blades (gold), X through the center
+  for (let k = -16; k <= 16; k++) {
+    // blade 1 (down-right)
+    P(g, cx + k, cy + Math.round(k * 0.55), gd[1]); P(g, cx + k, cy + Math.round(k * 0.55) - 1, gd[0]);
+    // blade 2 (down-left)
+    P(g, cx - k, cy + Math.round(k * 0.55), gd[2]); P(g, cx - k, cy + Math.round(k * 0.55) - 1, gd[1]);
+  }
+  // hilts + pommels at the lower ends
+  ([[-16, 1], [16, -1]] as const).forEach(([k]) => { const x = cx + k, y = cy + Math.round(Math.abs(k) * 0.55); fillRect(g, x - 1, y, 3, 2, gd[3]); P(g, x, y + 2, gd[2]); });
+  // central boss gem (drift accent, the corruption watches)
+  fillRect(g, cx - 2, cy - 2, 4, 4, gd[0]); P(g, cx, cy, RAMP.drift[1]);
+  // shimmer sweep (frame-dependent diagonal highlight)
+  const sweepX = frame ? cx + 14 : cx - 14;
+  for (let yy = -10; yy <= 10; yy++) { const x = sweepX + Math.round(yy * 0.4); if (G(g, x, cy + yy)) P(g, x, cy + yy, RAMP.bone[0]); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function drawBloodFx(variant: number): Grid {
+  const g = makeGrid(48, 24);
+  const bl = RAMP.blood;
+  const rng = mulberry(300 + variant);
+  const cx = 24, cy = 13;
+  const blobs = variant === 0 ? 1 : variant === 1 ? 2 : 3;
+  for (let b = 0; b < blobs; b++) {
+    const bxp = cx + Math.round((rng() - 0.5) * 22), byp = cy + Math.round((rng() - 0.5) * 10), r = 3 + Math.floor(rng() * 4);
+    for (let yy = -r; yy <= r; yy++) for (let xx = -r - 1; xx <= r + 1; xx++) {
+      const x = bxp + xx, y = byp + Math.round(yy * 0.6);
+      if (x < 0 || x > 47 || y < 0 || y > 23) continue;
+      const d = (xx * xx) / ((r + 1) * (r + 1)) + (yy * yy) / (r * r);
+      if (d <= 0.75) P(g, x, y, (x + y) % 3 === 0 ? bl[3] : bl[2]);
+      else if (d <= 1.1 && (x + y) % 2 === 0) P(g, x, y, bl[3]);     // dithered edge
+    }
+    // splatter droplets + a drip
+    for (let s = 0; s < 5; s++) { const dx = bxp + Math.round((rng() - 0.5) * 16), dy = byp + Math.round((rng() - 0.5) * 9); if (dx >= 0 && dx < 48 && dy >= 0 && dy < 24) P(g, dx, dy, bl[3]); }
+    for (let k = 0; k < 3; k++) if (rng() < 0.6) P(g, bxp + (k % 2), Math.min(23, byp + r + k), bl[3]);
+  }
+  // NOTE: ground decal — no void outline (sits flush on sand)
+  return g;
+}
+
 export class SpriteCache {
   ready = false;
 
@@ -4214,6 +4481,8 @@ export class SpriteCache {
   private props = new Map<string, OffscreenCanvas>();  // `${kind}-${frame}`
   // the Threshold tutorial set, all lazy (only the first login ever pays for it)
   private thresholdMap = new Map<string, OffscreenCanvas>();
+  // the Pit's arena set, lazy (only a live duel ever pays for it)
+  private arenaMap = new Map<string, OffscreenCanvas>();
   private prestigeAuraMap = new Map<string, OffscreenCanvas>(); // `${key}-${frame}`, lazy — only holders pay
   private treeNorm!: OffscreenCanvas;
   private treeDep!:  OffscreenCanvas;
@@ -4417,6 +4686,74 @@ export class SpriteCache {
     let cv = this.thresholdMap.get(key);
     if (!cv) { cv = gridToCanvas(gen()); this.thresholdMap.set(key, cv); }
     return cv;
+  }
+
+  /** lazy fetch from the arena set (duel-only art, baked when the ring seals) */
+  private arenaCv(key: string, gen: () => Grid): OffscreenCanvas {
+    let cv = this.arenaMap.get(key);
+    if (!cv) { cv = gridToCanvas(gen()); this.arenaMap.set(key, cv); }
+    return cv;
+  }
+
+  /** blood-sand floor overlay, aligned over a base tile (anchor 32,16) */
+  drawArenaFloor(ctx: CanvasRenderingContext2D, variant: 'a' | 'b' | 'c' | 'blood', seedN: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.arenaCv(`floor-${variant}-${seedN}`, () => drawArenaFloor(variant, seedN));
+    ctx.drawImage(cv, sx - 32 * z, sy - 16 * z, 64 * z, 36 * z);
+  }
+
+  /** ring palisade segment — same skew/anchors as the W2 walls (ne 0,55 ·
+   *  nw 0,71; sx is the segment's LEFT edge); tiles +32x,±16y, no side outline */
+  drawArenaRing(ctx: CanvasRenderingContext2D, side: 'ne' | 'nw', variant: 'a' | 'b', sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.arenaCv(`ring-${side}-${variant}`, () => drawArenaRing(side, variant));
+    ctx.drawImage(cv, sx, sy - (side === 'ne' ? 55 : 71) * z, 32 * z, 72 * z);
+  }
+
+  /** the fighters' gate segment (anchored like the ring) */
+  drawArenaGate(ctx: CanvasRenderingContext2D, side: 'ne' | 'nw', sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.arenaCv(`gate-${side}`, () => drawArenaGate(side));
+    ctx.drawImage(cv, sx, sy - (side === 'ne' ? 55 : 71) * z, 32 * z, 72 * z);
+  }
+
+  /** standing brazier-torch, 3f flame at 4fps (anchor 16,60) */
+  drawArenaTorch(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const f = frame % 3;
+    const cv = this.arenaCv(`torch-${f}`, () => drawArenaTorch(f));
+    ctx.drawImage(cv, sx - 16 * z, sy - 60 * z, 32 * z, 64 * z);
+  }
+
+  /** ring-side watcher (32×40, wanderer-rig anchor 16,39) */
+  drawArenaWatcher(ctx: CanvasRenderingContext2D, variant: ArenaWatcherVariant, anim: 'idle' | 'cheer', frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const f = frame % 2;
+    const cv = this.arenaCv(`watcher-${variant}-${anim}-${f}`, () => drawArenaWatcher(variant, anim, f));
+    ctx.drawImage(cv, sx - 16 * z, sy - 39 * z, 32 * z, 40 * z);
+  }
+
+  /** floating victory plaque, center-anchored (96×48, 2f shimmer) */
+  drawVictoryPlate(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const f = frame % 2;
+    const cv = this.arenaCv(`victory-${f}`, () => drawVictoryPlate(f));
+    ctx.drawImage(cv, sx - 48 * z, sy - 24 * z, 96 * z, 48 * z);
+  }
+
+  /** blood decal on the sand (drawn under entities, no outline) */
+  drawBloodFx(ctx: CanvasRenderingContext2D, variant: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const v = ((variant % 3) + 3) % 3;
+    const cv = this.arenaCv(`blood-${v}`, () => drawBloodFx(v));
+    ctx.drawImage(cv, sx - 24 * z, sy - 12 * z, 48 * z, 24 * z);
   }
 
   /** the Threshold gate, bottom-center anchored like a town building */

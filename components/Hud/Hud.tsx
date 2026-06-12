@@ -678,10 +678,20 @@ function KeeperDialogue() {
     <div
       className="absolute pointer-events-auto"
       style={{
-        bottom: 92, left: "50%",
-        transform: "translateX(-50%) scale(var(--hud-scale))",
-        transformOrigin: "bottom center",
-        zIndex: 30, width: 470,
+        bottom: 92, zIndex: 30, width: 470,
+        // the glass draws the tried-on body on your centered sprite — slide the
+        // panel left of center (clear of the Skills panel) so it isn't blocked
+        ...(pv
+          ? {
+              left: "calc(var(--hud-edge) + 228px)",
+              transform: "scale(var(--hud-scale))",
+              transformOrigin: "bottom left",
+            }
+          : {
+              left: "50%",
+              transform: "translateX(-50%) scale(var(--hud-scale))",
+              transformOrigin: "bottom center",
+            }),
       }}
     >
       <Panel

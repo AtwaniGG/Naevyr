@@ -1,0 +1,50 @@
+{
+  "image": "arena/blood_fx.svg",
+  "cell": {
+    "w": 48,
+    "h": 24
+  },
+  "anchor": {
+    "x": 24,
+    "y": 12
+  },
+  "ramp": "blood",
+  "note": "ground decal, drawn under entities, no outline",
+  "variants": [
+    0,
+    1,
+    2
+  ],
+  "frames": {
+    "blood_0": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    },
+    "blood_1": {
+      "x": 48,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    },
+    "blood_2": {
+      "x": 96,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    }
+  }
+}

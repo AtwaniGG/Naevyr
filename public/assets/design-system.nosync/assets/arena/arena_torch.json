@@ -1,0 +1,56 @@
+{
+  "image": "arena/arena_torch.svg",
+  "cell": {
+    "w": 32,
+    "h": 64
+  },
+  "anchor": {
+    "x": 16,
+    "y": 60
+  },
+  "ramp": "ember + gold(core) + stone",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "torch_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 64,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      }
+    },
+    "torch_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 64,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      }
+    },
+    "torch_02": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 64,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      }
+    }
+  },
+  "animations": {
+    "flame": {
+      "frames": [
+        "torch_00",
+        "torch_01",
+        "torch_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

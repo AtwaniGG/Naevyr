@@ -74,6 +74,47 @@ function Gold({ children }: { children: React.ReactNode }) {
 
 /** a plate from the Design System exports. The SVGs are frame SHEETS laid out
  *  horizontally; the paper shows frame 0 (background-size spans all frames). */
+function AvatarGallery() {
+  return (
+    <figure style={{ margin: "18px 0 22px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 14,
+        }}
+      >
+        {AVATAR_KINDS.map((k) => (
+          <div key={k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                width: "100%", aspectRatio: String(48 / 64),
+                backgroundImage: `url(/assets/design-system.nosync/assets/avatars/portrait_${k}.svg)`,
+                backgroundSize: "200% 100%",
+                backgroundPosition: "0 0",
+                backgroundRepeat: "no-repeat",
+                imageRendering: "pixelated",
+                boxShadow: "0 0 0 1px rgba(124, 58, 237, 0.35), 4px 4px 0 0 rgba(10, 8, 16, 0.85)",
+              }}
+            />
+            <div style={{ font: "600 11px/1.2 var(--font-ui)", color: "#d8b4fe", textAlign: "center" }}>
+              {PRESTIGE_CATALOG[k].label}
+            </div>
+          </div>
+        ))}
+      </div>
+      <figcaption
+        style={{
+          textAlign: "center", marginTop: 10,
+          font: "400 10.5px/1.4 var(--font-ui)", color: "var(--text-muted)",
+        }}
+      >
+        The four premium bodies · each tried on at the Drift Mirror before the burn
+      </figcaption>
+    </figure>
+  );
+}
+
 function Art({
   src, caption, frames = 1, ratio, maxWidth,
 }: {
@@ -492,6 +533,7 @@ export default function DocsPage() {
             is exactly what the realm sees. They are bound to the buyer and
             never trade.
           </P>
+          <AvatarGallery />
           <div style={{ overflowX: "auto", margin: "12px 0" }}>
             <table style={{ borderCollapse: "collapse", font: "400 12px/1.5 var(--font-ui)", color: "var(--text-secondary)", minWidth: 480 }}>
               <thead>
