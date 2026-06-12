@@ -245,6 +245,49 @@ if (JSON.stringify(makeFixture("hearth", "", 0).d) === JSON.stringify(makeFixtur
   failures++; console.error("FAIL hearth: frames 0 and 1 are identical");
 }
 
+// economy art (DS wheelfaces/guildbanner/cache/exchange ports)
+import {
+  drawGoldWheelFace, drawDarkWheelFace, drawGuildBanner, drawGuildBannerFallen,
+  drawCacheSealed, drawCacheOpening, drawCacheBurst, drawExchangeCounter,
+} from "../game/render/sprites";
+for (let f = 0; f < 2; f++) {
+  for (const [name, g] of [
+    [`goldwheel#${f}`, drawGoldWheelFace(f).g],
+    [`darkwheel#${f}`, drawDarkWheelFace(f).g],
+  ] as const) {
+    frames++;
+    if (g.w !== 240 || g.h !== 240 || g.d.filter(Boolean).length < 5000) {
+      failures++; console.error(`FAIL ${name}`);
+    }
+  }
+}
+if (JSON.stringify(drawGoldWheelFace(0).g.d) === JSON.stringify(drawGoldWheelFace(1).g.d)) {
+  failures++; console.error("FAIL goldwheel: shimmer frames identical");
+}
+for (let f = 0; f < 3; f++) {
+  const g = drawGuildBanner(f); frames++;
+  if (g.w !== 48 || g.h !== 96 || g.d.filter(Boolean).length < 500) { failures++; console.error(`FAIL banner#${f}`); }
+}
+{
+  const g = drawGuildBannerFallen(); frames++;
+  if (g.w !== 48 || g.h !== 96 || g.d.filter(Boolean).length < 300) { failures++; console.error("FAIL banner fallen"); }
+}
+for (const [name, g] of [
+  ["cache sealed", drawCacheSealed()],
+  ["cache opening0", drawCacheOpening(0)], ["cache opening1", drawCacheOpening(1)],
+  ["cache burst0", drawCacheBurst(0)], ["cache burst1", drawCacheBurst(1)],
+] as const) {
+  frames++;
+  if (g.w !== 64 || g.h !== 64 || g.d.filter(Boolean).length < 400) { failures++; console.error(`FAIL ${name}`); }
+}
+for (let f = 0; f < 2; f++) {
+  const g = drawExchangeCounter(f); frames++;
+  if (g.w !== 48 || g.h !== 48 || g.d.filter(Boolean).length < 300) { failures++; console.error(`FAIL exchange#${f}`); }
+}
+if (JSON.stringify(drawExchangeCounter(0).d) === JSON.stringify(drawExchangeCounter(1).d)) {
+  failures++; console.error("FAIL exchange: totter frames identical");
+}
+
 // prestige auras (burn-only cosmetics, DS auras.js port): every frame, 64×64, animated
 for (const key of Object.keys(PRESTIGE_AURAS) as PrestigeAuraKey[]) {
   const spec = PRESTIGE_AURAS[key];

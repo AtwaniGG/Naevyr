@@ -119,9 +119,92 @@ export const BURN_COSTS = {
   prestigeDye: 15_000,   // Drift-touched cloak dye (burn-only, never gold)
   prestigeAura: 25_000,  // Drift-touched aura (burn-only, never gold)
   prestigeTitle: 40_000, // Drift-touched title (burn-only, never gold)
+  driftSpin: 5_000,      // one Drift Wheel spin (gacha cosmetics)
+  cache: 12_000,         // a Drift Cache = 3 Drift Wheel spins (20% off)
+  guildFound: 50_000,    // found a guild (also requires holding ≥ GUILD.foundHold)
+  guildTerritory: 25_000, // stake a region banner (48h)
+  guildUpkeep: 10_000,   // extend the banner another 48h
 } as const;
 /** integrity restored per reinforce burn (cap 100 — delay, never immunity) */
 export const REINFORCE_INTEGRITY = 25;
+
+// ─── The gold Wheel (50g a spin; server-rolled) ────────────────────────────────
+// Shared so the HUD's spin animation and the docs render the same segments the
+// server actually rolls. EV ≈ 42.5g + 0.16 shards per 50g spin (a sink).
+export interface GoldWheelSeg { p: number; gold: number; shards: number; label: string }
+export const GOLD_WHEEL: GoldWheelSeg[] = [
+  { p: 0.40, gold: 0,   shards: 0, label: "The Drift takes your coin." },
+  { p: 0.25, gold: 25,  shards: 0, label: "A modest return: 25g." },
+  { p: 0.15, gold: 75,  shards: 0, label: "The wheel favors you: 75g!" },
+  { p: 0.10, gold: 150, shards: 0, label: "A fine spin: 150g!" },
+  { p: 0.08, gold: 0,   shards: 2, label: "Two Drift Shards tumble out!" },
+  { p: 0.02, gold: 500, shards: 0, label: "JACKPOT: 500 GOLD!" },
+];
+
+// ─── The Drift Wheel (gacha cosmetics — DRIFTS burns only) ─────────────────────
+// Server-rolled. Pays cosmetics/shards, NEVER DRIFTS (no faucet). Duplicates
+// convert to shards (`dupShards`). The docs render this table so it can't
+// go stale. Tiers `aura`+ count as "rare" for the pity counter.
+export interface DriftWheelSeg {
+  p: number;
+  kind: "shards" | "dye" | "eye" | "aura" | "pet" | "title" | "prestigeAura";
+  amount?: number;     // shards
+  dupShards?: number;  // consolation when already owned
+  label: string;
+  rare?: boolean;      // feeds/resets the pity counter
+}
+export const DRIFT_WHEEL: DriftWheelSeg[] = [
+  { p: 0.30, kind: "shards", amount: 2, label: "Two Drift Shards tumble out." },
+  { p: 0.22, kind: "dye", dupShards: 3, label: "A vial of cloak dye." },
+  { p: 0.15, kind: "eye", dupShards: 3, label: "An eye glow, still warm." },
+  { p: 0.12, kind: "shards", amount: 6, label: "Six Drift Shards!" },
+  { p: 0.10, kind: "aura", dupShards: 6, label: "An aura unwinds from the wheel!", rare: true },
+  { p: 0.06, kind: "pet", dupShards: 6, label: "Something small chose you.", rare: true },
+  { p: 0.04, kind: "title", dupShards: 10, label: "The wheel names you.", rare: true },
+  { p: 0.01, kind: "prestigeAura", dupShards: 15, label: "A DRIFT-TOUCHED aura!", rare: true },
+];
+/** forced-rare after this many dry spins (rolls re-normalize over rare tiers) */
+export const DRIFT_WHEEL_PITY = 12;
+/** the wheel-exclusive title */
+export const WHEEL_TITLE = "Wheelturned";
+
+// ─── Guilds + territory ─────────────────────────────────────────────────────────
+export const GUILD = {
+  foundHold: 25_000,    // DRIFTS the founder's wallet must HOLD to found
+  maxMembers: 20,
+  nameMax: 20,
+  tagMax: 4,
+  territoryMs: 48 * 3_600_000,  // one stake/upkeep buys 48h
+  territoryMaxMs: 7 * 24 * 3_600_000, // banner can be paid at most 7 days ahead
+  /** member perks while the banner stands, inside the held region */
+  richStrikeBonus: 0.02,
+  caravanWeightBonus: 0.1,
+  /** regions a guild banner can hold (never the town) */
+  regions: ["Palewater", "The Ashen Flats", "Hollowmere Reach", "The Bonefields"],
+} as const;
+
+// ─── The Exchange (gold ↔ DRIFTS at the Vault) ─────────────────────────────────
+// Anchor: the live economy prices 100 DRIFTS ≈ 1 gold (spin 5,000◆ vs 50g,
+// claim 25,000◆ vs 250g). Fixed rates ±10% around it; payouts ONLY from the
+// escrow pool (what buyers paid in) — never minted, never a house faucet.
+export const EXCHANGE = {
+  buyRate: 110,   // DRIFTS paid per 1 gold bought
+  sellRate: 90,   // DRIFTS received per 1 gold sold
+  buyCapPerDay: 2_000,  // gold buyable per wallet per UTC day
+  /** gold sellable per wallet per UTC day, by holder tier key ("" = base) */
+  sellCapPerDay: { "": 200, keeper: 500, warden: 1_500, driftlord: 5_000 } as Record<string, number>,
+  minTrade: 10,   // gold per transaction, both directions
+} as const;
+
+// ─── The relic market (P2P, Drift-touched cosmetics only) ──────────────────────
+// Only server-authoritative prestige cosmetics trade (gold cosmetics are
+// client-trusted, so untradable). Titles are soul-bound. The fee leg BURNS.
+export const RELIC_MARKET = {
+  minPrice: 1_000,        // DRIFTS
+  maxPrice: 10_000_000,
+  feePct: 0.05,           // burned forever on every sale
+  maxListings: 4,         // per seller
+} as const;
 /** short display form: 5_000 → "5k" (pixel HUD space is tight) */
 export const burnAmt = (n: number) => (n >= 1000 ? `${n / 1000}k` : String(n));
 

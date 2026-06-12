@@ -40,5 +40,10 @@ at page open). Update the `fromSec` props in `src/Trailer.tsx` to re-cut.
   (grids render as crisp SVG rects); any DS frame-sheet SVG animates via
   `<FrameSheet>`; gameplay clips ride `<GameplayScene src fromSec caption>`.
 
-Scene order: cold open → wordmark → town walk → gathering → keeper interior →
-combat → caravan → vista + Drift wash → prestige auras → the gate → PLAY NOW.
+Scene order: cold open → wordmark → town walk → gathering → combat → keeper →
+vista + Drift wash → **Drift Wheel** (spins onto the 1% relic) → **guilds**
+(banner) → **the Exchange** (scales) → prestige auras → the gate → PLAY NOW.
+The economy scenes (E1-E3) are NOT gameplay capture — those features need a
+wallet, so they're drawn live from the procedural sprites (drawDarkWheelFace /
+drawGuildBanner / drawExchangeCounter), same as the prestige auras. The score
+(scripts/score.mjs) is re-timed to the ~58s cut; re-run it after any retiming.

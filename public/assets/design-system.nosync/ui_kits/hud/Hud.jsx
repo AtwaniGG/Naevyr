@@ -4,8 +4,8 @@
    sitting over the canvas world. Light interactivity: pick a tool,
    gather → XP + loot + log. */
 
-const NS = window.NaevyrDesignSystem_3de3e2
-  || window[Object.keys(window).find(k => k.startsWith('NaevyrDesignSystem'))];
+const NS = window.DriftLandsDesignSystem_3de3e2
+  || window[Object.keys(window).find(k => k.startsWith('DriftLandsDesignSystem'))];
 const { Panel, Button, Badge, SeasonBadge, Slot, Hotbar, XPBar, ActivityLog, Icon } = NS;
 
 const TOOLS = [

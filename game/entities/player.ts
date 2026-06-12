@@ -45,6 +45,7 @@ export class Player {
   title = "";
   aura = "";
   pet = "";
+  guildTag = "";
   /** lagged follower position (NaN until the pet first appears) */
   petX = NaN;
   petY = NaN;

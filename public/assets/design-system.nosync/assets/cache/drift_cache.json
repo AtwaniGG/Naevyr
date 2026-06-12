@@ -1,0 +1,107 @@
+{
+  "image": "cache/drift_cache.svg",
+  "cell": {
+    "w": 64,
+    "h": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 58
+  },
+  "ramp": "iron(stone) + drift + gold",
+  "states": {
+    "sealed": {
+      "startFrame": 0,
+      "frames": 1,
+      "fps": 0
+    },
+    "opening": {
+      "startFrame": 1,
+      "frames": 2,
+      "fps": 6
+    },
+    "burst": {
+      "startFrame": 3,
+      "frames": 2,
+      "fps": 8
+    }
+  },
+  "frameByFrameXOffset": true,
+  "frames": {
+    "drift_cache_sealed_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 58
+      }
+    },
+    "drift_cache_opening_00": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 58
+      }
+    },
+    "drift_cache_opening_01": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 58
+      }
+    },
+    "drift_cache_burst_00": {
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 58
+      }
+    },
+    "drift_cache_burst_01": {
+      "x": 256,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": {
+        "x": 32,
+        "y": 58
+      }
+    }
+  },
+  "animations": {
+    "sealed": {
+      "frames": [
+        "drift_cache_sealed_00"
+      ],
+      "fps": 0,
+      "loop": false
+    },
+    "opening": {
+      "frames": [
+        "drift_cache_opening_00",
+        "drift_cache_opening_01"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "burst": {
+      "frames": [
+        "drift_cache_burst_00",
+        "drift_cache_burst_01"
+      ],
+      "fps": 8,
+      "loop": false
+    }
+  }
+}

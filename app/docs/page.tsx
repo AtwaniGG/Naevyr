@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import LandingShell from "@/components/LandingShell";
-import { BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS } from "@/game/types";
+import {
+  BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS,
+  DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET,
+} from "@/game/types";
 
 // The whitepaper: everything the realm is and how it works, in one document.
 // Sidebar anchors on the left, long-form sections on the right.
@@ -23,8 +26,11 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "claims", group: "Core Systems", title: "Land Claims" },
   { id: "market", group: "Core Systems", title: "The Market" },
   { id: "caravans", group: "Core Systems", title: "Caravans" },
+  { id: "guilds", group: "Core Systems", title: "Guilds & Territory" },
   { id: "events", group: "Core Systems", title: "World Events" },
   { id: "token", group: "DRIFTS", title: "DRIFTS & Burn Rites" },
+  { id: "driftwheel", group: "DRIFTS", title: "The Drift Wheel & Relics" },
+  { id: "exchange", group: "DRIFTS", title: "The Exchange" },
   { id: "tokenomics", group: "DRIFTS", title: "Tokenomics" },
   { id: "trust", group: "DRIFTS", title: "Architecture & Trust" },
   { id: "roadmap", group: "DRIFTS", title: "Roadmap" },
@@ -363,6 +369,35 @@ export default function DocsPage() {
             or held for your return.
           </P>
 
+          <H id="guilds">Guilds & Territory</H>
+          <P>
+            A guild is a banner with a treasury behind it. Founding one takes
+            both standing and sacrifice: a linked wallet holding{" "}
+            <Gold>{GUILD.foundHold.toLocaleString()} DRIFTS</Gold> and a{" "}
+            <Gold>{burnAmt(BURN_COSTS.guildFound)} DRIFTS burn</Gold>. A guild
+            carries up to <Gold>{GUILD.maxMembers} wanderers</Gold>; joining is
+            free; your tag rides your nameplate everywhere.
+          </P>
+          <P>
+            <Gold>Territory.</Gold> The four wild regions — {GUILD.regions.join(", ")} —
+            each take one banner (the Waystation takes none). The founder
+            stakes a region for <Gold>{burnAmt(BURN_COSTS.guildTerritory)} DRIFTS</Gold>,
+            which holds it for <Gold>48 hours</Gold>. Any member can feed the
+            banner: <Gold>{burnAmt(BURN_COSTS.guildUpkeep)} DRIFTS</Gold> buys
+            another 48 hours, payable at most 7 days ahead. Let it starve and
+            the banner falls; the region opens to any guild.
+          </P>
+          <P>
+            <Gold>What the banner pays.</Gold> While it stands, members gain{" "}
+            <Gold>+{Math.round(GUILD.richStrikeBonus * 100)}% rich-strike odds</Gold>{" "}
+            gathering inside their held region, and{" "}
+            <Gold>+{GUILD.caravanWeightBonus} caravan payout weight</Gold> per
+            kill anywhere (a heavier share of the same pool — zero inflation,
+            like every perk in the realm). An active guild burns about{" "}
+            <Gold>5,000 DRIFTS a day</Gold> keeping its ground: territory is
+            the realm's structural, recurring sink.
+          </P>
+
           <H id="events">World Events</H>
           <P>
             <Gold>Driftfall</Gold>: a falling star of corruption that births
@@ -407,6 +442,8 @@ export default function DocsPage() {
               <tbody>
                 {([
                   ["spin", "Wheel spin"],
+                  ["driftSpin", "Drift Wheel spin (gacha cosmetics)"],
+                  ["cache", "Drift Cache (3 Drift Wheel spins, 20% off)"],
                   ["claim", "Stake a 3×3 claim (auto for holders in claim mode)"],
                   ["reinforce", "Reinforce your weakest claim (+25 warding)"],
                   ["aura", "Dyeworks aura"],
@@ -415,6 +452,9 @@ export default function DocsPage() {
                   ["prestigeDye", "Drift-touched cloak dye (burn-only)"],
                   ["prestigeAura", "Drift-touched aura (burn-only)"],
                   ["prestigeTitle", "Drift-touched title (burn-only)"],
+                  ["guildFound", "Found a guild (also requires holding 25,000)"],
+                  ["guildTerritory", "Stake a guild banner over a region (48h)"],
+                  ["guildUpkeep", "Feed the banner (+48h, any member)"],
                 ] as [keyof typeof BURN_COSTS, string][]).map(([k, label]) => {
                   const c = BURN_COSTS[k];
                   const burned = Math.ceil(c / 2);
@@ -483,6 +523,124 @@ export default function DocsPage() {
             Sell or move your DRIFTS and the standing leaves with them.
           </P>
 
+          <H id="driftwheel">The Drift Wheel & Relics</H>
+          <P>
+            Beside the gold wheel stands a darker one. The{" "}
+            <Gold>Drift Wheel</Gold> takes only burned DRIFTS —{" "}
+            <Gold>{burnAmt(BURN_COSTS.driftSpin)} a spin</Gold>, or a{" "}
+            <Gold>Drift Cache</Gold>: three spins bundled for{" "}
+            <Gold>{burnAmt(BURN_COSTS.cache)}</Gold> (20% off). It pays
+            cosmetics and shards, <Gold>never DRIFTS</Gold> — the wheel is a
+            sink with style, not a faucet. The exact odds, the same table the
+            server rolls:
+          </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Odds", "Prize", "If already owned"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {DRIFT_WHEEL.map((s, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: "5px 10px" }}>{Math.round(s.p * 100)}%</td>
+                    <td style={{ padding: "5px 10px", color: s.kind === "prestigeAura" ? "#d8b4fe" : "var(--text-primary)" }}>
+                      {s.kind === "shards" ? `${s.amount} Drift Shards`
+                        : s.kind === "dye" ? "A cloak dye you lack"
+                        : s.kind === "eye" ? "An eye glow you lack"
+                        : s.kind === "aura" ? "An aura you lack"
+                        : s.kind === "pet" ? "A pet you lack"
+                        : s.kind === "title" ? "The title Wheelturned"
+                        : "A Drift-touched prestige aura"}
+                    </td>
+                    <td style={{ padding: "5px 10px" }}>{s.dupShards ? `${s.dupShards} shards` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <P>
+            <Gold>The pity rule.</Gold> {DRIFT_WHEEL_PITY} dry spins (no aura,
+            pet, title or relic) force the next spin into the rare band, odds
+            re-weighted 47.6% aura · 28.6% pet · 19% title · 4.8% relic. The
+            counter persists across sessions and resets on any rare. Long-run,
+            a spin returns roughly 4-5 shards' worth of value (60-75g) per{" "}
+            {burnAmt(BURN_COSTS.driftSpin)} burned — the house keeps its edge;
+            the prize is the look.
+          </P>
+          <P>
+            <Gold>The relic market.</Gold> Drift-touched cosmetics — and only
+            those, because only their ownership lives on the realm's ledgers —
+            trade wanderer to wanderer, priced in DRIFTS (
+            {RELIC_MARKET.minPrice.toLocaleString()} minimum,{" "}
+            {RELIC_MARKET.maxListings} listings per seller). The buyer pays the
+            seller's wallet directly on-chain; the realm takes{" "}
+            <Gold>{Math.round(RELIC_MARKET.feePct * 100)}% and burns it</Gold>.
+            Worked through: a relic sold at 30,000 DRIFTS pays the seller
+            28,500 and burns 1,500 forever. Titles are soul-bound and never
+            trade. The server verifies both legs of every sale and moves the
+            ownership itself — a relic worn is a relic owned, provably.
+          </P>
+
+          <H id="exchange">The Exchange</H>
+          <P>
+            At the Vault keeper's counter, gold and DRIFTS change hands at
+            fixed rates — anchored to the realm's own arithmetic. The economy
+            already prices <Gold>100 DRIFTS ≈ 1 gold</Gold> (a 50g spin or a{" "}
+            {burnAmt(BURN_COSTS.spin)}-DRIFTS burn buy the same wheel; a 250g
+            claim or {burnAmt(BURN_COSTS.claim)} DRIFTS stake the same land).
+            The counter trades around that anchor with a 10% spread each way:
+          </P>
+          <P>
+            <Gold>Buying gold</Gold> costs <Gold>{EXCHANGE.buyRate} DRIFTS per
+            1g</Gold>, paid by on-chain transfer into the realm's escrow pool,
+            capped at <Gold>{EXCHANGE.buyCapPerDay.toLocaleString()}g per
+            wallet per day</Gold>.
+            <br />
+            <Gold>Selling gold</Gold> pays <Gold>{EXCHANGE.sellRate} DRIFTS per
+            1g</Gold>, out of that same pool — and ONLY out of it. Payouts come
+            from what other players paid in, never minted, never a house
+            faucet. When the pool runs dry, the merchant's purse is light and
+            the counter waits for buyers.
+          </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Standing", "DRIFTS held", "Daily sell cap", "Max DRIFTS out/day"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["Holder", "1+", EXCHANGE.sellCapPerDay[""]],
+                  ["Keeper", "10,000+", EXCHANGE.sellCapPerDay.keeper],
+                  ["Warden", "100,000+", EXCHANGE.sellCapPerDay.warden],
+                  ["Drift Lord", "1,000,000+", EXCHANGE.sellCapPerDay.driftlord],
+                ].map(([label, held, cap]) => (
+                  <tr key={String(label)}>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>{label}</td>
+                    <td style={{ padding: "5px 10px" }}>{held}</td>
+                    <td style={{ padding: "5px 10px" }}>{Number(cap).toLocaleString()}g</td>
+                    <td style={{ padding: "5px 10px" }}>{(Number(cap) * EXCHANGE.sellRate).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <P>
+            The 20-DRIFTS round-trip spread (buy at {EXCHANGE.buyRate}, sell at{" "}
+            {EXCHANGE.sellRate}) stays in the pool as its buffer — it blocks
+            wash-trading and keeps the counter solvent. Trades start at{" "}
+            {EXCHANGE.minTrade}g. The grind loop is complete: items sell for
+            gold, gold trades for DRIFTS, DRIFTS burn for standing. Play feeds
+            the coin; the coin never prints.
+          </P>
+
           <H id="tokenomics">Tokenomics</H>
           <P>
             <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana (6
@@ -510,8 +668,16 @@ export default function DocsPage() {
             coins.
             <br />
             3. <Gold>The rites.</Gold> Spins, claims, reinforcements, auras,
-            cleansings and rerolls can be paid in DRIFTS, and the Drift-touched
-            shelf takes nothing else.
+            cleansings and rerolls can be paid in DRIFTS; the Drift Wheel, the
+            Drift-touched shelf and every guild banner take nothing else.
+            <br />
+            4. <Gold>The grind loop.</Gold> The Exchange turns play into
+            demand: gold sells for DRIFTS only out of what buyers paid in, so
+            every seller needs a buyer first.
+            <br />
+            5. <Gold>The banner.</Gold> Guilds hold ground only while they keep
+            burning: founding 50,000, staking 25,000, upkeep 10,000 per 48
+            hours — about 5,000 a day per active guild, forever.
           </P>
           <P>
             <Gold>Supply sinks, by the numbers.</Gold> Every rite splits by
@@ -536,9 +702,12 @@ export default function DocsPage() {
             <Gold>The flywheel.</Gold> The loop is mechanical, not a promise:
             rites consume DRIFTS; half of every rite is burned, shrinking
             supply with play; the other half funds development and, after the
-            mainnet launch, buyback-and-burn and the Exchange's float. More
-            play means more rites; more rites mean fewer coins. No part of the
-            loop mints, yields, or pays holders.
+            mainnet launch, buyback-and-burn and the Exchange's float. The
+            relic market burns {Math.round(RELIC_MARKET.feePct * 100)}% of
+            every resale; the Exchange's spread feeds its own pool; guild
+            banners burn daily by design. More play means more rites; more
+            rites mean fewer coins. No part of the loop mints, yields, or pays
+            holders.
           </P>
           <P>
             <Gold>What the house never does.</Gold> The realm's treasury only

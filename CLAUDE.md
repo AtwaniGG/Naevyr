@@ -558,6 +558,57 @@ stale. The currency is DRIFTS in all user-facing copy.
    one, which is why this waits until after deploy). Items themselves still
    sell for gold only; the loop is items → gold → DRIFTS.
 
+**ECONOMY ART SET (done):** `_gen/wheelfaces.js` + `_gen/guildbanner.js` +
+`_gen/cache.js` + `_gen/exchange.js` ported into sprites.ts — 6/6 byte-exact
+(`tmp-compare-economy.ts`). Wheel faces 240×240 2f shimmer (hub 120,124;
+segment start-angles in the JSON; the TS port takes `noPointer` so the
+OVERLAY rotates the face under its own FIXED pointer — full face only for
+byte-diffs). WheelOverlay paints grids to canvas (`GridCanvas`) and lands on
+the server's seg via `wheelSegmentAngles()` + the GOLD_SEG_BY_IDX /
+DARK_SEG_BY_IDX maps. Guild banner 48×96 3f sway + fallen variant, tag drawn
+ROTATED on GB_PLATE; placed per held region at `REGION_BANNER_CELLS`
+(game.ts, decor only). Drift Cache 64×64 sealed/opening/burst states shown in
+the overlay for cache spins. Exchange counter 48×48 2f is a real interior
+FIXTURE (kind "exchange", in the Vault at 6,3, solid).
+
+**PHASE 7 — THE DRIFTS ECONOMY EXPANSION (built 2026-06-12, all suites
+green incl. verify-economy 24/24 on real devnet):** spec with ALL canonical
+numbers: `docs/superpowers/specs/2026-06-12-drifts-economy-expansion-design.md`.
+The anchor: 100 DRIFTS ≈ 1g (derived from spin/claim parity). Built:
+- **Drift Wheel** (`driftSpin` 5k◆) + **Drift Cache** (`cache` 12k◆ = 3 spins):
+  gacha cosmetics, server-rolled (`rollDriftWheel`, DRIFT_WHEEL table in
+  types.ts, docs render it), duplicates pay shards, pity at 12 dry spins
+  (players.wheel_pity). Pays cosmetics/shards, NEVER DRIFTS. 1% tier grants a
+  prestige aura (server-authoritative).
+- **Wheel ANIMATION**: every spin (gold + drift) pops `WheelOverlay`
+  (components/Hud/WheelOverlay.tsx): SVG segment wheel, 3.2s ease-out onto
+  the server's `seg` index, click to skip. GOLD_WHEEL moved to types.ts.
+- **Guilds + territory**: found = hold ≥25k AND burn 50k (name≤20, tag≤4,
+  unique); 20 members; 4 wild regions stakeable (`guildTerritory` 25k◆ = 48h,
+  `guildUpkeep` 10k◆ = +48h, max 7d ahead, ANY member may feed it; lapse =
+  banner falls via room clock). Perks server-side: +2% rich strike inside the
+  held region, +0.1 caravan weight while the banner stands. `GuildState`
+  schema map + PlayerState.guildTag (nameplates "[TAG] Name"). regionAt moved
+  to game/world/tilemap.ts (shared).
+- **The Exchange** (Vault keeper submenu): 100◆/g anchor ±10% — buy gold at
+  110◆/g (on-chain transfer INTO escrow, verified like burn legs, replay via
+  burns table action exBuy, 2,000g/day cap), sell gold at 90◆/g OUT of the
+  escrow pool only (tier caps/day: 200/500/1,500/5,000g; gold debited FIRST,
+  refunded on chain failure; `payFromEscrow` — AUTHORITY pays the fee, escrow
+  only signs). Env: `ESCROW_KEYPAIR` (managed secret, arms both sides) or
+  `ESCROW_ADDRESS` (buy only); unset = counter closed. exchange_log table
+  tracks daily caps.
+- **Relic market** (P2P, Market dock "Relic stall"): prestige cosmetics ONLY
+  (server-authoritative ownership), titles soul-bound. List ≤4 relics
+  (1k-10M◆); buyer pays seller 95% wallet-to-wallet + burns 5% (one
+  partial-signed tx via `buildRelicTx`; `verifyTxLegs` checks both legs);
+  server moves prestige ownership both sides, strips a worn relic off the
+  seller live. relics table + RelicState schema.
+- New BURN_COSTS: driftSpin 5k, cache 12k, guildFound 50k, guildTerritory
+  25k, guildUpkeep 10k. EXCHANGE/RELIC_MARKET/GUILD consts in types.ts.
+  Whitepaper: 3 new chapters (Guilds & Territory, The Drift Wheel & Relics,
+  The Exchange) with generated tables + tokenomics updated (5 demand forces).
+
 **Loose ends:** none right now. (Threshold art swap + gate signature
 hardening both landed 2026-06-11 — see the tutorial + entry-gate sections.)
 

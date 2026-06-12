@@ -15,7 +15,7 @@ signature accent; use it sparingly.
 - **Tokens:** link `styles.css` (it `@import`s `tokens/`). Use the `drift.*` base colours and
   material ramps; never invent new hues. Effects live in `tokens/effects.css`
   (`--clip-notch`, bevels, stepped `--glow-corrupt-*`, dither).
-- **Components:** load `_ds_bundle.js`, read `window.NaevyrDesignSystem_3de3e2.<Name>`
+- **Components:** load `_ds_bundle.js`, read `window.DriftLandsDesignSystem_3de3e2.<Name>`
   (`Panel`, `Button`, `Badge`, `SeasonBadge`, `Slot`, `Hotbar`, `XPBar`, `ActivityLog`,
   `Icon`). Each component dir has a `.prompt.md` with usage. (That `window.<…>` symbol is the
   compiler-generated runtime namespace, bound to the project ID — not the brand name — so it

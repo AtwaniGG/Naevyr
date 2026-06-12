@@ -12,9 +12,12 @@ import {
   listings, ListingRow,
   props, PropRow,
   shrine, burns,
+  guilds, GuildRow,
+  relics, RelicRow,
+  exchangeLog,
 } from "./schema";
 
-export type { PlayerRow, ClaimRow, ListingRow, PropRow } from "./schema";
+export type { PlayerRow, ClaimRow, ListingRow, PropRow, GuildRow, RelicRow } from "./schema";
 
 // DATABASE_URL set (Neon/any Postgres) → node-postgres pool.
 // Otherwise → PGlite, an embedded Postgres persisted to server/.data.
@@ -72,6 +75,45 @@ export async function initDb(): Promise<Db> {
   `);
   await db.execute(sql`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS prestige jsonb NOT NULL DEFAULT '[]'::jsonb
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS wheel_pity real NOT NULL DEFAULT 0
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS guild_id real
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS guilds (
+      id serial PRIMARY KEY,
+      name text NOT NULL UNIQUE,
+      tag text NOT NULL UNIQUE,
+      founder_token text NOT NULL,
+      region text NOT NULL DEFAULT '',
+      region_until real NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS relics (
+      id serial PRIMARY KEY,
+      seller_token text NOT NULL,
+      seller_wallet text NOT NULL,
+      seller_name text NOT NULL DEFAULT 'Wanderer',
+      key text NOT NULL,
+      price real NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS exchange_log (
+      id serial PRIMARY KEY,
+      token text NOT NULL,
+      day text NOT NULL,
+      gold_bought real NOT NULL DEFAULT 0,
+      gold_sold real NOT NULL DEFAULT 0,
+      last_sig text,
+      UNIQUE (token, day)
+    )
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS props (
@@ -233,6 +275,84 @@ export async function setPrestige(token: string, owned: string[]) {
   await db.update(players).set({ prestige: owned }).where(eq(players.token, token));
 }
 
+/** persist the Drift Wheel pity counter */
+export async function setWheelPity(token: string, pity: number) {
+  await db.update(players).set({ wheelPity: pity }).where(eq(players.token, token));
+}
+
+// ---- guilds --------------------------------------------------------------------
+
+export async function loadGuilds(): Promise<GuildRow[]> {
+  return db.select().from(guilds);
+}
+
+export async function insertGuild(
+  name: string, tag: string, founderToken: string,
+): Promise<GuildRow | null> {
+  try {
+    const rows = await db.insert(guilds).values({ name, tag, founderToken }).returning();
+    return rows[0] ?? null;
+  } catch {
+    return null; // unique violation: name or tag taken
+  }
+}
+
+export async function setGuildRegion(id: number, region: string, until: number) {
+  await db.update(guilds).set({ region, regionUntil: until }).where(eq(guilds.id, id));
+}
+
+export async function setPlayerGuild(token: string, guildId: number | null) {
+  await db.update(players).set({ guildId }).where(eq(players.token, token));
+}
+
+// ---- the relic market (P2P prestige cosmetics) ----------------------------------
+
+export async function loadRelics(): Promise<RelicRow[]> {
+  return db.select().from(relics);
+}
+
+export async function insertRelic(
+  sellerToken: string, sellerWallet: string, sellerName: string, key: string, price: number,
+): Promise<RelicRow> {
+  const rows = await db
+    .insert(relics)
+    .values({ sellerToken, sellerWallet, sellerName, key, price })
+    .returning();
+  return rows[0];
+}
+
+export async function deleteRelic(id: number) {
+  await db.delete(relics).where(eq(relics.id, id));
+}
+
+// ---- the Exchange: daily-cap accounting ------------------------------------------
+
+const utcDay = () => new Date().toISOString().slice(0, 10);
+
+/** today's bought/sold gold for a wallet's token */
+export async function exchangeToday(token: string): Promise<{ bought: number; sold: number }> {
+  const rows = await db
+    .select()
+    .from(exchangeLog)
+    .where(sql`${exchangeLog.token} = ${token} AND ${exchangeLog.day} = ${utcDay()}`);
+  const r = rows[0];
+  return { bought: r?.goldBought ?? 0, sold: r?.goldSold ?? 0 };
+}
+
+/** add to today's tallies (upsert); sig recorded for sell payouts */
+export async function exchangeRecord(
+  token: string, boughtDelta: number, soldDelta: number, sig?: string,
+) {
+  await db.execute(sql`
+    INSERT INTO exchange_log (token, day, gold_bought, gold_sold, last_sig)
+    VALUES (${token}, ${utcDay()}, ${boughtDelta}, ${soldDelta}, ${sig ?? null})
+    ON CONFLICT (token, day) DO UPDATE SET
+      gold_bought = exchange_log.gold_bought + ${boughtDelta},
+      gold_sold = exchange_log.gold_sold + ${soldDelta},
+      last_sig = COALESCE(${sig ?? null}, exchange_log.last_sig)
+  `);
+}
+
 // ---- land claims -----------------------------------------------------------------
 
 export async function loadClaims(): Promise<ClaimRow[]> {
@@ -379,4 +499,16 @@ export async function takeEscrow(token: string): Promise<number> {
     await db.update(players).set({ escrowGold: 0 }).where(eq(players.token, token));
   }
   return amount;
+}
+
+/** member headcount per guild (boot-time seed for the live counters) */
+export async function guildMemberCounts(): Promise<Map<number, number>> {
+  const rows = await db
+    .select({ guildId: players.guildId, n: sql<number>`count(*)` })
+    .from(players)
+    .where(sql`${players.guildId} IS NOT NULL`)
+    .groupBy(players.guildId);
+  const out = new Map<number, number>();
+  for (const r of rows) if (r.guildId != null) out.set(Number(r.guildId), Number(r.n));
+  return out;
 }

@@ -2613,7 +2613,8 @@ export function makeWall2Corner(mat: WallMatKind): Grid {
 export type FixtureSpriteKind =
   | 'counter' | 'vat' | 'shelf' | 'table' | 'barrel'
   | 'cage' | 'anvil' | 'rug' | 'wheelDisc'
-  | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart' | 'herbrack';
+  | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart' | 'herbrack'
+  | 'exchange';
 
 // generic iso cuboid: front (lit) + right side (shadow) + top
 function isoCuboid(g: Grid, x0: number, baseY: number, w: number, h: number, dep: number, ramp: readonly string[]) {
@@ -2840,6 +2841,7 @@ export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0):
     case 'goldVeinEmpty': return fxGoldVein('spent');
     case 'hearth':        return fxHearth(frame % 3);
     case 'oreCart':       return fxOreCart();
+    case 'exchange':      return drawExchangeCounter(frame % 2);
     case 'herbrack':      return drawHerbRack();
   }
 }
@@ -3320,6 +3322,373 @@ export const PRESTIGE_AURAS: Record<PrestigeAuraKey, { fn: (frame: number) => Gr
   bonewisp:        { fn: drawBonewisp,       frames: 8, fps: 6 },
 };
 
+// ─── wheelfaces.js — the two spin-wheel faces (HUD overlay art) ───────────────
+// 240×240, hub at (120,124), pointer baked at top. Segment order is EXACT
+// (the overlay lands the pointer on a server-named segment). The `noPointer`
+// option is a runtime-only deviation: the overlay keeps its own FIXED pointer
+// while the face rotates (byte-diffs against the exports use the full face).
+
+const WHEEL_N = 240, WCX = 120, WCY = 124;
+
+function wheelDisc(g: Grid, r0: number, r1: number, fn: (x: number, y: number, d: number, ang: number) => void) {
+  for (let y = WCY - r1 - 2; y <= WCY + r1 + 2; y++) {
+    for (let x = WCX - r1 - 2; x <= WCX + r1 + 2; x++) {
+      const dx = x - WCX, dy = y - WCY, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < r0 || d > r1) continue;
+      let ang = Math.atan2(dx, -dy) * 180 / Math.PI;  // 0 up, clockwise
+      if (ang < 0) ang += 360;
+      fn(x, y, d, ang);
+    }
+  }
+}
+function wheelRing(g: Grid, r: number, w: number, c: string) {
+  wheelDisc(g, r - w, r, (x, y) => P(g, x, y, c));
+}
+// outline only solid pixels within a sub-rect (keeps motes glow clean)
+function solidOutlineRegion(g: Grid, x0: number, y0: number, w: number, h: number) {
+  const add: [number, number][] = [];
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+    if (G(g, x, y)) continue;
+    if (G(g, x + 1, y) || G(g, x - 1, y) || G(g, x, y + 1) || G(g, x, y - 1)) add.push([x, y]);
+  }
+  add.forEach((p) => P(g, p[0], p[1], RAMP.void));
+}
+
+interface WheelSeg { label: string; sweep: number; paint: (t: number, d: number, ang: number, x: number, y: number) => string | undefined }
+
+function buildWheel(frame: number, segs: WheelSeg[], opt: { corrupt?: boolean; noPointer?: boolean } = {}): { g: Grid; bounds: [number, number, WheelSeg][] } {
+  const g = makeGrid(WHEEL_N, WHEEL_N);
+  const st = RAMP.stone, dr = RAMP.drift, gd = RAMP.gold;
+  const Rseg = 96, Rrim = 110;
+
+  let acc = 0; const bounds: [number, number, WheelSeg][] = [];
+  segs.forEach((s) => { bounds.push([acc, acc + s.sweep, s]); acc += s.sweep; });
+
+  // --- segments ---
+  wheelDisc(g, 0, Rseg, (x, y, d, ang) => {
+    const seg = bounds.find((b) => ang >= b[0] && ang < b[1]) || bounds[bounds.length - 1];
+    const localT = (ang - seg[0]) / seg[2].sweep;
+    const c = seg[2].paint(localT, d / Rseg, ang, x, y);
+    if (c) P(g, x, y, c);
+    for (const b of bounds) { const a0 = b[0]; const da = ((ang - a0 + 540) % 360) - 180; if (Math.abs(da) < 0.8 && d > 8) P(g, x, y, st[3]); }
+  });
+
+  // --- ornate stone rim ---
+  wheelDisc(g, Rseg, Rrim, (x, y, d, ang) => {
+    const lit = Math.cos((ang - 315) * Math.PI / 180) > 0;
+    let c = lit ? st[1] : st[3];
+    if (d > Rrim - 2) c = RAMP.void;
+    else if (d < Rseg + 2) c = st[3];
+    else if (lit && d < Rseg + 5) c = st[0];
+    if (Math.abs(((ang % 30) + 30) % 30 - 15) < 1.2 && d > Rseg + 3 && d < Rrim - 3) c = (frame ? gd[0] : gd[1]);
+    P(g, x, y, c);
+  });
+  const glintAng = frame ? 48 : 312;
+  wheelDisc(g, Rseg + 2, Rrim - 2, (x, y, d, ang) => { const da = ((ang - glintAng + 540) % 360) - 180; if (Math.abs(da) < 7) P(g, x, y, opt.corrupt ? dr[1] : gd[0]); });
+  if (opt.corrupt) {
+    const mr = mulberry(frame + 1);
+    for (let i = 0; i < 26; i++) { const a = mr() * 360 * Math.PI / 180; const rr = Rrim + mr() * 12; const x = Math.round(WCX + Math.sin(a) * rr), y = Math.round(WCY - Math.cos(a) * rr); P(g, x, y, mr() < 0.4 ? dr[0] : dr[2]); if (mr() < 0.3) P(g, x, y + 1, dr[3]); }
+  }
+
+  // --- hub ---
+  wheelDisc(g, 0, 12, (x, y, d) => { let c = dr[3]; if (d < 9) c = dr[2]; if (d < 5) c = dr[1]; if (d < 2) c = dr[0]; P(g, x, y, c); });
+  wheelRing(g, 12, 1, RAMP.void);
+  wheelRing(g, 13, 1, gd[2]);
+
+  // --- pointer cap at top (omittable: the overlay keeps a fixed pointer) ---
+  if (!opt.noPointer) {
+    const py = WCY - Rrim - 2;
+    for (let j = 0; j < 16; j++) { const w = Math.max(0, 7 - Math.floor(j / 1.4)); for (let x = -w; x <= w; x++) { let c = gd[1]; if (x < -w + 1) c = gd[0]; if (x > w - 1) c = gd[3]; P(g, WCX + x, py + j, c); } }
+    for (let x = -6; x <= 6; x++) P(g, WCX + x, py - 1, gd[2]);
+    fillRect(g, WCX - 3, py + 2, 3, 3, gd[0]);
+    solidOutlineRegion(g, WCX - 9, py - 2, 18, 20);
+  }
+
+  return { g, bounds };
+}
+
+function goldWheelSegs(): WheelSeg[] {
+  const st = RAMP.stone, gd = RAMP.gold, dr = RAMP.drift;
+  const coin = (rich: boolean) => (t: number, d: number, _ang: number, x: number, y: number) => {
+    let c = ((x + y) % 2 === 0) ? (rich ? gd[1] : gd[3]) : (rich ? gd[2] : RAMP.dirt[2]);
+    if (d > 0.4 && d < 0.72 && Math.abs(t - 0.5) < 0.16) c = (rich ? gd[0] : gd[1]);
+    if (d >= 0.72 && d < 0.78 && Math.abs(t - 0.5) < 0.2) c = gd[3];
+    return c;
+  };
+  return [
+    { label: 'house', sweep: 144, paint: (_t, _d, _ang, x, y) => ((x + y) % 2 === 0 ? RAMP.void : st[3]) },
+    { label: 'coin_poor', sweep: 43, paint: coin(false) },
+    { label: 'coin_rich', sweep: 43, paint: coin(true) },
+    { label: 'jackpot', sweep: 43, paint: (t, d, _ang, x, y) => { let c = ((x + y) % 2 === 0) ? gd[0] : gd[1]; if (d > 0.55 && Math.abs(t - 0.5) < 0.22) c = RAMP.bone[0]; return c; } },
+    { label: 'drift_shard', sweep: 43, paint: (t, d, _ang, x, y) => { let c = ((x + y) % 2 === 0) ? dr[2] : dr[3]; if (d > 0.4 && d < 0.74 && Math.abs(t - 0.5) < 0.12) c = (d < 0.57 ? dr[0] : dr[1]); return c; } },
+    { label: 'coin_mid', sweep: 44, paint: coin(false) },
+  ];
+}
+
+function darkWheelSegs(): WheelSeg[] {
+  const st = RAMP.stone, dr = RAMP.drift, gd = RAMP.gold;
+  const dim = (violet: boolean) => (t: number, d: number, _ang: number, x: number, y: number) => {
+    let c = ((x + y) % 2 === 0) ? (violet ? dr[3] : st[2]) : (violet ? RAMP.void : st[3]);
+    if (d > 0.5 && d < 0.7 && Math.abs(t - 0.5) < 0.1) c = violet ? dr[2] : st[1];
+    return c;
+  };
+  return [
+    { label: 'common_a', sweep: 51, paint: dim(false) },
+    { label: 'drift_a', sweep: 51, paint: dim(true) },
+    { label: 'common_b', sweep: 51, paint: dim(false) },
+    { label: 'drift_b', sweep: 51, paint: dim(true) },
+    { label: 'relic', sweep: 9, paint: (_t, d, _ang, x, y) => { let c = ((x + y) % 2 === 0) ? gd[0] : dr[1]; if (d < 0.5) c = RAMP.bone[0]; if (d > 0.78) c = gd[2]; return c; } },
+    { label: 'common_c', sweep: 45, paint: dim(false) },
+    { label: 'drift_c', sweep: 51, paint: dim(true) },
+    { label: 'common_d', sweep: 51, paint: dim(false) },
+  ];
+}
+
+export function drawGoldWheelFace(frame: number, noPointer = false) { return buildWheel(frame, goldWheelSegs(), { corrupt: false, noPointer }); }
+export function drawDarkWheelFace(frame: number, noPointer = false) { return buildWheel(frame, darkWheelSegs(), { corrupt: true, noPointer }); }
+
+/** segment angular spans by label (the overlay lands the pointer on these) */
+export function wheelSegmentAngles(kind: 'gold' | 'dark'): { label: string; start: number; sweep: number }[] {
+  const segs = kind === 'gold' ? goldWheelSegs() : darkWheelSegs();
+  let acc = 0;
+  return segs.map((s) => { const out = { label: s.label, start: acc, sweep: s.sweep }; acc += s.sweep; return out; });
+}
+
+// ─── guildbanner.js — the territory banner (engine sprite) ───────────────────
+// 48×96, bottom-center anchor (24,95); the tag is drawn by the engine over
+// the blank plate (GB_PLATE, in cell px). 3f sway + a fallen variant.
+
+export const GB_PLATE = { x: 14, y: 30, w: 22, h: 26 };
+
+export function drawGuildBanner(frame: number): Grid {
+  const g = makeGrid(48, 96);
+  const dt = RAMP.dirt, bn = RAMP.bone, dr = RAMP.drift, gd = RAMP.gold;
+  const poleX = 14, topY = 8, baseY = 96 - 2;
+
+  for (let x = poleX - 7; x <= poleX + 7; x++) if ((x + 1) % 2 === 0) P(g, x, baseY, RAMP.void);
+
+  for (let y = topY; y <= baseY - 1; y++) for (let x = poleX - 1; x <= poleX + 1; x++) {
+    let c = dt[1]; if (x === poleX - 1) c = dt[0]; if (x === poleX + 1) c = dt[3];
+    if (hash2(x, y, 3) < 0.08) c = dt[2];
+    P(g, x, y, c);
+  }
+  P(g, poleX, topY - 3, dr[0]); P(g, poleX, topY - 2, dr[1]); P(g, poleX - 1, topY - 1, dr[2]); P(g, poleX + 1, topY - 1, dr[2]); P(g, poleX, topY - 1, dr[1]);
+  for (let x = poleX - 2; x <= poleX + 20; x++) P(g, x, topY, dt[3]);
+  for (let x = poleX - 2; x <= poleX + 20; x++) P(g, x, topY + 1, dt[2]);
+  P(g, poleX + 20, topY - 1, dr[2]);
+
+  const clothX0 = poleX + 2, clothW = 22, clothTop = topY + 2, clothBot = 70;
+  const sway = [0, 1, 0][frame] || 0;
+  const phase = frame;
+  for (let y = clothTop; y <= clothBot; y++) {
+    const t = (y - clothTop) / (clothBot - clothTop);
+    const wave = Math.round(Math.sin(t * 3.2 + phase * 1.3) * (1.4 * t) + sway * t);
+    for (let x = clothX0; x <= clothX0 + clothW; x++) {
+      const u = (x - clothX0) / clothW;
+      const xoff = Math.round(wave * u);
+      let c = bn[1];
+      if (u < 0.12) c = bn[3];
+      else if (u > 0.86) c = bn[2];
+      const fold = Math.sin(u * 9 + phase);
+      if (fold > 0.7) c = bn[0]; else if (fold < -0.7) c = bn[2];
+      if (y <= clothTop + 1 || u > 0.93) c = dr[2];
+      P(g, x + xoff, y, c);
+    }
+    if (y > clothBot - 8) {
+      const cut = 8 - (clothBot - y);
+      for (let x = clothX0 + clothW / 2 - cut; x <= clothX0 + clothW / 2 + cut; x++) {
+        const u = (x - clothX0) / clothW; const xoff = Math.round(wave * u);
+        if (Math.abs(x - (clothX0 + clothW / 2)) < cut) g.d[y * g.w + (x + xoff)] = null;
+      }
+    }
+  }
+  const swayP = Math.round(sway * 0.4);
+  for (let y = GB_PLATE.y; y < GB_PLATE.y + GB_PLATE.h; y++) for (let x = GB_PLATE.x; x < GB_PLATE.x + GB_PLATE.w; x++) {
+    const edge = (y === GB_PLATE.y || y === GB_PLATE.y + GB_PLATE.h - 1 || x === GB_PLATE.x || x === GB_PLATE.x + GB_PLATE.w - 1);
+    P(g, x + swayP, y, edge ? dr[3] : bn[1]);
+  }
+  P(g, GB_PLATE.x + swayP, GB_PLATE.y, gd[2]); P(g, GB_PLATE.x + GB_PLATE.w - 1 + swayP, GB_PLATE.y, gd[2]);
+  P(g, GB_PLATE.x + swayP, GB_PLATE.y + GB_PLATE.h - 1, gd[2]); P(g, GB_PLATE.x + GB_PLATE.w - 1 + swayP, GB_PLATE.y + GB_PLATE.h - 1, gd[2]);
+
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function drawGuildBannerFallen(): Grid {
+  const g = makeGrid(48, 96);
+  const dt = RAMP.dirt, bn = RAMP.bone, dr = RAMP.drift;
+  const baseX = 18, baseY = 96 - 2;
+  for (let k = 0; k < 60; k++) {
+    const x = baseX + Math.round(k * 0.42), y = baseY - k;
+    if (y < 18) break;
+    for (let o = -1; o <= 1; o++) { let c = dt[1]; if (o === -1) c = dt[0]; if (o === 1) c = dt[3]; if (hash2(x + o, y, 4) < 0.1) c = dt[2]; P(g, x + o, y, c); }
+  }
+  const topX = baseX + Math.round(59 * 0.42), topY = baseY - 59;
+  for (let x = topX - 1; x <= topX + 12; x++) P(g, x, topY, dt[3]);
+  const cx0 = topX + 1, cw = 20, ct = topY + 1, cb = topY + 40;
+  for (let y = ct; y <= cb; y++) {
+    const t = (y - ct) / (cb - ct);
+    const lean = Math.round(t * 6);
+    for (let x = cx0; x <= cx0 + cw; x++) {
+      const u = (x - cx0) / cw;
+      const eat = hash2(x, y, 7);
+      const ragged = u > (0.6 + 0.35 * Math.sin(y * 0.7)) || (t > 0.7 && eat < 0.5);
+      if (ragged) { if (eat < 0.35 && u > 0.5) P(g, x + lean, y, eat < 0.15 ? dr[1] : dr[3]); continue; }
+      let c = bn[2];
+      if (u < 0.14) c = bn[3];
+      const fold = Math.sin(u * 8); if (fold > 0.6) c = bn[1]; else if (fold < -0.6) c = bn[3];
+      if (u > 0.5 && eat < 0.2) c = dr[3];
+      if (y <= ct + 1) c = dr[3];
+      P(g, x + lean, y, c);
+    }
+  }
+  for (let i = 0; i < 6; i++) { const x = cx0 + 4 + (i * 3) % cw, y = cb - 4 - (i % 4) * 5; P(g, x, y, i % 2 ? dr[1] : dr[2]); }
+  P(g, baseX - 4, baseY - 1, dr[1]); P(g, baseX - 5, baseY, dr[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ─── cache.js — the Drift Cache (HUD reveal art) ──────────────────────────────
+// 64×64, bottom-center anchor (32,58). sealed(1f) · opening(2f) · burst(2f).
+
+function chestBody(g: Grid, lidLift: number) {
+  const ir0 = '#1a1626', dr = RAMP.drift, gd = RAMP.gold;
+  const cx = 32, w = 17, bodyTop = 34, bodyBot = 58;
+  for (let y = bodyTop; y <= bodyBot; y++) for (let x = cx - w; x <= cx + w; x++) {
+    let c = '#2a2438'; if (x < cx - w + 2) c = '#3a3350'; if (x > cx + w - 2) c = ir0;
+    if (y > bodyBot - 3) c = ir0;
+    P(g, x, y, c);
+  }
+  for (let x = cx - w + 1; x <= cx + w - 1; x++) { if ((x - cx) % 5 === 0) for (let y = bodyTop + 1; y < bodyBot - 1; y++) P(g, x, y, RAMP.dirt[3]); }
+  for (let y = bodyTop; y <= bodyBot; y++) { P(g, cx - w, y, ir0); P(g, cx + w, y, ir0); if (y % 2 === 0) { P(g, cx - w + 1, y, dr[3]); P(g, cx + w - 1, y, dr[3]); } }
+  fillRect(g, cx - 3, bodyTop + 4, 6, 7, gd[2]); P(g, cx, bodyTop + 7, RAMP.void); fillRect(g, cx - 2, bodyTop + 4, 4, 1, gd[1]);
+  P(g, cx, bodyTop + 6, gd[0]);
+
+  const lidBot = bodyTop, lidH = 13;
+  const ly = lidBot - lidLift;
+  if (lidLift > 0) {
+    for (let yy = ly; yy < lidBot; yy++) for (let x = cx - w + 1; x <= cx + w - 1; x++) {
+      const t = (yy - ly) / Math.max(1, lidBot - ly);
+      let c = dr[3]; if (t > 0.3) c = dr[2]; if (t > 0.6) c = dr[1]; if (t > 0.85) c = dr[0];
+      if (hash2(x, yy, 9) < 0.25) c = dr[0];
+      P(g, x, yy, c);
+    }
+  }
+  for (let x = cx - w; x <= cx + w; x++) {
+    const u = (x - cx) / w;
+    const arch = Math.round((1 - u * u) * 6);
+    for (let y = ly - lidH - arch + 6; y <= ly; y++) {
+      let c = '#2a2438'; if (x < cx - w + 2) c = '#3a3350'; if (x > cx + w - 2) c = ir0;
+      if (y <= ly - lidH - arch + 7) c = '#3a3350';
+      P(g, x, y, c);
+    }
+  }
+  for (let x = cx - w; x <= cx + w; x++) { P(g, x, ly, ir0); P(g, x, ly - 1, dr[3]); if ((x - cx) % 6 === 0) { const u = (x - cx) / w; const arch = Math.round((1 - u * u) * 6); for (let y = ly - lidH - arch + 7; y < ly; y++) P(g, x, y, RAMP.dirt[3]); } }
+}
+
+export function drawCacheSealed(): Grid {
+  const g = makeGrid(64, 64);
+  chestBody(g, 0);
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawCacheOpening(frame: number): Grid {
+  const g = makeGrid(64, 64);
+  const lift = frame === 0 ? 4 : 9;
+  chestBody(g, lift);
+  const dr = RAMP.drift;
+  for (let i = -2; i <= 2; i++) { const x = 32 + i * 5; P(g, x, 34 - lift - 1, dr[0]); if (frame) P(g, x, 34 - lift - 3, dr[1]); }
+  outline(g, RAMP.void);
+  if (frame) for (let i = 0; i < 6; i++) { const x = 32 - 8 + (i * 3); const y = 30 - (i % 3) * 3; P(g, x, y, i % 2 ? dr[0] : dr[2]); }
+  return g;
+}
+export function drawCacheBurst(frame: number): Grid {
+  const g = makeGrid(64, 64);
+  chestBody(g, 11);
+  outline(g, RAMP.void);
+  const dr = RAMP.drift, gd = RAMP.gold;
+  const cx = 32, topGlow = 33 - 11;
+  const h = frame ? 30 : 22, halfMax = frame ? 9 : 6;
+  for (let k = 0; k < h; k++) {
+    const t = k / h;
+    const hw = Math.round((1 - t) * halfMax) + 1;
+    const yy = topGlow - k;
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      const edge = Math.abs(x - cx) >= hw - 1;
+      if (edge && (x + yy) % 2 !== 0) continue;
+      let c = dr[2]; if (Math.abs(x - cx) < hw - 2) c = dr[1]; if (Math.abs(x - cx) <= 1) c = (k < h * 0.6 ? dr[0] : RAMP.bone[0]);
+      if (t > 0.8 && Math.abs(x - cx) <= 1) c = gd[0];
+      P(g, x, yy, c);
+    }
+  }
+  const mr = mulberry(frame + 5);
+  const N = frame ? 22 : 14;
+  for (let i = 0; i < N; i++) {
+    const a = (-90 + (mr() - 0.5) * 150) * Math.PI / 180;
+    const r = 6 + mr() * (frame ? 26 : 16);
+    const x = Math.round(cx + Math.cos(a) * r), y = Math.round(topGlow + Math.sin(a) * r);
+    P(g, x, y, mr() < 0.3 ? gd[0] : mr() < 0.6 ? dr[0] : dr[1]);
+    if (mr() < 0.3) P(g, x, y + 1, dr[3]);
+  }
+  return g;
+}
+
+// ─── exchange.js — the Exchange counter (Vault interior fixture) ─────────────
+// 48×48, bottom-center anchor (24,47), 2-frame tip-totter.
+
+export function drawExchangeCounter(frame: number): Grid {
+  const g = makeGrid(48, 48);
+  const gd = RAMP.gold, dr = RAMP.drift, st = RAMP.stone, dt = RAMP.dirt;
+  const cx = 24, baseY = 45;
+
+  for (let y = baseY - 6; y <= baseY; y++) for (let x = cx - 16; x <= cx + 16; x++) {
+    let c = dt[1]; if (x < cx - 14) c = dt[0]; if (x > cx + 14) c = dt[3]; if (y > baseY - 2) c = dt[3];
+    if ((x + y) % 7 === 0) c = dt[2];
+    P(g, x, y, c);
+  }
+  fillRect(g, cx - 14, baseY - 9, 9, 3, RAMP.bone[1]); P(g, cx - 10, baseY - 9, dt[3]);
+  for (let i = 0; i < 3; i++) { P(g, cx - 13 + i, baseY - 8, st[3]); P(g, cx - 8 + i, baseY - 8, st[3]); }
+
+  for (let y = 12; y <= baseY - 6; y++) { P(g, cx, y, gd[1]); P(g, cx - 1, y, gd[2]); P(g, cx + 1, y, gd[3]); }
+  fillRect(g, cx - 2, baseY - 7, 5, 2, gd[3]);
+  P(g, cx, 10, gd[0]); P(g, cx, 11, gd[1]);
+
+  const tip = frame === 0 ? 1 : -1;
+  const beamY = 14;
+  const armLen = 13;
+  const pts: number[] = [];
+  for (let i = -armLen; i <= armLen; i++) {
+    const y = beamY + Math.round((i / armLen) * 2 * tip);
+    P(g, cx + i, y, i < 0 ? gd[1] : gd[2]);
+    P(g, cx + i, y - 1, gd[0]);
+    pts.push(y);
+  }
+  P(g, cx, beamY - 1, gd[0]); P(g, cx, beamY, gd[1]);
+
+  const lpx = cx - armLen, lpy = pts[0] + 1;
+  hangPan(g, lpx, lpy + (tip > 0 ? 4 : 2), 'gold');
+  const rpx = cx + armLen, rpy = pts[pts.length - 1] + 1;
+  hangPan(g, rpx, rpy + (tip < 0 ? 4 : 2), 'drifts');
+
+  outline(g, RAMP.void);
+
+  const gy = (tip < 0 ? rpy + 4 : rpy + 2) + 4;
+  for (let i = -1; i <= 1; i++) P(g, rpx + i, gy - 5, dr[0]);
+  if (frame) { P(g, rpx, gy - 7, dr[1]); P(g, rpx - 2, gy - 5, dr[2]); P(g, rpx + 2, gy - 5, dr[2]); }
+  return g;
+}
+
+function hangPan(g: Grid, px: number, py: number, kind: 'gold' | 'drifts') {
+  const gd = RAMP.gold;
+  for (let k = 0; k < 4; k++) { P(g, px - 2, py - 4 + k, gd[3]); P(g, px + 2, py - 4 + k, gd[3]); }
+  for (let x = px - 4; x <= px + 4; x++) { const d = Math.abs(x - px); const yy = py + Math.round(d * 0.4); P(g, x, yy, gd[2]); P(g, x, yy + 1, gd[3]); }
+  if (kind === 'gold') {
+    P(g, px - 1, py - 1, gd[0]); P(g, px + 1, py - 1, gd[1]); P(g, px, py - 2, gd[0]); P(g, px, py - 1, gd[1]);
+  } else {
+    P(g, px, py - 3, RAMP.drift[0]); P(g, px, py - 2, RAMP.drift[1]); P(g, px - 1, py - 1, RAMP.drift[2]); P(g, px + 1, py - 1, RAMP.drift[2]); P(g, px, py - 1, RAMP.drift[1]);
+  }
+}
+
 // ─── Canvas helpers ───────────────────────────────────────────────────────────
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -3659,6 +4028,21 @@ export class SpriteCache {
     ctx.drawImage(cv, sx - 32 * z, sy - 54 * z, 64 * z, 64 * z);
   }
 
+  /** a guild's territory banner (48×96, bottom-center anchor) — the engine
+   *  writes the tag over GB_PLATE. 3f sway; `fallen` = the tattered variant. */
+  drawGuildBanner(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number, fallen = false) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const f = fallen ? 0 : frame % 3;
+    const ck = fallen ? 'banner-fallen' : `banner-${f}`;
+    let cv = this.prestigeAuraMap.get(ck); // shares the lazy economy map
+    if (!cv) {
+      cv = gridToCanvas(fallen ? drawGuildBannerFallen() : drawGuildBanner(f));
+      this.prestigeAuraMap.set(ck, cv);
+    }
+    ctx.drawImage(cv, sx - 24 * z, sy - 95 * z, 48 * z, 96 * z);
+  }
+
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
     const cv = this.buildings.get(
@@ -3713,7 +4097,8 @@ export class SpriteCache {
     ctx.imageSmoothingEnabled = false;
     const frame =
       kind === 'hearth' ? Math.floor(performance.now() / 250) % 3 :
-      kind === 'goldVein' ? Math.floor(performance.now() / 500) % 2 : 0;
+      kind === 'goldVein' ? Math.floor(performance.now() / 500) % 2 :
+      kind === 'exchange' ? Math.floor(performance.now() / 500) % 2 : 0;
     const k = `${kind}-${accent}-${frame}`;
     let cv = this.fixtures.get(k);
     if (!cv) {

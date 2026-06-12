@@ -17,6 +17,7 @@ export interface NetPlayer {
   title: string;
   aura: string;
   pet: string;
+  guildTag: string;
 }
 
 export interface NetProp {
@@ -46,6 +47,22 @@ export interface NetMob {
   state: string; // wander | engaged | dead
   /** actually stepping on the server (drives the walk anim) */
   moving: boolean;
+}
+
+export interface NetGuild {
+  id: number;
+  name: string;
+  tag: string;
+  members: number;
+  region: string;
+  regionSecsLeft: number;
+}
+
+export interface NetRelic {
+  id: number;
+  key: string;
+  price: number;
+  sellerName: string;
 }
 
 export interface NetClaim {
@@ -177,6 +194,14 @@ export class NetClient {
     (this.room.state.listings as Map<string, NetListing>).forEach((l) => fn(l));
   }
 
+  forEachGuild(fn: (g: NetGuild) => void) {
+    (this.room.state.guilds as Map<string, NetGuild>)?.forEach((g) => fn(g));
+  }
+
+  forEachRelic(fn: (r: NetRelic) => void) {
+    (this.room.state.relics as Map<string, NetRelic>)?.forEach((r) => fn(r));
+  }
+
   forEachProp(fn: (p: NetProp) => void) {
     (this.room.state.props as Map<string, NetProp>).forEach((p) => fn(p));
   }
@@ -272,6 +297,70 @@ export class NetClient {
 
   sendPrestige(key: string, burnSig: string) {
     this.safeSend("prestige", { key, burnSig });
+  }
+
+  // ---- the Drift Wheel + Caches (gacha cosmetics) ----
+  sendDriftSpin(burnSig: string) {
+    this.safeSend("driftSpin", { burnSig });
+  }
+
+  sendCache(burnSig: string) {
+    this.safeSend("cache", { burnSig });
+  }
+
+  // ---- guilds ----
+  sendGuildFound(name: string, tag: string, burnSig: string) {
+    this.safeSend("guildFound", { name, tag, burnSig });
+  }
+
+  sendGuildJoin(id: number) {
+    this.safeSend("guildJoin", { id });
+  }
+
+  sendGuildLeave() {
+    this.safeSend("guildLeave", {});
+  }
+
+  sendGuildTerritory(region: string, burnSig: string) {
+    this.safeSend("guildTerritory", { region, burnSig });
+  }
+
+  sendGuildUpkeep(burnSig: string) {
+    this.safeSend("guildUpkeep", { burnSig });
+  }
+
+  // ---- the Exchange (gold ↔ DRIFTS) ----
+  sendExInfo() {
+    this.safeSend("exInfo", {});
+  }
+
+  sendExBuyQuote(gold: number) {
+    this.safeSend("exBuyQuote", { gold });
+  }
+
+  sendExBuy(gold: number, sig: string) {
+    this.safeSend("exBuy", { gold, sig });
+  }
+
+  sendExSell(gold: number) {
+    this.safeSend("exSell", { gold });
+  }
+
+  // ---- the relic market (P2P Drift-touched cosmetics) ----
+  sendRelicList(key: string, price: number) {
+    this.safeSend("relicList", { key, price });
+  }
+
+  sendRelicUnlist(id: number) {
+    this.safeSend("relicUnlist", { id });
+  }
+
+  sendRelicQuote(id: number) {
+    this.safeSend("relicQuote", { id });
+  }
+
+  sendRelicBuy(id: number, sig: string) {
+    this.safeSend("relicBuy", { id, sig });
   }
 
   sendPlaceProp(kind: string, x: number, y: number) {

@@ -1,0 +1,81 @@
+{
+  "image": "wheel/the_drift_wheel.svg",
+  "cell": {
+    "w": 240,
+    "h": 240
+  },
+  "hub": {
+    "x": 120,
+    "y": 124
+  },
+  "pointer": "top (0deg)",
+  "ramp": "stone + drift + gold (relic)",
+  "domRendered": true,
+  "frameByFrameXOffset": true,
+  "frames": {
+    "the_drift_wheel_00": {
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 240
+    },
+    "the_drift_wheel_01": {
+      "x": 240,
+      "y": 0,
+      "w": 240,
+      "h": 240
+    }
+  },
+  "animations": {
+    "idle_shimmer": {
+      "frames": [
+        "the_drift_wheel_00",
+        "the_drift_wheel_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "segments": [
+    {
+      "label": "common_a",
+      "startAngle": 0,
+      "sweep": 51
+    },
+    {
+      "label": "drift_a",
+      "startAngle": 51,
+      "sweep": 51
+    },
+    {
+      "label": "common_b",
+      "startAngle": 102,
+      "sweep": 51
+    },
+    {
+      "label": "drift_b",
+      "startAngle": 153,
+      "sweep": 51
+    },
+    {
+      "label": "relic",
+      "startAngle": 204,
+      "sweep": 9
+    },
+    {
+      "label": "common_c",
+      "startAngle": 213,
+      "sweep": 45
+    },
+    {
+      "label": "drift_c",
+      "startAngle": 258,
+      "sweep": 51
+    },
+    {
+      "label": "common_d",
+      "startAngle": 309,
+      "sweep": 51
+    }
+  ]
+}

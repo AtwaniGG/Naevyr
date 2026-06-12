@@ -1,8 +1,8 @@
-/* @ds-bundle: {"format":3,"namespace":"NaevyrDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/auras.js":"01e9d29f4e14","assets/_gen/beasts.js":"f237a8bd4969","assets/_gen/character.js":"c39fb75c7f1b","assets/_gen/fxlogo.js":"d75e9312c3e4","assets/_gen/interiors.js":"d91f90a460f0","assets/_gen/landing.js":"6ccb614cb388","assets/_gen/nodes.js":"423b0fe786d3","assets/_gen/pixlib.js":"68d1e384c31c","assets/_gen/social.js":"117e1c91be46","assets/_gen/threshold.js":"9a7b8510e4f6","assets/_gen/tiles.js":"6d77bc55b2e1","assets/_gen/town.js":"a7f2517c52fe","assets/_gen/walls.js":"034bfd562504","assets/_gen/wilds.js":"19f44fe8beb5","components/core/Badge.jsx":"85e7377ebd5a","components/core/Button.jsx":"1e68b0d79a01","components/core/Panel.jsx":"13ea472f5db3","components/game/ActivityLog.jsx":"cd0eda105b42","components/game/Hotbar.jsx":"b8493e549497","components/game/Slot.jsx":"a18ee855c625","components/game/XPBar.jsx":"8cd5c827574d","components/icons/Icon.jsx":"5150976deb7d","ui_kits/hud/Hud.jsx":"8fa35d5b4c86","ui_kits/hud/Scene.jsx":"572c11e0e9fa"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"DriftLandsDesignSystem_3de3e2","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"SeasonBadge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Panel","sourcePath":"components/core/Panel.jsx"},{"name":"ActivityLog","sourcePath":"components/game/ActivityLog.jsx"},{"name":"Hotbar","sourcePath":"components/game/Hotbar.jsx"},{"name":"Slot","sourcePath":"components/game/Slot.jsx"},{"name":"XPBar","sourcePath":"components/game/XPBar.jsx"},{"name":"ICON_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"TOOL_NAMES","sourcePath":"components/icons/Icon.jsx"},{"name":"Icon","sourcePath":"components/icons/Icon.jsx"}],"sourceHashes":{"assets/_gen/auras.js":"01e9d29f4e14","assets/_gen/beasts.js":"f237a8bd4969","assets/_gen/cache.js":"63ec2b62b1be","assets/_gen/character.js":"c39fb75c7f1b","assets/_gen/exchange.js":"f36aebfd6998","assets/_gen/fxlogo.js":"d75e9312c3e4","assets/_gen/guildbanner.js":"91ce1c38fd2d","assets/_gen/interiors.js":"d91f90a460f0","assets/_gen/landing.js":"6ccb614cb388","assets/_gen/nodes.js":"423b0fe786d3","assets/_gen/pixlib.js":"68d1e384c31c","assets/_gen/social.js":"117e1c91be46","assets/_gen/threshold.js":"9a7b8510e4f6","assets/_gen/tiles.js":"6d77bc55b2e1","assets/_gen/town.js":"a7f2517c52fe","assets/_gen/walls.js":"034bfd562504","assets/_gen/wheelfaces.js":"e6055cb0a0a6","assets/_gen/wilds.js":"19f44fe8beb5","components/core/Badge.jsx":"85e7377ebd5a","components/core/Button.jsx":"1e68b0d79a01","components/core/Panel.jsx":"13ea472f5db3","components/game/ActivityLog.jsx":"cd0eda105b42","components/game/Hotbar.jsx":"b8493e549497","components/game/Slot.jsx":"a18ee855c625","components/game/XPBar.jsx":"8cd5c827574d","components/icons/Icon.jsx":"5150976deb7d","ui_kits/hud/Hud.jsx":"8fa35d5b4c86","ui_kits/hud/Scene.jsx":"572c11e0e9fa"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
-const __ds_ns = (window.NaevyrDesignSystem_3de3e2 = window.NaevyrDesignSystem_3de3e2 || {});
+const __ds_ns = (window.DriftLandsDesignSystem_3de3e2 = window.DriftLandsDesignSystem_3de3e2 || {});
 
 const __ds_scope = {};
 
@@ -895,6 +895,201 @@ Object.assign(globalThis, {
 });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/beasts.js", error: String((e && e.message) || e) }); }
 
+// assets/_gen/cache.js
+try { (() => {
+// NAEVYR — DRIFT CACHE (HUD/engine reveal art). Eval after pixlib.js + tiles.js.
+// Small ornate chest, 64×64, bottom-center anchor (32,58). Dark iron + drift-
+// violet seams. 3 states: sealed(1f) · opening(2f, lid cracking w/ violet light)
+// · burst(2f, light column + motes). Rect-grid, RAMP only, 1px void outline on
+// the solid chest, outline-free glow for light/motes.
+
+const CACHE_N = 64,
+  CC_X = 32,
+  CC_BASE = 58;
+
+// the chest body (shared); lidLift raises the lid + opens a glowing gap
+function chestBody(g, lidLift) {
+  const st = RAMP.stone,
+    ir0 = '#1a1626',
+    dr = RAMP.drift,
+    gd = RAMP.gold;
+  const cx = CC_X,
+    w = 17,
+    bodyTop = 34,
+    bodyBot = CC_BASE;
+  // --- body box (dark iron) ---
+  for (let y = bodyTop; y <= bodyBot; y++) for (let x = cx - w; x <= cx + w; x++) {
+    let c = '#2a2438';
+    if (x < cx - w + 2) c = '#3a3350';
+    if (x > cx + w - 2) c = ir0;
+    if (y > bodyBot - 3) c = ir0;
+    P(g, x, y, c);
+  }
+  // wood staves between iron bands
+  for (let x = cx - w + 1; x <= cx + w - 1; x++) {
+    if ((x - cx) % 5 === 0) for (let y = bodyTop + 1; y < bodyBot - 1; y++) P(g, x, y, RAMP.dirt[3]);
+  }
+  // iron corner brackets + drift-violet seams
+  for (let y = bodyTop; y <= bodyBot; y++) {
+    P(g, cx - w, y, ir0);
+    P(g, cx + w, y, ir0);
+    if (y % 2 === 0) {
+      P(g, cx - w + 1, y, dr[3]);
+      P(g, cx + w - 1, y, dr[3]);
+    }
+  }
+  // gold lockplate
+  fillRect(g, cx - 3, bodyTop + 4, 6, 7, gd[2]);
+  P(g, cx, bodyTop + 7, RAMP.void);
+  fillRect(g, cx - 2, bodyTop + 4, 4, 1, gd[1]);
+  P(g, cx, bodyTop + 6, gd[0]);
+
+  // --- lid (raised by lidLift) ---
+  const lidBot = bodyTop,
+    lidH = 13;
+  const ly = lidBot - lidLift;
+  // glowing gap revealed under a lifted lid
+  if (lidLift > 0) {
+    for (let yy = ly; yy < lidBot; yy++) for (let x = cx - w + 1; x <= cx + w - 1; x++) {
+      const t = (yy - ly) / Math.max(1, lidBot - ly);
+      let c = dr[3];
+      if (t > 0.3) c = dr[2];
+      if (t > 0.6) c = dr[1];
+      if (t > 0.85) c = dr[0];
+      if (hash2(x, yy, 9) < 0.25) c = dr[0];
+      P(g, x, yy, c);
+    }
+  }
+  // arched lid
+  for (let x = cx - w; x <= cx + w; x++) {
+    const u = (x - cx) / w;
+    const arch = Math.round((1 - u * u) * 6);
+    for (let y = ly - lidH - arch + 6; y <= ly; y++) {
+      let c = '#2a2438';
+      if (x < cx - w + 2) c = '#3a3350';
+      if (x > cx + w - 2) c = ir0;
+      if (y <= ly - lidH - arch + 7) c = '#3a3350'; // top highlight
+      P(g, x, y, c);
+    }
+  }
+  // lid iron bands + violet seam along the rim
+  for (let x = cx - w; x <= cx + w; x++) {
+    const u = (x - cx) / w;
+    const arch = Math.round((1 - u * u) * 6);
+    P(g, x, ly, ir0);
+    P(g, x, ly - 1, dr[3]);
+    if ((x - cx) % 6 === 0) for (let y = ly - lidH - arch + 7; y < ly; y++) P(g, x, y, RAMP.dirt[3]);
+  }
+  return {
+    cx,
+    w,
+    bodyTop,
+    lidTopY: ly - lidH
+  };
+}
+function drawCacheSealed() {
+  const g = makeGrid(CACHE_N, CACHE_N);
+  chestBody(g, 0);
+  // faint dormant violet glow in the seams
+  outline(g, RAMP.void);
+  return g;
+}
+function drawCacheOpening(frame) {
+  // 0,1 — lid cracking
+  const g = makeGrid(CACHE_N, CACHE_N);
+  const lift = frame === 0 ? 4 : 9;
+  chestBody(g, lift);
+  // escaping light slivers at the crack
+  const dr = RAMP.drift;
+  for (let i = -2; i <= 2; i++) {
+    const x = CC_X + i * 5;
+    P(g, x, 34 - lift - 1, dr[0]);
+    if (frame) P(g, x, 34 - lift - 3, dr[1]);
+  }
+  outline(g, RAMP.void);
+  // motes (outline-free) added AFTER outline so they stay glow
+  if (frame) for (let i = 0; i < 6; i++) {
+    const x = CC_X - 8 + i * 3;
+    const y = 30 - i % 3 * 3;
+    P(g, x, y, i % 2 ? dr[0] : dr[2]);
+  }
+  return g;
+}
+function drawCacheBurst(frame) {
+  // 0,1 — light column + motes
+  const g = makeGrid(CACHE_N, CACHE_N);
+  chestBody(g, 11);
+  outline(g, RAMP.void);
+  const dr = RAMP.drift,
+    gd = RAMP.gold;
+  const cx = CC_X,
+    topGlow = 33 - 11;
+  // vertical light column rising from the open chest (dithered, widening)
+  const h = frame ? 30 : 22,
+    halfMax = frame ? 9 : 6;
+  for (let k = 0; k < h; k++) {
+    const t = k / h;
+    const hw = Math.round((1 - t) * halfMax) + 1;
+    const yy = topGlow - k;
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      const edge = Math.abs(x - cx) >= hw - 1;
+      if (edge && (x + yy) % 2 !== 0) continue; // dithered edge
+      let c = dr[2];
+      if (Math.abs(x - cx) < hw - 2) c = dr[1];
+      if (Math.abs(x - cx) <= 1) c = k < h * 0.6 ? dr[0] : RAMP.bone[0];
+      if (t > 0.8 && Math.abs(x - cx) <= 1) c = gd[0]; // gold sparks at the crest
+      P(g, x, yy, c);
+    }
+  }
+  // burst motes flying out + up
+  const mr = mulberry(frame + 5);
+  const N = frame ? 22 : 14;
+  for (let i = 0; i < N; i++) {
+    const a = (-90 + (mr() - 0.5) * 150) * Math.PI / 180; // mostly upward fan
+    const r = 6 + mr() * (frame ? 26 : 16);
+    const x = Math.round(cx + Math.cos(a) * r),
+      y = Math.round(topGlow + Math.sin(a) * r);
+    P(g, x, y, mr() < 0.3 ? gd[0] : mr() < 0.6 ? dr[0] : dr[1]);
+    if (mr() < 0.3) P(g, x, y + 1, dr[3]);
+  }
+  return g;
+}
+const CACHE = {
+  drift_cache: {
+    cell: [CACHE_N, CACHE_N],
+    anchor: [CC_X, CC_BASE],
+    ramp: 'iron(stone) + drift + gold',
+    states: {
+      sealed: {
+        fn: () => [drawCacheSealed()],
+        frames: 1,
+        fps: 0
+      },
+      opening: {
+        fn: () => [drawCacheOpening(0), drawCacheOpening(1)],
+        frames: 2,
+        fps: 6
+      },
+      burst: {
+        fn: () => [drawCacheBurst(0), drawCacheBurst(1)],
+        frames: 2,
+        fps: 8
+      }
+    }
+  }
+};
+Object.assign(globalThis, {
+  CACHE_N,
+  CC_X,
+  CC_BASE,
+  chestBody,
+  drawCacheSealed,
+  drawCacheOpening,
+  drawCacheBurst,
+  CACHE
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/cache.js", error: String((e && e.message) || e) }); }
+
 // assets/_gen/character.js
 try { (() => {
 // Naevyr character generator — hooded Drift-touched wanderer.
@@ -1040,6 +1235,141 @@ Object.assign(globalThis, {
   WANDER_ANIMS
 });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/character.js", error: String((e && e.message) || e) }); }
+
+// assets/_gen/exchange.js
+try { (() => {
+// NAEVYR — THE EXCHANGE counter (Vault interior fixture). Eval after pixlib.js +
+// tiles.js. Matches the interiors.js fixture conventions: bottom-center anchor,
+// top 6px of the cell kept clear for labels, 1px void outline, RAMP only.
+// Brass balance scales: a GOLD pan and a violet-glow DRIFTS pan, 48×48, 2-frame
+// tip-totter (~2fps).
+
+const EX_W = 48,
+  EX_H = 48,
+  EX_ANCHOR = [24, 47];
+function drawExchange(frame) {
+  const g = makeGrid(EX_W, EX_H);
+  const gd = RAMP.gold,
+    dr = RAMP.drift,
+    st = RAMP.stone,
+    dt = RAMP.dirt;
+  const cx = 24,
+    baseY = 45;
+
+  // --- ledger/counter base the scales sit on ---
+  for (let y = baseY - 6; y <= baseY; y++) for (let x = cx - 16; x <= cx + 16; x++) {
+    let c = dt[1];
+    if (x < cx - 14) c = dt[0];
+    if (x > cx + 14) c = dt[3];
+    if (y > baseY - 2) c = dt[3];
+    if ((x + y) % 7 === 0) c = dt[2];
+    P(g, x, y, c);
+  }
+  // an open ledger book on the left of the counter
+  fillRect(g, cx - 14, baseY - 9, 9, 3, RAMP.bone[1]);
+  P(g, cx - 10, baseY - 9, dt[3]);
+  for (let i = 0; i < 3; i++) {
+    P(g, cx - 13 + i, baseY - 8, st[3]);
+    P(g, cx - 8 + i, baseY - 8, st[3]);
+  }
+
+  // --- central brass column ---
+  for (let y = 12; y <= baseY - 6; y++) {
+    P(g, cx, y, gd[1]);
+    P(g, cx - 1, y, gd[2]);
+    P(g, cx + 1, y, gd[3]);
+  }
+  fillRect(g, cx - 2, baseY - 7, 5, 2, gd[3]); // foot
+  // finial
+  P(g, cx, 10, gd[0]);
+  P(g, cx, 11, gd[1]);
+
+  // --- balance beam (tips by frame) ---
+  const tip = frame === 0 ? 1 : -1; // +1: gold pan down; -1: drifts pan down
+  const beamY = 14;
+  const armLen = 13;
+  // beam as a shallow line pivoting at (cx, beamY)
+  const pts = [];
+  for (let i = -armLen; i <= armLen; i++) {
+    const y = beamY + Math.round(i / armLen * 2 * tip);
+    P(g, cx + i, y, i < 0 ? gd[1] : gd[2]);
+    P(g, cx + i, y - 1, gd[0]);
+    pts.push(y);
+  }
+  // pivot knob
+  P(g, cx, beamY - 1, gd[0]);
+  P(g, cx, beamY, gd[1]);
+
+  // --- left pan: GOLD coins ---
+  const lpx = cx - armLen,
+    lpy = pts[0] + 1;
+  hangPan(g, lpx, lpy + (tip > 0 ? 4 : 2), gd, 'gold');
+  // --- right pan: DRIFTS (violet glow) ---
+  const rpx = cx + armLen,
+    rpy = pts[pts.length - 1] + 1;
+  hangPan(g, rpx, rpy + (tip < 0 ? 4 : 2), dr, 'drifts');
+  outline(g, RAMP.void);
+
+  // glow on the drifts pan AFTER outline (outline-free)
+  const gy = (tip < 0 ? rpy + 4 : rpy + 2) + 4;
+  for (let i = -1; i <= 1; i++) P(g, rpx + i, gy - 5, dr[0]);
+  if (frame) {
+    P(g, rpx, gy - 7, dr[1]);
+    P(g, rpx - 2, gy - 5, dr[2]);
+    P(g, rpx + 2, gy - 5, dr[2]);
+  }
+  return g;
+}
+
+// a hanging pan: 2 chains to a shallow bowl + its contents
+function hangPan(g, px, py, ramp, kind) {
+  const gd = RAMP.gold;
+  // chains from beam end down to the bowl
+  for (let k = 0; k < 4; k++) {
+    P(g, px - 2, py - 4 + k, gd[3]);
+    P(g, px + 2, py - 4 + k, gd[3]);
+  }
+  // bowl
+  for (let x = px - 4; x <= px + 4; x++) {
+    const d = Math.abs(x - px);
+    const yy = py + Math.round(d * 0.4);
+    P(g, x, yy, gd[2]);
+    P(g, x, yy + 1, gd[3]);
+  }
+  // contents
+  if (kind === 'gold') {
+    P(g, px - 1, py - 1, gd[0]);
+    P(g, px + 1, py - 1, gd[1]);
+    P(g, px, py - 2, gd[0]);
+    P(g, px, py - 1, gd[1]); // coin stack
+  } else {
+    // a drift shard
+    P(g, px, py - 3, RAMP.drift[0]);
+    P(g, px, py - 2, RAMP.drift[1]);
+    P(g, px - 1, py - 1, RAMP.drift[2]);
+    P(g, px + 1, py - 1, RAMP.drift[2]);
+    P(g, px, py - 1, RAMP.drift[1]);
+  }
+}
+const EXCHANGE = {
+  exchange_counter: {
+    fn: drawExchange,
+    frames: 2,
+    fps: 2,
+    cell: [EX_W, EX_H],
+    anchor: EX_ANCHOR,
+    ramp: 'gold(brass) + drift + dirt'
+  }
+};
+Object.assign(globalThis, {
+  EX_W,
+  EX_H,
+  EX_ANCHOR,
+  drawExchange,
+  hangPan,
+  EXCHANGE
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/exchange.js", error: String((e && e.message) || e) }); }
 
 // assets/_gen/fxlogo.js
 try { (() => {
@@ -1214,6 +1544,196 @@ Object.assign(globalThis, {
   logoStacked
 });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/fxlogo.js", error: String((e && e.message) || e) }); }
+
+// assets/_gen/guildbanner.js
+try { (() => {
+// NAEVYR — GUILD BANNER (engine sprite). Eval after pixlib.js + tiles.js.
+// Standing war-banner, 48×96, bottom-center anchor (24,95). Dark wood pole,
+// bone-ramp cloth with a BLANK plate area (engine overlays the guild tag as
+// text), drift-violet trim. 3 frames cloth sway (~3fps) + a 1-frame fallen
+// tattered variant. Rect-grid, RAMP only, 1px void outline, dither not blur.
+
+const GB_W = 48,
+  GB_H = 96,
+  GB_ANCHOR = [24, 95];
+
+// plate area the engine writes text into (returned in JSON): x,y,w,h in cell px
+const GB_PLATE = {
+  x: 14,
+  y: 30,
+  w: 22,
+  h: 26
+};
+function drawGuildBanner(frame) {
+  const g = makeGrid(GB_W, GB_H);
+  const dt = RAMP.dirt,
+    bn = RAMP.bone,
+    dr = RAMP.drift,
+    gd = RAMP.gold;
+  const poleX = 14,
+    topY = 8,
+    baseY = GB_H - 2;
+
+  // --- ground shadow ---
+  for (let x = poleX - 7; x <= poleX + 7; x++) if ((x + 1) % 2 === 0) P(g, x, baseY, RAMP.void);
+
+  // --- wooden pole ---
+  for (let y = topY; y <= baseY - 1; y++) for (let x = poleX - 1; x <= poleX + 1; x++) {
+    let c = dt[1];
+    if (x === poleX - 1) c = dt[0];
+    if (x === poleX + 1) c = dt[3];
+    if (hash2(x, y, 3) < 0.08) c = dt[2];
+    P(g, x, y, c);
+  }
+  // pole finial: drift-violet crystal cap
+  P(g, poleX, topY - 3, dr[0]);
+  P(g, poleX, topY - 2, dr[1]);
+  P(g, poleX - 1, topY - 1, dr[2]);
+  P(g, poleX + 1, topY - 1, dr[2]);
+  P(g, poleX, topY - 1, dr[1]);
+  // crossbar
+  for (let x = poleX - 2; x <= poleX + 20; x++) P(g, x, topY, dt[3]);
+  for (let x = poleX - 2; x <= poleX + 20; x++) P(g, x, topY + 1, dt[2]);
+  P(g, poleX + 20, topY - 1, dr[2]); // crossbar tip glint
+
+  // --- cloth banner: hangs from crossbar, sways by frame ---
+  const clothX0 = poleX + 2,
+    clothW = 22,
+    clothTop = topY + 2,
+    clothBot = 70;
+  const sway = [0, 1, 0][frame] || 0;
+  const phase = frame;
+  for (let y = clothTop; y <= clothBot; y++) {
+    const t = (y - clothTop) / (clothBot - clothTop);
+    // horizontal wave offset grows toward the free (right) edge & toward the bottom
+    const wave = Math.round(Math.sin(t * 3.2 + phase * 1.3) * (1.4 * t) + sway * t);
+    for (let x = clothX0; x <= clothX0 + clothW; x++) {
+      const u = (x - clothX0) / clothW; // 0 at pole .. 1 free edge
+      const xoff = Math.round(wave * u);
+      let c = bn[1];
+      if (u < 0.12) c = bn[3]; // shadow fold at the pole
+      else if (u > 0.86) c = bn[2]; // far edge shade
+      // soft vertical fold shading
+      const fold = Math.sin(u * 9 + phase);
+      if (fold > 0.7) c = bn[0];else if (fold < -0.7) c = bn[2];
+      // drift-violet trim border (top, bottom, free edge)
+      if (y <= clothTop + 1 || u > 0.93) c = dr[2];
+      P(g, x + xoff, y, c);
+    }
+    // swallowtail notch at the bottom
+    if (y > clothBot - 8) {
+      const cut = 8 - (clothBot - y);
+      for (let x = clothX0 + clothW / 2 - cut; x <= clothX0 + clothW / 2 + cut; x++) {
+        const u = (x - clothX0) / clothW;
+        const xoff = Math.round(wave * u);
+        if (Math.abs(x - (clothX0 + clothW / 2)) < cut) g.d[y * g.w + (x + xoff)] = null;
+      }
+    }
+  }
+  // --- blank plate area (engine writes the tag here): subtle recessed bone panel + trim ---
+  const swayP = Math.round(sway * 0.4);
+  for (let y = GB_PLATE.y; y < GB_PLATE.y + GB_PLATE.h; y++) for (let x = GB_PLATE.x; x < GB_PLATE.x + GB_PLATE.w; x++) {
+    const edge = y === GB_PLATE.y || y === GB_PLATE.y + GB_PLATE.h - 1 || x === GB_PLATE.x || x === GB_PLATE.x + GB_PLATE.w - 1;
+    P(g, x + swayP, y, edge ? dr[3] : bn[1]);
+  }
+  // emblem hint corners (so the blank plate still reads as heraldry)
+  P(g, GB_PLATE.x + swayP, GB_PLATE.y, gd[2]);
+  P(g, GB_PLATE.x + GB_PLATE.w - 1 + swayP, GB_PLATE.y, gd[2]);
+  P(g, GB_PLATE.x + swayP, GB_PLATE.y + GB_PLATE.h - 1, gd[2]);
+  P(g, GB_PLATE.x + GB_PLATE.w - 1 + swayP, GB_PLATE.y + GB_PLATE.h - 1, gd[2]);
+  outline(g, RAMP.void);
+  return g;
+}
+function drawGuildBannerFallen() {
+  const g = makeGrid(GB_W, GB_H);
+  const dt = RAMP.dirt,
+    bn = RAMP.bone,
+    dr = RAMP.drift;
+  // leaning pole (diagonal), base bottom-center, top toward upper-right
+  const baseX = 18,
+    baseY = GB_H - 2;
+  for (let k = 0; k < 60; k++) {
+    const x = baseX + Math.round(k * 0.42),
+      y = baseY - k;
+    if (y < 18) break;
+    for (let o = -1; o <= 1; o++) {
+      let c = dt[1];
+      if (o === -1) c = dt[0];
+      if (o === 1) c = dt[3];
+      if (hash2(x + o, y, 4) < 0.1) c = dt[2];
+      P(g, x + o, y, c);
+    }
+  }
+  const topX = baseX + Math.round(59 * 0.42),
+    topY = baseY - 59;
+  // broken crossbar
+  for (let x = topX - 1; x <= topX + 12; x++) P(g, x, topY, dt[3]);
+  // tattered cloth draping down-right, corruption-eaten edges
+  const cx0 = topX + 1,
+    cw = 20,
+    ct = topY + 1,
+    cb = topY + 40;
+  for (let y = ct; y <= cb; y++) {
+    const t = (y - ct) / (cb - ct);
+    const lean = Math.round(t * 6);
+    for (let x = cx0; x <= cx0 + cw; x++) {
+      const u = (x - cx0) / cw;
+      // ragged right/bottom edge: corruption eats away
+      const eat = hash2(x, y, 7);
+      const ragged = u > 0.6 + 0.35 * Math.sin(y * 0.7) || t > 0.7 && eat < 0.5;
+      if (ragged) {
+        if (eat < 0.35 && u > 0.5) P(g, x + lean, y, eat < 0.15 ? dr[1] : dr[3]);
+        continue;
+      }
+      let c = bn[2];
+      if (u < 0.14) c = bn[3];
+      const fold = Math.sin(u * 8);
+      if (fold > 0.6) c = bn[1];else if (fold < -0.6) c = bn[3];
+      // corruption bleeding inward from the eaten edge
+      if (u > 0.5 && eat < 0.2) c = dr[3];
+      if (y <= ct + 1) c = dr[3];
+      P(g, x + lean, y, c);
+    }
+  }
+  // a few drift motes rising off the rot
+  for (let i = 0; i < 6; i++) {
+    const x = cx0 + 4 + i * 3 % cw,
+      y = cb - 4 - i % 4 * 5;
+    P(g, x, y, i % 2 ? dr[1] : dr[2]);
+  }
+  // fallen finial crystal on the ground
+  P(g, baseX - 4, baseY - 1, dr[1]);
+  P(g, baseX - 5, baseY, dr[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+const GUILD = {
+  guild_banner: {
+    fn: drawGuildBanner,
+    frames: 3,
+    fps: 3,
+    ramp: 'bone + dirt + drift',
+    anchor: GB_ANCHOR,
+    plate: GB_PLATE
+  },
+  guild_banner_fallen: {
+    fn: drawGuildBannerFallen,
+    frames: 1,
+    fps: 0,
+    ramp: 'bone + dirt + drift',
+    anchor: GB_ANCHOR
+  }
+};
+Object.assign(globalThis, {
+  GB_W,
+  GB_H,
+  GB_ANCHOR,
+  GB_PLATE,
+  drawGuildBanner,
+  drawGuildBannerFallen,
+  GUILD
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/guildbanner.js", error: String((e && e.message) || e) }); }
 
 // assets/_gen/interiors.js
 try { (() => {
@@ -5130,6 +5650,286 @@ Object.assign(globalThis, {
 });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/walls.js", error: String((e && e.message) || e) }); }
 
+// assets/_gen/wheelfaces.js
+try { (() => {
+// NAEVYR — WHEEL FACES (HUD overlay art, DOM-rendered). Eval after pixlib.js +
+// tiles.js. Two circular spin-wheel faces, 240×240, 2-frame idle rim shimmer
+// (~2fps). Segment order is EXACT (the HUD lands a pointer on a named segment);
+// each segment's start angle (degrees, 0 = up/12 o'clock, clockwise) is emitted
+// in the JSON. Rect-grid, RAMP only, dither not blur, 1px void on the rim/pointer.
+
+const WHEEL_N = 240,
+  WCX = 120,
+  WCY = 124; // hub sits a touch low (pointer cap up top)
+
+// pixel disc fill with a per-pixel callback (angle in deg from up, clockwise; radius)
+function wheelDisc(g, r0, r1, fn) {
+  for (let y = WCY - r1 - 2; y <= WCY + r1 + 2; y++) {
+    for (let x = WCX - r1 - 2; x <= WCX + r1 + 2; x++) {
+      const dx = x - WCX,
+        dy = y - WCY,
+        d = Math.sqrt(dx * dx + dy * dy);
+      if (d < r0 || d > r1) continue;
+      let ang = Math.atan2(dx, -dy) * 180 / Math.PI; // 0 up, clockwise
+      if (ang < 0) ang += 360;
+      fn(x, y, d, ang);
+    }
+  }
+}
+function wheelRing(g, r, w, c) {
+  wheelDisc(g, r - w, r, (x, y) => P(g, x, y, c));
+}
+
+// shared rim + pointer cap + hub; segDef = [{label, sweep, paint(localT, d, ang)}]
+function buildWheel(frame, segs, opt) {
+  opt = opt || {};
+  const g = makeGrid(WHEEL_N, WHEEL_N);
+  const st = RAMP.stone,
+    dr = RAMP.drift,
+    gd = RAMP.gold;
+  const Rseg = 96,
+    Rrim = 110;
+
+  // total sweep -> start angles
+  let acc = 0;
+  const bounds = [];
+  segs.forEach(s => {
+    bounds.push([acc, acc + s.sweep, s]);
+    acc += s.sweep;
+  });
+
+  // --- segments ---
+  wheelDisc(g, 0, Rseg, (x, y, d, ang) => {
+    const seg = bounds.find(b => ang >= b[0] && ang < b[1]) || bounds[bounds.length - 1];
+    const localT = (ang - seg[0]) / seg[2].sweep; // 0..1 across the wedge
+    const c = seg[2].paint(localT, d / Rseg, ang, x, y);
+    if (c) P(g, x, y, c);
+    // wedge divider lines (dark spokes)
+    for (const b of bounds) {
+      const a0 = b[0];
+      const da = (ang - a0 + 540) % 360 - 180;
+      if (Math.abs(da) < 0.8 && d > 8) P(g, x, y, st[3]);
+    }
+  });
+
+  // --- ornate stone rim ---
+  wheelDisc(g, Rseg, Rrim, (x, y, d, ang) => {
+    const lit = Math.cos((ang - 315) * Math.PI / 180) > 0; // top-left lit
+    let c = lit ? st[1] : st[3];
+    if (d > Rrim - 2) c = RAMP.void; // 1px void outer
+    else if (d < Rseg + 2) c = st[3]; // inner lip
+    else if (lit && d < Rseg + 5) c = st[0];
+    // studs every 30deg
+    if (Math.abs((ang % 30 + 30) % 30 - 15) < 1.2 && d > Rseg + 3 && d < Rrim - 3) c = frame ? gd[0] : gd[1];
+    P(g, x, y, c);
+  });
+  // rim shimmer glint (frame-dependent position)
+  const glintAng = frame ? 48 : 312;
+  wheelDisc(g, Rseg + 2, Rrim - 2, (x, y, d, ang) => {
+    const da = (ang - glintAng + 540) % 360 - 180;
+    if (Math.abs(da) < 7) P(g, x, y, opt.corrupt ? dr[1] : gd[0]);
+  });
+  if (opt.corrupt) {
+    // drift motes bleeding off the corrupted rim
+    const mr = mulberry(frame + 1);
+    for (let i = 0; i < 26; i++) {
+      const a = mr() * 360 * Math.PI / 180;
+      const rr = Rrim + mr() * 12;
+      const x = Math.round(WCX + Math.sin(a) * rr),
+        y = Math.round(WCY - Math.cos(a) * rr);
+      P(g, x, y, mr() < 0.4 ? dr[0] : dr[2]);
+      if (mr() < 0.3) P(g, x, y + 1, dr[3]);
+    }
+  }
+
+  // --- hub ---
+  wheelDisc(g, 0, 12, (x, y, d) => {
+    let c = dr[3];
+    if (d < 9) c = dr[2];
+    if (d < 5) c = dr[1];
+    if (d < 2) c = dr[0];
+    P(g, x, y, c);
+  });
+  wheelRing(g, 12, 1, RAMP.void);
+  wheelRing(g, 13, 1, gd[2]);
+
+  // --- pointer cap at top (gold, void-outlined), overhangs the rim ---
+  const py = WCY - Rrim - 2;
+  for (let j = 0; j < 16; j++) {
+    const w = Math.max(0, 7 - Math.floor(j / 1.4));
+    for (let x = -w; x <= w; x++) {
+      let c = gd[1];
+      if (x < -w + 1) c = gd[0];
+      if (x > w - 1) c = gd[3];
+      P(g, WCX + x, py + j, c);
+    }
+  }
+  for (let x = -6; x <= 6; x++) P(g, WCX + x, py - 1, gd[2]);
+  fillRect(g, WCX - 3, py + 2, 3, 3, gd[0]); // jewel highlight
+  // outline the pointer
+  solidOutlineRegion(g, WCX - 9, py - 2, 18, 20);
+  return {
+    g,
+    bounds
+  };
+}
+// outline only solid (non-empty) pixels within a sub-rect (keeps motes glow clean)
+function solidOutlineRegion(g, x0, y0, w, h) {
+  const add = [];
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+    if (G(g, x, y)) continue;
+    if (G(g, x + 1, y) || G(g, x - 1, y) || G(g, x, y + 1) || G(g, x, y - 1)) add.push([x, y]);
+  }
+  add.forEach(p => P(g, p[0], p[1], RAMP.void));
+}
+
+/* ---- 1 · WHEEL OF THE DRIFT (gold wheel, 6 segments) ----
+   order: house(void 40%/~144deg), coin-poor, coin-rich, jackpot(full gold),
+   drift-shard(violet), coin-mid. */
+function goldWheelSegs() {
+  const st = RAMP.stone,
+    gd = RAMP.gold,
+    dr = RAMP.drift;
+  const coin = rich => (t, d, ang, x, y) => {
+    const base = rich ? gd[1] : gd[3];
+    let c = (x + y) % 2 === 0 ? base : rich ? gd[2] : RAMP.dirt[2];
+    // a struck coin emblem mid-wedge
+    if (d > 0.4 && d < 0.72 && Math.abs(t - 0.5) < 0.16) c = rich ? gd[0] : gd[1];
+    if (d >= 0.72 && d < 0.78 && Math.abs(t - 0.5) < 0.2) c = gd[3];
+    return c;
+  };
+  return [{
+    label: 'house',
+    sweep: 144,
+    paint: (t, d, ang, x, y) => (x + y) % 2 === 0 ? RAMP.void : st[3]
+  },
+  // dull void, the 40%
+  {
+    label: 'coin_poor',
+    sweep: 43,
+    paint: coin(false)
+  }, {
+    label: 'coin_rich',
+    sweep: 43,
+    paint: coin(true)
+  }, {
+    label: 'jackpot',
+    sweep: 43,
+    paint: (t, d, ang, x, y) => {
+      let c = (x + y) % 2 === 0 ? gd[0] : gd[1];
+      if (d > 0.55 && Math.abs(t - 0.5) < 0.22) c = RAMP.bone[0];
+      return c;
+    }
+  }, {
+    label: 'drift_shard',
+    sweep: 43,
+    paint: (t, d, ang, x, y) => {
+      let c = (x + y) % 2 === 0 ? dr[2] : dr[3];
+      if (d > 0.4 && d < 0.74 && Math.abs(t - 0.5) < 0.12) c = d < 0.57 ? dr[0] : dr[1];
+      return c;
+    }
+  }, {
+    label: 'coin_mid',
+    sweep: 44,
+    paint: coin(false)
+  }];
+}
+
+/* ---- 2 · THE DRIFT WHEEL (dark gacha, 8 segments) ----
+   mostly deep stone/drift; one searing gold-violet "relic" (the 1%, tiny sweep). */
+function darkWheelSegs() {
+  const st = RAMP.stone,
+    dr = RAMP.drift,
+    gd = RAMP.gold;
+  const dim = violet => (t, d, ang, x, y) => {
+    const base = violet ? dr[4] : RAMP.rock ? RAMP.rock : st[3];
+    let c = (x + y) % 2 === 0 ? violet ? dr[3] : st[2] : violet ? RAMP.void : st[3];
+    if (d > 0.5 && d < 0.7 && Math.abs(t - 0.5) < 0.1) c = violet ? dr[2] : st[1]; // faint rune
+    return c;
+  };
+  const big = 51,
+    relic = 9; // 7*51 + 9 = 366 -> normalize by trimming one to 45
+  return [{
+    label: 'common_a',
+    sweep: 51,
+    paint: dim(false)
+  }, {
+    label: 'drift_a',
+    sweep: 51,
+    paint: dim(true)
+  }, {
+    label: 'common_b',
+    sweep: 51,
+    paint: dim(false)
+  }, {
+    label: 'drift_b',
+    sweep: 51,
+    paint: dim(true)
+  }, {
+    label: 'relic',
+    sweep: relic,
+    paint: (t, d, ang, x, y) => {
+      let c = (x + y) % 2 === 0 ? gd[0] : dr[1];
+      if (d < 0.5) c = RAMP.bone[0];
+      if (d > 0.78) c = gd[2];
+      return c;
+    }
+  }, {
+    label: 'common_c',
+    sweep: 45,
+    paint: dim(false)
+  }, {
+    label: 'drift_c',
+    sweep: 51,
+    paint: dim(true)
+  }, {
+    label: 'common_d',
+    sweep: 51,
+    paint: dim(false)
+  }];
+}
+function drawGoldWheel(frame) {
+  return buildWheel(frame, goldWheelSegs(), {
+    corrupt: false
+  });
+}
+function drawDarkWheel(frame) {
+  return buildWheel(frame, darkWheelSegs(), {
+    corrupt: true
+  });
+}
+const WHEELS = {
+  wheel_of_the_drift: {
+    fn: drawGoldWheel,
+    frames: 2,
+    fps: 2,
+    ramp: 'gold + stone + drift',
+    segsFn: goldWheelSegs
+  },
+  the_drift_wheel: {
+    fn: drawDarkWheel,
+    frames: 2,
+    fps: 2,
+    ramp: 'stone + drift + gold (relic)',
+    segsFn: darkWheelSegs
+  }
+};
+Object.assign(globalThis, {
+  WHEEL_N,
+  WCX,
+  WCY,
+  wheelDisc,
+  wheelRing,
+  buildWheel,
+  solidOutlineRegion,
+  goldWheelSegs,
+  darkWheelSegs,
+  drawGoldWheel,
+  drawDarkWheel,
+  WHEELS
+});
+})(); } catch (e) { __ds_ns.__errors.push({ path: "assets/_gen/wheelfaces.js", error: String((e && e.message) || e) }); }
+
 // assets/_gen/wilds.js
 try { (() => {
 // Naevyr THE WILDS PACK — eval after pixlib.js + tiles.js (+ town.js for
@@ -6515,7 +7315,7 @@ try { (() => {
    sitting over the canvas world. Light interactivity: pick a tool,
    gather → XP + loot + log. */
 
-const NS = window.NaevyrDesignSystem_3de3e2 || window[Object.keys(window).find(k => k.startsWith('NaevyrDesignSystem'))];
+const NS = window.DriftLandsDesignSystem_3de3e2 || window[Object.keys(window).find(k => k.startsWith('DriftLandsDesignSystem'))];
 const {
   Panel,
   Button,

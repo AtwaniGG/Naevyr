@@ -26,9 +26,18 @@ import {
   setInv as persistInv,
   PlayerRow,
 } from "../db";
-import { getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens, burnSplit } from "../solana";
+import {
+  getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens, burnSplit,
+  buildExchangeBuyTx, payFromEscrow, buildRelicTx, verifyTxLegs,
+  escrowAta, escrowAddress, escrowKeypair, escrowBalance, walletAta,
+} from "../solana";
 import { verifyGateProof } from "../gate";
-import { tryInsertBurn, deleteBurn, setFounder, setPrestige } from "../db";
+import {
+  tryInsertBurn, deleteBurn, setFounder, setPrestige, setWheelPity,
+  loadGuilds, insertGuild, setGuildRegion, setPlayerGuild, guildMemberCounts,
+  loadRelics, insertRelic, deleteRelic,
+  exchangeToday, exchangeRecord, GuildRow,
+} from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
@@ -37,7 +46,10 @@ import {
   CLAIM_COST, SPIN_COST, PROP_CATALOG, PropKey, ItemKey, RECIPES,
   ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks, REINFORCE_INTEGRITY,
   PRESTIGE_CATALOG,
+  DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
+  GUILD, EXCHANGE, RELIC_MARKET,
 } from "@/game/types";
+import { regionAt } from "@/game/world/tilemap";
 import {
   DriftRoomState,
   PlayerState,
@@ -46,6 +58,8 @@ import {
   ListingState,
   PropState,
   MobState,
+  GuildState,
+  RelicState,
   tileToCode,
 } from "./schema";
 
@@ -263,15 +277,10 @@ class ServerMob {
   }
 }
 
-// the Wheel (server-rolled; the spin price is debited from the ledger)
-const WHEEL: { p: number; gold: number; shards: number; label: string }[] = [
-  { p: 0.40, gold: 0,   shards: 0, label: "The Drift takes your coin." },
-  { p: 0.25, gold: 25,  shards: 0, label: "A modest return: 25g." },
-  { p: 0.15, gold: 75,  shards: 0, label: "The wheel favors you: 75g!" },
-  { p: 0.10, gold: 150, shards: 0, label: "A fine spin: 150g!" },
-  { p: 0.08, gold: 0,   shards: 2, label: "Two Drift Shards tumble out!" },
-  { p: 0.02, gold: 500, shards: 0, label: "JACKPOT: 500 GOLD!" },
-];
+// the Wheel (server-rolled; the spin price is debited from the ledger).
+// The table lives in types.ts now — the HUD's spin animation and the docs
+// render the same segments the house actually rolls.
+const WHEEL = GOLD_WHEEL;
 
 interface Duel {
   a: string; // sessionIds
@@ -332,6 +341,12 @@ interface PlayerSim {
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative;
    *  the identity sync only accepts prestige keys present here) */
   prestige: Set<string>;
+  /** Drift Wheel spins since the last rare (pity forces one at the cap) */
+  wheelPity: number;
+  /** guild membership (null = guildless) */
+  guildId: number | null;
+  /** an Exchange sell is in flight — refuse a second until it settles */
+  exBusy?: boolean;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -351,6 +366,12 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** prop id → owner token */
   private propOwner = new Map<number, string>();
   private duels: Duel[] = [];
+  /** guild id → row mirror (region/until/founder live server-side only) */
+  private guildRows = new Map<number, GuildRow>();
+  /** guild id → member headcount */
+  private guildCounts = new Map<number, number>();
+  /** relic id → seller token + wallet (settlement targets) */
+  private relicOwner = new Map<number, { token: string; wallet: string; key: string; price: number }>();
   // caravan run state (route + contributions live server-side only)
   private caravanPath: Cell[] = [];
   private caravanTotal = 0;
@@ -399,6 +420,33 @@ export class DriftRoom extends Room<DriftRoomState> {
       ps.kind = row.kind;
       this.state.props.set(String(row.id), ps);
       this.propOwner.set(row.id, row.token);
+    }
+
+    // persisted guilds + their territory banners
+    this.guildCounts = await guildMemberCounts();
+    for (const row of await loadGuilds()) {
+      this.guildRows.set(row.id, row);
+      this.syncGuildState(row.id);
+    }
+    // banner clock: count down held regions; a lapsed banner falls
+    this.clock.setInterval(() => {
+      const now = Date.now();
+      for (const row of this.guildRows.values()) {
+        if (!row.region) continue;
+        if (row.regionUntil <= now) {
+          const fallen = row.region;
+          row.region = "";
+          row.regionUntil = 0;
+          void setGuildRegion(row.id, "", 0).catch(() => {});
+          this.broadcast("guildBanner", { tag: row.tag, region: fallen, fallen: true });
+        }
+        this.syncGuildState(row.id);
+      }
+    }, 1000);
+
+    // persisted relic listings (P2P Drift-touched market)
+    for (const row of await loadRelics()) {
+      this.addRelic(row.id, row.sellerToken, row.sellerWallet, row.sellerName, row.key, row.price);
     }
 
     // first caravan rolls a little after boot
@@ -555,14 +603,16 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
       let roll = Math.random();
       let prize = WHEEL[0];
-      for (const seg of WHEEL) {
-        if (roll < seg.p) { prize = seg; break; }
-        roll -= seg.p;
+      let segIndex = 0;
+      for (let i = 0; i < WHEEL.length; i++) {
+        if (roll < WHEEL[i].p) { prize = WHEEL[i]; segIndex = i; break; }
+        roll -= WHEEL[i].p;
       }
       if (prize.gold > 0) this.credit(sim, prize.gold);
       if (prize.shards > 0) this.creditItem(sim, "driftshard", prize.shards);
       client.send("spinResult", {
         ok: true, gold: prize.gold, shards: prize.shards, label: prize.label,
+        seg: segIndex, // which segment the HUD's wheel animation lands on
       });
     });
 
@@ -877,6 +927,341 @@ export class DriftRoom extends Room<DriftRoomState> {
         ok: true, id: weakest.id, x: weakest.x, y: weakest.y, integrity: weakest.integrity,
       });
       this.broadcast("claimReinforced", { x: weakest.x, y: weakest.y });
+    });
+
+    // ---- the Drift Wheel: gacha cosmetics, DRIFTS burns only -------------------
+    this.onMessage("driftSpin", async (client, msg: { burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "driftSpin", 4, 10_000)) return;
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "driftSpin");
+      if (err) return client.send("driftSpinResult", { ok: false, reason: err });
+      const prize = this.rollDriftWheel(sim);
+      void setWheelPity(sim.token, sim.wheelPity).catch(() => {});
+      client.send("driftSpinResult", { ok: true, prizes: [prize], pity: sim.wheelPity });
+    });
+
+    // a Drift Cache = 3 spins bundled (20% off), one shared pity counter
+    this.onMessage("cache", async (client, msg: { burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "cache", 3, 10_000)) return;
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "cache");
+      if (err) return client.send("driftSpinResult", { ok: false, reason: err });
+      const prizes = [this.rollDriftWheel(sim), this.rollDriftWheel(sim), this.rollDriftWheel(sim)];
+      void setWheelPity(sim.token, sim.wheelPity).catch(() => {});
+      client.send("driftSpinResult", { ok: true, prizes, pity: sim.wheelPity, cache: true });
+    });
+
+    // ---- guilds: found / join / leave / territory / upkeep ---------------------
+    this.onMessage("guildFound", async (client, msg: { name?: string; tag?: string; burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "guildFound", 2, 30_000)) return;
+      const fail = (reason: string) => client.send("guildResult", { ok: false, reason });
+      if (sim.guildId) return fail("You already march under a banner");
+      const name = String(msg?.name ?? "").trim().replace(/[^\w\s'-]/g, "").slice(0, GUILD.nameMax);
+      const tag = String(msg?.tag ?? "").trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, GUILD.tagMax);
+      if (name.length < 3) return fail("A guild needs a name (3+ letters)");
+      if (tag.length < 2) return fail("A guild needs a tag (2-4 letters)");
+      if (sim.tokenBalance < GUILD.foundHold) {
+        return fail(`Founding takes a wallet holding ${GUILD.foundHold.toLocaleString()} DRIFTS`);
+      }
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "guildFound");
+      if (err) return fail(err);
+      const row = await insertGuild(name, tag, sim.token);
+      if (!row) return fail("That name or tag is already carried");
+      this.guildRows.set(row.id, row);
+      this.guildCounts.set(row.id, 1);
+      sim.guildId = row.id;
+      void setPlayerGuild(sim.token, row.id).catch(() => {});
+      const ps = this.state.players.get(client.sessionId);
+      if (ps) ps.guildTag = tag;
+      this.syncGuildState(row.id);
+      client.send("guildResult", { ok: true, id: row.id, name, tag });
+      this.broadcast("chat", { name: "the realm", text: `${name} [${tag}] raises its banner.` }, { except: client });
+    });
+
+    this.onMessage("guildJoin", (client, msg: { id?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "guildJoin", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("guildResult", { ok: false, reason });
+      if (sim.guildId) return fail("You already march under a banner");
+      const row = this.guildRows.get(Math.round(Number(msg?.id ?? 0)));
+      if (!row) return fail("No such guild");
+      const count = this.guildCounts.get(row.id) ?? 0;
+      if (count >= GUILD.maxMembers) return fail("That guild's roster is full");
+      sim.guildId = row.id;
+      this.guildCounts.set(row.id, count + 1);
+      void setPlayerGuild(sim.token, row.id).catch(() => {});
+      const ps = this.state.players.get(client.sessionId);
+      if (ps) ps.guildTag = row.tag;
+      this.syncGuildState(row.id);
+      client.send("guildResult", { ok: true, id: row.id, name: row.name, tag: row.tag });
+    });
+
+    this.onMessage("guildLeave", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "guildLeave", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("guildResult", { ok: false, reason });
+      if (!sim.guildId) return fail("You march under no banner");
+      const row = this.guildRows.get(sim.guildId);
+      if (row?.founderToken === sim.token) return fail("The founder cannot abandon the banner");
+      this.guildCounts.set(sim.guildId, Math.max(0, (this.guildCounts.get(sim.guildId) ?? 1) - 1));
+      this.syncGuildState(sim.guildId);
+      sim.guildId = null;
+      void setPlayerGuild(sim.token, null).catch(() => {});
+      const ps = this.state.players.get(client.sessionId);
+      if (ps) ps.guildTag = "";
+      client.send("guildResult", { ok: true, left: true });
+    });
+
+    this.onMessage("guildTerritory", async (client, msg: { region?: string; burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "guildTerritory", 3, 10_000)) return;
+      const fail = (reason: string) => client.send("guildResult", { ok: false, reason });
+      const row = sim.guildId ? this.guildRows.get(sim.guildId) : null;
+      if (!row) return fail("You march under no banner");
+      if (row.founderToken !== sim.token) return fail("Only the founder plants the banner");
+      const region = String(msg?.region ?? "");
+      if (!(GUILD.regions as readonly string[]).includes(region)) return fail("That ground takes no banner");
+      const holder = this.regionHolder(region);
+      if (holder && holder.id !== row.id) return fail(`${holder.name} already holds ${region}`);
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "guildTerritory");
+      if (err) return fail(err);
+      row.region = region;
+      row.regionUntil = Date.now() + GUILD.territoryMs;
+      void setGuildRegion(row.id, region, row.regionUntil).catch(() => {});
+      this.syncGuildState(row.id);
+      client.send("guildResult", { ok: true, region, until: row.regionUntil });
+      this.broadcast("guildBanner", { tag: row.tag, region });
+    });
+
+    this.onMessage("guildUpkeep", async (client, msg: { burnSig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "guildUpkeep", 3, 10_000)) return;
+      const fail = (reason: string) => client.send("guildResult", { ok: false, reason });
+      const row = sim.guildId ? this.guildRows.get(sim.guildId) : null;
+      if (!row) return fail("You march under no banner");
+      if (!row.region || row.regionUntil <= Date.now()) {
+        return fail("The banner has fallen; it must be staked anew");
+      }
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "guildUpkeep");
+      if (err) return fail(err);
+      row.regionUntil = Math.min(row.regionUntil + GUILD.territoryMs, Date.now() + GUILD.territoryMaxMs);
+      void setGuildRegion(row.id, row.region, row.regionUntil).catch(() => {});
+      this.syncGuildState(row.id);
+      client.send("guildResult", { ok: true, region: row.region, until: row.regionUntil });
+    });
+
+    // ---- the Exchange: gold ↔ DRIFTS at the Vault -------------------------------
+    this.onMessage("exInfo", async (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "exInfo", 4, 10_000)) return;
+      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+      const tier = holderPerks(sim.tokenBalance).key;
+      client.send("exInfo", {
+        buyRate: EXCHANGE.buyRate,
+        sellRate: EXCHANGE.sellRate,
+        minTrade: EXCHANGE.minTrade,
+        pool: await escrowBalance(),
+        buyOpen: !!escrowAddress(),
+        sellOpen: !!escrowKeypair(),
+        boughtToday: today.bought,
+        soldToday: today.sold,
+        buyCap: EXCHANGE.buyCapPerDay,
+        sellCap: EXCHANGE.sellCapPerDay[tier] ?? EXCHANGE.sellCapPerDay[""],
+      });
+    });
+
+    // buy gold with DRIFTS: quote builds the transfer INTO the escrow pool
+    this.onMessage("exBuyQuote", async (client, msg: { gold?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "exBuyQuote", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("exQuote", { ok: false, reason });
+      const gold = Math.round(Number(msg?.gold ?? 0));
+      if (!Number.isFinite(gold) || gold < EXCHANGE.minTrade) return fail(`Trades start at ${EXCHANGE.minTrade}g`);
+      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+      if (today.bought + gold > EXCHANGE.buyCapPerDay) {
+        return fail(`The counter sells you ${EXCHANGE.buyCapPerDay}g a day at most`);
+      }
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first");
+      const cost = gold * EXCHANGE.buyRate;
+      const built = await buildExchangeBuyTx(row.walletAddress, cost);
+      if (!built.ok) return fail(built.reason);
+      client.send("exQuote", { ok: true, dir: "buy", gold, cost, tx: built.tx });
+    });
+
+    this.onMessage("exBuy", async (client, msg: { gold?: number; sig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "exBuy", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("exResult", { ok: false, dir: "buy", reason });
+      const gold = Math.round(Number(msg?.gold ?? 0));
+      const sig = String(msg?.sig ?? "");
+      if (!Number.isFinite(gold) || gold < EXCHANGE.minTrade) return fail("Bad trade");
+      if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed signature");
+      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+      if (today.bought + gold > EXCHANGE.buyCapPerDay) return fail("Past the day's cap");
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("No wallet linked");
+      // insert-first replay protection (the burns table is the sig ledger)
+      if (!(await tryInsertBurn(sig, sim.token, "exBuy"))) return fail("That payment was already spent");
+      const cost = gold * EXCHANGE.buyRate;
+      const v = await verifyTxLegs(sig, [
+        { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: cost },
+      ]);
+      if (!v.ok) {
+        await deleteBurn(sig).catch(() => {});
+        return fail(v.reason ?? "The payment could not be verified");
+      }
+      this.credit(sim, gold);
+      void exchangeRecord(sim.token, gold, 0).catch(() => {});
+      client.send("exResult", { ok: true, dir: "buy", gold, cost });
+    });
+
+    // sell gold for DRIFTS: the ONLY outbound rail — pool-funded, capped, ordered
+    this.onMessage("exSell", async (client, msg: { gold?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "exSell", 2, 30_000)) return;
+      const fail = (reason: string) => client.send("exResult", { ok: false, dir: "sell", reason });
+      if (sim.exBusy) return fail("The merchant is still counting your last trade");
+      const gold = Math.round(Number(msg?.gold ?? 0));
+      if (!Number.isFinite(gold) || gold < EXCHANGE.minTrade) return fail(`Trades start at ${EXCHANGE.minTrade}g`);
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first");
+      const tier = holderPerks(sim.tokenBalance).key;
+      const cap = EXCHANGE.sellCapPerDay[tier] ?? EXCHANGE.sellCapPerDay[""];
+      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+      if (today.sold + gold > cap) {
+        return fail(`Your standing sells ${cap}g a day at most (${cap - today.sold}g left)`);
+      }
+      const payout = gold * EXCHANGE.sellRate;
+      if ((await escrowBalance()) < payout) return fail("The merchant's purse is light");
+      sim.exBusy = true;
+      try {
+        // debit FIRST (the gold ledger is authoritative), refund on any failure
+        if (!this.debit(sim, gold)) return fail(`You carry less than ${gold}g`);
+        const paid = await payFromEscrow(row.walletAddress, payout);
+        if (!paid.ok) {
+          this.credit(sim, gold); // the chain refused: give the gold back
+          return fail(paid.reason);
+        }
+        void exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
+        client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig });
+      } finally {
+        sim.exBusy = false;
+      }
+    });
+
+    // ---- the relic market: P2P Drift-touched cosmetics --------------------------
+    this.onMessage("relicList", async (client, msg: { key?: string; price?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "relicList", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("relicResult", { ok: false, reason });
+      const key = String(msg?.key ?? "");
+      const price = Math.round(Number(msg?.price ?? 0));
+      const entry = PRESTIGE_CATALOG[key];
+      if (!entry || entry.kind === "title") return fail("That cannot be traded");
+      if (!sim.prestige.has(key)) return fail("You do not own that relic");
+      if (price < RELIC_MARKET.minPrice || price > RELIC_MARKET.maxPrice) {
+        return fail(`Relics trade between ${RELIC_MARKET.minPrice.toLocaleString()} and ${RELIC_MARKET.maxPrice.toLocaleString()} DRIFTS`);
+      }
+      const mine = [...this.relicOwner.values()].filter((r) => r.token === sim.token);
+      if (mine.length >= RELIC_MARKET.maxListings) return fail(`You may list ${RELIC_MARKET.maxListings} relics at once`);
+      if (mine.some((r) => r.key === key)) return fail("That relic is already on the stall");
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first (the buyer pays it directly)");
+      const ps = this.state.players.get(client.sessionId);
+      const rec = await insertRelic(sim.token, row.walletAddress, ps?.name ?? "Wanderer", key, price);
+      this.addRelic(rec.id, sim.token, row.walletAddress, ps?.name ?? "Wanderer", key, price);
+      client.send("relicResult", { ok: true, listed: true, id: rec.id, key, price });
+    });
+
+    this.onMessage("relicUnlist", (client, msg: { id?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "relicUnlist", 4, 10_000)) return;
+      const id = Math.round(Number(msg?.id ?? 0));
+      const rec = this.relicOwner.get(id);
+      if (!rec || rec.token !== sim.token) return;
+      this.relicOwner.delete(id);
+      this.state.relics.delete(String(id));
+      void deleteRelic(id).catch(() => {});
+      client.send("relicResult", { ok: true, unlisted: true, id });
+    });
+
+    this.onMessage("relicQuote", async (client, msg: { id?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "relicQuote", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("relicQuote", { ok: false, reason });
+      const id = Math.round(Number(msg?.id ?? 0));
+      const rec = this.relicOwner.get(id);
+      if (!rec) return fail("That relic is gone");
+      if (rec.token === sim.token) return fail("It is already yours");
+      if (sim.prestige.has(rec.key)) return fail("You already wear its like");
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first");
+      const built = await buildRelicTx(row.walletAddress, rec.wallet, rec.price, RELIC_MARKET.feePct);
+      if (!built.ok) return fail(built.reason);
+      client.send("relicQuote", { ok: true, id, price: rec.price, key: rec.key, tx: built.tx });
+    });
+
+    this.onMessage("relicBuy", async (client, msg: { id?: number; sig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "relicBuy", 3, 10_000)) return;
+      const fail = (reason: string) => client.send("relicResult", { ok: false, reason });
+      const id = Math.round(Number(msg?.id ?? 0));
+      const sig = String(msg?.sig ?? "");
+      const rec = this.relicOwner.get(id);
+      if (!rec) return fail("That relic is gone");
+      if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed signature");
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("No wallet linked");
+      const fee = Math.ceil(rec.price * RELIC_MARKET.feePct);
+      // the fee leg burns forever — recorded on the public counter
+      if (!(await tryInsertBurn(sig, sim.token, "relic", fee, 0))) return fail("That payment was already spent");
+      const v = await verifyTxLegs(sig, [
+        { type: "transfer", from: row.walletAddress, destAta: walletAta(rec.wallet), min: rec.price - fee },
+        { type: "burn", from: row.walletAddress, min: fee },
+      ]);
+      if (!v.ok) {
+        await deleteBurn(sig).catch(() => {});
+        return fail(v.reason ?? "The payment could not be verified");
+      }
+      // settle: the relic changes hands (server-authoritative prestige sets)
+      this.relicOwner.delete(id);
+      this.state.relics.delete(String(id));
+      void deleteRelic(id).catch(() => {});
+      sim.prestige.add(rec.key);
+      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
+      // the seller loses it — live if online, in the row either way
+      const sellerRow = await loadOrCreatePlayer(rec.token);
+      const sellerOwned = new Set(Array.isArray(sellerRow.prestige) ? sellerRow.prestige : []);
+      sellerOwned.delete(rec.key);
+      void setPrestige(rec.token, [...sellerOwned]).catch(() => {});
+      for (const [sid, other] of this.sims) {
+        if (other.token !== rec.token) continue;
+        other.prestige.delete(rec.key);
+        const ops = this.state.players.get(sid);
+        if (ops?.aura === rec.key) ops.aura = "";
+        if (ops?.dye === rec.key) ops.dye = "stone";
+        const sellerClient = this.clients.find((c) => c.sessionId === sid);
+        sellerClient?.send("relicSold", { key: rec.key, price: rec.price, net: rec.price - fee });
+        break;
+      }
+      client.send("relicResult", { ok: true, bought: true, key: rec.key, kind: PRESTIGE_CATALOG[rec.key]?.kind });
     });
 
     this.onMessage("unlinkWallet", async (client) => {
@@ -1281,8 +1666,10 @@ export class DriftRoom extends Room<DriftRoomState> {
           weight: 1,
         };
         entry.kills += 1;
-        // holder tiers weigh each kill heavier in the pro-rata split
-        entry.weight = holderPerks(sim.tokenBalance).caravanWeight;
+        // holder tiers weigh each kill heavier in the pro-rata split; a
+        // standing guild banner adds its own weight on top
+        entry.weight = holderPerks(sim.tokenBalance).caravanWeight +
+          (this.guildBannerStands(sim) ? GUILD.caravanWeightBonus : 0);
         this.caravanContrib.set(sim.token, entry);
         if (c.waveKills >= c.waveNeed) {
           c.phase = "rolling";
@@ -1377,6 +1764,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       combatLevel: snapCombatLevel(row.snapshot),
       tokenBalance: 0, // refreshed by getProfile/linkWallet (chain reads are async)
       prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
+      wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
+      guildId: row.guildId != null ? Math.round(row.guildId) : null,
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -1389,6 +1778,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     ps.name = row.name;
     ps.dye = row.dye;
     ps.eye = row.eye;
+    if (sim.guildId) ps.guildTag = this.guildRows.get(sim.guildId)?.tag ?? "";
     this.state.players.set(client.sessionId, ps);
 
   }
@@ -1483,8 +1873,11 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (sim.gatherMs >= sim.gatherTotal) {
         node.amount -= 1;
         const depleted = node.amount <= 0;
-        // the house rolls rich strikes now; loot lands on the inventory ledger
-        const rich = Math.random() < holderPerks(sim.tokenBalance).richStrikeP;
+        // the house rolls rich strikes now; loot lands on the inventory ledger.
+        // Guild territory: gathering inside your guild's held region adds odds.
+        const rich = Math.random() <
+          holderPerks(sim.tokenBalance).richStrikeP +
+          (this.inGuildRegion(sim) ? GUILD.richStrikeBonus : 0);
         const qty = rich ? 2 : 1;
         this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
         sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
@@ -1810,6 +2203,77 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
     void this.markFounder(sim, row);
     return null;
+  }
+
+  /** one Drift Wheel roll: server-rolled prize, duplicates pay shards, pity
+   *  forces a rare at DRIFT_WHEEL_PITY dry spins. Shards land on the ledger;
+   *  cosmetic grants ride the result message (the client applies them — gold
+   *  cosmetics are client-trusted; prestige ownership is recorded HERE). */
+  private rollDriftWheel(sim: PlayerSim): {
+    kind: DriftWheelSeg["kind"]; key?: string; shards?: number; dup?: boolean;
+    label: string; rare?: boolean; seg: number;
+  } {
+    const forced = sim.wheelPity >= DRIFT_WHEEL_PITY;
+    const pool = forced ? DRIFT_WHEEL.filter((s) => s.rare) : DRIFT_WHEEL;
+    const total = pool.reduce((a, s) => a + s.p, 0);
+    let r = Math.random() * total;
+    let seg = pool[pool.length - 1];
+    for (const s of pool) { r -= s.p; if (r <= 0) { seg = s; break; } }
+    sim.wheelPity = seg.rare ? 0 : sim.wheelPity + 1;
+    const segIndex = DRIFT_WHEEL.indexOf(seg); // where the HUD wheel lands
+
+    const grantShards = (n: number) => this.creditItem(sim, "driftshard", n);
+    if (seg.kind === "shards") {
+      grantShards(seg.amount ?? 1);
+      return { kind: seg.kind, shards: seg.amount, label: seg.label, seg: segIndex };
+    }
+
+    // what the player already owns (gold cosmetics live in the snapshot)
+    const snap = (sim.profileSnapshot ?? {}) as {
+      ownedDyes?: string[]; ownedEyes?: string[]; ownedAuras?: string[]; ownedPets?: string[];
+    };
+    const POOLS: Record<string, { all: string[]; owned: Set<string> }> = {
+      dye: { all: ["ember", "moss", "blood", "gold", "bone", "water", "void"],
+             owned: new Set(["stone", ...(snap.ownedDyes ?? [])]) },
+      eye: { all: ["ember", "blood", "gold", "water"],
+             owned: new Set(["drift", ...(snap.ownedEyes ?? [])]) },
+      aura: { all: ["driftmote", "emberwake", "goldhalo"],
+              owned: new Set(snap.ownedAuras ?? []) },
+      pet: { all: ["wisp", "crow", "emberling"],
+             owned: new Set(snap.ownedPets ?? []) },
+    };
+
+    if (seg.kind === "title") {
+      if (sim.prestige.has("wheelturned")) {
+        grantShards(seg.dupShards ?? 1);
+        return { kind: seg.kind, dup: true, shards: seg.dupShards, label: seg.label, rare: true, seg: segIndex };
+      }
+      sim.prestige.add("wheelturned"); // tracking only: titles are soul-bound
+      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
+      return { kind: seg.kind, key: WHEEL_TITLE, label: seg.label, rare: true, seg: segIndex };
+    }
+
+    if (seg.kind === "prestigeAura") {
+      const open = ["ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"]
+        .filter((k) => !sim.prestige.has(k));
+      if (open.length === 0) {
+        grantShards(seg.dupShards ?? 1);
+        return { kind: seg.kind, dup: true, shards: seg.dupShards, label: seg.label, rare: true, seg: segIndex };
+      }
+      const key = open[(Math.random() * open.length) | 0];
+      sim.prestige.add(key); // server-authoritative: the identity sync accepts it now
+      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
+      return { kind: seg.kind, key, label: seg.label, rare: true, seg: segIndex };
+    }
+
+    const p = POOLS[seg.kind];
+    const open = p.all.filter((k) => !p.owned.has(k));
+    if (open.length === 0) {
+      grantShards(seg.dupShards ?? 1);
+      return { kind: seg.kind, dup: true, shards: seg.dupShards, label: seg.label, rare: seg.rare, seg: segIndex };
+    }
+    const key = open[(Math.random() * open.length) | 0];
+    return { kind: seg.kind, key, label: seg.label, rare: seg.rare, seg: segIndex };
   }
 
   /** Founder window: the FIRST verified burn before FOUNDER_UNTIL marks the
@@ -2231,6 +2695,57 @@ export class DriftRoom extends Room<DriftRoomState> {
     cs.ownerName = ownerName;
     this.state.claims.set(String(id), cs);
     this.claimOwner.set(id, token);
+  }
+
+  /** mirror a guild row into the synced schema map */
+  private syncGuildState(id: number) {
+    const row = this.guildRows.get(id);
+    if (!row) { this.state.guilds.delete(String(id)); return; }
+    let gs = this.state.guilds.get(String(id));
+    if (!gs) {
+      gs = new GuildState();
+      gs.id = id;
+      this.state.guilds.set(String(id), gs);
+    }
+    gs.name = row.name;
+    gs.tag = row.tag;
+    gs.members = this.guildCounts.get(id) ?? 0;
+    gs.region = row.region;
+    gs.regionSecsLeft = row.region ? Math.max(0, Math.round((row.regionUntil - Date.now()) / 1000)) : 0;
+  }
+
+  /** the guild whose banner currently stands over a region (if any) */
+  private regionHolder(region: string): GuildRow | null {
+    const now = Date.now();
+    for (const row of this.guildRows.values()) {
+      if (row.region === region && row.regionUntil > now) return row;
+    }
+    return null;
+  }
+
+  /** guild-territory perk check: is this sim inside its guild's held region? */
+  private inGuildRegion(sim: PlayerSim): boolean {
+    if (!sim.guildId) return false;
+    const row = this.guildRows.get(sim.guildId);
+    if (!row?.region || row.regionUntil <= Date.now()) return false;
+    return regionAt(this.world.w, this.world.h, Math.round(sim.px), Math.round(sim.py)) === row.region;
+  }
+
+  /** does this sim's guild hold ANY standing banner? (caravan weight perk) */
+  private guildBannerStands(sim: PlayerSim): boolean {
+    if (!sim.guildId) return false;
+    const row = this.guildRows.get(sim.guildId);
+    return !!row?.region && row.regionUntil > Date.now();
+  }
+
+  private addRelic(id: number, token: string, wallet: string, sellerName: string, key: string, price: number) {
+    const rs = new RelicState();
+    rs.id = id;
+    rs.key = key;
+    rs.price = price;
+    rs.sellerName = sellerName;
+    this.state.relics.set(String(id), rs);
+    this.relicOwner.set(id, { token, wallet, key, price });
   }
 
   private claimAt(x: number, y: number): ClaimState | null {

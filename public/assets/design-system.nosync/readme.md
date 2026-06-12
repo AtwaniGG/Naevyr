@@ -18,7 +18,7 @@ world (sprites are authored separately by the engine).
 
 ## Sources
 
-- **GitHub:** [`AtwaniGG/Naevyr`](https://github.com/AtwaniGG/Naevyr) — the live
+- **GitHub:** [`AtwaniGG/Driftlands`](https://github.com/AtwaniGG/Driftlands) — the live
   Next.js + HTML5-Canvas + React/Tailwind/Zustand/TypeScript build (the source repo predates the
   rename to **Naevyr**; update this link if/when the repo itself is renamed). At time of authoring the
   public repo contains the README/design brief; the engine constants, the locked `drift.*`
@@ -46,7 +46,7 @@ world (sprites are authored separately by the engine).
 | `SKILL.md` | Agent-Skill manifest for reuse in Claude Code |
 
 The Design System tab renders every `@dsCard`-tagged file. Components are consumed at
-`window.NaevyrDesignSystem_3de3e2.<Name>` after loading `_ds_bundle.js` (that `window.<…>`
+`window.DriftLandsDesignSystem_3de3e2.<Name>` after loading `_ds_bundle.js` (that `window.<…>`
 symbol is the compiler-generated runtime namespace bound to the project ID — not the brand
 name — so it stays literal even though the brand is now Naevyr).
 
@@ -490,10 +490,25 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `landing-preview.html` — hero composition (vista + plate + nav + buttons), icons, gate.
   - `social-preview.html` — coin/avatar marks, banner & an X-profile mock with safe-zone notes.
   - `threshold-preview.html` — gate (sealed/open), gatewarden facings, beacon, drift-wall tiling & path accents, all cycling live.
+  - `systems-preview.html` — wheel faces (with segment angles), guild banner sway + fallen, drift cache states, the Exchange counter.
   - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
+  - `wheel/` — **spin-wheel faces** (DOM HUD art, 240×240, 2-frame rim shimmer @2fps):
+    `wheel_of_the_drift` (gold, 6 segments — house/coin_poor/coin_rich/jackpot/drift_shard/coin_mid)
+    and `the_drift_wheel` (dark gacha, 8 segments incl. a searing relic sliver). Each JSON lists
+    every segment's `startAngle` (deg, 0 = up, clockwise) so the HUD can land its pointer.
+    Ramps: gold+stone+drift / stone+drift+gold.
+  - `guild/` — **guild war-banner** (48×96, bottom-center anchor 24,95): `guild_banner` (bone
+    cloth, drift trim, 3-frame sway @3fps, with a blank `labelPlate` rect for the engine's tag
+    text) and `guild_banner_fallen` (1f, tattered/corruption-eaten). Ramp: bone+dirt+drift.
+  - `cache/` — **drift_cache** (64×64, anchor 32,58): one sheet, 3 states — `sealed` (1f),
+    `opening` (2f, lid cracking with violet light), `burst` (2f, light column + motes); JSON
+    `states` table gives each state's start frame + fps. Ramp: iron(stone)+drift+gold.
+  - `interiors/exchange_counter` — **the Exchange** (48×48, anchor 24,47): brass balance scales,
+    gold pan vs violet-glow DRIFTS pan, 2-frame tip-totter @2fps. Ramp: gold(brass)+drift+dirt.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
+    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `wheelfaces.js`, `guildbanner.js`,
+    `cache.js`, `exchange.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
 **Starting points:** `Button`, `Panel`, `XPBar` (components) and the HUD screen.

@@ -8,7 +8,8 @@ import { BuildingKey } from "@/game/world/tilemap";
 
 export type FixtureKind =
   | "counter" | "vat" | "shelf" | "table" | "barrel"
-  | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart" | "herbrack";
+  | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart" | "herbrack"
+  | "exchange";
 
 export interface InteriorFixture {
   kind: FixtureKind;
@@ -46,6 +47,7 @@ export interface InteriorSpec {
 
 const SOLID_KINDS: FixtureKind[] = [
   "counter", "vat", "shelf", "table", "barrel", "cage", "anvil", "wheelDisc", "hearth", "oreCart", "herbrack",
+  "exchange",
 ];
 
 export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
@@ -71,6 +73,8 @@ export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
       { kind: "shelf", x: 1, y: 1 }, { kind: "shelf", x: 2, y: 1 }, { kind: "shelf", x: 6, y: 1 },
       { kind: "barrel", x: 1, y: 4 },
       { kind: "rug", x: 4, y: 4 },
+      // the Exchange counter: brass scales weighing gold against DRIFTS
+      { kind: "exchange", x: 6, y: 3 },
     ],
   },
   wheel: {

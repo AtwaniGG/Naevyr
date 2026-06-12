@@ -22,6 +22,27 @@ export class PlayerState extends Schema {
   @type("string") title = "Drifter";
   @type("string") aura = "";
   @type("string") pet = "";
+  /** guild tag ("" = guildless) — server-set, never client-chosen */
+  @type("string") guildTag = "";
+}
+
+/** a guild + its territory banner (the recurring social DRIFTS sink) */
+export class GuildState extends Schema {
+  @type("number") id = 0;
+  @type("string") name = "";
+  @type("string") tag = "";
+  @type("number") members = 0;
+  /** held region ("" = none) and seconds left on the banner */
+  @type("string") region = "";
+  @type("number") regionSecsLeft = 0;
+}
+
+/** a relic listing: a Drift-touched cosmetic for sale, priced in DRIFTS */
+export class RelicState extends Schema {
+  @type("number") id = 0;
+  @type("string") key = "";
+  @type("number") price = 0;
+  @type("string") sellerName = "";
 }
 
 // Phase 6: shared ambient Drift Beasts (husk/stalker + the den pack). Raiders,
@@ -102,6 +123,8 @@ export class DriftRoomState extends Schema {
   @type({ map: ListingState }) listings = new MapSchema<ListingState>();
   @type({ map: PropState }) props = new MapSchema<PropState>();
   @type({ map: MobState }) mobs = new MapSchema<MobState>();
+  @type({ map: GuildState }) guilds = new MapSchema<GuildState>();
+  @type({ map: RelicState }) relics = new MapSchema<RelicState>();
   @type(CaravanState) caravan = new CaravanState();
   // THE LONG NIGHT: realm-wide assault on the Waystation at terminal corruption
   @type("boolean") nightActive = false;

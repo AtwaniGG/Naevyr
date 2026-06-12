@@ -22,6 +22,11 @@ import {
   drawWanderer,
   PRESTIGE_AURAS,
   type PrestigeAuraKey,
+  drawDarkWheelFace,
+  wheelSegmentAngles,
+  drawCacheBurst,
+  drawGuildBanner,
+  drawExchangeCounter,
 } from "../../game/render/sprites";
 
 const { fontFamily } = loadFont();
@@ -37,11 +42,14 @@ const G2 = 150;  // gameplay · gathering
 const G3 = 165;  // gameplay · combat
 const G4 = 135;  // gameplay · keeper interior
 const G5 = 150;  // gameplay · vista + the Drift wash
+const E1 = 150;  // economy · the Drift Wheel spins onto a relic
+const E2 = 135;  // economy · raise a guild banner
+const E3 = 135;  // economy · the Exchange (gold ↔ DRIFTS)
 const S5 = 140;  // prestige auras · burn DRIFTS
 const S6 = 115;  // the gate · hold to enter
 const S7 = 115;  // end card · PLAY NOW
-const CUTS = [S1, S2, G1, G2, G3, G4, G5, S5, S6, S7];
-export const TRAILER_FRAMES = CUTS.reduce((a, b) => a + b, 0); // 1305 ≈ 43.5s
+const CUTS = [S1, S2, G1, G2, G3, G4, G5, E1, E2, E3, S5, S6, S7];
+export const TRAILER_FRAMES = CUTS.reduce((a, b) => a + b, 0); // 1725 ≈ 57.5s
 
 // the locked palette
 const VOID = "#0a0810";
@@ -336,6 +344,111 @@ const Auras: React.FC = () => {
   );
 };
 
+// ── E1 · the Drift Wheel (spins onto the 1% relic) ──────────────────────────
+const DriftWheelScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const SPIN_F = 82; // ~2.7s of spin
+  const relic = wheelSegmentAngles("dark").find((s) => s.label === "relic")!;
+  const center = relic.start + relic.sweep / 2;
+  const targetRot = 5 * 360 + (360 - center); // bring the relic wedge to the top pointer
+  const t = Math.min(1, frame / SPIN_F);
+  const rot = (1 - Math.pow(1 - t, 3)) * targetRot; // cubic ease-out
+  const landed = frame >= SPIN_F;
+  const shimmer = Math.floor(frame / 15) % 2;
+  const face = drawDarkWheelFace(shimmer, true).g as unknown as Grid;
+  const SCALE = 1.6;
+  const D = 240 * SCALE;
+  return (
+    <Scene>
+      <Motes count={28} seed={50} />
+      <Line at={6} size={48} y="11%">
+        Burn for the <span style={{ color: GOLD }}>Drift Wheel</span>.
+      </Line>
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", width: D, height: D }}>
+          <div
+            style={{
+              position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)",
+              width: 0, height: 0, zIndex: 3,
+              borderLeft: "15px solid transparent", borderRight: "15px solid transparent",
+              borderTop: "24px solid #e7c873", filter: `drop-shadow(0 2px 0 ${VOID})`,
+            }}
+          />
+          <div
+            style={{
+              transform: `rotate(${rot}deg)`, width: D, height: D,
+              filter: landed ? "drop-shadow(0 0 34px rgba(216,180,254,0.75))" : undefined,
+            }}
+          >
+            <PixelSprite grid={face} scale={SCALE} />
+          </div>
+        </div>
+      </AbsoluteFill>
+      {landed && (
+        <Line at={SPIN_F + 2} size={40} color={DRIFT_HI} y="80%">
+          One spin in a hundred, a relic.
+        </Line>
+      )}
+    </Scene>
+  );
+};
+
+// ── E2 · guilds & territory ──────────────────────────────────────────────────
+const GuildScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const banner = drawGuildBanner(Math.floor(frame / 10) % 3) as unknown as Grid;
+  const SCALE = 5; // 48×96 → 240×480
+  return (
+    <Scene>
+      <Motes count={22} seed={61} />
+      <Line at={6} size={48} y="12%">
+        Raise a <span style={{ color: GOLD }}>banner</span>.
+      </Line>
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative" }}>
+          <PixelSprite grid={banner} scale={SCALE} />
+          {/* the guild tag, on the banner's blank plate (plate center ≈ 25,43) */}
+          <div
+            style={{
+              position: "absolute", left: 25 * SCALE, top: 43 * SCALE,
+              transform: "translate(-50%, -50%)",
+              fontFamily, fontWeight: 700, fontSize: 30, letterSpacing: "0.04em",
+              color: "#3b1162",
+            }}
+          >
+            ASH
+          </div>
+        </div>
+      </AbsoluteFill>
+      <Line at={40} size={34} color={DRIFT_HI} y="82%">
+        Hold the wilds. Feed it, or lose it.
+      </Line>
+    </Scene>
+  );
+};
+
+// ── E3 · the Exchange ────────────────────────────────────────────────────────
+const ExchangeScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const scales = drawExchangeCounter(Math.floor(frame / 20) % 2) as unknown as Grid;
+  const SCALE = 7; // 48×48 → 336
+  return (
+    <Scene>
+      <Motes count={20} seed={71} drift={0.7} />
+      <Line at={6} size={44} y="13%">
+        <span style={{ color: GOLD }}>Gold</span> for <span style={{ color: DRIFT_HI }}>DRIFTS</span>.
+        DRIFTS for gold.
+      </Line>
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+        <PixelSprite grid={scales} scale={SCALE} />
+      </AbsoluteFill>
+      <Line at={40} size={36} color={BONE_DIM} y="80%">
+        The grind becomes the coin.
+      </Line>
+    </Scene>
+  );
+};
+
 // ── S6 · the gate ────────────────────────────────────────────────────────────
 const Gate: React.FC = () => {
   const frame = useCurrentFrame();
@@ -490,13 +603,22 @@ export const Trailer: React.FC = () => (
         driftWash
       />
     </Sequence>
-    <Sequence from={at(7)} durationInFrames={S5}>
+    <Sequence from={at(7)} durationInFrames={E1}>
+      <DriftWheelScene />
+    </Sequence>
+    <Sequence from={at(8)} durationInFrames={E2}>
+      <GuildScene />
+    </Sequence>
+    <Sequence from={at(9)} durationInFrames={E3}>
+      <ExchangeScene />
+    </Sequence>
+    <Sequence from={at(10)} durationInFrames={S5}>
       <Auras />
     </Sequence>
-    <Sequence from={at(8)} durationInFrames={S6}>
+    <Sequence from={at(11)} durationInFrames={S6}>
       <Gate />
     </Sequence>
-    <Sequence from={at(9)} durationInFrames={S7}>
+    <Sequence from={at(12)} durationInFrames={S7}>
       <EndCard />
     </Sequence>
     {/* drop a music bed here when you have one:

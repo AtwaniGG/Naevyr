@@ -1,0 +1,24 @@
+{
+  "image": "guild/guild_banner_fallen.svg",
+  "cell": {
+    "w": 48,
+    "h": 96
+  },
+  "anchor": {
+    "x": 24,
+    "y": 95
+  },
+  "ramp": "bone + dirt + drift",
+  "frames": {
+    "guild_banner_fallen": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    }
+  }
+}

@@ -42,6 +42,30 @@ type Events = {
   reinforceBurn: boolean;
   /** burn-paid Drift-touched cosmetic (payload = prestige catalog key) */
   prestigeBurn: string;
+  /** burn-paid Drift Wheel spin (gacha cosmetics) */
+  driftSpinBurn: boolean;
+  /** burn-paid Drift Cache (3 spins bundled) */
+  cacheBurn: boolean;
+  /** found a guild (burn; name + tag chosen at the keeper) */
+  guildFound: { name: string; tag: string };
+  /** join / leave an existing guild (no burn) */
+  guildJoin: number;
+  guildLeave: boolean;
+  /** burn-paid territory stake (payload = region name) */
+  guildTerritory: string;
+  /** burn-paid banner upkeep (+48h) */
+  guildUpkeep: boolean;
+  /** Exchange: buy gold with DRIFTS (payload = gold amount; wallet signs) */
+  exBuy: number;
+  /** Exchange: sell gold for DRIFTS (payload = gold; the escrow pays out) */
+  exSell: number;
+  /** ask the server for fresh Exchange rates/caps/pool */
+  exInfo: boolean;
+  /** relic market: list an owned Drift-touched cosmetic */
+  relicList: { key: string; price: number };
+  relicUnlist: number;
+  /** relic market: buy a listing (wallet signs the transfer + fee burn) */
+  relicBuy: number;
   /** client-trusted gold change, forwarded to the server ledger when online */
   goldDelta: { amount: number; reason: GoldReason };
   /** client-trusted item change, forwarded to the inventory ledger when online */

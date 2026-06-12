@@ -1,0 +1,63 @@
+{
+  "image": "guild/guild_banner.svg",
+  "cell": {
+    "w": 48,
+    "h": 96
+  },
+  "anchor": {
+    "x": 24,
+    "y": 95
+  },
+  "ramp": "bone + dirt + drift",
+  "labelPlate": {
+    "x": 14,
+    "y": 30,
+    "w": 22,
+    "h": 26
+  },
+  "plateNote": "engine overlays the guild tag as text inside labelPlate (cell px)",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "guild_banner_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    },
+    "guild_banner_01": {
+      "x": 48,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    },
+    "guild_banner_02": {
+      "x": 96,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    }
+  },
+  "animations": {
+    "sway": {
+      "frames": [
+        "guild_banner_00",
+        "guild_banner_01",
+        "guild_banner_02"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

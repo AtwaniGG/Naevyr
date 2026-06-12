@@ -10,6 +10,7 @@ import {
   TOWN_CENTER,
   TownBuilding,
   BuildingKey,
+  regionAt as sharedRegionAt,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
@@ -47,6 +48,15 @@ import { bus } from "@/game/state/bus";
 import { tileToCode, BURN_COSTS } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
 import { Transaction } from "@solana/web3.js";
+
+/** where each region's guild banner stands (decor only — no walkability
+ *  change; cells chosen clear of every structure sprite) */
+const REGION_BANNER_CELLS: Record<string, { x: number; y: number }> = {
+  "Palewater": { x: 33, y: 5 },
+  "The Ashen Flats": { x: 5, y: 12 },
+  "Hollowmere Reach": { x: 10, y: 34 },
+  "The Bonefields": { x: 35, y: 34 },
+};
 
 /** the slice of a browser Solana wallet (Phantom/Solflare/Backpack) we use */
 interface WalletProvider {
@@ -243,6 +253,43 @@ export class Game {
         if (entry) this.startBurn(entry.action, { key });
       }),
     );
+    this.cleanupFns.push(bus.on("driftSpinBurn", () => this.startBurn("driftSpin")));
+    this.cleanupFns.push(bus.on("cacheBurn", () => this.startBurn("cache")));
+    this.cleanupFns.push(
+      bus.on("guildFound", (g) => this.startBurn("guildFound", { name: g.name, tag: g.tag })),
+    );
+    this.cleanupFns.push(bus.on("guildJoin", (id) => this.net?.sendGuildJoin(id)));
+    this.cleanupFns.push(bus.on("guildLeave", () => this.net?.sendGuildLeave()));
+    this.cleanupFns.push(
+      bus.on("guildTerritory", (region) => this.startBurn("guildTerritory", { region })),
+    );
+    this.cleanupFns.push(bus.on("guildUpkeep", () => this.startBurn("guildUpkeep")));
+    this.cleanupFns.push(bus.on("exInfo", () => this.net?.sendExInfo()));
+    this.cleanupFns.push(
+      bus.on("exBuy", (gold) => {
+        const store = useGame.getState();
+        if (!this.net || !store.wallet) {
+          store.pushLog("The Exchange needs a linked wallet in the shared world.", "#6f6781");
+          return;
+        }
+        this.pendingExGold = gold;
+        this.net.sendExBuyQuote(gold);
+      }),
+    );
+    this.cleanupFns.push(bus.on("exSell", (gold) => this.net?.sendExSell(gold)));
+    this.cleanupFns.push(bus.on("relicList", (r) => this.net?.sendRelicList(r.key, r.price)));
+    this.cleanupFns.push(bus.on("relicUnlist", (id) => this.net?.sendRelicUnlist(id)));
+    this.cleanupFns.push(
+      bus.on("relicBuy", (id) => {
+        const store = useGame.getState();
+        if (!this.net || !store.wallet) {
+          store.pushLog("Relics trade wallet to wallet. Link one first.", "#6f6781");
+          return;
+        }
+        this.pendingRelicId = id;
+        this.net.sendRelicQuote(id);
+      }),
+    );
     this.cleanupFns.push(
       bus.on("duelAccept", () => {
         const store = useGame.getState();
@@ -326,12 +373,20 @@ export class Game {
   // quote → wallet countersigns the server-built burn tx → action message
   // carries the tx signature → server verifies the burn on-chain.
 
-  private pendingBurn: { action: string; x?: number; y?: number; key?: string } | null = null;
+  private pendingBurn: {
+    action: string; x?: number; y?: number; key?: string;
+    name?: string; tag?: string; region?: string;
+  } | null = null;
+  /** an Exchange buy awaiting its quote (gold amount) */
+  private pendingExGold = 0;
+  /** a relic purchase awaiting its quote (listing id) */
+  private pendingRelicId = 0;
 
   private startBurn(
     action: "spin" | "claim" | "aura" | "cleanse" | "obelisk" | "reinforce"
-      | "prestigeDye" | "prestigeAura" | "prestigeTitle",
-    extra: { x?: number; y?: number; key?: string } = {},
+      | "prestigeDye" | "prestigeAura" | "prestigeTitle"
+      | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep",
+    extra: { x?: number; y?: number; key?: string; name?: string; tag?: string; region?: string } = {},
   ) {
     const store = useGame.getState();
     if (!this.net || !store.wallet) {
@@ -340,6 +395,30 @@ export class Game {
     }
     this.pendingBurn = { action, ...extra };
     this.net.sendBurnQuote(action);
+  }
+
+  /** countersign + submit any server-built partial-signed tx (Exchange buys,
+   *  relic purchases — same wallet rail the burns ride) */
+  private async signAndSubmit(txB64: string, onSig: (sig: string) => void) {
+    const store = useGame.getState();
+    const provider = this.detectWallet();
+    if (!provider?.signAndSendTransaction) {
+      store.pushLog("No Solana wallet found to sign the trade.", "#6f6781");
+      return;
+    }
+    try {
+      await provider.connect?.();
+      const raw = Uint8Array.from(atob(txB64), (c) => c.charCodeAt(0));
+      const tx = Transaction.from(raw);
+      const { signature } = await provider.signAndSendTransaction(tx);
+      if (!signature) throw new Error("no signature");
+      onSig(signature);
+    } catch {
+      store.pushLog(
+        "The trade was declined or failed. Nothing was taken. (Is your wallet on the right network?)",
+        "#6f6781",
+      );
+    }
   }
 
   private async signBurnQuote(txB64: string) {
@@ -370,6 +449,13 @@ export class Game {
         case "prestigeAura":
         case "prestigeTitle":
           this.net.sendPrestige(pending.key ?? "", signature); break;
+        case "driftSpin": this.net.sendDriftSpin(signature); break;
+        case "cache": this.net.sendCache(signature); break;
+        case "guildFound":
+          this.net.sendGuildFound(pending.name ?? "", pending.tag ?? "", signature); break;
+        case "guildTerritory":
+          this.net.sendGuildTerritory(pending.region ?? "", signature); break;
+        case "guildUpkeep": this.net.sendGuildUpkeep(signature); break;
       }
     } catch {
       store.pushLog(
@@ -973,7 +1059,7 @@ export class Game {
         }
       },
     );
-    net.onMessage<{ ok: boolean; gold?: number; shards?: number; label?: string; reason?: string }>(
+    net.onMessage<{ ok: boolean; gold?: number; shards?: number; label?: string; seg?: number; reason?: string }>(
       "spinResult",
       (m) => {
         const store = useGame.getState();
@@ -986,8 +1072,162 @@ export class Game {
         // shards land via invSync; nothing to add locally
         play(gold >= 500 ? "levelup" : gold > 0 || (m.shards ?? 0) > 0 ? "coin" : "ui");
         store.pushLog(`The Wheel: ${m.label}`, gold >= 500 ? "#fcd34d" : "#d8cfe0");
+        // the popup wheel spins and lands on the house's roll
+        store.setWheelSpin({
+          kind: "gold",
+          seg: m.seg ?? 0,
+          prizes: [{ label: m.label ?? "", shards: m.shards }],
+        });
       },
     );
+
+    // the Drift Wheel (and Caches): cosmetics ride the result; shards via invSync
+    net.onMessage<{
+      ok: boolean;
+      prizes?: { kind: string; key?: string; shards?: number; dup?: boolean; label: string; seg: number }[];
+      pity?: number; cache?: boolean; reason?: string;
+    }>("driftSpinResult", (m) => {
+      const store = useGame.getState();
+      if (!m.ok || !m.prizes) {
+        store.pushLog(m.reason ?? "The Drift Wheel refuses you.", "#6f6781");
+        return;
+      }
+      for (const p of m.prizes) {
+        if (p.dup || !p.key) continue;
+        if (p.kind === "dye" || p.kind === "eye" || p.kind === "aura" || p.kind === "pet") {
+          store.grantCosmetic(p.kind, p.key);
+        } else if (p.kind === "prestigeAura") {
+          store.grantCosmetic("aura", p.key);
+        } else if (p.kind === "title") {
+          store.grantCosmetic("title", p.key);
+        }
+      }
+      const rare = m.prizes.some((p) => p.kind === "prestigeAura" && !p.dup);
+      play(rare ? "levelup" : "coin");
+      store.setWheelSpin({ kind: "drift", seg: m.prizes[0].seg, prizes: m.prizes, pity: m.pity, cache: m.cache });
+      for (const p of m.prizes) {
+        store.pushLog(
+          `The Drift Wheel: ${p.label}${p.dup ? ` (again — ${p.shards} shards instead)` : ""}`,
+          p.kind === "prestigeAura" ? "#d8b4fe" : "#d8cfe0",
+        );
+      }
+    });
+
+    // guilds: results + banner news
+    net.onMessage<{
+      ok: boolean; id?: number; name?: string; tag?: string; left?: boolean;
+      region?: string; until?: number; reason?: string;
+    }>("guildResult", (m) => {
+      const store = useGame.getState();
+      if (!m.ok) {
+        store.pushLog(m.reason ?? "The guild charter refuses.", "#dc2626");
+        return;
+      }
+      if (m.left) store.pushLog("You fold your colors and walk alone.", "#a99fb8");
+      else if (m.region) store.pushLog(`Your banner stands over ${m.region}.`, "#e7c873");
+      else if (m.name) store.pushLog(`You march under ${m.name} [${m.tag}].`, "#e7c873");
+      play("ui");
+    });
+    net.onMessage<{ tag: string; region: string; fallen?: boolean }>("guildBanner", (m) => {
+      const store = useGame.getState();
+      store.pushLog(
+        m.fallen
+          ? `The [${m.tag}] banner over ${m.region} falls to the Drift.`
+          : `[${m.tag}] raises its banner over ${m.region}.`,
+        m.fallen ? "#a99fb8" : "#d8b4fe",
+      );
+    });
+
+    // the Exchange: info, quotes (sign + submit), results
+    net.onMessage<import("@/game/state/store").ExchangeInfo>("exInfo", (m) => {
+      useGame.getState().setExchange(m);
+    });
+    net.onMessage<{ ok: boolean; dir?: string; gold?: number; cost?: number; tx?: string; reason?: string }>(
+      "exQuote",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok || !m.tx) {
+          store.pushLog(m.reason ?? "The merchant shakes his head.", "#6f6781");
+          return;
+        }
+        void this.signAndSubmit(m.tx, (sig) => {
+          this.net?.sendExBuy(this.pendingExGold, sig);
+          store.pushLog("The DRIFTS cross the counter. Awaiting the chain's word…", "#d8b4fe");
+        });
+      },
+    );
+    net.onMessage<{ ok: boolean; dir?: string; gold?: number; drifts?: number; cost?: number; reason?: string }>(
+      "exResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok) {
+          store.pushLog(m.reason ?? "The trade fell through. Nothing moved.", "#dc2626");
+          return;
+        }
+        play("coin");
+        store.pushLog(
+          m.dir === "buy"
+            ? `The merchant counts out ${m.gold}g for your ${m.cost?.toLocaleString()} DRIFTS.`
+            : `${m.drifts?.toLocaleString()} DRIFTS land in your wallet for ${m.gold}g.`,
+          "#e7c873",
+        );
+        this.net?.sendExInfo(); // refresh the counter display
+      },
+    );
+
+    // the relic market: quotes (sign + submit) + settlements
+    net.onMessage<{ ok: boolean; id?: number; price?: number; key?: string; tx?: string; reason?: string }>(
+      "relicQuote",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok || !m.tx) {
+          store.pushLog(m.reason ?? "That relic slips away.", "#6f6781");
+          return;
+        }
+        void this.signAndSubmit(m.tx, (sig) => {
+          this.net?.sendRelicBuy(this.pendingRelicId, sig);
+          store.pushLog("The relic price crosses wallets. Awaiting the chain's word…", "#d8b4fe");
+        });
+      },
+    );
+    net.onMessage<{
+      ok: boolean; listed?: boolean; unlisted?: boolean; bought?: boolean;
+      id?: number; key?: string; kind?: string; price?: number; reason?: string;
+    }>("relicResult", (m) => {
+      const store = useGame.getState();
+      if (!m.ok) {
+        store.pushLog(m.reason ?? "The relic market balks.", "#dc2626");
+        return;
+      }
+      if (m.listed) store.pushLog("Your relic stands on the stall.", "#e7c873");
+      if (m.unlisted) store.pushLog("Relic withdrawn from the stall.", "#a99fb8");
+      if (m.bought && m.key) {
+        const entry = PRESTIGE_CATALOG[m.key];
+        if (entry?.kind === "dye") {
+          store.grantCosmetic("dye", m.key);
+          store.setCosmetics({ dye: m.key as DyeKey });
+        } else {
+          store.grantCosmetic("aura", m.key);
+          store.setCosmetics({ aura: m.key as AuraKey });
+        }
+        play("coin");
+        store.pushLog(`The relic is yours: ${entry?.label ?? m.key}.`, "#d8b4fe");
+      }
+    });
+    net.onMessage<{ key: string; price: number; net: number }>("relicSold", (m) => {
+      const store = useGame.getState();
+      const entry = PRESTIGE_CATALOG[m.key];
+      // it left your hands: stop wearing (and owning) what you sold
+      const cos = store.cosmetics;
+      if (cos.aura === m.key) store.setCosmetics({ aura: "" });
+      if (cos.dye === m.key) store.setCosmetics({ dye: "stone" });
+      store.revokeCosmetic(entry?.kind === "dye" ? "dye" : "aura", m.key);
+      play("coin");
+      store.pushLog(
+        `Your ${entry?.label ?? m.key} sold for ${m.price.toLocaleString()} DRIFTS (${m.net.toLocaleString()} after the tithe).`,
+        "#e7c873",
+      );
+    });
     net.onMessage<{ ok: boolean; amount?: number; reason?: string }>("donateResult", (m) => {
       const store = useGame.getState();
       if (!m.ok || !m.amount) {
@@ -1733,14 +1973,7 @@ export class Game {
   }
 
   private regionAt(x: number, y: number): string {
-    const cx = this.world.w / 2;
-    const cy = this.world.h / 2;
-    // the Rest covers the whole spread-out town (the Mine sits in the wilds)
-    if (Math.hypot(x - cx, y - cy) < 13) return "Wanderer's Rest";
-    if (x >= cx && y < cy) return "Palewater";
-    if (x < cx && y < cy) return "The Ashen Flats";
-    if (x < cx && y >= cy) return "Hollowmere Reach";
-    return "The Bonefields";
+    return sharedRegionAt(this.world.w, this.world.h, x, y);
   }
 
   private pushMinimap() {
@@ -1801,15 +2034,36 @@ export class Game {
         name: store.cosmetics.name,
         title: currentTitle(store),
         self: true,
+        guildTag: store.myGuildTag,
       },
       ...[...this.remotes.entries()].map(([id, r]) => ({
         id,
         name: r.name || "Wanderer",
         title: r.title,
         self: false,
+        guildTag: r.guildTag,
       })),
     ];
     store.setRoster(roster);
+
+    // guilds + relic stalls for the HUD (cheap mirrors of small schema maps)
+    if (this.net) {
+      const gs: import("@/game/state/store").GuildInfo[] = [];
+      this.net.forEachGuild((g) =>
+        gs.push({
+          id: g.id, name: g.name, tag: g.tag, members: g.members,
+          region: g.region, regionSecsLeft: g.regionSecsLeft,
+        }),
+      );
+      store.setGuilds(gs);
+      const rs: import("@/game/state/store").RelicInfo[] = [];
+      this.net.forEachRelic((r) =>
+        rs.push({ id: r.id, key: r.key, price: r.price, sellerName: r.sellerName }),
+      );
+      store.setRelics(rs);
+      const meTag = this.net.self()?.guildTag ?? "";
+      if (meTag !== store.myGuildTag) store.setMyGuildTag(meTag);
+    }
   }
 
   /** Online: mirror server state into local entities (smoothed). */
@@ -1905,6 +2159,7 @@ export class Game {
       r.title = p.title;
       r.aura = p.aura;
       r.pet = p.pet;
+      r.guildTag = p.guildTag ?? "";
       const dx = p.x - r.px;
       const dy = p.y - r.py;
       r.px += dx * k;
@@ -3175,6 +3430,30 @@ export class Game {
         },
       });
     });
+    // guild territory banners: one per held region, the tag on the plate
+    this.net?.forEachGuild((g) => {
+      if (!g.region || g.regionSecsLeft <= 0) return;
+      const cell = REGION_BANNER_CELLS[g.region];
+      if (!cell) return;
+      draws.push({
+        depth: cell.x + cell.y,
+        fn: () => {
+          const s = this.tileScreen(cell.x, cell.y);
+          const z = this.camera.zoom;
+          const frame = Math.floor(performance.now() / 333) % 3;
+          spriteCache.drawGuildBanner(ctx, frame, s.x, s.y, z);
+          // the tag, written on the banner's blank plate (rotated upright)
+          ctx.save();
+          ctx.translate(s.x + 1 * z, s.y - 52 * z);
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = "center";
+          ctx.font = `700 ${7 * z}px ui-sans-serif`;
+          ctx.fillStyle = "#3b1162";
+          ctx.fillText(g.tag, 0, 2 * z);
+          ctx.restore();
+        },
+      });
+    });
     // pets trail their wanderers
     const petFor = (p: Player, isSelf: boolean) => {
       const key = isSelf ? useGame.getState().cosmetics.pet : p.pet;
@@ -3300,10 +3579,12 @@ export class Game {
       look = { dye: state.cosmetics.dye, eye: state.cosmetics.eye };
       name = state.cosmetics.name;
       title = currentTitle(state);
+      if (state.myGuildTag) name = `[${state.myGuildTag}] ${name}`;
     } else {
       look = { dye: p.dye as DyeKey, eye: p.eye as EyeKey };
       name = p.name || "Wanderer";
       title = p.title;
+      if (p.guildTag) name = `[${p.guildTag}] ${name}`;
     }
 
     spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, s.x, s.y, z, equip, look);

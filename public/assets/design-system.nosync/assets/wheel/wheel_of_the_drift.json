@@ -1,0 +1,71 @@
+{
+  "image": "wheel/wheel_of_the_drift.svg",
+  "cell": {
+    "w": 240,
+    "h": 240
+  },
+  "hub": {
+    "x": 120,
+    "y": 124
+  },
+  "pointer": "top (0deg)",
+  "ramp": "gold + stone + drift",
+  "domRendered": true,
+  "frameByFrameXOffset": true,
+  "frames": {
+    "wheel_of_the_drift_00": {
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 240
+    },
+    "wheel_of_the_drift_01": {
+      "x": 240,
+      "y": 0,
+      "w": 240,
+      "h": 240
+    }
+  },
+  "animations": {
+    "idle_shimmer": {
+      "frames": [
+        "wheel_of_the_drift_00",
+        "wheel_of_the_drift_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "segments": [
+    {
+      "label": "house",
+      "startAngle": 0,
+      "sweep": 144
+    },
+    {
+      "label": "coin_poor",
+      "startAngle": 144,
+      "sweep": 43
+    },
+    {
+      "label": "coin_rich",
+      "startAngle": 187,
+      "sweep": 43
+    },
+    {
+      "label": "jackpot",
+      "startAngle": 230,
+      "sweep": 43
+    },
+    {
+      "label": "drift_shard",
+      "startAngle": 273,
+      "sweep": 43
+    },
+    {
+      "label": "coin_mid",
+      "startAngle": 316,
+      "sweep": 44
+    }
+  ]
+}

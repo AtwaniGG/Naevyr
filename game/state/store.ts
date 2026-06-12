@@ -89,6 +89,51 @@ export interface RosterEntry {
   name: string;
   title: string;
   self: boolean;
+  /** guild tag ("" = guildless) */
+  guildTag?: string;
+}
+
+/** a spin in flight: the HUD overlay animates the wheel onto `seg` */
+export interface WheelSpin {
+  kind: "gold" | "drift";
+  /** segment index the wheel must land on (server's roll) */
+  seg: number;
+  /** prize lines revealed after the wheel stops */
+  prizes: { label: string; key?: string; shards?: number; dup?: boolean; kind?: string }[];
+  /** pity counter after this spin (drift wheel only) */
+  pity?: number;
+  /** this was a Drift Cache (3 rolls) — the overlay cracks the chest */
+  cache?: boolean;
+}
+
+/** Exchange rates/caps/pool as the server last reported them */
+export interface ExchangeInfo {
+  buyRate: number;
+  sellRate: number;
+  minTrade: number;
+  pool: number;
+  buyOpen: boolean;
+  sellOpen: boolean;
+  boughtToday: number;
+  soldToday: number;
+  buyCap: number;
+  sellCap: number;
+}
+
+export interface GuildInfo {
+  id: number;
+  name: string;
+  tag: string;
+  members: number;
+  region: string;
+  regionSecsLeft: number;
+}
+
+export interface RelicInfo {
+  id: number;
+  key: string;
+  price: number;
+  sellerName: string;
 }
 
 /** a marketplace offer as the HUD sees it */
@@ -184,6 +229,16 @@ interface GameState {
   tutorialDone: boolean;
   /** current tutorial objective line (null = no banner) */
   tutorialObjective: string | null;
+  /** a wheel spin awaiting its animation (HUD overlay); null = idle */
+  wheelSpin: WheelSpin | null;
+  /** Exchange counter state (Vault keeper), null until first exInfo */
+  exchange: ExchangeInfo | null;
+  /** all guilds in the realm (schema-mirrored ~1/s) */
+  guilds: GuildInfo[];
+  /** my guild tag ("" = guildless; from my own PlayerState) */
+  myGuildTag: string;
+  /** relic market listings (schema-mirrored) */
+  relics: RelicInfo[];
 
   setDriftPct: (pct: number) => void;
   setSeason: (season: number) => void;
@@ -200,6 +255,8 @@ interface GameState {
   setOpenShop: (k: string | null) => void;
   /** record ownership of a bought cosmetic (gold is spent by the caller) */
   grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet" | "title", key: string) => void;
+  /** a relic left your hands (sold P2P) — stop owning it locally too */
+  revokeCosmetic: (kind: "dye" | "aura", key: string) => void;
   drink: (kind: DrinkKey) => boolean;
   setBanked: (n: number) => void;
   setWallet: (a: string | null) => void;
@@ -212,6 +269,11 @@ interface GameState {
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
   setTutorialDone: (b: boolean) => void;
   setTutorialObjective: (s: string | null) => void;
+  setWheelSpin: (s: WheelSpin | null) => void;
+  setExchange: (e: ExchangeInfo | null) => void;
+  setGuilds: (g: GuildInfo[]) => void;
+  setMyGuildTag: (t: string) => void;
+  setRelics: (r: RelicInfo[]) => void;
 
   /**
    * Mutate pocket gold locally. A reason tags client-trusted events so the
@@ -322,6 +384,11 @@ export const useGame = create<GameState>((set, get) => ({
   night: null,
   tutorialDone: false,
   tutorialObjective: null,
+  wheelSpin: null,
+  exchange: null,
+  guilds: [],
+  myGuildTag: "",
+  relics: [],
   openDock: null,
   satchelOpen: true,
   shrine: { pot: 0, goal: 500 },
@@ -365,6 +432,12 @@ export const useGame = create<GameState>((set, get) => ({
         return { ownedTitles: [...s.ownedTitles, key] };
       return {};
     }),
+  revokeCosmetic: (kind, key) =>
+    set((s) => {
+      if (kind === "dye")
+        return { ownedDyes: s.ownedDyes.filter((k) => k !== key) };
+      return { ownedAuras: s.ownedAuras.filter((k) => k !== key) };
+    }),
   drink: (kind) => {
     const meta = DRINK_CATALOG[kind];
     if (!get().spendGold(meta.price, "shop")) return false;
@@ -381,6 +454,11 @@ export const useGame = create<GameState>((set, get) => ({
   setNight: (night) => set({ night }),
   setTutorialDone: (tutorialDone) => set({ tutorialDone }),
   setTutorialObjective: (tutorialObjective) => set({ tutorialObjective }),
+  setWheelSpin: (wheelSpin) => set({ wheelSpin }),
+  setExchange: (exchange) => set({ exchange }),
+  setGuilds: (guilds) => set({ guilds }),
+  setMyGuildTag: (myGuildTag) => set({ myGuildTag }),
+  setRelics: (relics) => set({ relics }),
   setOpenDock: (openDock) => set({ openDock }),
   setSatchelOpen: (satchelOpen) => set({ satchelOpen }),
   setShrine: (s) => set({ shrine: s }),

@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const SR = 44100;
-const DUR = 44.0; // seconds (trailer is ~43.5s; tail rings out)
+const DUR = 58.0; // seconds (trailer is ~57.5s; tail rings out)
 const N = Math.floor(SR * DUR);
 const L = new Float64Array(N);
 const R = new Float64Array(N);
@@ -146,20 +146,24 @@ const chords = [
   { t: 16.2, e: 21.8, n: [N_.F3, N_.A3, N_.C4], g: 0.15 },       // F  (combat)
   { t: 21.6, e: 26.4, n: [N_.C3, N_.E3, N_.G3], g: 0.15 },       // C  (keeper)
   { t: 26.2, e: 31.4, n: [N_.Bb2, N_.D3, N_.Eb3], g: 0.13 },     // Bb add-b2 dread (drift wash)
-  { t: 31.2, e: 36.0, n: [N_.D3, N_.F3, N_.A3], g: 0.15 },       // Dm resolve (auras)
-  { t: 35.8, e: 40.0, n: [N_.D3, N_.A3, N_.D4, N_.F4], g: 0.17 },// open Dm (gate)
-  { t: 39.6, e: 44.0, n: [N_.D2, N_.D3, N_.A3, N_.D4], g: 0.18 },// final swell (CTA)
+  // the economy section (Drift Wheel · guilds · exchange): a rising i-VI-VII-V build
+  { t: 31.2, e: 36.4, n: [N_.D3, N_.F3, N_.A3, N_.D4], g: 0.16 },// Dm (the wheel)
+  { t: 36.2, e: 40.8, n: [N_.Bb2, N_.D3, N_.G3], g: 0.16 },      // Gm-ish (guilds)
+  { t: 40.6, e: 45.4, n: [N_.C3, N_.E3, N_.G3, N_.C4], g: 0.17 },// C build (exchange)
+  { t: 45.2, e: 50.0, n: [N_.D3, N_.F3, N_.A3], g: 0.16 },       // Dm resolve (auras)
+  { t: 49.8, e: 54.0, n: [N_.D3, N_.A3, N_.D4, N_.F4], g: 0.18 },// open Dm (gate)
+  { t: 53.6, e: 58.0, n: [N_.D2, N_.D3, N_.A3, N_.D4], g: 0.19 },// final swell (CTA)
 ];
 for (const c of chords) c.n.forEach((f, i) => pad(f, c.t, c.e, c.g, (i % 2 ? 0.35 : -0.35)));
 
-// heartbeat pulse under the gameplay run (~6s–31s), every 0.86s
-for (let t = 6.2; t < 31; t += 0.86) pulse(t, 0.5 + 0.2 * ((t - 6) / 25));
+// heartbeat pulse under the gameplay + economy run (~6s–45s), every 0.86s
+for (let t = 6.2; t < 45; t += 0.86) pulse(t, 0.5 + 0.2 * ((t - 6) / 39));
 
 // eerie bell motes drifting across the bed
 const motes = [
   [1.2, N_.A4, -0.5], [3.4, N_.F4, 0.4], [8.0, N_.D4, 0.5], [13.0, N_.A4, -0.4],
   [18.5, N_.C4, 0.3], [23.5, N_.G3, -0.5], [28.0, N_.Eb3, 0.4], [33.0, N_.A4, -0.3],
-  [37.0, N_.F4, 0.5], [40.5, N_.D4, 0],
+  [38.0, N_.G3, 0.5], [42.0, N_.C4, -0.4], [46.5, N_.F4, 0.5], [51.0, N_.D4, 0],
 ];
 for (const [t, f, p] of motes) bell(f, t, 0.16, p);
 
@@ -167,8 +171,9 @@ for (const [t, f, p] of motes) bell(f, t, 0.16, p);
 impact(2.5, 0.5);              // wordmark pop
 riser(16.2, 1.6, 0.22); impact(16.2, 0.42);   // combat
 riser(26.2, 1.8, 0.20);       // into the Drift wash
-horn(N_.D2, 35.6, 39.6, 0.5); // war-horn swell into the gate
-riser(39.6, 1.4, 0.24); impact(39.6, 0.6);    // PLAY NOW
+riser(33.9, 1.3, 0.20); impact(33.9, 0.42);   // the Drift Wheel lands on a relic
+horn(N_.D2, 49.6, 53.6, 0.5); // war-horn swell into the gate
+riser(53.6, 1.4, 0.24); impact(53.6, 0.6);    // PLAY NOW
 
 // ── master: soft-clip + fade in/out, write WAV ──────────────────────────────
 let peak = 0;

@@ -43,6 +43,10 @@ export const players = pgTable("players", {
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative
    *  ownership; the identity sync rejects prestige keys not listed here) */
   prestige: jsonb("prestige").$type<string[]>().notNull().default([]),
+  /** Drift Wheel spins since the last rare (forces a rare at DRIFT_WHEEL_PITY) */
+  wheelPity: real("wheel_pity").notNull().default(0),
+  /** guild membership (null = guildless) */
+  guildId: real("guild_id"),
 
   // where the wanderer last stood
   lastX: real("last_x"),
@@ -111,4 +115,42 @@ export const burns = pgTable("burns", {
 export const shrine = pgTable("shrine", {
   id: serial("id").primaryKey(),
   pot: real("pot").notNull().default(0),
+});
+
+// Guilds: founded with a DRIFTS burn; territory = a region banner kept alive
+// by recurring upkeep burns (the structural social sink).
+export const guilds = pgTable("guilds", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  tag: text("tag").notNull().unique(),
+  founderToken: text("founder_token").notNull(),
+  /** held region ("" = none) + when the banner falls (ms epoch) */
+  region: text("region").notNull().default(""),
+  regionUntil: real("region_until").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type GuildRow = typeof guilds.$inferSelect;
+
+// The relic market: P2P listings of Drift-touched (prestige) cosmetics,
+// priced in DRIFTS, settled wallet-to-wallet with a burned fee.
+export const relics = pgTable("relics", {
+  id: serial("id").primaryKey(),
+  sellerToken: text("seller_token").notNull(),
+  sellerWallet: text("seller_wallet").notNull(),
+  sellerName: text("seller_name").notNull().default("Wanderer"),
+  key: text("key").notNull(),
+  price: real("price").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type RelicRow = typeof relics.$inferSelect;
+
+// Exchange daily caps: one row per wallet per UTC day.
+export const exchangeLog = pgTable("exchange_log", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull(),
+  day: text("day").notNull(), // YYYY-MM-DD UTC
+  goldBought: real("gold_bought").notNull().default(0),
+  goldSold: real("gold_sold").notNull().default(0),
+  /** last payout tx signature (audit trail) */
+  lastSig: text("last_sig"),
 });

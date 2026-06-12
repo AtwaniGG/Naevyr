@@ -18,6 +18,8 @@ import {
   SPIN_COST,
   BURN_COSTS,
   PRESTIGE_CATALOG,
+  RELIC_MARKET,
+  GUILD,
   burnAmt,
   holderPerks,
   INVENTORY_ORDER,
@@ -32,6 +34,7 @@ import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
+import WheelOverlay from "@/components/Hud/WheelOverlay";
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
 import {
   ActivityLog,
@@ -112,6 +115,7 @@ export default function Hud() {
       <ShopModal />
       <DuelOverlay />
       <ChallengePrompt />
+      <WheelOverlay />
     </div>
   );
 }
@@ -358,10 +362,52 @@ function KeeperDialogue() {
         bus.emit("bank", -amt);
         respond("Mind the handling fee.");
       };
-      opts.push({ label: "Deposit 100g", onClick: () => dep(100) });
-      opts.push({ label: "Deposit everything", right: `${s.gold}g`, onClick: () => dep(s.gold) });
-      opts.push({ label: "Withdraw 100g", onClick: () => wd(100) });
-      opts.push({ label: "Withdraw everything", right: `${s.banked}g`, onClick: () => wd(s.banked) });
+      if (menu === "exchange") {
+        const ex = s.exchange;
+        if (!ex) {
+          info = "The merchant counts his purse…";
+          opts.push(back());
+        } else if (!ex.buyOpen && !ex.sellOpen) {
+          info = "The Exchange counter is closed. The merchant has not yet arrived.";
+          opts.push(back());
+        } else {
+          info = `Pool ${Math.floor(ex.pool).toLocaleString()} DRIFTS · buy ${ex.buyRate}/g · sell ${ex.sellRate}/g · today: bought ${ex.boughtToday}/${ex.buyCap}g, sold ${ex.soldToday}/${ex.sellCap}g`;
+          const buy = (g: number) => {
+            if (!s.wallet) return respond("Link a wallet first.");
+            bus.emit("exBuy", g);
+            respond("Sign the transfer and the gold is yours.");
+          };
+          const sell = (g: number) => {
+            const amt = Math.min(g, s.gold, ex.sellCap - ex.soldToday);
+            if (amt < ex.minTrade) return respond(`Trades start at ${ex.minTrade}g.`);
+            bus.emit("exSell", amt);
+            respond("The merchant weighs your coin…");
+          };
+          if (ex.buyOpen) {
+            opts.push({ label: "Buy 100g", right: <>{(100 * ex.buyRate).toLocaleString()} <DriftsMark /></>, onClick: () => buy(100) });
+            opts.push({ label: "Buy 500g", right: <>{(500 * ex.buyRate).toLocaleString()} <DriftsMark /></>, onClick: () => buy(500) });
+          }
+          if (ex.sellOpen) {
+            opts.push({ label: "Sell 100g", right: <>{(100 * ex.sellRate).toLocaleString()} <DriftsMark /></>, onClick: () => sell(100) });
+            opts.push({
+              label: "Sell to today's cap",
+              right: `${Math.max(0, Math.min(s.gold, ex.sellCap - ex.soldToday))}g`,
+              onClick: () => sell(ex.sellCap - ex.soldToday),
+            });
+          }
+          opts.push(back());
+        }
+      } else {
+        opts.push({ label: "Deposit 100g", onClick: () => dep(100) });
+        opts.push({ label: "Deposit everything", right: `${s.gold}g`, onClick: () => dep(s.gold) });
+        opts.push({ label: "Withdraw 100g", onClick: () => wd(100) });
+        opts.push({ label: "Withdraw everything", right: `${s.banked}g`, onClick: () => wd(s.banked) });
+        opts.push({
+          label: "The Exchange", swatch: "#e7c873",
+          sub: "gold for DRIFTS, DRIFTS for gold · daily caps by standing",
+          onClick: () => { bus.emit("exInfo", true); setMenu("exchange"); },
+        });
+      }
     }
   } else if (openShop === "wheel") {
     if (!s.online) {
@@ -382,6 +428,18 @@ function KeeperDialogue() {
           label: "Spin on a burn", sub: "DRIFTS burned, gone for good",
           right: <>{burnAmt(BURN_COSTS.spin)} <DriftsMark /></>,
           onClick: () => { bus.emit("spinBurn", true); respond("The chain takes its due…"); },
+        });
+        opts.push({
+          label: "Spin the DRIFT WHEEL", swatch: "#a855f7",
+          sub: "cosmetics, shards, a 1% Drift-touched relic",
+          right: <>{burnAmt(BURN_COSTS.driftSpin)} <DriftsMark /></>,
+          onClick: () => { bus.emit("driftSpinBurn", true); respond("The dark wheel wakes…"); },
+        });
+        opts.push({
+          label: "Buy a Drift Cache", swatch: "#d8b4fe",
+          sub: "three Drift Wheel spins, bundled (20% off)",
+          right: <>{burnAmt(BURN_COSTS.cache)} <DriftsMark /></>,
+          onClick: () => { bus.emit("cacheBurn", true); respond("Three turns of the dark wheel…"); },
         });
       }
     }
@@ -1008,11 +1066,107 @@ function MarketDock() {
                     List
                   </Button>
                 </div>
+                <RelicStall />
               </>
             )}
           </Panel>
       </DockPopout>
     </div>
+  );
+}
+
+/** the relic stall: P2P Drift-touched cosmetics, priced in DRIFTS, the fee
+ *  burned. Only server-authoritative prestige cosmetics trade here. */
+function RelicStall() {
+  const relics = useGame((s) => s.relics);
+  const wallet = useGame((s) => s.wallet);
+  const ownedDyes = useGame((s) => s.ownedDyes);
+  const ownedAuras = useGame((s) => s.ownedAuras);
+  const myName = useGame((s) => s.cosmetics.name);
+  const [listKey, setListKey] = useState("");
+  const [listPrice, setListPrice] = useState<number>(RELIC_MARKET.minPrice);
+
+  // what I can put on the stall: owned cosmetics that are prestige + tradable
+  const listable = Object.entries(PRESTIGE_CATALOG)
+    .filter(([k, e]) =>
+      e.kind !== "title" &&
+      (e.kind === "dye" ? ownedDyes.includes(k as never) : ownedAuras.includes(k as never)) &&
+      !relics.some((r) => r.key === k && r.sellerName === myName),
+    )
+    .map(([k, e]) => ({ key: k, label: e.label }));
+
+  return (
+    <>
+      <label className="drift-label" style={{ fontSize: 9, display: "block", margin: "12px 0 4px" }}>
+        Relic stall <span style={{ color: "var(--text-muted)" }}>· Drift-touched only · 5% burns</span>
+      </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 110, overflowY: "auto", marginBottom: 8 }}>
+        {relics.length === 0 && (
+          <span style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+            No relics on the stall.
+          </span>
+        )}
+        {relics.map((r) => {
+          const mine = r.sellerName === myName;
+          return (
+            <div key={r.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
+              <span style={{ font: "600 11px/1 var(--font-ui)", color: "#d8b4fe" }}>
+                {PRESTIGE_CATALOG[r.key]?.label ?? r.key}
+              </span>
+              <span style={{ flex: 1, font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)", textAlign: "right" }}>
+                {r.sellerName}
+              </span>
+              <span className="drift-num" style={{ font: "600 10px/1 var(--font-ui)", color: "var(--drift-gold)" }}>
+                {r.price.toLocaleString()} <DriftsMark />
+              </span>
+              {mine ? (
+                <Button size="sm" variant="ghost" onClick={() => bus.emit("relicUnlist", r.id)}>Pull</Button>
+              ) : (
+                <Button
+                  size="sm" variant="gold"
+                  onClick={() => bus.emit("relicBuy", r.id)}
+                  style={!wallet ? { opacity: 0.45 } : undefined}
+                  title={wallet ? undefined : "Link a wallet first"}
+                >
+                  Buy
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {listable.length > 0 && wallet && (
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+          <select
+            className="drift-well"
+            value={listKey}
+            onChange={(e) => setListKey(e.target.value)}
+            style={{ flex: 1, border: 0, padding: "6px", font: "400 10px var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+          >
+            <option value="">List a relic…</option>
+            {listable.map((l) => (
+              <option key={l.key} value={l.key}>{l.label}</option>
+            ))}
+          </select>
+          <input
+            className="drift-well"
+            type="number"
+            min={RELIC_MARKET.minPrice}
+            value={listPrice}
+            onChange={(e) => setListPrice(Math.max(RELIC_MARKET.minPrice, Math.round(Number(e.target.value) || 0)))}
+            style={{ width: 84, border: 0, padding: "6px", font: "400 10px var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+            title="Price in DRIFTS"
+          />
+          <Button
+            size="sm" variant="primary"
+            onClick={() => listKey && bus.emit("relicList", { key: listKey, price: listPrice })}
+            style={!listKey ? { opacity: 0.45 } : undefined}
+          >
+            List
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1194,6 +1348,11 @@ function IdentityDock() {
               Wallet <span style={{ color: "var(--text-muted)" }}>· beta</span>
             </label>
             <WalletRow />
+            {/* guilds: found / join / territory (the recurring social sink) */}
+            <label className="drift-label" style={{ fontSize: 9, display: "block", margin: "10px 0 4px" }}>
+              Guild
+            </label>
+            <GuildSection />
             {/* sound */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span className="drift-label" style={{ fontSize: 9 }}>Sound</span>
@@ -1217,6 +1376,118 @@ function IdentityDock() {
 }
 
 /** link/unlink a Solana wallet (devnet only; signature flow runs in the engine) */
+/** found / join / run a guild. Founding burns DRIFTS and requires a holding;
+ *  territory + upkeep are the recurring sink. Region perks are server-side. */
+function GuildSection() {
+  const online = useGame((s) => s.online);
+  const wallet = useGame((s) => s.wallet);
+  const tokenBalance = useGame((s) => s.tokenBalance);
+  const guilds = useGame((s) => s.guilds);
+  const myTag = useGame((s) => s.myGuildTag);
+  const [name, setName] = useState("");
+  const [tag, setTag] = useState("");
+  const [region, setRegion] = useState<string>(GUILD.regions[0]);
+
+  if (!online) {
+    return (
+      <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginBottom: 8 }}>
+        Banners only rise in the shared world.
+      </div>
+    );
+  }
+
+  const mine = guilds.find((g) => g.tag === myTag);
+  if (mine) {
+    const held = mine.region && mine.regionSecsLeft > 0;
+    const hrs = Math.floor(mine.regionSecsLeft / 3600);
+    const mins = Math.floor((mine.regionSecsLeft % 3600) / 60);
+    return (
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ font: "600 12px/1.4 var(--font-ui)", color: "var(--text-primary)" }}>
+          {mine.name} <span style={{ color: "#d8b4fe" }}>[{mine.tag}]</span>
+          <span style={{ font: "400 10px var(--font-ui)", color: "var(--text-muted)" }}> · {mine.members}/{GUILD.maxMembers}</span>
+        </div>
+        <div style={{ font: "400 10px/1.5 var(--font-ui)", color: held ? "var(--drift-gold)" : "var(--text-muted)", margin: "2px 0 6px" }}>
+          {held ? `Banner over ${mine.region} · ${hrs}h ${mins}m left` : "No banner stands."}
+        </div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {!held && (
+            <>
+              <select
+                className="drift-well"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                style={{ flex: 1, border: 0, padding: "5px", font: "400 10px var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+              >
+                {GUILD.regions.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <Button size="sm" variant="gold" onClick={() => bus.emit("guildTerritory", region)}
+                title={`Burn ${burnAmt(BURN_COSTS.guildTerritory)} DRIFTS to stake the banner for 48h (founder only)`}>
+                Stake · {burnAmt(BURN_COSTS.guildTerritory)} <DriftsMark />
+              </Button>
+            </>
+          )}
+          {held && (
+            <Button size="sm" variant="gold" onClick={() => bus.emit("guildUpkeep", true)}
+              title={`Burn ${burnAmt(BURN_COSTS.guildUpkeep)} DRIFTS to extend the banner 48h (any member)`}>
+              Feed the banner · {burnAmt(BURN_COSTS.guildUpkeep)} <DriftsMark />
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => bus.emit("guildLeave", true)} title="The founder cannot leave">
+            Leave
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const canFound = !!wallet && tokenBalance >= GUILD.foundHold;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      {guilds.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 90, overflowY: "auto", marginBottom: 6 }}>
+          {guilds.map((g) => (
+            <div key={g.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 7px" }}>
+              <span style={{ font: "600 10.5px/1 var(--font-ui)", color: "var(--text-primary)" }}>
+                {g.name} [{g.tag}]
+              </span>
+              <span style={{ flex: 1, font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)", textAlign: "right" }}>
+                {g.members}/{GUILD.maxMembers}{g.region && g.regionSecsLeft > 0 ? ` · ${g.region}` : ""}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => bus.emit("guildJoin", g.id)}
+                style={g.members >= GUILD.maxMembers ? { opacity: 0.45 } : undefined}>
+                Join
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 5, marginBottom: 4 }}>
+        <input
+          className="drift-well" placeholder="Guild name" value={name} maxLength={GUILD.nameMax}
+          onChange={(e) => setName(e.target.value)}
+          style={{ flex: 1, border: 0, outline: "none", padding: "6px", font: "400 10px var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
+        />
+        <input
+          className="drift-well" placeholder="TAG" value={tag} maxLength={GUILD.tagMax}
+          onChange={(e) => setTag(e.target.value.toUpperCase())}
+          style={{ width: 52, border: 0, outline: "none", padding: "6px", font: "600 10px var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)", textAlign: "center" }}
+        />
+      </div>
+      <Button
+        size="sm" variant="gold"
+        onClick={() => name.trim().length >= 3 && tag.trim().length >= 2 && bus.emit("guildFound", { name: name.trim(), tag: tag.trim() })}
+        style={!canFound || name.trim().length < 3 || tag.trim().length < 2 ? { opacity: 0.45 } : undefined}
+        title={canFound
+          ? `Burn ${burnAmt(BURN_COSTS.guildFound)} DRIFTS to found (requires holding ${GUILD.foundHold.toLocaleString()})`
+          : `Founding requires a linked wallet holding ${GUILD.foundHold.toLocaleString()} DRIFTS`}
+      >
+        Found a guild · {burnAmt(BURN_COSTS.guildFound)} <DriftsMark />
+      </Button>
+    </div>
+  );
+}
+
 function WalletRow() {
   const wallet = useGame((s) => s.wallet);
   const online = useGame((s) => s.online);

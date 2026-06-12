@@ -302,3 +302,16 @@ export function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** the named region a cell falls in (shared: the client banner, the roster,
+ *  and the server's guild-territory perks all read the same geometry) */
+export function regionAt(w: number, h: number, x: number, y: number): string {
+  const cx = w / 2;
+  const cy = h / 2;
+  // the Rest covers the whole spread-out town (the Mine sits in the wilds)
+  if (Math.hypot(x - cx, y - cy) < 13) return "Wanderer's Rest";
+  if (x >= cx && y < cy) return "Palewater";
+  if (x < cx && y < cy) return "The Ashen Flats";
+  if (x < cx && y >= cy) return "Hollowmere Reach";
+  return "The Bonefields";
+}
