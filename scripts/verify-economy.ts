@@ -42,6 +42,8 @@ const MUTE = [
 interface Session {
   room: Room<any>;
   on: <T>(type: string, timeoutMs?: number) => Promise<T | null>;
+  /** gather up to `count` messages of a type (resolves with what arrived) */
+  collect: (type: string, count: number, timeoutMs?: number) => Promise<any[]>;
   kp: Keypair;
   address: string;
 }
@@ -54,6 +56,16 @@ async function join(token: string, kp: Keypair): Promise<Session> {
     new Promise((res) => {
       const to = setTimeout(() => res(null), timeoutMs);
       handlers.set(type, [(m) => { clearTimeout(to); handlers.delete(type); res(m); }]);
+    });
+  const collect = (type: string, count: number, timeoutMs = 60_000): Promise<any[]> =>
+    new Promise((res) => {
+      const got: any[] = [];
+      const done = () => { handlers.delete(type); res(got); };
+      const to = setTimeout(done, timeoutMs);
+      handlers.set(type, [(m) => {
+        got.push(m);
+        if (got.length >= count) { clearTimeout(to); done(); }
+      }]);
     });
   await wait(300);
   // link the wallet (sign-message) + seed the purse via first save
@@ -70,7 +82,7 @@ async function join(token: string, kp: Keypair): Promise<Session> {
     signature: Array.from(sig, (b) => b.toString(16).padStart(2, "0")).join(""),
   });
   await lr;
-  return { room, on, kp, address: kp.publicKey.toBase58() };
+  return { room, on, collect, kp, address: kp.publicKey.toBase58() };
 }
 
 async function main() {
@@ -82,15 +94,17 @@ async function main() {
 
   const kpA = Keypair.generate(); // founder / spender
   const kpB = Keypair.generate(); // joiner / relic buyer
+  const kpC = Keypair.generate(); // second relic buyer (race case)
   const treasury = Keypair.generate();
   const escrow = Keypair.generate();
-  console.log("funding test wallets on devnet (3 mints)…");
+  console.log("funding test wallets on devnet (4 mints)…");
   const mintTo = (addr: string, amt: string) =>
     execFileSync("./node_modules/.bin/tsx",
       ["scripts/create-devnet-mint.ts", "--mint-to", addr, amt],
       { cwd: SERVER_DIR, stdio: "pipe", timeout: 120_000 });
   mintTo(kpA.publicKey.toBase58(), "200000");
   mintTo(kpB.publicKey.toBase58(), "20000");
+  mintTo(kpC.publicKey.toBase58(), "5000");
   mintTo(escrow.publicKey.toBase58(), "10000"); // the sell-side pool
 
   const server = spawn("./node_modules/.bin/tsx", ["src/index.ts"], {
@@ -263,6 +277,83 @@ async function main() {
       const aState = A.room.state.players.get(A.room.sessionId);
       check("buyer may wear the relic", bState?.aura === "bonewisp", `aura=${bState?.aura}`);
       check("seller may NOT wear it anymore", aState?.aura !== "bonewisp", `aura=${aState?.aura}`);
+    }
+
+    // 7) ADVERSARIAL RACES: the locks must hold under concurrent intents
+    {
+      // 7a) double-exSell from one session: the per-token exTrading lock must
+      // refuse the second while the first is mid-payout (no cap/pool race).
+      // Wait out the exSell rate window (2/30s, step 5 spent one) so the
+      // limiter cannot silently drop the second send and mask the lock.
+      console.log("      …waiting out the exSell rate window (31s)");
+      await wait(31_000);
+      const balBefore = await tokenBalance(conn, mint, kpA.publicKey);
+      const both = A.collect("exResult", 2, 90_000);
+      A.room.send("exSell", { gold: 50 });
+      A.room.send("exSell", { gold: 50 });
+      const results = await both;
+      const oks = results.filter((r) => r?.ok === true);
+      const refusals = results.filter((r) => r?.ok === false);
+      check("concurrent double-exSell: exactly one payout", oks.length === 1 && refusals.length === 1,
+        `got=${results.length} ok=${oks.length} refused=${refusals.length}`);
+      check("double-exSell: the lock refused the second (not a silent drop)",
+        String(refusals[0]?.reason ?? "").includes("still counting"),
+        `reason=${refusals[0]?.reason}`);
+      if (oks.length === 1) {
+        await wait(3000);
+        const balAfter = await tokenBalance(conn, mint, kpA.publicKey);
+        const paid = balAfter - balBefore;
+        check("double-exSell: the pool paid exactly once on-chain",
+          paid >= 50 * EXCHANGE.sellRate - 1 && paid < 2 * 50 * EXCHANGE.sellRate,
+          `${balBefore} → ${balAfter}`);
+      }
+
+      // 7b) two-buyer relic race: B and C both hold valid quotes + payments for
+      // ONE listing; the relicSettling lock must settle it exactly once
+      const C = await join(`eco-c-${Date.now()}`, kpC);
+      const pSig = await burnFor(A, "prestigeAura");
+      const pp = A.on<any>("prestigeResult");
+      A.room.send("prestige", { key: "ashen_crown", burnSig: pSig });
+      const p = await pp;
+      check("A owns a second prestige relic", p?.ok === true, p?.reason);
+      const lp = A.on<any>("relicResult");
+      A.room.send("relicList", { key: "ashen_crown", price: RELIC_MARKET.minPrice });
+      const l = await lp;
+      check("race relic listed", l?.ok === true && l?.listed === true, l?.reason);
+
+      const quoteFor = async (s: Session) => {
+        const qp = s.on<any>("relicQuote", 30_000);
+        s.room.send("relicQuote", { id: l?.id });
+        const q = await qp;
+        if (!q?.ok || !q.tx) return null;
+        const tx = Transaction.from(Buffer.from(q.tx, "base64"));
+        tx.partialSign(s.kp);
+        return conn.sendRawTransaction(tx.serialize());
+      };
+      const sigB = await quoteFor(B);
+      const sigC = await quoteFor(C);
+      check("both racers hold valid payments", !!sigB && !!sigC);
+
+      const rpB = B.on<any>("relicResult", 90_000);
+      const rpC = C.on<any>("relicResult", 90_000);
+      B.room.send("relicBuy", { id: l?.id, sig: sigB });
+      C.room.send("relicBuy", { id: l?.id, sig: sigC });
+      const [rB, rC] = await Promise.all([rpB, rpC]);
+      const winners = [rB, rC].filter((r) => r?.ok === true && r?.bought === true);
+      const losers = [rB, rC].filter((r) => !(r?.ok === true && r?.bought === true));
+      check("two-buyer relic race: exactly one settlement",
+        winners.length === 1 && losers.length === 1,
+        `winners=${winners.length} loser reason=${losers[0]?.reason}`);
+      // ownership moved exactly once: the winner wears it, the seller cannot
+      const winner = rB?.ok ? B : C;
+      winner.room.send("identity", { aura: "ashen_crown" });
+      A.room.send("identity", { aura: "ashen_crown" });
+      await wait(600);
+      const wState = winner.room.state.players.get(winner.room.sessionId);
+      const aState2 = A.room.state.players.get(A.room.sessionId);
+      check("race winner may wear the relic", wState?.aura === "ashen_crown", `aura=${wState?.aura}`);
+      check("seller stripped exactly once", aState2?.aura !== "ashen_crown", `aura=${aState2?.aura}`);
+      C.room.leave();
     }
 
     A.room.leave();

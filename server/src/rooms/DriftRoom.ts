@@ -77,24 +77,36 @@ const CLAIM_EROSION = 5; // integrity lost per season
 const CLAIM_SIEGE_EROSION = 15; // …when corruption is at the fence
 const VALID_ITEMS = new Set<string>(INVENTORY_ORDER);
 
+// Drift-touched (burn-only) keys, DERIVED from the shared catalog so the
+// identity-sync whitelist, the Drift Wheel grant pool and the Dyeworks panel
+// can never disagree on what exists. In the whitelists for legit owners, but
+// the identity sync additionally requires the player to OWN them
+// (sim.prestige), so they can't be spoofed for free.
+const PRESTIGE_AURA_KEYS = new Set(
+  Object.entries(PRESTIGE_CATALOG).filter(([, e]) => e.kind === "aura").map(([k]) => k));
+const PRESTIGE_DYE_KEYS = new Set(
+  Object.entries(PRESTIGE_CATALOG).filter(([, e]) => e.kind === "dye").map(([k]) => k));
 // mirror of the client's cosmetic catalogs (whitelists)
-const DYE_KEYS = ["stone", "ember", "moss", "blood", "gold", "bone", "water", "void", "drift"];
+const DYE_KEYS = ["stone", "ember", "moss", "blood", "gold", "bone", "water", "void",
+  ...PRESTIGE_DYE_KEYS];
 const EYE_KEYS = ["drift", "ember", "blood", "gold", "water"];
-const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo",
-  "ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"];
+const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo", ...PRESTIGE_AURA_KEYS];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
 const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
-// Drift-touched (burn-only) keys: in the whitelist for legit owners, but the
-// identity sync additionally requires the player to OWN them (sim.prestige),
-// so they can't be spoofed for free — the whole point of burning for them.
-const PRESTIGE_AURA_KEYS = new Set(["ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"]);
-const PRESTIGE_DYE_KEYS = new Set(["drift"]);
 
 // ---- Phase 6: the Founder window -----------------------------------------------
 // Any verified burn while now < FOUNDER_UNTIL stamps the one-time Founder mark
 // (title + Ashen Crown, granted client-side off the profile/founder messages).
 // Unset = feature off, so dev and the verify suites run unchanged.
 const FOUNDER_UNTIL = Date.parse(process.env.FOUNDER_UNTIL ?? "") || 0;
+
+// ---- Phase 7: the Exchange sell side opens LATE --------------------------------
+// At launch the escrow pool is empty (no buyers yet), so SELLING gold for DRIFTS
+// stays closed until `EXCHANGE_SELL_FROM` (set it to ~launch + a few days). The
+// BUY side is always open from launch and fills the pool. Unset/0 = no gate, so
+// dev and the verify suite (which set ESCROW_KEYPAIR) keep both sides open.
+const EXCHANGE_SELL_FROM = Date.parse(process.env.EXCHANGE_SELL_FROM ?? "") || 0;
+const sellSideOpen = () => Date.now() >= EXCHANGE_SELL_FROM;
 
 // ---- Caravans: a wagon runs the Waystation → map-edge gate gauntlet ----------
 // Env overrides exist so the verify script can compress the timeline.
@@ -345,8 +357,6 @@ interface PlayerSim {
   wheelPity: number;
   /** guild membership (null = guildless) */
   guildId: number | null;
-  /** an Exchange sell is in flight — refuse a second until it settles */
-  exBusy?: boolean;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -372,6 +382,12 @@ export class DriftRoom extends Room<DriftRoomState> {
   private guildCounts = new Map<number, number>();
   /** relic id → seller token + wallet (settlement targets) */
   private relicOwner = new Map<number, { token: string; wallet: string; key: string; price: number }>();
+  /** relic ids mid-settlement — claimed synchronously before the verify await
+   *  so two concurrent buyers (distinct sigs) cannot settle the same relic */
+  private relicSettling = new Set<number>();
+  /** tokens with an Exchange trade in flight — a per-TOKEN single-flight (NOT
+   *  per-session: two tabs of one wallet must not split the daily cap/escrow) */
+  private exTrading = new Set<string>();
   // caravan run state (route + contributions live server-side only)
   private caravanPath: Cell[] = [];
   private caravanTotal = 0;
@@ -1071,7 +1087,8 @@ export class DriftRoom extends Room<DriftRoomState> {
         minTrade: EXCHANGE.minTrade,
         pool: await escrowBalance(),
         buyOpen: !!escrowAddress(),
-        sellOpen: !!escrowKeypair(),
+        sellOpen: !!escrowKeypair() && sellSideOpen(),
+        sellOpensAt: EXCHANGE_SELL_FROM, // 0 = no gate; else ms epoch
         boughtToday: today.bought,
         soldToday: today.sold,
         buyCap: EXCHANGE.buyCapPerDay,
@@ -1108,23 +1125,32 @@ export class DriftRoom extends Room<DriftRoomState> {
       const sig = String(msg?.sig ?? "");
       if (!Number.isFinite(gold) || gold < EXCHANGE.minTrade) return fail("Bad trade");
       if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed signature");
-      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
-      if (today.bought + gold > EXCHANGE.buyCapPerDay) return fail("Past the day's cap");
-      const row = await loadOrCreatePlayer(sim.token);
-      if (!row.walletAddress) return fail("No wallet linked");
-      // insert-first replay protection (the burns table is the sig ledger)
-      if (!(await tryInsertBurn(sig, sim.token, "exBuy"))) return fail("That payment was already spent");
-      const cost = gold * EXCHANGE.buyRate;
-      const v = await verifyTxLegs(sig, [
-        { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: cost },
-      ]);
-      if (!v.ok) {
-        await deleteBurn(sig).catch(() => {});
-        return fail(v.reason ?? "The payment could not be verified");
+      // per-TOKEN single-flight so concurrent buys cannot each read a stale
+      // bought-today and inject gold past the daily cap
+      if (this.exTrading.has(sim.token)) return fail("The merchant is still counting your last trade");
+      this.exTrading.add(sim.token);
+      try {
+        const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+        if (today.bought + gold > EXCHANGE.buyCapPerDay) return fail("Past the day's cap");
+        const row = await loadOrCreatePlayer(sim.token);
+        if (!row.walletAddress) return fail("No wallet linked");
+        // insert-first replay protection (the burns table is the sig ledger)
+        if (!(await tryInsertBurn(sig, sim.token, "exBuy"))) return fail("That payment was already spent");
+        const cost = gold * EXCHANGE.buyRate;
+        const v = await verifyTxLegs(sig, [
+          { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: cost },
+        ]);
+        if (!v.ok) {
+          await deleteBurn(sig).catch(() => {});
+          return fail(v.reason ?? "The payment could not be verified");
+        }
+        this.credit(sim, gold);
+        // AWAIT before releasing the lock so the next buy sees this one's tally
+        await exchangeRecord(sim.token, gold, 0).catch(() => {});
+        client.send("exResult", { ok: true, dir: "buy", gold, cost });
+      } finally {
+        this.exTrading.delete(sim.token);
       }
-      this.credit(sim, gold);
-      void exchangeRecord(sim.token, gold, 0).catch(() => {});
-      client.send("exResult", { ok: true, dir: "buy", gold, cost });
     });
 
     // sell gold for DRIFTS: the ONLY outbound rail — pool-funded, capped, ordered
@@ -1133,32 +1159,48 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!sim) return;
       if (!this.allow(sim, "exSell", 2, 30_000)) return;
       const fail = (reason: string) => client.send("exResult", { ok: false, dir: "sell", reason });
-      if (sim.exBusy) return fail("The merchant is still counting your last trade");
+      // claim the per-TOKEN lock BEFORE any await so two sessions of one wallet
+      // cannot both read a stale daily cap / drain the pool concurrently
+      if (this.exTrading.has(sim.token)) return fail("The merchant is still counting your last trade");
+      if (!sellSideOpen()) {
+        return fail("The merchant isn't buying gold yet — the counter opens once the realm has settled");
+      }
       const gold = Math.round(Number(msg?.gold ?? 0));
       if (!Number.isFinite(gold) || gold < EXCHANGE.minTrade) return fail(`Trades start at ${EXCHANGE.minTrade}g`);
-      const row = await loadOrCreatePlayer(sim.token);
-      if (!row.walletAddress) return fail("Link a wallet first");
-      const tier = holderPerks(sim.tokenBalance).key;
-      const cap = EXCHANGE.sellCapPerDay[tier] ?? EXCHANGE.sellCapPerDay[""];
-      const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
-      if (today.sold + gold > cap) {
-        return fail(`Your standing sells ${cap}g a day at most (${cap - today.sold}g left)`);
-      }
-      const payout = gold * EXCHANGE.sellRate;
-      if ((await escrowBalance()) < payout) return fail("The merchant's purse is light");
-      sim.exBusy = true;
+      this.exTrading.add(sim.token);
       try {
-        // debit FIRST (the gold ledger is authoritative), refund on any failure
+        const row = await loadOrCreatePlayer(sim.token);
+        if (!row.walletAddress) return fail("Link a wallet first");
+        const tier = holderPerks(sim.tokenBalance).key;
+        const cap = EXCHANGE.sellCapPerDay[tier] ?? EXCHANGE.sellCapPerDay[""];
+        const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
+        if (today.sold + gold > cap) {
+          return fail(`Your standing sells ${cap}g a day at most (${cap - today.sold}g left)`);
+        }
+        const payout = gold * EXCHANGE.sellRate;
+        if ((await escrowBalance()) < payout) return fail("The merchant's purse is light");
+        // debit FIRST (the gold ledger is authoritative)
         if (!this.debit(sim, gold)) return fail(`You carry less than ${gold}g`);
         const paid = await payFromEscrow(row.walletAddress, payout);
-        if (!paid.ok) {
-          this.credit(sim, gold); // the chain refused: give the gold back
+        if (paid.ok) {
+          // AWAIT the cap write before releasing the lock so the next sell of
+          // this token reads a correct sold-today (no read-then-write race)
+          await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
+          client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig });
+        } else if (paid.refundable) {
+          // nothing was paid out (no broadcast, or landed-and-reverted): refund
+          this.credit(sim, gold);
           return fail(paid.reason);
+        } else {
+          // INDETERMINATE: the DRIFTS may already be leaving escrow. Do NOT
+          // refund (that double-pays). Hold the gold spent, record the sale +
+          // sig against the cap so a retry cannot drain more, and tell the
+          // player to check their wallet (reconcile the sig off-chain later).
+          await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
+          client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig, pending: true });
         }
-        void exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
-        client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig });
       } finally {
-        sim.exBusy = false;
+        this.exTrading.delete(sim.token);
       }
     });
 
@@ -1192,6 +1234,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!sim) return;
       if (!this.allow(sim, "relicUnlist", 4, 10_000)) return;
       const id = Math.round(Number(msg?.id ?? 0));
+      if (this.relicSettling.has(id)) return; // a buy is settling it — can't pull
       const rec = this.relicOwner.get(id);
       if (!rec || rec.token !== sim.token) return;
       this.relicOwner.delete(id);
@@ -1227,41 +1270,59 @@ export class DriftRoom extends Room<DriftRoomState> {
       const rec = this.relicOwner.get(id);
       if (!rec) return fail("That relic is gone");
       if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed signature");
-      const row = await loadOrCreatePlayer(sim.token);
-      if (!row.walletAddress) return fail("No wallet linked");
-      const fee = Math.ceil(rec.price * RELIC_MARKET.feePct);
-      // the fee leg burns forever — recorded on the public counter
-      if (!(await tryInsertBurn(sig, sim.token, "relic", fee, 0))) return fail("That payment was already spent");
-      const v = await verifyTxLegs(sig, [
-        { type: "transfer", from: row.walletAddress, destAta: walletAta(rec.wallet), min: rec.price - fee },
-        { type: "burn", from: row.walletAddress, min: fee },
-      ]);
-      if (!v.ok) {
-        await deleteBurn(sig).catch(() => {});
-        return fail(v.reason ?? "The payment could not be verified");
+      // claim the listing BEFORE any await: a second concurrent buy (distinct
+      // sig) must not read the same rec and settle the relic twice
+      if (this.relicSettling.has(id)) return fail("That relic is mid-sale");
+      this.relicSettling.add(id);
+      try {
+        const row = await loadOrCreatePlayer(sim.token);
+        if (!row.walletAddress) return fail("No wallet linked");
+        const fee = Math.ceil(rec.price * RELIC_MARKET.feePct);
+        // the fee leg burns forever — recorded on the public counter
+        if (!(await tryInsertBurn(sig, sim.token, "relic", fee, 0))) return fail("That payment was already spent");
+        const v = await verifyTxLegs(sig, [
+          { type: "transfer", from: row.walletAddress, destAta: walletAta(rec.wallet), min: rec.price - fee },
+          { type: "burn", from: row.walletAddress, min: fee },
+        ]);
+        if (!v.ok) {
+          await deleteBurn(sig).catch(() => {});
+          return fail(v.reason ?? "The payment could not be verified");
+        }
+        // settle: pull the listing and strip the seller's LIVE prestige
+        // SYNCHRONOUSLY (no await between the two) so the seller cannot re-list
+        // the key in the gap. The buyer's grant happens here too.
+        this.relicOwner.delete(id);
+        this.state.relics.delete(String(id));
+        void deleteRelic(id).catch(() => {});
+        sim.prestige.add(rec.key);
+        void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
+        let liveSeller: PlayerSim | null = null;
+        for (const [sid, other] of this.sims) {
+          if (other.token !== rec.token) continue;
+          other.prestige.delete(rec.key);
+          liveSeller = other;
+          const ops = this.state.players.get(sid);
+          if (ops?.aura === rec.key) ops.aura = "";
+          if (ops?.dye === rec.key) ops.dye = "stone";
+          const sellerClient = this.clients.find((c) => c.sessionId === sid);
+          sellerClient?.send("relicSold", { key: rec.key, price: rec.price, net: rec.price - fee });
+          break;
+        }
+        // persist the seller's loss. Online → their live set is authoritative
+        // (already stripped above), so write that; offline → read-modify-write
+        // the row. Avoids the stale-snapshot lost-update on a concurrent grant.
+        if (liveSeller) {
+          void setPrestige(rec.token, [...liveSeller.prestige]).catch(() => {});
+        } else {
+          const sellerRow = await loadOrCreatePlayer(rec.token);
+          const sellerOwned = new Set(Array.isArray(sellerRow.prestige) ? sellerRow.prestige : []);
+          sellerOwned.delete(rec.key);
+          void setPrestige(rec.token, [...sellerOwned]).catch(() => {});
+        }
+        client.send("relicResult", { ok: true, bought: true, key: rec.key, kind: PRESTIGE_CATALOG[rec.key]?.kind });
+      } finally {
+        this.relicSettling.delete(id);
       }
-      // settle: the relic changes hands (server-authoritative prestige sets)
-      this.relicOwner.delete(id);
-      this.state.relics.delete(String(id));
-      void deleteRelic(id).catch(() => {});
-      sim.prestige.add(rec.key);
-      void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
-      // the seller loses it — live if online, in the row either way
-      const sellerRow = await loadOrCreatePlayer(rec.token);
-      const sellerOwned = new Set(Array.isArray(sellerRow.prestige) ? sellerRow.prestige : []);
-      sellerOwned.delete(rec.key);
-      void setPrestige(rec.token, [...sellerOwned]).catch(() => {});
-      for (const [sid, other] of this.sims) {
-        if (other.token !== rec.token) continue;
-        other.prestige.delete(rec.key);
-        const ops = this.state.players.get(sid);
-        if (ops?.aura === rec.key) ops.aura = "";
-        if (ops?.dye === rec.key) ops.dye = "stone";
-        const sellerClient = this.clients.find((c) => c.sessionId === sid);
-        sellerClient?.send("relicSold", { key: rec.key, price: rec.price, net: rec.price - fee });
-        break;
-      }
-      client.send("relicResult", { ok: true, bought: true, key: rec.key, kind: PRESTIGE_CATALOG[rec.key]?.kind });
     });
 
     this.onMessage("unlinkWallet", async (client) => {
@@ -2190,7 +2251,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(burnSig)) return "Malformed burn signature";
     const row = await loadOrCreatePlayer(sim.token);
     if (!row.walletAddress) return "No wallet linked";
-    const cost = BURN_COSTS[action] ?? 1;
+    // an action missing from BURN_COSTS is a wiring bug — refuse rather than
+    // silently price it at a near-free default
+    const cost = BURN_COSTS[action];
+    if (cost === undefined) return "That rite is not priced";
     const split = burnSplit(cost); // 50/50 with TREASURY_ADDRESS set, else 100% burn
     // insert-first so a signature can never be spent twice, even concurrently
     if (!(await tryInsertBurn(burnSig, sim.token, action, split.burn, split.treasury))) {
@@ -2254,8 +2318,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
 
     if (seg.kind === "prestigeAura") {
-      const open = ["ashen_crown", "corruption_halo", "ember_cinder", "bonewisp"]
-        .filter((k) => !sim.prestige.has(k));
+      const open = [...PRESTIGE_AURA_KEYS].filter((k) => !sim.prestige.has(k));
       if (open.length === 0) {
         grantShards(seg.dupShards ?? 1);
         return { kind: seg.kind, dup: true, shards: seg.dupShards, label: seg.label, rare: true, seg: segIndex };

@@ -435,9 +435,8 @@ const ExchangeScene: React.FC = () => {
   return (
     <Scene>
       <Motes count={20} seed={71} drift={0.7} />
-      <Line at={6} size={44} y="13%">
-        <span style={{ color: GOLD }}>Gold</span> for <span style={{ color: DRIFT_HI }}>DRIFTS</span>.
-        DRIFTS for gold.
+      <Line at={6} size={46} y="13%">
+        Trade <span style={{ color: GOLD }}>gold</span> and <span style={{ color: DRIFT_HI }}>DRIFTS</span>.
       </Line>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
         <PixelSprite grid={scales} scale={SCALE} />

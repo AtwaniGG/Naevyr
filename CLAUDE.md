@@ -609,6 +609,46 @@ The anchor: 100 DRIFTS ≈ 1g (derived from spin/claim parity). Built:
   Whitepaper: 3 new chapters (Guilds & Territory, The Drift Wheel & Relics,
   The Exchange) with generated tables + tokenomics updated (5 demand forces).
 
+**NEXT UP — CODE REVIEW of the Phase 7 on-chain surface (do this in a fresh
+chat).** The economy expansion added the riskiest code in the repo and it has
+NOT been reviewed. Run `/code-review high` (or `/code-review ultra` for the
+cloud multi-agent pass — billed, user-triggered) scoped to the diff
+`git diff 0ac6ebe..HEAD -- server/src/solana.ts server/src/rooms/DriftRoom.ts
+server/src/db/index.ts`. Focus, highest-risk first:
+1. **`payFromEscrow` (server/src/solana.ts)** — the ONLY outbound hot-wallet
+   rail (Exchange sell side). Server signs a transfer FROM the escrow. Check:
+   the debit-gold-FIRST / refund-on-failure ordering in the `exSell` handler
+   (DriftRoom), the `sim.exBusy` single-flight guard, idempotency (no double
+   payout on retry — the payout sig is recorded in exchange_log via
+   `exchangeRecord` AFTER confirmation, but verify a re-send can't double-pay),
+   daily-cap race (two concurrent exSell before the log writes), and the
+   bounded confirmation poll. This is real-money logic.
+2. **`buildExchangeBuyTx` + `verifyTxLegs` (exBuy)** — buying gold transfers
+   DRIFTS INTO escrow; replay protection rides the `burns` table (action
+   `exBuy`, insert-first). Confirm the transfer-leg verify (destAta = escrow
+   ATA, amount, owner) can't be spoofed, and the daily buy-cap check.
+3. **`buildRelicTx` + relicBuy (DriftRoom)** — P2P: buyer pays seller 95% +
+   burns 5% in ONE tx; `verifyTxLegs` checks BOTH legs; server then moves
+   `players.prestige` ownership (seller − / buyer +) and strips a worn relic
+   off the live seller sim. Check: the seller-could-unlist-mid-buy race, the
+   ownership double-spend (seller lists same relic twice — guarded by the
+   "already on the stall" check + listing locks, verify it holds), and that
+   the fee/price split rounds safely.
+4. **Guild territory** — `regionHolder` contest race (two founders stake the
+   same region in the same tick), upkeep cap (`territoryMaxMs`), the banner
+   clock interval. Lower stakes (no money) but check the perks can't be
+   double-applied.
+5. **Drift Wheel `rollDriftWheel`** — pity counter persistence, the
+   prestige-aura grant (1% tier writes `sim.prestige` server-side — verify it
+   can't be triggered without the burn), dup→shards.
+Context: all of this passed `verify-economy.ts` (24/24 on real devnet incl. a
+live escrow payout) and `verify-burns.ts` (anti-spoof), but those are
+happy-path + a few adversarial cases, NOT a line-by-line audit. The earlier
+Phase 6 review (prestige spoof / reinforce race / /stats scan) is already
+fixed and committed. `TREASURY_ADDRESS` is now SET on Railway (50/50 split
+live on devnet); `ESCROW_KEYPAIR` is still UNSET (Exchange dormant) — keep it
+unset until this review passes, since it arms the hot-wallet payout.
+
 **Loose ends:** none right now. (Threshold art swap + gate signature
 hardening both landed 2026-06-11 — see the tutorial + entry-gate sections.)
 

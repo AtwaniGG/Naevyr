@@ -606,6 +606,13 @@ export default function DocsPage() {
             faucet. When the pool runs dry, the merchant's purse is light and
             the counter waits for buyers.
           </P>
+          <P>
+            <Gold>The sell side opens late.</Gold> At launch the pool is empty —
+            there is nothing to pay out — so buying gold opens first and the
+            merchant only begins <em>buying</em> gold (paying DRIFTS) a few days
+            in, once players have filled the pool. Until then the counter takes
+            DRIFTS for gold but not the other way around.
+          </P>
           <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
               <thead>

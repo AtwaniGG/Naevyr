@@ -114,6 +114,8 @@ export interface ExchangeInfo {
   pool: number;
   buyOpen: boolean;
   sellOpen: boolean;
+  /** when the sell side opens (ms epoch; 0 = no gate) */
+  sellOpensAt?: number;
   boughtToday: number;
   soldToday: number;
   buyCap: number;

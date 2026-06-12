@@ -196,73 +196,26 @@ export async function buildBurnTx(
 }
 
 /** confirm a submitted burn on-chain: right mint, owner, and amount — and,
- *  when the fee split is live, the matching treasury transfer leg too */
+ *  when the fee split is live, the matching treasury transfer leg too.
+ *  Thin wrapper: the split is just legs through the ONE shared verifier. */
 export async function verifyBurn(
   sig: string,
   wallet: string,
   minAmount: number,
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
-  conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
   const split = burnSplit(minAmount);
   const treasury = treasuryAddress();
-  const treasuryAta = treasury
-    ? getAssociatedTokenAddressSync(new PublicKey(MINT), treasury).toBase58()
-    : "";
-  // poll: wallets return the signature before the cluster confirms it. A
-  // throttled/flaky RPC read (429s on public endpoints) is NOT terminal —
-  // keep polling until the attempts run out.
-  let lastError = "";
-  for (let i = 0; i < 15; i++) {
-    try {
-      const tx = await withDeadline(
-        conn.getParsedTransaction(sig, {
-          commitment: "confirmed",
-          maxSupportedTransactionVersion: 0,
-        }),
-        6000,
-      );
-      if (tx) {
-        if (tx.meta?.err) return { ok: false, reason: "The burn failed on-chain" };
-        let burnOk = false, feeOk = !treasury || split.treasury <= 0;
-        for (const ix of tx.transaction.message.instructions) {
-          const parsed = (ix as { parsed?: { type?: string; info?: Record<string, unknown> } }).parsed;
-          if (!parsed) continue;
-          const info = parsed.info ?? {};
-          const amt =
-            (info.tokenAmount as { uiAmount?: number } | undefined)?.uiAmount ??
-            Number(info.amount ?? 0) / 10 ** DECIMALS;
-          if (
-            (parsed.type === "burnChecked" || parsed.type === "burn") &&
-            info.mint === MINT &&
-            (info.authority === wallet || info.owner === wallet) &&
-            amt >= split.burn
-          ) burnOk = true;
-          if (
-            !feeOk &&
-            (parsed.type === "transferChecked" || parsed.type === "transfer") &&
-            (info.mint === MINT || parsed.type === "transfer") &&
-            info.destination === treasuryAta &&
-            (info.authority === wallet || info.owner === wallet) &&
-            amt >= split.treasury
-          ) feeOk = true;
-        }
-        if (burnOk && feeOk) {
-          cache.delete(wallet); // balance just changed
-          return { ok: true };
-        }
-        return {
-          ok: false,
-          reason: burnOk ? "The treasury tithe is missing from that transaction"
-                         : "No matching burn in that transaction",
-        };
-      }
-    } catch (e) {
-      lastError = `Chain unreachable: ${(e as Error).message}`.slice(0, 120);
-    }
-    await new Promise((r) => setTimeout(r, 2000));
+  const legs: TxLeg[] = [{ type: "burn", from: wallet, min: split.burn }];
+  if (treasury && split.treasury > 0) {
+    legs.push({
+      type: "transfer",
+      from: wallet,
+      destAta: getAssociatedTokenAddressSync(new PublicKey(MINT), treasury).toBase58(),
+      min: split.treasury,
+    });
   }
-  return { ok: false, reason: lastError || "The chain never confirmed the burn" };
+  return verifyTxLegs(sig, legs, "burn");
 }
 
 // ─── Phase 7: the Exchange escrow + the relic market ─────────────────────────
@@ -400,10 +353,15 @@ export interface TxLeg {
   min: number;
 }
 
-/** poll a submitted tx and verify every leg (same trust model as verifyBurn) */
+/** poll a submitted tx and verify every leg — the ONE on-chain verifier
+ *  (burns, treasury tithes, Exchange buys, relic settlements all route here).
+ *  Every leg asserts the game MINT: the server only ever builds *Checked
+ *  instructions, so a parsed leg without a mint field (a bare SPL transfer)
+ *  is never legitimate and is rejected rather than trusted via its ATA. */
 export async function verifyTxLegs(
   sig: string,
   legs: TxLeg[],
+  noun: "trade" | "burn" = "trade",
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
   conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
@@ -415,12 +373,13 @@ export async function verifyTxLegs(
         6000,
       );
       if (tx) {
-        if (tx.meta?.err) return { ok: false, reason: "The trade failed on-chain" };
+        if (tx.meta?.err) return { ok: false, reason: `The ${noun} failed on-chain` };
         const satisfied = legs.map(() => false);
         for (const ix of tx.transaction.message.instructions) {
           const parsed = (ix as { parsed?: { type?: string; info?: Record<string, unknown> } }).parsed;
           if (!parsed) continue;
           const info = parsed.info ?? {};
+          if (info.mint !== MINT) continue; // wrong/absent mint: never ours
           const amt =
             (info.tokenAmount as { uiAmount?: number } | undefined)?.uiAmount ??
             Number(info.amount ?? 0) / 10 ** DECIMALS;
@@ -429,10 +388,9 @@ export async function verifyTxLegs(
             const fromOk = info.authority === leg.from || info.owner === leg.from;
             if (leg.type === "burn") {
               if ((parsed.type === "burnChecked" || parsed.type === "burn") &&
-                  info.mint === MINT && fromOk && amt >= leg.min) satisfied[li] = true;
+                  fromOk && amt >= leg.min) satisfied[li] = true;
             } else {
-              if ((parsed.type === "transferChecked" || parsed.type === "transfer") &&
-                  (info.mint === MINT || parsed.type === "transfer") &&
+              if (parsed.type === "transferChecked" &&
                   info.destination === leg.destAta && fromOk && amt >= leg.min) satisfied[li] = true;
             }
           });
@@ -441,14 +399,14 @@ export async function verifyTxLegs(
           legs.forEach((l) => cache.delete(l.from)); // balances changed
           return { ok: true };
         }
-        return { ok: false, reason: "The transaction does not match the trade" };
+        return { ok: false, reason: `The transaction does not match the ${noun}` };
       }
     } catch (e) {
       lastError = `Chain unreachable: ${(e as Error).message}`.slice(0, 120);
     }
     await new Promise((r) => setTimeout(r, 2000));
   }
-  return { ok: false, reason: lastError || "The chain never confirmed the trade" };
+  return { ok: false, reason: lastError || `The chain never confirmed the ${noun}` };
 }
 
 /** the escrow's ATA address (verification target for buy-gold legs) */
@@ -459,15 +417,32 @@ export function escrowAta(): string {
     : "";
 }
 
-/** SELL side: the escrow pays a player from the pool. Server-signed — the
- *  caller must have already debited the gold (refund on failure). */
+/** the outcome of an escrow payout. `refundable` tells the caller whether it
+ *  is SAFE to credit the gold back: true only when nothing was broadcast (build
+ *  failed) or the tx landed-and-reverted atomically (no tokens moved). An
+ *  INDETERMINATE result (refundable:false) means the transfer may already be
+ *  leaving escrow — the caller MUST NOT refund or it double-pays the pool. */
+export type EscrowPayout =
+  | { ok: true; sig: string }
+  | { ok: false; refundable: boolean; sig?: string; reason: string };
+
+/** SELL side: the escrow pays a player from the pool. Server-signed. The split
+ *  between the build phase (nothing broadcast → refundable) and the send phase
+ *  (may have hit the cluster even if the ack was lost → NOT refundable) is the
+ *  whole point: a confirmation-poll timeout used to refund the gold while the
+ *  DRIFTS still landed, draining the pool. Reconcile any indeterminate payout
+ *  from its sig (recorded on exchange_log.last_sig) against the chain later. */
 export async function payFromEscrow(
   wallet: string,
   amount: number,
-): Promise<{ ok: true; sig: string } | { ok: false; reason: string }> {
-  if (!MINT) return { ok: false, reason: "No token mint configured" };
+): Promise<EscrowPayout> {
+  if (!MINT) return { ok: false, refundable: true, reason: "No token mint configured" };
   const escrow = escrowKeypair();
-  if (!escrow) return { ok: false, reason: "The merchant cannot pay out (no escrow key)" };
+  if (!escrow) return { ok: false, refundable: true, reason: "The merchant cannot pay out (no escrow key)" };
+  // --- build phase: any failure here means nothing was broadcast (refundable) ---
+  let tx: Transaction;
+  let signers: Keypair[];
+  const escrowKey = escrow.publicKey.toBase58();
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const mintPk = new PublicKey(MINT);
@@ -477,7 +452,7 @@ export async function payFromEscrow(
     // the authority pays the fee + any ATA rent (it is the one SOL-funded
     // account in the system); the escrow only signs the token transfer
     const payer = feePayer() ?? escrow;
-    const tx = new Transaction().add(
+    tx = new Transaction().add(
       createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, destAta, destPk, mintPk),
       createTransferCheckedInstruction(
         escrowAtaPk, mintPk, destAta, escrow.publicKey,
@@ -486,24 +461,33 @@ export async function payFromEscrow(
     );
     tx.feePayer = payer.publicKey;
     tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
-    const signers = payer === escrow ? [escrow] : [payer, escrow];
-    const sig = await withDeadline(conn.sendTransaction(tx, signers), 10_000);
-    // poll to confirmed (bounded) — the payout row is only written after this
-    for (let i = 0; i < 15; i++) {
-      const st = await withDeadline(conn.getSignatureStatuses([sig]), 6000).catch(() => null);
-      const s = st?.value?.[0];
-      if (s?.err) return { ok: false, reason: "The payout failed on-chain" };
-      if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") {
-        cache.delete(wallet);
-        cache.delete(escrow.publicKey.toBase58());
-        return { ok: true, sig };
-      }
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-    return { ok: false, reason: "The chain never confirmed the payout" };
+    signers = payer === escrow ? [escrow] : [payer, escrow];
   } catch (e) {
-    return { ok: false, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
+    return { ok: false, refundable: true, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
   }
+  // --- send phase: once we attempt broadcast, any failure is INDETERMINATE.
+  //     The tx may have reached the cluster even if the ack/poll was lost, so
+  //     we never report it refundable — that was the double-pay drain. ---
+  let sig: string;
+  try {
+    sig = await withDeadline(conn.sendTransaction(tx, signers), 10_000);
+  } catch {
+    return { ok: false, refundable: false, reason: "The payout was submitted but not acknowledged; check your wallet" };
+  }
+  for (let i = 0; i < 15; i++) {
+    const st = await withDeadline(conn.getSignatureStatuses([sig]), 6000).catch(() => null);
+    const s = st?.value?.[0];
+    // landed-and-reverted: the instructions failed atomically, no tokens moved
+    if (s?.err) return { ok: false, refundable: true, sig, reason: "The payout failed on-chain" };
+    if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") {
+      cache.delete(wallet);
+      cache.delete(escrowKey);
+      return { ok: true, sig };
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  // broadcast but never observed confirming → unknown: do NOT refund
+  return { ok: false, refundable: false, sig, reason: "The chain never confirmed the payout; check your wallet" };
 }
 
 /** a wallet's ATA for the game mint (verification target for transfer legs) */

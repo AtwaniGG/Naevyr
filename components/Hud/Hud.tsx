@@ -394,6 +394,19 @@ function KeeperDialogue() {
               right: `${Math.max(0, Math.min(s.gold, ex.sellCap - ex.soldToday))}g`,
               onClick: () => sell(ex.sellCap - ex.soldToday),
             });
+          } else {
+            const when = ex.sellOpensAt
+              ? new Date(ex.sellOpensAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : null;
+            opts.push({
+              label: "Sell gold for DRIFTS", sub: when ? `the merchant buys gold from ${when}` : "the counter isn't buying gold yet",
+              right: "soon",
+              onClick: () => respond(
+                when
+                  ? `"I'll buy gold once the realm has settled. Come back ${when}."`
+                  : `"The purse isn't open to buying yet, wanderer."`,
+              ),
+            });
           }
           opts.push(back());
         }
