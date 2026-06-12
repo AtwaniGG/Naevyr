@@ -1156,12 +1156,22 @@ export class Game {
         });
       },
     );
-    net.onMessage<{ ok: boolean; dir?: string; gold?: number; drifts?: number; cost?: number; reason?: string }>(
+    net.onMessage<{ ok: boolean; dir?: string; gold?: number; drifts?: number; cost?: number; reason?: string; pending?: boolean }>(
       "exResult",
       (m) => {
         const store = useGame.getState();
         if (!m.ok) {
           store.pushLog(m.reason ?? "The trade fell through. Nothing moved.", "#dc2626");
+          return;
+        }
+        if (m.pending) {
+          // the payout was submitted but the chain has not confirmed it; the
+          // gold is already spent, so do NOT sound the coin or claim it landed
+          store.pushLog(
+            `The merchant sends ${m.drifts?.toLocaleString()} DRIFTS your way, but the Drift is slow to answer. Watch your wallet.`,
+            "#d8b4fe",
+          );
+          this.net?.sendExInfo();
           return;
         }
         play("coin");
