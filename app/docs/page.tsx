@@ -557,9 +557,10 @@ export default function DocsPage() {
             </table>
           </div>
           <P>
-            The server builds and fee-pays every burn transaction, so players
-            need zero SOL; your wallet only countersigns the burn itself. A
-            burn signature spends exactly once; replays are refused. The
+            The server builds each burn transaction, but your wallet is the
+            sole signer and pays the small network fee, so the rite never
+            passes through a relayer that wallet scanners could mistake for a
+            drainer. A burn signature spends exactly once; replays are refused. The
             server verifies both halves of the split on-chain, the burn and
             the tithe, before any effect lands. The realm's lifetime burn
             count is public: the counter rides the site's nav, fed by the
@@ -816,10 +817,8 @@ export default function DocsPage() {
           <P>
             The tithed half is not profit skimmed off players; it funds the
             realm and, by design, pushes back toward the coin. It pays for{" "}
-            <Gold>development and servers</Gold>, tops up the{" "}
-            <Gold>relayer wallet</Gold> that fee-pays every burn so players need
-            zero SOL, and seeds the <Gold>Exchange's float</Gold> once that
-            opens. After the mainnet launch the treasury also funds{" "}
+            <Gold>development and servers</Gold> and seeds the{" "}
+            <Gold>Exchange's float</Gold> once that opens. After the mainnet launch the treasury also funds{" "}
             <Gold>buyback-and-burn</Gold>: coins bought back off the open market
             and destroyed, the same direction as every rite. The treasury is a
             wallet the keepers control and post publicly; every coin it receives

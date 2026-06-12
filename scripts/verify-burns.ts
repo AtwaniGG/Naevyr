@@ -15,7 +15,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client, Room } from "colyseus.js";
-import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, sendAndConfirmTransaction } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { walletLinkMessage, BURN_COSTS } from "../game/types";
@@ -85,6 +85,16 @@ async function main() {
   execFileSync("./node_modules/.bin/tsx",
     ["scripts/create-devnet-mint.ts", "--mint-to", address, "100000"],
     { cwd: SERVER_DIR, stdio: "pipe", timeout: 120_000 });
+
+  // single-signer burns: the player pays its own fee now, so fund the test
+  // wallet with a little SOL from the (already funded) authority
+  const fundConn = new Connection(RPC, "confirmed");
+  const authority = Keypair.fromSecretKey(
+    Uint8Array.from(JSON.parse(readFileSync(resolve(SERVER_DIR, ".data/devnet-authority.json"), "utf8"))),
+  );
+  await sendAndConfirmTransaction(fundConn, new Transaction().add(
+    SystemProgram.transfer({ fromPubkey: authority.publicKey, toPubkey: kp.publicKey, lamports: 0.05 * LAMPORTS_PER_SOL }),
+  ), [authority]).catch((e) => console.log(`  (sol funding: ${String(e).slice(0, 80)})`));
 
   // a fresh receive-only treasury arms the 50/50 fee split for this server
   const treasury = Keypair.generate();

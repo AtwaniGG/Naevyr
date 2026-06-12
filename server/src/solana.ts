@@ -195,8 +195,11 @@ export async function buildBurnTx(
   amount: number,
 ): Promise<{ ok: true; tx: string } | { ok: false; reason: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
-  const payer = feePayer();
-  if (!payer) return { ok: false, reason: "The forge that takes tokens is cold (no authority key)" };
+  // SINGLE-SIGNER: the player is the only signer AND the fee payer. A tx signed
+  // by a third-party fee payer that moves the user's tokens is the exact shape
+  // wallet scanners (Phantom/Blowfish) flag as a drainer; making the player the
+  // sole signer clears that. Cost: the player pays the network fee (needs a
+  // little SOL) — the server no longer touches the burn.
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const balance = await getTokenBalance(wallet);
@@ -218,9 +221,9 @@ export async function buildBurnTx(
     if (treasury && split.treasury > 0) {
       const treasuryAta = getAssociatedTokenAddressSync(mintPk, treasury, false, tp);
       tx.add(
-        // authority pays rent if the treasury ATA doesn't exist yet (no-op after)
+        // the player pays rent if the treasury ATA doesn't exist yet (no-op after)
         createAssociatedTokenAccountIdempotentInstruction(
-          payer.publicKey, treasuryAta, treasury, mintPk, tp,
+          owner, treasuryAta, treasury, mintPk, tp,
         ),
         createTransferCheckedInstruction(
           ata, mintPk, treasuryAta, owner,
@@ -228,9 +231,8 @@ export async function buildBurnTx(
         ),
       );
     }
-    tx.feePayer = payer.publicKey;
+    tx.feePayer = owner; // the player pays — sole signer
     tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
-    tx.partialSign(payer);
     return { ok: true, tx: tx.serialize({ requireAllSignatures: false }).toString("base64") };
   } catch (e) {
     return { ok: false, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
@@ -314,8 +316,6 @@ export async function buildExchangeBuyTx(
   if (!MINT) return { ok: false, reason: "No token mint configured" };
   const escrow = escrowAddress();
   if (!escrow) return { ok: false, reason: "The merchant's counter is closed" };
-  const payer = feePayer();
-  if (!payer) return { ok: false, reason: "The forge that takes tokens is cold (no authority key)" };
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const balance = await getTokenBalance(wallet);
@@ -327,16 +327,16 @@ export async function buildExchangeBuyTx(
     const owner = new PublicKey(wallet);
     const ata = getAssociatedTokenAddressSync(mintPk, owner, false, tp);
     const escrowAtaAddr = getAssociatedTokenAddressSync(mintPk, escrow, false, tp);
+    // single-signer: the buyer signs + pays (no third-party fee payer)
     const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, escrowAtaAddr, escrow, mintPk, tp),
+      createAssociatedTokenAccountIdempotentInstruction(owner, escrowAtaAddr, escrow, mintPk, tp),
       createTransferCheckedInstruction(
         ata, mintPk, escrowAtaAddr, owner,
         BigInt(Math.round(amount * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
-    tx.feePayer = payer.publicKey;
+    tx.feePayer = owner;
     tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
-    tx.partialSign(payer);
     return { ok: true, tx: tx.serialize({ requireAllSignatures: false }).toString("base64") };
   } catch (e) {
     return { ok: false, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
@@ -352,8 +352,6 @@ export async function buildRelicTx(
   feePct: number,
 ): Promise<{ ok: true; tx: string } | { ok: false; reason: string }> {
   if (!MINT) return { ok: false, reason: "No token mint configured" };
-  const payer = feePayer();
-  if (!payer) return { ok: false, reason: "The forge that takes tokens is cold (no authority key)" };
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     const balance = await getTokenBalance(buyer);
@@ -368,8 +366,9 @@ export async function buildRelicTx(
     const sellerPk = new PublicKey(seller);
     const buyerAta = getAssociatedTokenAddressSync(mintPk, buyerPk, false, tp);
     const sellerAta = getAssociatedTokenAddressSync(mintPk, sellerPk, false, tp);
+    // single-signer: the buyer signs + pays (no third-party fee payer)
     const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, sellerAta, sellerPk, mintPk, tp),
+      createAssociatedTokenAccountIdempotentInstruction(buyerPk, sellerAta, sellerPk, mintPk, tp),
       createTransferCheckedInstruction(
         buyerAta, mintPk, sellerAta, buyerPk,
         BigInt(Math.round(toSeller * 10 ** DECIMALS)), DECIMALS, [], tp,
@@ -379,9 +378,8 @@ export async function buildRelicTx(
         BigInt(Math.round(fee * 10 ** DECIMALS)), DECIMALS, [], tp,
       ),
     );
-    tx.feePayer = payer.publicKey;
+    tx.feePayer = buyerPk;
     tx.recentBlockhash = (await withDeadline(conn.getLatestBlockhash(), 8000)).blockhash;
-    tx.partialSign(payer);
     return { ok: true, tx: tx.serialize({ requireAllSignatures: false }).toString("base64") };
   } catch (e) {
     return { ok: false, reason: `Chain unreachable: ${(e as Error).message}`.slice(0, 120) };
