@@ -246,7 +246,7 @@ function MobileHud() {
           }}
           iconLeft={<Icon name="bag" size={16} />}
         >
-          Bag{carried > 0 ? ` · ${carried}` : ""}
+          Satchel{carried > 0 ? ` · ${carried}` : ""}
         </Button>
         <ForgeTabButton />
         <MarketTabButton />
@@ -257,6 +257,7 @@ function MobileHud() {
         <Button variant={tab === "skills" ? "primary" : "ghost"} size="md" onClick={() => openTab("skills")} iconLeft={<Icon name="axe" size={16} />}>Skills</Button>
         <Button variant={tab === "chat" ? "primary" : "ghost"} size="md" onClick={() => openTab("chat")} iconLeft={<Icon name="drift" size={16} />}>Chat</Button>
         <Button variant={tab === "map" ? "primary" : "ghost"} size="md" onClick={() => openTab("map")} iconLeft={<Icon name="leaf" size={16} />}>Map</Button>
+        <Button variant="ghost" size="md" onClick={() => { window.location.href = "/"; }} title="Leave the realm · back to the landing" iconLeft={<Icon name="x" size={16} />}>Leave</Button>
       </div>
     </div>
   );
