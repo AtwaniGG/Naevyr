@@ -166,14 +166,15 @@ export interface BurnStats {
 }
 
 /** burn totals off the game server; null while loading/offline. With a wallet
- *  address the totals are THAT wallet's own burns (the nav chip is personal);
- *  no wallet = no fetch, the chip stays hidden until one connects. */
+ *  address the totals are THAT wallet's own burns (a personal chip); with no
+ *  address they are the realm-wide public scarcity counter (every DRIFTS ever
+ *  burned, by anyone). null while loading or when no server answers. */
 export function useBurnStats(address?: string | null): BurnStats | null {
   const [stats, setStats] = useState<BurnStats | null>(null);
   useEffect(() => {
-    if (!address) { setStats(null); return; }
     let dead = false;
-    fetch(`${httpBase()}/stats?address=${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(5000) })
+    const q = address ? `?address=${encodeURIComponent(address)}` : "";
+    fetch(`${httpBase()}/stats${q}`, { signal: AbortSignal.timeout(5000) })
       .then((r) => r.json())
       .then((s: BurnStats) => { if (!dead) setStats(s); })
       .catch(() => {});

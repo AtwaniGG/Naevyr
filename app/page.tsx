@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import LandingShell from "@/components/LandingShell";
 import { Button } from "@/components/ds";
-import { useGate } from "@/components/gate";
+import { useGate, useBurnStats } from "@/components/gate";
 
 // The front gate of the site: hero art, the wordmark, and PLAY. The door
 // itself (wallet check, naming, the game) lives on /play.
 
 export default function Home() {
   const { info } = useGate();
+  const burns = useBurnStats(); // realm-wide: every DRIFTS ever burned, by anyone
   const [copied, setCopied] = useState(false);
   const mint = info?.mint ?? process.env.NEXT_PUBLIC_TOKEN_MINT ?? "";
 
@@ -37,6 +38,21 @@ export default function Home() {
               Play Now
             </Button>
           </Link>
+
+          {burns && burns.burned > 0 && (
+            <div
+              className="drift-num"
+              title={`${burns.burned.toLocaleString()} DRIFTS burned forever across ${burns.count.toLocaleString()} rites${burns.treasury > 0 ? ` · ${burns.treasury.toLocaleString()} tithed to the keep` : ""}`}
+              style={{
+                font: "600 14px/1.4 var(--font-ui)", color: "#d8b4fe",
+                textShadow: "0 1px 8px #0a0810", letterSpacing: "0.01em",
+              }}
+            >
+              {burns.burned.toLocaleString()}{" "}
+              <span className="drifts-mark" aria-label="DRIFTS" /> burned forever
+            </div>
+          )}
+
           <div style={{ font: "400 11px/1.6 var(--font-ui)", color: "var(--text-muted)", textShadow: "0 1px 6px #0a0810" }}>
             {info ? `${info.online} wanderer${info.online === 1 ? "" : "s"} in the Drift` : " "}
             {info && info.gate > 0 && (
