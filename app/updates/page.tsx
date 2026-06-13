@@ -7,6 +7,25 @@ import LandingShell, { PageFrame } from "@/components/LandingShell";
 
 const UPDATES: { tag: string; title: string; text: string }[] = [
   {
+    tag: "The Coin",
+    title: "DRIFTS is live on Solana",
+    text:
+      "The coin has left the test sands. DRIFTS now trades on Solana mainnet, " +
+      "fair-launched on pump.fun, supply fixed at one billion with the mint sealed " +
+      "so no more can ever be made. The door asks 1,000 DRIFTS to enter the realm. " +
+      "Contract: ArTtDETxYH7X98XhuUEoLb6fKXGUkjgipG66wXnepump.",
+  },
+  {
+    tag: "The Exchange",
+    title: "Gold trades for DRIFTS at the Vault",
+    text:
+      "The Vault keeper now changes coin both ways. Buy gold with DRIFTS, or sell " +
+      "gold back for DRIFTS out of the realm's escrow pool. Payouts come only from " +
+      "what buyers paid in, never minted, never a house faucet. The pool is seeded " +
+      "and both sides are open. When it runs dry the merchant's purse goes light " +
+      "until buyers return. Daily limits scale with what your wallet holds.",
+  },
+  {
     tag: "The Pit",
     title: "Wager DRIFTS on the sand",
     text:

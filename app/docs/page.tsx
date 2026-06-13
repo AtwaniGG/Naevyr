@@ -4,7 +4,7 @@ import { useState } from "react";
 import LandingShell from "@/components/LandingShell";
 import {
   BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS,
-  DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET,
+  DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   PRESTIGE_CATALOG, AVATAR_KINDS, AVATAR_CHANNELS,
 } from "@/game/types";
 
@@ -314,7 +314,9 @@ export default function DocsPage() {
             sells furnishings for your claim. <Gold>The Menagerie</Gold> sells
             small followers. <Gold>The Shrine of the Pale Flame</Gold> takes
             donations toward a cleansing. <Gold>The Pit</Gold> hosts wagered
-            duels, winner takes the pot. <Gold>The Mine</Gold> holds seven gold
+            duels in gold or DRIFTS: stake at least {DUEL_DRIFTS.min.toLocaleString()}{" "}
+            DRIFTS, the winner takes nine tenths of the pot and the house keeps a
+            tenth. <Gold>The Mine</Gold> holds seven gold
             veins that pay coin and mining experience, strike by strike.
           </P>
           <P>
@@ -684,11 +686,12 @@ export default function DocsPage() {
             the counter waits for buyers.
           </P>
           <P>
-            <Gold>The sell side opens late.</Gold> At launch the pool is empty —
-            there is nothing to pay out — so buying gold opens first and the
-            merchant only begins <em>buying</em> gold (paying DRIFTS) a few days
-            in, once players have filled the pool. Until then the counter takes
-            DRIFTS for gold but not the other way around.
+            <Gold>Both sides are live.</Gold> The realm seeded the escrow pool,
+            so the merchant buys gold for DRIFTS from day one as readily as it
+            sells it. The pool stays finite: every DRIFTS paid out for gold
+            leaves it, and only player buys refill it, so the sell side can run
+            dry between waves of buyers and the merchant's purse goes light until
+            they return.
           </P>
           <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
@@ -739,7 +742,7 @@ export default function DocsPage() {
                   ["Launch", "pump.fun, fair-launch bonding curve"],
                   ["New issuance", "none. Mint authority revoked at launch"],
                   ["Entry gate", "hold 1,000 DRIFTS to enter the realm"],
-                  ["Contract", "posted here at launch (verify on Solscan)"],
+                  ["Contract", "ArTtDETxYH7X98XhuUEoLb6fKXGUkjgipG66wXnepump"],
                 ] as [string, string][]).map(([k, v]) => (
                   <tr key={k}>
                     <td style={{ padding: "5px 10px", color: "var(--drift-gold)", whiteSpace: "nowrap", verticalAlign: "top", borderBottom: "1px solid rgba(124,58,237,0.12)" }}>{k}</td>
@@ -751,10 +754,10 @@ export default function DocsPage() {
           </div>
           <P>
             <Gold>The coin.</Gold> DRIFTS is an SPL token on Solana with six
-            decimals. The beta runs on a devnet test mint with no value; the
-            real coin launches on pump.fun. The supply is one billion, minted
-            once; after launch nothing can mint more, and the realm's design
-            only ever removes coins from circulation.
+            decimals, live on mainnet through a pump.fun fair launch. The supply
+            is one billion, minted once; the mint authority is revoked, so
+            nothing can ever mint more, and the realm's design only ever removes
+            coins from circulation.
           </P>
           <P>
             <Gold>Distribution.</Gold> It is a fair launch, not a raise. There
@@ -767,7 +770,7 @@ export default function DocsPage() {
             waiting to unlock on you.
           </P>
           <P>
-            <Gold>Demand.</Gold> Three forces pull DRIFTS into wallets, all of
+            <Gold>Demand.</Gold> Several forces pull DRIFTS into wallets, all of
             them utility:
           </P>
           <P>
@@ -792,7 +795,13 @@ export default function DocsPage() {
             <br />
             5. <Gold>The banner.</Gold> Guilds hold ground only while they keep
             burning: founding 50,000, staking 25,000, upkeep 10,000 per 48
-            hours — about 5,000 a day per active guild, forever.
+            hours, about 5,000 a day per active guild, forever.
+            <br />
+            6. <Gold>The sand.</Gold> The Pit takes DRIFTS wagers: two fighters
+            stake at least {DUEL_DRIFTS.min.toLocaleString()} each, the winner
+            takes nine tenths of the pot and the house keeps a tenth. Every duel
+            locks real DRIFTS in escrow and skims {DUEL_DRIFTS.feePct * 100}% to
+            the realm.
           </P>
           <P>
             <Gold>Supply sinks, by the numbers.</Gold> Every rite splits by
