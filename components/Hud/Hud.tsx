@@ -1413,14 +1413,14 @@ function MarketDock() {
   const setOpen = (next: boolean) => setOpenDock(next ? "market" : null);
   const online = useGame((s) => s.online) && !useGame((s) => s.guest);
   const guest = useGame((s) => s.guest);
-  const listings = useGame((s) => s.listings);
-  const inventory = useGame((s) => s.inventory);
+  const listings = useGame((s) => s.listings) ?? [];
+  const inventory = useGame((s) => s.inventory) ?? ({} as Record<ItemKey, number>);
   const gold = useGame((s) => s.gold);
   const [sellItem, setSellItem] = useState<ItemKey>("wood");
   const [sellQty, setSellQty] = useState(1);
   const [sellPrice, setSellPrice] = useState(10);
 
-  const carried = INVENTORY_ORDER.filter((k) => inventory[k] > 0);
+  const carried = INVENTORY_ORDER.filter((k) => (inventory[k] ?? 0) > 0);
   const mine = listings.filter((l) => l.mine);
   const offers = listings.filter((l) => !l.mine);
   const isPhone = useViewport().isPhone;
@@ -1545,7 +1545,7 @@ function MarketDock() {
                     List
                   </Button>
                 </div>
-                <RelicStall />
+                <Trap label="RelicStall"><RelicStall /></Trap>
               </>
             )}
           </Panel>
@@ -1557,10 +1557,10 @@ function MarketDock() {
 /** the relic stall: P2P Drift-touched cosmetics, priced in DRIFTS, the fee
  *  burned. Only server-authoritative prestige cosmetics trade here. */
 function RelicStall() {
-  const relics = useGame((s) => s.relics);
+  const relics = useGame((s) => s.relics) ?? [];
   const wallet = useGame((s) => s.wallet);
-  const ownedDyes = useGame((s) => s.ownedDyes);
-  const ownedAuras = useGame((s) => s.ownedAuras);
+  const ownedDyes = useGame((s) => s.ownedDyes) ?? [];
+  const ownedAuras = useGame((s) => s.ownedAuras) ?? [];
   const myName = useGame((s) => s.cosmetics.name);
   const [listKey, setListKey] = useState("");
   const [listPrice, setListPrice] = useState<number>(RELIC_MARKET.minPrice);
