@@ -33,6 +33,7 @@ import {
   SKILL_META,
   SkillKey,
   seasonName,
+  BP_CHALLENGE_POOL,
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
@@ -378,6 +379,7 @@ function KeeperDialogue() {
     } else if (menu === "prestige") {
       Object.entries(PRESTIGE_CATALOG).forEach(([k, entry]) => {
         if (entry.kind === "avatar") return; // the glass has its own menu
+        if (entry.passOnly) return; // season-exclusive relics are never sold here
         const owned =
           entry.kind === "dye" ? s.ownedDyes.includes(k as never) :
           entry.kind === "aura" ? s.ownedAuras.includes(k as never) :
@@ -1149,6 +1151,184 @@ function RightColumn() {
 /** middle of the right column: dock buttons + minimap.
  *  flexShrink 0 — the rail must NEVER be compressed by the column, or its
  *  contents paint under later siblings (the Activity-covers-Forge bug). */
+// ---- right rail: the seasonal battle pass (the Drift Ledger) -------------------
+
+function fmtEndsIn(ms: number): string {
+  if (ms <= 0) return "ending";
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  if (d > 0) return `${d}d ${h}h`;
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function PassRewardChip({ reward }: { reward?: { kind: string; amount?: number; label?: string } }) {
+  if (!reward) return <span style={{ font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)" }}>·</span>;
+  if (reward.kind === "gold")
+    return <span style={{ font: "600 10px/1 var(--font-num)", color: "var(--drift-gold)" }}>{reward.amount}g</span>;
+  if (reward.kind === "shards")
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <Icon name="drift" size={12} />
+        <span style={{ font: "600 10px/1 var(--font-num)", color: "var(--text-primary)" }}>{reward.amount}</span>
+      </span>
+    );
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+      <Icon name="pass" size={12} />
+      <span style={{ font: "600 9px/1.1 var(--font-ui)", color: "var(--drift-corrupt)" }}>{reward.label}</span>
+    </span>
+  );
+}
+
+function PassDock() {
+  const open = useGame((s) => s.openDock) === "pass";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  const setOpen = (next: boolean) => setOpenDock(next ? "pass" : null);
+  const online = useGame((s) => s.online);
+  const bp = useGame((s) => s.battlePass);
+  const wallet = useGame((s) => s.wallet);
+  const holder = useGame((s) => s.holder);
+
+  const earned = bp ? bp.tier : 0;
+  const xpInTier = bp ? bp.xp % 1000 : 0;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <Button
+        variant={open ? "primary" : "ghost"}
+        size="md"
+        onClick={() => setOpen(!open)}
+        iconLeft={<Icon name="pass" size={16} glow={open} />}
+      >
+        Pass
+      </Button>
+      <DockPopout open={open}>
+        <Panel
+          kicker={bp ? `Season ${bp.season} · ${bp.name}` : "The Drift Ledger"}
+          title="Drift Ledger"
+          style={{ width: 340 }}
+        >
+          {(!online || !bp) && (
+            <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
+              The season's ledger opens when you're in the shared world.
+            </div>
+          )}
+          {online && bp && (
+            <>
+              {/* season header: tier + countdown */}
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ font: "700 13px/1 var(--font-display)", color: "var(--text-primary)" }}>
+                  Tier {earned}<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {bp.maxTier}</span>
+                </span>
+                <span style={{ font: "400 10px/1 var(--font-ui)", color: "var(--text-muted)" }}>
+                  ends in {fmtEndsIn(bp.endsIn)}
+                </span>
+              </div>
+              <XPBar skill="Season XP" level={earned} value={xpInTier} max={1000} color="var(--drift-corrupt)" />
+
+              {/* premium unlock */}
+              {!bp.premium && (
+                <div style={{ marginTop: 8 }}>
+                  {wallet && holder ? (
+                    <Button size="sm" variant="gold" style={{ width: "100%" }}
+                      onClick={() => bus.emit("passBuyBurn", true)}>
+                      Unlock Premium · {burnAmt(BURN_COSTS.battlePass)} <DriftsMark />
+                    </Button>
+                  ) : (
+                    <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
+                      Premium opens with {burnAmt(BURN_COSTS.battlePass)} <DriftsMark /> burned. Link a wallet that holds them.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* weekly challenges */}
+              <label className="drift-label" style={{ fontSize: 9, display: "block", margin: "10px 0 4px" }}>
+                This week's trials
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                {bp.challenges.map((c) => {
+                  const def = BP_CHALLENGE_POOL.find((d) => d.id === c.id);
+                  if (!def) return null;
+                  const pct = Math.min(100, Math.round((c.progress / def.target) * 100));
+                  return (
+                    <div key={c.id} className="drift-well" style={{ padding: "4px 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ font: "600 10px/1.2 var(--font-ui)", color: c.claimed ? "var(--drift-corrupt)" : "var(--text-primary)" }}>
+                          {def.label}
+                        </span>
+                        <span style={{ font: "400 9px/1 var(--font-num)", color: "var(--text-muted)" }}>
+                          {c.claimed ? `+${def.passXp} XP` : `${c.progress}/${def.target}`}
+                        </span>
+                      </div>
+                      <div style={{ height: 4, marginTop: 3, background: "var(--surface-well)", overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "var(--drift-corrupt)" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* the tier track */}
+              <label className="drift-label" style={{ fontSize: 9, display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span>Free</span>
+                <span style={{ color: bp.premium ? "var(--drift-gold)" : "var(--text-muted)" }}>Premium</span>
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 240, overflowY: "auto" }}>
+                {bp.tiers.map((t, i) => {
+                  const tier = i + 1;
+                  const reached = tier <= earned;
+                  const freeClaimable = reached && !!t.free && !bp.claimedFree.includes(tier);
+                  const premClaimable = reached && bp.premium && !!t.premium && !bp.claimedPremium.includes(tier);
+                  const freeClaimed = bp.claimedFree.includes(tier);
+                  const premClaimed = bp.claimedPremium.includes(tier);
+                  return (
+                    <div key={tier} className="drift-well"
+                      style={{ display: "grid", gridTemplateColumns: "26px 1fr 1fr", alignItems: "center", gap: 6, padding: "4px 7px", opacity: reached ? 1 : 0.5 }}>
+                      <span style={{ font: "700 10px/1 var(--font-num)", color: reached ? "var(--drift-corrupt)" : "var(--text-muted)" }}>
+                        {tier}
+                      </span>
+                      {/* free track */}
+                      <button
+                        disabled={!freeClaimable}
+                        onClick={() => freeClaimable && bus.emit("passClaim", { tier, track: "free" })}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
+                          cursor: freeClaimable ? "pointer" : "default", padding: 0,
+                          opacity: freeClaimed ? 0.4 : 1,
+                          textDecoration: freeClaimable ? "underline" : "none",
+                        }}
+                      >
+                        <PassRewardChip reward={t.free} />
+                        {freeClaimed && <span style={{ font: "400 8px/1 var(--font-ui)", color: "var(--text-muted)" }}>✓</span>}
+                      </button>
+                      {/* premium track */}
+                      <button
+                        disabled={!premClaimable}
+                        onClick={() => premClaimable && bus.emit("passClaim", { tier, track: "premium" })}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
+                          cursor: premClaimable ? "pointer" : "default", padding: 0,
+                          opacity: !bp.premium ? 0.5 : premClaimed ? 0.4 : 1,
+                          textDecoration: premClaimable ? "underline" : "none",
+                        }}
+                      >
+                        <PassRewardChip reward={t.premium} />
+                        {premClaimed && <span style={{ font: "400 8px/1 var(--font-ui)", color: "var(--text-muted)" }}>✓</span>}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </Panel>
+      </DockPopout>
+    </div>
+  );
+}
+
 function RightRail() {
   return (
     <div
@@ -1163,6 +1343,7 @@ function RightRail() {
     >
       <ForgeDock />
       <MarketDock />
+      <PassDock />
       <IdentityDock />
       <StakeButton />
       <ReinforceButton />

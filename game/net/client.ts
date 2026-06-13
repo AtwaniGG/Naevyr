@@ -332,6 +332,15 @@ export class NetClient {
     this.safeSend("guildUpkeep", { burnSig });
   }
 
+  // ---- the battle pass (the seasonal Drift Ledger) ----
+  sendBuyPass(burnSig: string) {
+    this.safeSend("buyPass", { burnSig });
+  }
+
+  sendClaimPassTier(tier: number, track: "free" | "premium") {
+    this.safeSend("claimPassTier", { tier, track });
+  }
+
   // ---- the Exchange (gold ↔ DRIFTS) ----
   sendExInfo() {
     this.safeSend("exInfo", {});

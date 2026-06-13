@@ -167,7 +167,9 @@ export default function IndexPage() {
                 <span style={DESC}>Five colors of stare.</span>
                 <span style={VAL}>{EYE_PRICE}g each</span>
               </div>
-              {(Object.keys(AURA_CATALOG) as AuraKey[]).map((k, i) => (
+              {(Object.keys(AURA_CATALOG) as AuraKey[])
+                .filter((k) => !PRESTIGE_CATALOG[k]?.passOnly) // season relics: pass-only, not for sale
+                .map((k, i) => (
                 <div key={k} style={{ ...ROW, ...odd(i) }}>
                   <span style={NAME}>{AURA_CATALOG[k].label}</span>
                   <span style={DESC}>

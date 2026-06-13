@@ -89,6 +89,10 @@ type Events = {
   sell: { item: string; qty: number };
   /** forge a recipe (server debits the materials from the ledger) */
   craft: { id: string };
+  /** battle pass: unlock the season's Premium track (wallet burns DRIFTS) */
+  passBuyBurn: boolean;
+  /** battle pass: claim an earned tier on the free or premium track */
+  passClaim: { tier: number; track: "free" | "premium" };
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

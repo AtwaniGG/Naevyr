@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "public", "gameplay", "activities.webm")
-MUSIC = os.path.join(HERE, "..", "public", "realm-ambient.mp3")  # the in-realm bed
+MUSIC = os.path.join(HERE, "..", "public", "naevyr-music.mp3")  # the realm score
 OUT = os.path.join(HERE, "..", "out", "naevyr-clip.mp4")
 
 W, H, FPS = 1920, 1080, 25
@@ -23,11 +23,11 @@ BLOOD = (224, 83, 61); MOSS = (140, 200, 120); WATER = (120, 190, 230); VOID = (
 # big = the BIG instructional line (on a dark plate so it's always readable)
 # sub = small accent line under it · col = big-text colour
 BEATS = [
-    dict(src=19.0, dur=3.4, z=1.55, fy=0.40, kind="pop", big="CHOP TREES FOR WOOD", sub="", col=MOSS),
-    dict(src=28.2, dur=3.4, z=1.55, fy=0.40, kind="pop", big="FISH THE WATERS",     sub="", col=WATER),
-    dict(src=35.4, dur=3.6, z=1.18, fy=0.45, kind="pop", big="MINE GOLD FROM THE VEIN", sub="", col=GOLD),
-    dict(src=41.6, dur=3.6, z=1.55, fy=0.38, kind="pop", big="PUT THE BEAST DOWN",  sub="", col=BLOOD),
-    dict(src=49.2, dur=4.0, z=1.22, fy=0.42, kind="pop", big="BURN DRIFTS TO SPIN", sub="fortune favours the burned", col=PURPLE),
+    dict(src=13.6, dur=3.4, z=1.55, fy=0.40, kind="pop", big="CHOP TREES FOR WOOD", sub="", col=MOSS),
+    dict(src=24.6, dur=3.4, z=1.55, fy=0.40, kind="pop", big="FISH THE WATERS",     sub="", col=WATER),
+    dict(src=32.6, dur=3.6, z=1.18, fy=0.45, kind="pop", big="MINE GOLD FROM THE VEIN", sub="", col=GOLD),
+    dict(src=39.2, dur=3.6, z=1.55, fy=0.38, kind="pop", big="PUT THE BEAST DOWN",  sub="", col=BLOOD),
+    dict(src=47.4, dur=4.0, z=1.22, fy=0.42, kind="pop", big="BURN DRIFTS TO SPIN", sub="fortune favours the burned", col=PURPLE),
 ]
 
 _f = {}
@@ -156,7 +156,9 @@ def main():
         cmd += ["-i", MUSIC]
         filt = ("[0:v][1:v]overlay=format=auto:shortest=1[v];"
                 f"[2:a]atrim=0:{total},afade=t=in:st=0:d=0.5,"
-                f"afade=t=out:st={total-0.8}:d=0.8,volume=1.0[a]")
+                # keep the score moderate (not too loud): normalise to a calm
+                # background loudness rather than blindly multiplying volume
+                f"afade=t=out:st={total-0.8}:d=0.8,loudnorm=I=-20:TP=-1.5[a]")
         maps = ["-map", "[v]", "-map", "[a]", "-shortest"]
     else:
         filt = "[0:v][1:v]overlay=format=auto:shortest=1[v]"

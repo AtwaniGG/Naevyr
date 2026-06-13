@@ -25,7 +25,7 @@ import {
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
   walletLinkMessage, PRESTIGE_CATALOG, AvatarKind, SkillKey, SKILL_META,
 } from "@/game/types";
-import { useGame } from "@/game/state/store";
+import { useGame, type PassSync } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
 import { Mob } from "@/game/entities/mob";
 import { NetClient } from "@/game/net/client";
@@ -316,6 +316,8 @@ export class Game {
       bus.on("guildTerritory", (region) => this.startBurn("guildTerritory", { region })),
     );
     this.cleanupFns.push(bus.on("guildUpkeep", () => this.startBurn("guildUpkeep")));
+    this.cleanupFns.push(bus.on("passBuyBurn", () => this.startBurn("battlePass")));
+    this.cleanupFns.push(bus.on("passClaim", (c) => this.net?.sendClaimPassTier(c.tier, c.track)));
     this.cleanupFns.push(bus.on("exInfo", () => this.net?.sendExInfo()));
     this.cleanupFns.push(
       bus.on("exBuy", (gold) => {
@@ -447,7 +449,8 @@ export class Game {
   private startBurn(
     action: "spin" | "claim" | "aura" | "cleanse" | "obelisk" | "reinforce"
       | "prestigeDye" | "prestigeAura" | "prestigeTitle" | "prestigeAvatar"
-      | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep",
+      | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep"
+      | "battlePass",
     extra: { x?: number; y?: number; key?: string; name?: string; tag?: string; region?: string } = {},
   ) {
     const store = useGame.getState();
@@ -534,6 +537,7 @@ export class Game {
         case "guildTerritory":
           this.net.sendGuildTerritory(pending.region ?? "", signature); break;
         case "guildUpkeep": this.net.sendGuildUpkeep(signature); break;
+        case "battlePass": this.net.sendBuyPass(signature); break;
       }
     } catch {
       store.pushLog(
@@ -718,6 +722,24 @@ export class Game {
         play("coin");
         store.pushLog(`Quest complete. +${m.xp.xp} ${SKILL_META[m.xp.skill].label} XP`, "#e7c873");
         if (leveledTo) store.pushLog(`${SKILL_META[m.xp.skill].label} is now level ${leveledTo}!`, "#e7c873");
+      },
+    );
+
+    // ---- the battle pass (the seasonal Drift Ledger) ----
+    net.onMessage<PassSync>("passSync", (m) => useGame.getState().setBattlePass(m));
+    net.onMessage<{ ok: boolean; reason?: string; premium?: boolean; tier?: number;
+      track?: string; reward?: { kind: string; amount?: number; label?: string } }>(
+      "passResult",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok) { if (m.reason) store.pushLog(m.reason, "#6f6781"); return; }
+        if (m.premium) { play("coin"); store.pushLog("The season's Premium track opens to you.", "#d8b4fe"); return; }
+        // a tier claim: gold/shards already arrived via goldSync/invSync,
+        // cosmetics via the profile prestige list. Just narrate.
+        play("coin");
+        if (m.reward?.kind === "cosmetic") store.pushLog(`The Drift Ledger yields: ${m.reward.label}.`, "#e7c873");
+        else if (m.reward?.kind === "gold") store.pushLog(`Tier ${m.tier} claimed. +${m.reward.amount}g`, "#e7c873");
+        else if (m.reward?.kind === "shards") store.pushLog(`Tier ${m.tier} claimed. +${m.reward.amount} driftshards`, "#e7c873");
       },
     );
 
