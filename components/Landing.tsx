@@ -168,7 +168,7 @@ export default function Landing({ onEnter }: { onEnter: (guest: boolean) => void
               style={{ gap: 20, width: "100%" }}
             >
               {/* The Guest Drift — free demo lane */}
-              <div className="flex flex-col items-center" style={{ gap: 10, width: 256 }}>
+              <div className="flex flex-col items-center" style={{ gap: 10, width: 256, maxWidth: "100%" }}>
                 <div style={{ position: "relative", width: 256, maxWidth: "100%" }}>
                   <div className="choice-vista choice-vista-guest" />
                   <div className="guest-seal" style={{ position: "absolute", top: 8, right: 8 }} />
@@ -184,7 +184,7 @@ export default function Landing({ onEnter }: { onEnter: (guest: boolean) => void
               </div>
 
               {/* The Realm — full, wallet-gated */}
-              <div className="flex flex-col items-center" style={{ gap: 10, width: 256 }}>
+              <div className="flex flex-col items-center" style={{ gap: 10, width: 256, maxWidth: "100%" }}>
                 <div className="choice-vista choice-vista-realm" />
                 <Button size="lg" variant="gold" onClick={chooseRealm} style={{ width: "100%" }} autoFocus>
                   Enter the Realm

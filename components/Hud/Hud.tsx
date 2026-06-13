@@ -214,6 +214,7 @@ function MobileHud() {
           >
             NAEVYR
           </a>
+          <Trap label="GuestBadge"><GuestBadge /></Trap>
           <Trap label="Vitals"><Vitals /></Trap>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>

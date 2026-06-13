@@ -444,8 +444,8 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
    cards (shimmer) + a static 32x32 guest seal. DOM art, no engine port. */
 .choice-vista {
   width: 256px;
-  height: 160px;
   max-width: 100%;
+  aspect-ratio: 256 / 160; /* scales height down with width on narrow phones */
   background-size: 200% 100%;
   background-repeat: no-repeat;
   image-rendering: pixelated;
