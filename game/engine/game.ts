@@ -2501,6 +2501,14 @@ export class Game {
     const count = net.playerCount();
     if (store.playersOnline !== count) store.setPlayersOnline(count);
 
+    // ---- season + corruption (authoritative; never let a stale snapshot win) --
+    // online, the server owns season/driftPct (schema-synced). Adopt them every
+    // frame so a cached localStorage/profile restore can't strand the HUD on an
+    // old "s222 / 84%" between the (now 30-min) season broadcasts.
+    if (store.driftSeason !== net.season) store.setSeason(net.season);
+    const npct = Math.round(net.driftPct);
+    if (store.driftPct !== npct) store.setDriftPct(net.driftPct);
+
     // ---- the Long Night (schema-synced; HUD banner reads the store) ----------
     const night = net.night;
     const sn = store.night;

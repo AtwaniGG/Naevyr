@@ -456,6 +456,10 @@ export const DYES = {
   water: ['#2c5775', '#173a52', '#0d2336', '#071624'],
   void:  ['#211c30', '#14101e', '#0d0a16', '#08060e'],   // deep-drift black
   drift: ['#a855f7', '#6b21a8', '#3b1162', '#22093d'],   // Drift-touched (burn-only)
+  // season-exclusive cloak (battle pass). NOT a flat ramp — drawChar special-
+  // cases it to drawWandererDyed(ASHFALL_DYE). This entry only makes "ashfall"
+  // a valid DyeKey; the ramp here is never read.
+  ashfall: RAMP.stone,
 } as const;
 export type DyeKey = keyof typeof DYES;
 
@@ -3774,13 +3778,208 @@ export function drawBonewisp(frame: number): Grid {
   return g;
 }
 
-export type PrestigeAuraKey = 'ashen_crown' | 'corruption_halo' | 'ember_cinder' | 'bonewisp';
+/** The Tarnished Chalice — season-exclusive (battle pass) prestige aura. A
+ *  gilded, rot-eaten two-handled trophy cup floats above the head; its detached
+ *  lid orbits while gilded motes rise from the feet. 3f, 4fps. (DS battlepass.js) */
+export function drawTarnishedChalice(frame: number): Grid {
+  const N = AURA_N;
+  const g = makeGrid(N, N);
+  const gd = RAMP.gold, dr = RAMP.drift;
+  const cx = 32;
+  const fp = frame / 3;                       // 3-frame loop
+
+  // ---- gilded motes rising from the feet up into the cup (outline-free) ----
+  const M = 7;
+  for (let i = 0; i < M; i++) {
+    const t = ((i / M) + fp) % 1;             // 0 born at feet .. 1 spent at cup
+    if (t < 0.04 || t > 0.95) continue;
+    const y = 54 - t * 37;                    // 54 → ~17 (just under the foot)
+    const sway = Math.sin(t * Math.PI * 2 + i * 1.7) * 3.2;
+    const x = cx + sway + (i % 2 ? 2 : -2);
+    const c = t < 0.4 ? gd[2] : t < 0.72 ? gd[1] : gd[0];
+    gmote(g, x, y, c, (t > 0.45 && i % 2 === 0) ? gd[3] : null);
+    if (t < 0.5) P(g, Math.round(x), Math.round(y + 1), gd[3]); // brief trailing spark
+  }
+
+  // ---- the gilded two-handled trophy cup (solid, void-outlined) ----
+  solidOn(g, t => {
+    const row = (y: number, x0: number, x1: number) => {
+      for (let x = x0; x <= x1; x++) {
+        let c = gd[1];
+        if (x === x0) c = gd[0];              // moonlit left
+        if (x === x1) c = gd[2];              // shadow right
+        P(t, x, y, c);
+      }
+    };
+    // bowl
+    row(8, 28, 36); row(9, 28, 36); row(10, 29, 35); row(11, 30, 34); row(12, 31, 33);
+    // stem
+    P(t, 32, 13, gd[2]); P(t, 32, 14, gd[2]);
+    // foot
+    row(15, 30, 34); row(16, 29, 35);
+    P(t, 30, 16, gd[2]); P(t, 35, 16, gd[3]);
+    // loop handles
+    P(t, 27, 9, gd[1]); P(t, 26, 10, gd[1]); P(t, 26, 11, gd[2]); P(t, 27, 12, gd[2]);
+    P(t, 37, 9, gd[1]); P(t, 38, 10, gd[2]); P(t, 38, 11, gd[3]); P(t, 37, 12, gd[3]);
+    // a couple of interior value steps so the gold reads as recovered, not flat
+    P(t, 30, 9, gd[0]); P(t, 34, 10, gd[3]); P(t, 31, 11, gd[0]);
+  });
+
+  // ---- rim rot: the Drift eats the gold rim (dither + a chipped void notch) ----
+  P(g, 34, 8, dr[2]); P(g, 33, 9, dr[3]); P(g, 35, 9, dr[2]);
+  P(g, 36, 8, RAMP.void);                     // a chip pitted out of the rim
+  if (frame % 2 === 0) P(g, 35, 11, dr[2]);   // a corruption droplet weeping down
+  P(g, 29, 8, dr[3]);                         // far-rim pitting
+
+  // ---- the DETACHED LID orbiting the head (solid, outlined) ----
+  const ang = fp * Math.PI * 2 - Math.PI * 0.5;
+  const lx = Math.round(cx + Math.cos(ang) * 12);
+  const ly = Math.round(30 + Math.sin(ang) * 4);
+  const far = Math.sin(ang) < -0.15;          // upper/back arc → dimmer, behind head
+  solidOn(g, t => {
+    const a = far ? gd[2] : gd[0], b = far ? gd[3] : gd[1];
+    P(t, lx - 2, ly, b); P(t, lx - 1, ly, a); P(t, lx, ly, a); P(t, lx + 1, ly, a); P(t, lx + 2, ly, b);
+    P(t, lx - 1, ly - 1, a); P(t, lx, ly - 1, a); P(t, lx + 1, ly - 1, b);
+    P(t, lx, ly - 2, b);                      // knob
+  });
+  if (!far) P(g, lx + 1, ly, dr[2]);          // matching rot on the lid
+
+  return g;
+}
+
+// ─── Ashfall dye — the season-exclusive wanderer cloak colorway (DS battlepass.js)
+// Same mechanism as avatars: each channel resolves to a LOCKED RAMP, baked at
+// draw time over the stock wanderer (no new rig). base=cloak/hood (ramp-swap
+// from stone), trim=banded gilt, corrupt=hem corruption + eyes (swap from drift).
+const DYE_RAMP: Record<string, readonly string[]> = {
+  stone: RAMP.stone, bone: RAMP.bone, dirt: RAMP.dirt, blood: RAMP.blood,
+  grass: RAMP.grass, gold: RAMP.gold, ember: RAMP.ember, drift: RAMP.drift, water: RAMP.water,
+};
+export const WANDERER_DYE_CHANNELS = {
+  base:    ['stone', 'bone', 'dirt', 'blood', 'grass'],
+  trim:    ['gold', 'ember', 'bone', 'drift', 'blood'],
+  corrupt: ['drift', 'blood', 'ember', 'water', 'grass'],
+} as const;
+export interface WandererDyeLook { base?: string | number; trim?: string | number; corrupt?: string | number }
+/** the named season colorway: ash-grey base, banded gold trim, drift hem */
+export const ASHFALL_DYE: WandererDyeLook = { base: 'stone', trim: 'gold', corrupt: 'drift' };
+function resolveDye(look?: WandererDyeLook) {
+  const L = look || ASHFALL_DYE;
+  const pick = (chan: keyof typeof WANDERER_DYE_CHANNELS, v: string | number | undefined) => {
+    const opts = WANDERER_DYE_CHANNELS[chan];
+    if (v == null) return DYE_RAMP[opts[0]];
+    if (typeof v === 'number') return DYE_RAMP[opts[Math.max(0, Math.min(opts.length - 1, v))]];
+    return DYE_RAMP[v] || DYE_RAMP[opts[0]];
+  };
+  return { base: pick('base', L.base), trim: pick('trim', L.trim), corrupt: pick('corrupt', L.corrupt) };
+}
+/** the dyed wanderer: stock rig post-processed (ramp swap + banded trim + hem
+ *  corruption). `equip` composes (gear ramps aren't in the base set). */
+export function drawWandererDyed(
+  facing: IsoFacing, anim: AnimName, f: number, look?: WandererDyeLook, equip?: EquipVisual,
+): Grid {
+  const { base, trim, corrupt } = resolveDye(look);
+  const g = drawWanderer(facing, anim, f, equip);   // stone cloak, drift hem/eyes, void outline
+
+  // 1) ramp swap (skip void outline / anything off-ramp)
+  const map: Record<string, string> = {};
+  RAMP.stone.forEach((c, i) => { map[c] = base[Math.min(i, base.length - 1)]; });
+  RAMP.drift.forEach((c, i) => { map[c] = corrupt[Math.min(i, corrupt.length - 1)]; });
+  for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    const v = G(g, x, y); if (v && map[v.c]) P(g, x, y, map[v.c]);
+  }
+
+  // 2) banded gold trim — adaptive scan per row across the garment interior
+  const bob = (anim === 'walk') ? [0, -1, 0, 0, -1, 0][f] : 0;
+  const baseSet = new Set(base);
+  const bandRow = (y: number, midC: string, loC: string, hiC: string) => {
+    let lo = 99, hi = -1;
+    for (let x = 0; x < g.w; x++) { const v = G(g, x, y); if (v && baseSet.has(v.c)) { if (x < lo) lo = x; if (x > hi) hi = x; } }
+    if (hi < lo) return;
+    for (let x = lo; x <= hi; x++) { const v = G(g, x, y); if (v && baseSet.has(v.c)) P(g, x, y, x === lo ? loC : x === hi ? hiC : midC); }
+  };
+  bandRow(20 + bob, trim[1], trim[0], trim[2]);   // collar
+  bandRow(32 + bob, trim[1], trim[0], trim[2]);   // mid-hem band
+  bandRow(34 + bob, trim[2], trim[1], trim[3] || trim[2]); // lower band
+
+  // 3) faint drift-purple corruption creeping up the hem
+  for (let x = 0; x < g.w; x++) for (let y = 31 + bob; y <= 34 + bob; y++) {
+    const v = G(g, x, y); if (v && baseSet.has(v.c) && hash2(x, y, 137) < 0.10) P(g, x, y, corrupt[3]);
+  }
+  return g;
+}
+
+export type PrestigeAuraKey = 'ashen_crown' | 'corruption_halo' | 'ember_cinder' | 'bonewisp' | 'tarnished_chalice';
 export const PRESTIGE_AURAS: Record<PrestigeAuraKey, { fn: (frame: number) => Grid; frames: number; fps: number }> = {
   ashen_crown:     { fn: drawAshenCrown,     frames: 8, fps: 6 },
   corruption_halo: { fn: drawCorruptionHalo, frames: 6, fps: 8 },
   ember_cinder:    { fn: drawEmberCinder,    frames: 6, fps: 8 },
   bonewisp:        { fn: drawBonewisp,       frames: 8, fps: 6 },
+  tarnished_chalice: { fn: drawTarnishedChalice, frames: 3, fps: 4 },
 };
+
+/** pass_emblem — a 32×32 "seasonal ledger" sigil: a gilded two-handled chalice
+ *  mark over a furled parchment banner with drift-corruption flecks. mono = the
+ *  bone-only variant. Static (panel headers / docs). (DS battlepass.js) */
+export function drawPassEmblem(mono: boolean): Grid {
+  const g = makeGrid(32, 32);
+  const GOLD = mono ? RAMP.bone : RAMP.gold;
+  const PARCH = RAMP.bone;                     // parchment banner (ledger)
+  const TRIM = mono ? RAMP.bone : RAMP.gold;
+  const ROT = mono ? RAMP.bone : RAMP.drift;
+  const pb = mono ? 2 : 1;                      // parchment darkened a step in mono for contrast
+
+  // ---- furled parchment banner (behind): a hanging ledger scroll ----
+  for (let x = 7; x <= 24; x++) P(g, x, 10, PARCH[mono ? 2 : 0]);
+  for (let x = 7; x <= 24; x++) P(g, x, 11, PARCH[3]);
+  P(g, 6, 10, PARCH[3]); P(g, 6, 11, PARCH[2]); P(g, 25, 10, PARCH[3]); P(g, 25, 11, PARCH[2]); // rolled end curls
+  // draped body (narrower than the furl bar)
+  for (let y = 12; y <= 23; y++) {
+    const lo = 9, hi = 22;
+    for (let x = lo; x <= hi; x++) {
+      let c = PARCH[pb];
+      if (x === lo) c = PARCH[mono ? 1 : 0];
+      if (x === hi) c = PARCH[mono ? 3 : 2];
+      P(g, x, y, c);
+    }
+  }
+  // ledger rule-lines (full horizontal strokes)
+  [15, 18, 21].forEach((y) => { for (let x = 11; x <= 20; x++) P(g, x, y, PARCH[3]); });
+  // forked swallowtail bottom (two tails + a center V-notch)
+  for (let y = 24; y <= 27; y++) {
+    const k = y - 24;
+    for (let x = 9; x <= 13 - k; x++) P(g, x, y, x === 9 ? PARCH[mono ? 1 : 0] : PARCH[pb]);
+    for (let x = 18 + k; x <= 22; x++) P(g, x, y, x === 22 ? PARCH[mono ? 3 : 2] : PARCH[pb]);
+  }
+  // gold trim bands (top & bottom of the draped body)
+  for (let x = 9; x <= 22; x++) P(g, x, 12, TRIM[1]);
+  for (let x = 10; x <= 21; x++) P(g, x, 23, TRIM[2]);
+
+  // ---- gilded two-handled chalice mark (front, on the banner) ----
+  const crow = (y: number, x0: number, x1: number) => {
+    for (let x = x0; x <= x1; x++) { let c = GOLD[1]; if (x === x0) c = GOLD[0]; if (x === x1) c = GOLD[2]; P(g, x, y, c); }
+  };
+  crow(4, 13, 19); crow(5, 13, 19); crow(6, 14, 18); crow(7, 15, 17);   // bowl
+  P(g, 16, 8, GOLD[2]); P(g, 16, 9, GOLD[2]);                            // stem
+  crow(10, 13, 19); P(g, 13, 10, GOLD[0]); P(g, 19, 10, GOLD[2]);        // foot
+  // loop handles
+  P(g, 12, 4, GOLD[1]); P(g, 11, 5, GOLD[1]); P(g, 11, 6, GOLD[2]); P(g, 12, 7, GOLD[2]);
+  P(g, 20, 4, GOLD[1]); P(g, 21, 5, GOLD[2]); P(g, 21, 6, GOLD[3]); P(g, 20, 7, GOLD[3]);
+  // rim rot on the chalice
+  P(g, 18, 4, ROT[mono ? 3 : 2]); P(g, 19, 4, ROT[3]);
+
+  outline(g, RAMP.void);
+
+  // ---- drift-corruption flecks (outline-free, after outline) ----
+  if (!mono) {
+    P(g, 9, 17, RAMP.drift[2]); P(g, 8, 17, RAMP.drift[3]);     // corruption eating the left edge
+    P(g, 22, 20, RAMP.drift[2]); P(g, 23, 20, RAMP.drift[3]);   // right edge
+    P(g, 16, 25, RAMP.drift[3]);                                // a fleck in the notch
+  } else {
+    P(g, 9, 17, RAMP.bone[3]); P(g, 22, 20, RAMP.bone[3]); P(g, 16, 25, RAMP.bone[3]);
+  }
+  return g;
+}
 
 // ─── wheelfaces.js — the two spin-wheel faces (HUD overlay art) ───────────────
 // 240×240, hub at (120,124), pointer baked at top. Segment order is EXACT
@@ -5057,6 +5256,8 @@ export class SpriteCache {
       // gear/cosmetics change rarely — bake the variant frame on first sight
       let g = avatar
         ? drawAvatar(avatar, facing, anim, f, { a: look!.avA, b: look!.avB }, equip)
+        : look?.dye === 'ashfall'
+        ? drawWandererDyed(facing, anim, f, ASHFALL_DYE, equip) // season cloak (composes with gear)
         : drawWanderer(facing, anim, f, equip, look);
       if (mirrored) g = mirrorX(g);
       cv = gridToCanvas(g);

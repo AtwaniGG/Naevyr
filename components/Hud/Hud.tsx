@@ -379,11 +379,13 @@ function KeeperDialogue() {
     } else if (menu === "prestige") {
       Object.entries(PRESTIGE_CATALOG).forEach(([k, entry]) => {
         if (entry.kind === "avatar") return; // the glass has its own menu
-        if (entry.passOnly) return; // season-exclusive relics are never sold here
         const owned =
           entry.kind === "dye" ? s.ownedDyes.includes(k as never) :
           entry.kind === "aura" ? s.ownedAuras.includes(k as never) :
           s.ownedTitles.includes(entry.label);
+        // season-exclusive relics are never SOLD here — but an owner (e.g. from
+        // the battle pass) can still equip the one they hold.
+        if (entry.passOnly && !owned) return;
         const worn =
           entry.kind === "dye" ? s.cosmetics.dye === k :
           entry.kind === "aura" ? s.cosmetics.aura === k : false;

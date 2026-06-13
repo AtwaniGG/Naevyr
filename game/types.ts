@@ -37,8 +37,9 @@ export const AURA_CATALOG: Record<
   corruption_halo: { label: "Corruption Halo", price: 0, color: "#a855f7", driftsOnly: true },
   ember_cinder:    { label: "Ember Cinder", price: 0, color: "#f59e0b", driftsOnly: true },
   bonewisp:        { label: "Bonewisp", price: 0, color: "#d8cfe0", driftsOnly: true },
-  // driftsOnly keeps it out of the gold-aura buy list; the real art is a DS
-  // port (see the Claude Design request) — until then it orbits gilded motes.
+  // driftsOnly keeps it out of the gold-aura buy list. Rendered as a baked DS
+  // prestige aura (PRESTIGE_AURAS.tarnished_chalice in sprites.ts); `color` is
+  // only the legacy-mote fallback (never hit while the port is registered).
   tarnished_chalice: { label: "The Tarnished Chalice", price: 0, color: "#e7c873", driftsOnly: true },
 };
 
@@ -104,6 +105,12 @@ export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   tarnished_chalice: {
     kind: "aura", label: "The Tarnished Chalice", action: "prestigeAura", passOnly: true,
     desc: "a prize from a contest the world forgot it ever held. the gold still glints under the rot",
+  },
+  // Season 1 free-track cloak (tier 25). passOnly: pass-granted only, never sold,
+  // but relic-tradeable + ownership-gated like any Drift-touched dye.
+  ashfall: {
+    kind: "dye", label: "Ashfall Cloak", action: "prestigeDye", passOnly: true,
+    desc: "ash-grey weave banded in old gold, the hem already going to drift",
   },
   // premium avatars: bound to the buyer, never on the relic stall
   ashbound: {
@@ -718,8 +725,8 @@ function genericPassTiers(): PassTier[] {
  *  a steady gold/shard drip with a beefy shard finale. */
 function ashfallTiers(): PassTier[] {
   const tiers = genericPassTiers();
-  // free-track finales
-  tiers[24].free = { kind: "shards", amount: 20 };
+  // free-track finales — the season cloak at the halfway mark, gold at the top
+  tiers[24].free = { kind: "cosmetic", cosmetic: "ashfall", label: "Ashfall Cloak" };
   tiers[49].free = { kind: "gold", amount: 1000 };
   // premium cosmetic milestones (existing prestige auras — a 25k◆-each bundle)
   tiers[14].premium = { kind: "cosmetic", cosmetic: "ashen_crown", label: "Ashen Crown" };
