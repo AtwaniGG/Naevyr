@@ -42,23 +42,15 @@ import { useViewport } from "@/game/state/viewport";
 import { Component, type ReactNode } from "react";
 import WheelOverlay from "@/components/Hud/WheelOverlay";
 
-// TEMP DIAGNOSTIC: labeled boundary so the mobile crash names the exact section
-// that threw (the production stack is minified). Remove after diagnosis.
-class ErrorTrap extends Component<{ label: string; children: ReactNode }, { msg: string | null }> {
-  state = { msg: null as string | null };
-  static getDerivedStateFromError(e: unknown) {
-    return { msg: (e as Error)?.message ?? String(e) };
+// Graceful HUD boundary: if any single panel throws while rendering, it drops
+// out silently instead of blanking the whole HUD (the game stays playable).
+class ErrorTrap extends Component<{ label: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
   }
   render() {
-    if (this.state.msg) {
-      return (
-        <div style={{ position: "fixed", top: 70, left: 8, right: 8, zIndex: 99998, background: "#1a0c0c", color: "#ff6b6b", font: "600 12px/1.5 ui-monospace", padding: 12, userSelect: "text", WebkitUserSelect: "text" }}>
-          crashed in: {this.props.label}
-          {"\n"}
-          {this.state.msg}
-        </div>
-      );
-    }
+    if (this.state.failed) return null;
     return this.props.children;
   }
 }
@@ -1438,6 +1430,7 @@ function MarketDock() {
         </Button>
       )}
       <DockPopout open={open}>
+        {open && (
         <Panel kicker="The Exchange" title="Market" style={{ width: 312 }}>
             {!online && (
               <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
@@ -1549,6 +1542,7 @@ function MarketDock() {
               </>
             )}
           </Panel>
+        )}
       </DockPopout>
     </div>
   );
