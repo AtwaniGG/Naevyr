@@ -347,6 +347,8 @@ interface PlayerSim {
   pendingNode: ResourceNode | null;
   /** guest identity (db row key) */
   token: string;
+  /** demo lane: blocked from every economy / ownership / on-chain handler */
+  guest: boolean;
   lastSaveAt: number;
   /** server-side swing cap for shared-mob attacks */
   lastMobAttackAt?: number;
@@ -686,6 +688,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the Vault: pocket ↔ bank moves, both sides on the server ledger -------
     this.onMessage("bank", async (client, msg: { delta?: number }) => {
+      if (this.guestBlocked(client, "bank")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "bank", 5, 2000)) return;
@@ -720,6 +723,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the Wheel: server-rolled spin (ledger pays 50g, OR a token burn) -------
     this.onMessage("spin", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "spin")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       const now = Date.now();
@@ -748,6 +752,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the Shrine: communal donations toward a cleansing (ledger or burn) -----
     this.onMessage("donate", async (client, msg: { amount?: number; burnSig?: string }) => {
+      if (this.guestBlocked(client, "donate")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "donate", 4, 2000)) return;
@@ -777,6 +782,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage(
       "placeProp",
       async (client, msg: { kind?: string; x?: number; y?: number }) => {
+      if (this.guestBlocked(client, "placeProp")) return;
         const sim = this.sims.get(client.sessionId);
         const fail = (reason: string) =>
           client.send("propResult", { ok: false, reason, kind: msg?.kind });
@@ -811,6 +817,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the Pit: wagered duels ---------------------------------------------------
     this.onMessage("challenge", (client, msg: { target?: string; wager?: number }) => {
+      if (this.guestBlocked(client, "challenge")) return;
       const sim = this.sims.get(client.sessionId);
       const me = this.state.players.get(client.sessionId);
       const target = this.sims.get(String(msg?.target ?? ""));
@@ -826,6 +833,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("acceptDuel", (client, msg: { from?: string; wager?: number }) => {
+      if (this.guestBlocked(client, "acceptDuel")) return;
       const a = this.sims.get(String(msg?.from ?? "")); // challenger
       const b = this.sims.get(client.sessionId);        // acceptor
       const wager = Math.max(0, Math.min(5000, Math.floor(Number(msg?.wager ?? 0))));
@@ -837,6 +845,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // ---- the arena queue: click the Pit, post a stake, the next wanderer who
     //      steps up meets you in the ring ----------------------------------------
     this.onMessage("pitJoin", (client, msg: { wager?: number }) => {
+      if (this.guestBlocked(client, "pitJoin")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "pitJoin", 4, 10_000)) return;
@@ -890,6 +899,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // Two steps mirror the Exchange: the client asks for a deposit tx, the wallet
     // signs it (transfer wager → escrow), then sends the signature back to commit.
     this.onMessage("duelStakeQuote", async (client, msg: { wager?: number }) => {
+      if (this.guestBlocked(client, "duelStakeQuote")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "duelStakeQuote", 4, 10_000)) return;
@@ -911,6 +921,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("duelStake", async (client, msg: { wager?: number; sig?: string }) => {
+      if (this.guestBlocked(client, "duelStake")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "duelStake", 4, 10_000)) return;
@@ -1011,6 +1022,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // Two-step: client asks for a nonce, wallet signs the canonical message,
     // server verifies the ed25519 signature and binds wallet ↔ guest token.
     this.onMessage("walletNonce", (client) => {
+      if (this.guestBlocked(client, "walletNonce")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "walletNonce", 6, 10_000)) return;
@@ -1022,6 +1034,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage(
       "linkWallet",
       async (client, msg: { address?: string; signature?: string }) => {
+      if (this.guestBlocked(client, "linkWallet")) return;
         const sim = this.sims.get(client.sessionId);
         const fail = (reason: string) =>
           client.send("walletResult", { ok: false, reason });
@@ -1069,6 +1082,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // Quote: server builds + fee-pays a partial-signed burn tx for the wallet
     // to countersign. The follow-up action message carries the tx signature.
     this.onMessage("burnQuote", async (client, msg: { action?: string }) => {
+      if (this.guestBlocked(client, "burnQuote")) return;
       const sim = this.sims.get(client.sessionId);
       const action = String(msg?.action ?? "");
       const fail = (reason: string) =>
@@ -1088,6 +1102,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage(
       "buyAura",
       async (client, msg: { key?: string; burnSig?: string }) => {
+      if (this.guestBlocked(client, "buyAura")) return;
         const sim = this.sims.get(client.sessionId);
         if (!sim) return;
         if (!this.allow(sim, "buyAura", 4, 10_000)) return;
@@ -1103,6 +1118,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // the Ash Obelisk: a verified burn rewrites the day's quests (client state)
     this.onMessage("obeliskBurn", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "obeliskBurn")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "obeliskBurn", 4, 10_000)) return;
@@ -1116,6 +1132,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // Phase 6: Drift-touched cosmetics — DRIFTS burns only, never gold. The
     // catalog (and each entry's burn action) is shared via types.ts.
     this.onMessage("prestige", async (client, msg: { key?: string; burnSig?: string }) => {
+      if (this.guestBlocked(client, "prestige")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "prestige", 4, 10_000)) return;
@@ -1137,6 +1154,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // (+REINFORCE_INTEGRITY, capped at 100: a delay bought again and again,
     // never immunity — the Drift always comes back).
     this.onMessage("reinforce", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "reinforce")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "reinforce", 4, 10_000)) return;
@@ -1175,6 +1193,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the Drift Wheel: gacha cosmetics, DRIFTS burns only -------------------
     this.onMessage("driftSpin", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "driftSpin")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "driftSpin", 4, 10_000)) return;
@@ -1187,6 +1206,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // a Drift Cache = 3 spins bundled (20% off), one shared pity counter
     this.onMessage("cache", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "cache")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "cache", 3, 10_000)) return;
@@ -1199,6 +1219,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- guilds: found / join / leave / territory / upkeep ---------------------
     this.onMessage("guildFound", async (client, msg: { name?: string; tag?: string; burnSig?: string }) => {
+      if (this.guestBlocked(client, "guildFound")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "guildFound", 2, 30_000)) return;
@@ -1227,6 +1248,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("guildJoin", (client, msg: { id?: number }) => {
+      if (this.guestBlocked(client, "guildJoin")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "guildJoin", 4, 10_000)) return;
@@ -1246,6 +1268,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("guildLeave", (client) => {
+      if (this.guestBlocked(client, "guildLeave")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "guildLeave", 4, 10_000)) return;
@@ -1263,6 +1286,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("guildTerritory", async (client, msg: { region?: string; burnSig?: string }) => {
+      if (this.guestBlocked(client, "guildTerritory")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "guildTerritory", 3, 10_000)) return;
@@ -1293,6 +1317,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("guildUpkeep", async (client, msg: { burnSig?: string }) => {
+      if (this.guestBlocked(client, "guildUpkeep")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "guildUpkeep", 3, 10_000)) return;
@@ -1334,6 +1359,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // buy gold with DRIFTS: quote builds the transfer INTO the escrow pool
     this.onMessage("exBuyQuote", async (client, msg: { gold?: number }) => {
+      if (this.guestBlocked(client, "exBuyQuote")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "exBuyQuote", 4, 10_000)) return;
@@ -1353,6 +1379,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("exBuy", async (client, msg: { gold?: number; sig?: string }) => {
+      if (this.guestBlocked(client, "exBuy")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "exBuy", 4, 10_000)) return;
@@ -1392,6 +1419,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // sell gold for DRIFTS: the ONLY outbound rail — pool-funded, capped, ordered
     this.onMessage("exSell", async (client, msg: { gold?: number }) => {
+      if (this.guestBlocked(client, "exSell")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "exSell", 2, 30_000)) return;
@@ -1447,6 +1475,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // ---- the relic market: P2P Drift-touched cosmetics --------------------------
     this.onMessage("relicList", async (client, msg: { key?: string; price?: number }) => {
+      if (this.guestBlocked(client, "relicList")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "relicList", 4, 10_000)) return;
@@ -1473,6 +1502,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("relicUnlist", (client, msg: { id?: number }) => {
+      if (this.guestBlocked(client, "relicUnlist")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "relicUnlist", 4, 10_000)) return;
@@ -1490,6 +1520,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("relicQuote", async (client, msg: { id?: number }) => {
+      if (this.guestBlocked(client, "relicQuote")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "relicQuote", 4, 10_000)) return;
@@ -1513,6 +1544,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("relicBuy", async (client, msg: { id?: number; sig?: string }) => {
+      if (this.guestBlocked(client, "relicBuy")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "relicBuy", 3, 10_000)) return;
@@ -1583,6 +1615,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("unlinkWallet", async (client) => {
+      if (this.guestBlocked(client, "unlinkWallet")) return;
       const sim = this.sims.get(client.sessionId);
       if (!sim) return;
       if (!this.allow(sim, "unlinkWallet", 3, 10_000)) return;
@@ -1637,6 +1670,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.onMessage(
       "list",
       async (client, msg: { item?: string; qty?: number; price?: number }) => {
+      if (this.guestBlocked(client, "list")) return;
         const sim = this.sims.get(client.sessionId);
         const ps = this.state.players.get(client.sessionId);
         const fail = (reason: string) =>
@@ -1667,6 +1701,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // cancel your own listing → items return to your satchel
     this.onMessage("unlist", async (client, msg: { id?: number }) => {
+      if (this.guestBlocked(client, "unlist")) return;
       const sim = this.sims.get(client.sessionId);
       const ls = this.state.listings.get(String(msg?.id));
       if (!sim || !ls) return;
@@ -1681,6 +1716,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // buy a listing (the ledger pays; the seller's ledger or escrow collects)
     this.onMessage("buy", async (client, msg: { id?: number }) => {
+      if (this.guestBlocked(client, "buy")) return;
       const sim = this.sims.get(client.sessionId);
       const ls = this.state.listings.get(String(msg?.id));
       const fail = (reason: string) =>
@@ -1715,6 +1751,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // stake a 3×3 land claim (the ledger pays, OR a verified token burn)
     this.onMessage("claim", async (client, msg: { x?: number; y?: number; burnSig?: string }) => {
+      if (this.guestBlocked(client, "claim")) return;
       const sim = this.sims.get(client.sessionId);
       const ps = this.state.players.get(client.sessionId);
       const fail = (reason: string) =>
@@ -2045,19 +2082,36 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.setSimulationInterval(() => this.tick(TICK_MS / 1000), TICK_MS);
   }
 
+  /** demo lane: guests are blocked from every economy/ownership/on-chain
+   *  handler. Call at the TOP of each restricted handler — it sends a `denied`
+   *  message (the client logs it) and returns true so the handler bails. */
+  private guestBlocked(client: Client, feature: string): boolean {
+    const sim = this.sims.get(client.sessionId);
+    if (sim?.guest) {
+      client.send("denied", { feature });
+      return true;
+    }
+    return false;
+  }
+
   /** guest auth: a browser-held token is the identity; rows are auto-created.
    *  With GATE_TOKENS set, the door demands a wallet holding enough of the
    *  game token AND a signature over gateMessage proving the join actually
    *  owns that wallet (nonce issued by /gate; verified in src/gate.ts). */
   async onAuth(
     client: Client,
-    options: { token?: string; address?: string; gateNonce?: string; gateSig?: string },
+    options: { token?: string; address?: string; gateNonce?: string; gateSig?: string; guest?: boolean },
   ) {
     const token = typeof options?.token === "string" ? options.token.trim() : "";
     if (token.length < 8 || token.length > 64) return false;
+    // the demo lane: a guest bypasses the token gate entirely (no wallet, no
+    // proof, no balance) but is flagged so every economy/chain handler refuses
+    // it. The guest carries a SEPARATE device token (own localStorage key), so
+    // its row can never bind a wallet or bleed into a Realm account.
+    const guest = options?.guest === true;
     const gate = gateTokens();
     let gateAddress = "";
-    if (gate > 0) {
+    if (gate > 0 && !guest) {
       const address = typeof options?.address === "string" ? options.address.trim() : "";
       const nonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
       const sig = typeof options?.gateSig === "string" ? options.gateSig : "";
@@ -2069,6 +2123,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       gateAddress = address;
     }
     const row = await loadOrCreatePlayer(token);
+    if (guest) return Object.assign(row, { guest: true });
     return gateAddress ? Object.assign(row, { gateAddress }) : row;
   }
 
@@ -2107,6 +2162,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       speedMult: 1,
       pendingNode: null,
       token: row.token,
+      guest: (row as PlayerRow & { guest?: boolean }).guest === true,
       lastSaveAt: 0,
       profileSnapshot: row.snapshot ?? null,
       gold,
@@ -2134,6 +2190,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     ps.dye = row.dye;
     ps.eye = row.eye;
     if (sim.guildId) ps.guildTag = this.guildRows.get(sim.guildId)?.tag ?? "";
+    ps.guest = sim.guest;
     this.state.players.set(client.sessionId, ps);
 
     this.syncQuests(sim);

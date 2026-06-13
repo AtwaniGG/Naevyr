@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "server": "npm --prefix server run dev",
-    "verify:mp": "server/node_modules/.bin/tsx scripts/verify-multiplayer.ts"
+    "verify:mp": "server/node_modules/.bin/tsx scripts/verify-multiplayer.ts",
+    "verify:guest": "server/node_modules/.bin/tsx scripts/verify-guest.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",

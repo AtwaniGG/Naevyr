@@ -104,6 +104,8 @@ export class Game {
   combat = new CombatManager();
   /** THE THRESHOLD: non-null while running the first-login tutorial */
   private tutorial: TutorialDirector | null = null;
+  /** demo lane: join the shared world as a guest (no gate, economy locked) */
+  private guest = false;
 
   private raf = 0;
   private last = 0;
@@ -189,9 +191,11 @@ export class Game {
 
   private cleanupFns: Array<() => void> = [];
 
-  constructor(canvas: HTMLCanvasElement, opts?: { tutorial?: boolean }) {
+  constructor(canvas: HTMLCanvasElement, opts?: { tutorial?: boolean; guest?: boolean }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
+    this.guest = !!opts?.guest;
+    useGame.getState().setGuest(this.guest);
     if (opts?.tutorial) {
       // THE THRESHOLD: a handcrafted pocket world, no server, no ambient sim
       this.world = new World(THRESHOLD.w, THRESHOLD.h);
@@ -662,12 +666,14 @@ export class Game {
   private async connect() {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
     // the gate proof (wallet + signed nonce from the door) rides along so
-    // GATE_TOKENS servers can verify ownership, not just the claimed address
-    const proof = getGateProof();
-    const address = getGateWallet();
+    // GATE_TOKENS servers can verify ownership, not just the claimed address.
+    // Guests carry no wallet/proof — the server's guest lane bypasses the gate.
+    const proof = this.guest ? null : getGateProof();
+    const address = this.guest ? null : getGateWallet();
     const net = await NetClient.connect(
       url, 2500, getDeviceToken(), address,
       proof && proof.address === address ? proof : null,
+      this.guest,
     );
     if (!net) {
       useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
@@ -708,6 +714,13 @@ export class Game {
     this.sentIdentity = "";
     this.pushIdentity(net);
 
+    // a guest tried a Realm-only action; the server refused it
+    net.onMessage<{ feature: string }>("denied", () =>
+      useGame.getState().pushLog(
+        "The Realm only. Connect a wallet to do that.",
+        "#a06bd0",
+      ),
+    );
     net.onMessage<{ kind: ResourceKind; qty?: number; rich?: boolean; depleted: boolean }>(
       "loot",
       (m) => applyGatherLoot(m.kind, m.depleted, m.qty, m.rich),
@@ -2501,6 +2514,7 @@ export class Game {
       r.avA = p.avA ?? "";
       r.avB = p.avB ?? "";
       r.guildTag = p.guildTag ?? "";
+      r.guest = !!p.guest;
       const dx = p.x - r.px;
       const dy = p.y - r.py;
       r.px += dx * k;
@@ -4079,6 +4093,7 @@ export class Game {
       name = p.name || "Wanderer";
       title = p.title;
       if (p.guildTag) name = `[${p.guildTag}] ${name}`;
+      if (p.guest) name = `${name} · guest`;
     }
 
     spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, s.x, s.y, z, equip, look);

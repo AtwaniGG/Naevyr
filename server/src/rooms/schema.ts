@@ -29,6 +29,8 @@ export class PlayerState extends Schema {
   @type("string") avB = "";
   /** guild tag ("" = guildless) — server-set, never client-chosen */
   @type("string") guildTag = "";
+  /** demo lane: a guest wanderer (no wallet, economy locked) — server-set */
+  @type("boolean") guest = false;
 }
 
 /** a guild + its territory banner (the recurring social DRIFTS sink) */

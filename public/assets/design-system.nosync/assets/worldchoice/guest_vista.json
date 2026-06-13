@@ -1,0 +1,45 @@
+{
+  "image": "worldchoice/guest_vista.svg",
+  "cell": {
+    "w": 256,
+    "h": 160
+  },
+  "anchor": {
+    "x": 128,
+    "y": 159
+  },
+  "frames": {
+    "guest_vista_00": {
+      "x": 0,
+      "y": 0,
+      "w": 256,
+      "h": 160,
+      "anchor": {
+        "x": 128,
+        "y": 159
+      }
+    },
+    "guest_vista_01": {
+      "x": 256,
+      "y": 0,
+      "w": 256,
+      "h": 160,
+      "anchor": {
+        "x": 128,
+        "y": 159
+      }
+    }
+  },
+  "animations": {
+    "shimmer": {
+      "frames": [
+        "guest_vista_00",
+        "guest_vista_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "scene": true,
+  "note": "backdrop card — safe walled threshold camp at dusk; warm ember/gold over stone/dirt; NO corruption. Reads: free, no risk, try it."
+}

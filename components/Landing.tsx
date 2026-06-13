@@ -3,20 +3,32 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ds";
 import { useGate, gateUrl, signGateProof, type GateInfo } from "@/components/gate";
-import { getGateWallet, getGateProof, setDoorName } from "@/game/state/persistence";
+import {
+  getGateWallet,
+  getGateProof,
+  setDoorName,
+  setGuestMode,
+  isGuestMode,
+} from "@/game/state/persistence";
 
-// The door itself (/play): runs the gate the moment you arrive — server check
-// → wallet (if the door is warded with GATE_TOKENS) → name your wanderer →
-// onEnter() mounts the game. No server → wander offline.
+// The door itself (/play): first a fork — the Realm (wallet-gated) or the free
+// Guest Drift (demo lane). The Realm runs the gate (server check → wallet if the
+// door is warded with GATE_TOKENS); Guest skips straight to naming. Either way
+// you name your wanderer, then onEnter(guest) mounts the game. No server →
+// wander offline.
 
-const SAVE_KEY = "driftlands-save-v1";
+// the save/device keys are swapped by setGuestMode (persistence.ts); these
+// helpers honor the current lane so guest naming never touches the Realm save
+const REALM_SAVE_KEY = "driftlands-save-v1";
+const GUEST_SAVE_KEY = "driftlands-guest-save-v1";
+const saveKey = () => (isGuestMode() ? GUEST_SAVE_KEY : REALM_SAVE_KEY);
 
-type Step = "checking" | "wallet" | "denied" | "name" | "offline";
+type Step = "choose" | "checking" | "wallet" | "denied" | "name" | "offline";
 
 /** the name on the existing save, if any */
 function savedName(): string {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(saveKey());
     return raw ? String(JSON.parse(raw)?.cosmetics?.name ?? "") : "";
   } catch {
     return "";
@@ -30,15 +42,15 @@ function writeName(name: string) {
   if (!clean) return;
   setDoorName(clean); // survives the server snapshot that lands after join
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(saveKey());
     if (raw) {
       const save = JSON.parse(raw);
       save.cosmetics = { ...(save.cosmetics ?? {}), name: clean };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      localStorage.setItem(saveKey(), JSON.stringify(save));
       return;
     }
     localStorage.setItem(
-      SAVE_KEY,
+      saveKey(),
       JSON.stringify({
         day: Math.floor(Date.now() / 86_400_000),
         gold: 0,
@@ -51,16 +63,17 @@ function writeName(name: string) {
   }
 }
 
-export default function Landing({ onEnter }: { onEnter: () => void }) {
+export default function Landing({ onEnter }: { onEnter: (guest: boolean) => void }) {
   const { info, balance, busy, connect, disconnect } = useGate();
-  const [step, setStep] = useState<Step>("checking");
+  const [step, setStep] = useState<Step>("choose");
+  /** which lane was chosen at the fork (drives onEnter + save-key isolation) */
+  const [guest, setGuest] = useState(false);
   /** the door's own gate reading; the nav's (info) can time out on slow RPC days */
   const [door, setDoor] = useState<GateInfo | null>(null);
   const [name, setName] = useState("");
   /** returning wanderers get a welcome-back; the input only shows on request */
   const [renaming, setRenaming] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  const started = useRef(false);
 
   // every entry passes the naming step: the name is sworn at the door and
   // can only be changed by leaving the realm and stepping back through
@@ -70,10 +83,19 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     setStep("name");
   };
 
-  // the gatekeeper studies you the moment you arrive
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+  // the free demo lane: no wallet, no gate — straight to naming. The guest save
+  // + device keys are bound now so naming never touches the Realm account.
+  const chooseGuest = () => {
+    setGuest(true);
+    setGuestMode(true);
+    proceed();
+  };
+
+  // the Realm: bind the wallet-gated keys, then run the gatekeeper check
+  const chooseRealm = () => {
+    setGuest(false);
+    setGuestMode(false);
+    setStep("checking");
     void (async () => {
       let gate: GateInfo;
       try {
@@ -98,8 +120,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       }
       setStep("wallet");
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   useEffect(() => {
     if (step === "name") nameRef.current?.focus();
@@ -120,7 +141,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
   const enterNamed = () => {
     writeName(name);
-    onEnter();
+    onEnter(guest);
   };
 
   return (
@@ -135,6 +156,47 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             NAEVYR
           </div>
         </div>
+
+        {step === "choose" && (
+          <>
+            <div style={{ font: "400 13px/1.6 var(--font-ui)", color: "var(--text-secondary)", maxWidth: 480 }}>
+              Two ways through the door. Wander free as a guest, or step into the
+              full Realm with a wallet.
+            </div>
+            <div
+              className="flex flex-wrap items-stretch justify-center"
+              style={{ gap: 20, width: "100%" }}
+            >
+              {/* The Guest Drift — free demo lane */}
+              <div className="flex flex-col items-center" style={{ gap: 10, width: 256 }}>
+                <div style={{ position: "relative", width: 256, maxWidth: "100%" }}>
+                  <div className="choice-vista choice-vista-guest" />
+                  <div className="guest-seal" style={{ position: "absolute", top: 8, right: 8 }} />
+                </div>
+                <Button size="lg" variant="ghost" onClick={chooseGuest} style={{ width: "100%" }}>
+                  Try the Guest Drift
+                </Button>
+                <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-muted)" }}>
+                  Free. No wallet. Roam the same world and meet other wanderers.
+                  Land, markets, the Vault and the chain stay locked. Guest
+                  progress does not carry into a Realm account.
+                </div>
+              </div>
+
+              {/* The Realm — full, wallet-gated */}
+              <div className="flex flex-col items-center" style={{ gap: 10, width: 256 }}>
+                <div className="choice-vista choice-vista-realm" />
+                <Button size="lg" variant="gold" onClick={chooseRealm} style={{ width: "100%" }} autoFocus>
+                  Enter the Realm
+                </Button>
+                <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-muted)" }}>
+                  The shared world, full and unlocked. Land, markets, the Vault
+                  and the chain all open. A wallet is asked at the door.
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {step === "checking" && (
           <div style={{ font: "italic 400 13px/1.5 var(--font-ui)", color: "var(--text-secondary)" }}>

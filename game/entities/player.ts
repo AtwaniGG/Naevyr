@@ -49,6 +49,8 @@ export class Player {
   avA = "";
   avB = "";
   guildTag = "";
+  /** a demo/guest-lane wanderer (shown muted on the nameplate) */
+  guest = false;
   /** lagged follower position (NaN until the pet first appears) */
   petX = NaN;
   petY = NaN;

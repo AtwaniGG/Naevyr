@@ -1,0 +1,26 @@
+{
+  "image": "worldchoice/guest_seal.svg",
+  "cell": {
+    "w": 32,
+    "h": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 31
+  },
+  "static": true,
+  "frames": {
+    "guest_seal_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    }
+  },
+  "ramp": "bone only",
+  "note": "open-padlock sigil = \"guest / no wallet\"; pin on the demo card."
+}

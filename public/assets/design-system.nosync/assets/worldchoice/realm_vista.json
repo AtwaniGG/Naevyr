@@ -1,0 +1,45 @@
+{
+  "image": "worldchoice/realm_vista.svg",
+  "cell": {
+    "w": 256,
+    "h": 160
+  },
+  "anchor": {
+    "x": 128,
+    "y": 159
+  },
+  "frames": {
+    "realm_vista_00": {
+      "x": 0,
+      "y": 0,
+      "w": 256,
+      "h": 160,
+      "anchor": {
+        "x": 128,
+        "y": 159
+      }
+    },
+    "realm_vista_01": {
+      "x": 256,
+      "y": 0,
+      "w": 256,
+      "h": 160,
+      "anchor": {
+        "x": 128,
+        "y": 159
+      }
+    }
+  },
+  "animations": {
+    "shimmer": {
+      "frames": [
+        "realm_vista_00",
+        "realm_vista_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "scene": true,
+  "note": "backdrop card — full Waystation skyline under creeping violet Drift haze; drift/blood accents over a wider stone town. Reads: the real world, wallet-gated."
+}

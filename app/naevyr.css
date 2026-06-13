@@ -440,6 +440,35 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
   66.6%, 100% { background-position-x: 100%; }
 }
 
+/* worldchoice: the demo/Realm fork at the door. Two 2-frame 256x160 vista
+   cards (shimmer) + a static 32x32 guest seal. DOM art, no engine port. */
+.choice-vista {
+  width: 256px;
+  height: 160px;
+  max-width: 100%;
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: landing-hero-shimmer 1s infinite; /* same 2-frame cadence */
+}
+.choice-vista-guest {
+  background-image: url("/assets/design-system.nosync/assets/worldchoice/guest_vista.svg");
+}
+.choice-vista-realm {
+  background-image: url("/assets/design-system.nosync/assets/worldchoice/realm_vista.svg");
+}
+/* guest_seal: open-padlock sigil pinned on the demo card */
+.guest-seal {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  background-image: url("/assets/design-system.nosync/assets/worldchoice/guest_seal.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
 /* nav_icons: 9 cells of 16x16 in a row; pick one via --icon-index (0..8) */
 .landing-icon {
   display: inline-block;

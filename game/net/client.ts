@@ -21,6 +21,7 @@ export interface NetPlayer {
   avA: string;
   avB: string;
   guildTag: string;
+  guest: boolean;
 }
 
 export interface NetProp {
@@ -119,11 +120,13 @@ export class NetClient {
     token: string,
     address?: string | null,
     proof?: { nonce: string; sig: string } | null,
+    guest?: boolean,
   ): Promise<NetClient | null> {
     try {
       const room = await withTimeout(
         new Client(url).joinOrCreate<AnyState>("drift", {
           token,
+          ...(guest ? { guest: true } : {}),
           ...(address ? { address } : {}),
           ...(proof ? { gateNonce: proof.nonce, gateSig: proof.sig } : {}),
         }),

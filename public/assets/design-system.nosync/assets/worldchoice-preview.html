@@ -1,0 +1,55 @@
+<!-- @dsCard group="World Art" viewport="1120x720" name="Worldchoice" subtitle="guest_vista · realm_vista · guest_seal — the 'choose your path' cards (free demo vs. wallet-gated realm)" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Worldchoice</title>
+<style>
+  body{margin:0;padding:28px;background:#0a0810;font-family:ui-monospace,monospace;color:#d8cfe0}
+  h1{font-size:18px;letter-spacing:.09em;text-transform:uppercase;margin:0 0 3px}
+  .lede{font-size:11px;color:rgba(216,207,224,.46);margin:0 0 24px;letter-spacing:.04em;max-width:840px;line-height:1.55}
+  code{color:#a855f7}
+  .cards{display:flex;gap:26px;flex-wrap:wrap}
+  .card{width:512px;background:#15111c;box-shadow:0 0 0 1px #2a2438, 4px 4px 0 0 rgba(10,8,16,.6);position:relative}
+  .vis{position:relative;width:512px;height:320px;image-rendering:pixelated;background-repeat:no-repeat;background-size:1024px 320px;animation:shimmer 1s steps(2) infinite}
+  .vis.guest{background-image:url('worldchoice/guest_vista.svg')}
+  .vis.realm{background-image:url('worldchoice/realm_vista.svg')}
+  @keyframes shimmer{from{background-position-x:0}to{background-position-x:-1024px}}
+  @media (prefers-reduced-motion: reduce){.vis{animation:none}}
+  .scrim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(10,8,16,.05) 45%,rgba(10,8,16,.82) 100%)}
+  .seal{position:absolute;top:14px;left:14px;width:56px;height:56px;image-rendering:pixelated;filter:drop-shadow(2px 2px 0 rgba(10,8,16,.85))}
+  .body{padding:16px 18px 18px;position:relative}
+  .tag{font-size:10px;letter-spacing:.22em;text-transform:uppercase}
+  .tag.free{color:#e7c873}.tag.gated{color:#a855f7}
+  h2{font-family:'Pixelify Sans',ui-monospace,monospace;font-size:22px;letter-spacing:.04em;margin:4px 0 6px;color:#efe9f4}
+  .desc{font-size:12px;color:rgba(216,207,224,.62);line-height:1.5;margin:0 0 14px;min-height:48px}
+  .btn{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:9px 16px;color:#0a0810;font-weight:600;
+    box-shadow:3px 3px 0 0 rgba(10,8,16,.8);clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+  .btn.free{background:#e7c873}.btn.gated{background:#a855f7;color:#efe9f4}
+  .meta{margin-top:13px;font-size:9px;color:#a855f7;letter-spacing:.05em}
+  .foot{margin-top:26px;font-size:10px;color:rgba(216,207,224,.4);letter-spacing:.04em}
+</style></head>
+<body>
+  <h1>Naevyr — Worldchoice</h1>
+  <p class="lede">Two equal "choose your path" cards (256×160 each, 2-frame idle shimmer @2fps via CSS <code>steps()</code>). The guest path is warm, walled and safe — free, no wallet. The realm is the full Waystation sprawl under the creeping Drift — danger, reward, wallet-gated.</p>
+  <div class="cards">
+    <div class="card">
+      <div class="vis guest"><div class="scrim"></div><img class="seal" src="worldchoice/guest_seal.svg" alt="guest seal"></div>
+      <div class="body">
+        <div class="tag free">Free · no wallet</div>
+        <h2>Enter as Guest</h2>
+        <p class="desc">A walled threshold camp at dusk. A single open gate, a warm fire, no corruption at the stones. Wander, gather, learn the loop — risk nothing.</p>
+        <span class="btn free">Enter the camp</span>
+        <div class="meta">guest_vista · 256×160 · stone + dirt + ember/gold · no drift</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="vis realm"><div class="scrim"></div></div>
+      <div class="body">
+        <div class="tag gated">Wallet-gated · the realm</div>
+        <h2>Cross into the Realm</h2>
+        <p class="desc">The full Waystation sprawls to the horizon — towers, banners, lit windows — and the Drift creeps violet across the skyline. Everything to win, everything to lose.</p>
+        <span class="btn gated">Connect wallet</span>
+        <div class="meta">realm_vista · 256×160 · stone town + drift haze + blood/gold</div>
+      </div>
+    </div>
+  </div>
+  <p class="foot">guest_seal (open padlock, bone) pins to the demo card — "no wallet, no lock". Both vistas share dimensions so they tile as equal columns.</p>
+</body></html>

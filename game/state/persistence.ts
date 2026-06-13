@@ -12,6 +12,28 @@ const KEY = "driftlands-save-v1";
 const DEVICE_KEY = "driftlands-device";
 const SAVE_THROTTLE_MS = 1500;
 
+// ---- the guest lane ---------------------------------------------------------
+// Demo players join the shared world as guests. Their identity (device token)
+// and progress (save) live under SEPARATE keys so a guest session can never
+// bleed into a wallet-bound Realm account: connecting a wallet later uses the
+// Realm keys and starts clean. setGuestMode MUST be called before the first
+// initPersistence()/getDeviceToken()/getTutorialDone() — GameCanvas owns that.
+const GUEST_SAVE_KEY = "driftlands-guest-save-v1";
+const GUEST_DEVICE_KEY = "driftlands-guest-device";
+let guestMode = false;
+export function setGuestMode(on: boolean) {
+  guestMode = on;
+}
+export function isGuestMode() {
+  return guestMode;
+}
+function saveKey() {
+  return guestMode ? GUEST_SAVE_KEY : KEY;
+}
+function deviceKey() {
+  return guestMode ? GUEST_DEVICE_KEY : DEVICE_KEY;
+}
+
 export interface SaveData {
   day: number;
   inventory: unknown;
@@ -40,10 +62,10 @@ const today = () => Math.floor(Date.now() / 86_400_000);
 /** the browser-held guest identity for the game server (created on demand) */
 export function getDeviceToken(): string {
   if (typeof window === "undefined") return "";
-  let t = localStorage.getItem(DEVICE_KEY);
+  let t = localStorage.getItem(deviceKey());
   if (!t) {
     t = crypto.randomUUID();
-    localStorage.setItem(DEVICE_KEY, t);
+    localStorage.setItem(deviceKey(), t);
   }
   return t;
 }
@@ -177,7 +199,7 @@ export function applySnapshot(data: SaveData) {
 export function getTutorialDone(): boolean {
   if (typeof window === "undefined") return true;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(saveKey());
     return raw ? Boolean(JSON.parse(raw)?.tutorialDone) : false;
   } catch {
     return false;
@@ -193,11 +215,11 @@ export function initPersistence() {
 
   // ---- load -----------------------------------------------------------------
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(saveKey());
     if (raw) applySnapshot(JSON.parse(raw) as SaveData);
   } catch {
     // corrupt save — start fresh rather than crash
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(saveKey());
   }
 
   // ---- save (throttled on any change) ----------------------------------------
@@ -207,7 +229,7 @@ export function initPersistence() {
     timer = setTimeout(() => {
       timer = null;
       try {
-        localStorage.setItem(KEY, JSON.stringify(buildSnapshot()));
+        localStorage.setItem(saveKey(), JSON.stringify(buildSnapshot()));
       } catch {
         // storage full/blocked — skip silently
       }
@@ -217,7 +239,7 @@ export function initPersistence() {
   // leaving the page (back to the landing, tab close) flushes any pending save
   window.addEventListener("pagehide", () => {
     try {
-      localStorage.setItem(KEY, JSON.stringify(buildSnapshot()));
+      localStorage.setItem(saveKey(), JSON.stringify(buildSnapshot()));
     } catch {
       // storage full/blocked — skip silently
     }
@@ -241,6 +263,6 @@ export function takeDoorName(): string | null {
 /** wipe the save and reload fresh (handy for testing) */
 export function resetSave() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(saveKey());
   window.location.reload();
 }

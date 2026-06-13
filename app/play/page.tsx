@@ -17,6 +17,7 @@ type Mode = "door" | "tutorial" | "game";
 
 export default function PlayPage() {
   const [mode, setMode] = useState<Mode>("door");
+  const [guest, setGuest] = useState(false);
   const tutorialDone = useGame((s) => s.tutorialDone);
 
   // the Threshold completes (or is skipped) → remount the engine into the realm
@@ -33,7 +34,7 @@ export default function PlayPage() {
   if (mode !== "door") {
     return (
       <main className="relative h-screen w-screen overflow-hidden bg-drift-void">
-        <GameCanvas key={mode} tutorial={mode === "tutorial"} />
+        <GameCanvas key={mode} tutorial={mode === "tutorial"} guest={guest} />
         <Hud />
       </main>
     );
@@ -41,7 +42,12 @@ export default function PlayPage() {
 
   return (
     <LandingShell hero>
-      <Landing onEnter={() => setMode(getTutorialDone() ? "game" : "tutorial")} />
+      <Landing
+        onEnter={(g) => {
+          setGuest(g);
+          setMode(getTutorialDone() ? "game" : "tutorial");
+        }}
+      />
     </LandingShell>
   );
 }
