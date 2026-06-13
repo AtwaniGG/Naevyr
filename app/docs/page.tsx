@@ -671,7 +671,8 @@ export default function DocsPage() {
             already prices <Gold>100 DRIFTS ≈ 1 gold</Gold> (a 50g spin or a{" "}
             {burnAmt(BURN_COSTS.spin)}-DRIFTS burn buy the same wheel; a 250g
             claim or {burnAmt(BURN_COSTS.claim)} DRIFTS stake the same land).
-            The counter trades around that anchor with a 10% spread each way:
+            The counter buys gold near that anchor and sells it well below,
+            a deliberate spread that keeps the escrow pool whole:
           </P>
           <P>
             <Gold>Buying gold</Gold> costs <Gold>{EXCHANGE.buyRate} DRIFTS per
@@ -728,9 +729,10 @@ export default function DocsPage() {
             </table>
           </div>
           <P>
-            The 20-DRIFTS round-trip spread (buy at {EXCHANGE.buyRate}, sell at{" "}
-            {EXCHANGE.sellRate}) stays in the pool as its buffer — it blocks
-            wash-trading and keeps the counter solvent. Trades start at{" "}
+            The {EXCHANGE.buyRate - EXCHANGE.sellRate}-DRIFTS round-trip spread
+            (buy at {EXCHANGE.buyRate}, sell at {EXCHANGE.sellRate}) stays in the
+            pool as its buffer — it blocks wash-trading and keeps the counter
+            solvent. Trades start at{" "}
             {EXCHANGE.minTrade}g. The grind loop is complete: items sell for
             gold, gold trades for DRIFTS, DRIFTS burn for standing. Play feeds
             the coin; the coin never prints.

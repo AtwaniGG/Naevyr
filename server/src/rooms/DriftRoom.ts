@@ -27,6 +27,8 @@ import {
   setGold as persistGold,
   setInv as persistInv,
   setQuests as persistQuests,
+  setBattlePass as persistBattlePass,
+  type BattlePassBlob,
   PlayerRow,
 } from "../db";
 import {
@@ -53,6 +55,8 @@ import {
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
   GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   QUEST_POOL, rollDailyQuestIds, type QuestEvent,
+  BP_CHALLENGE_POOL, rollWeeklyChallenges, passSeasonNow, passWeekNow,
+  passEndsIn, passTierForXp, passSeasonDef, BP_TIERS, type PassEvent,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
 import {
@@ -383,6 +387,8 @@ interface PlayerSim {
   guildId: number | null;
   /** Phase 6: authoritative daily quest board (write-through to players.quests) */
   quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] };
+  /** the seasonal battle pass (write-through to players.battlepass) */
+  battlepass: BattlePassBlob;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
