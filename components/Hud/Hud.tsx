@@ -1403,8 +1403,14 @@ function MarketDock() {
   const open = useGame((s) => s.openDock) === "market";
   const setOpenDock = useGame((s) => s.setOpenDock);
   const setOpen = (next: boolean) => setOpenDock(next ? "market" : null);
-  const online = useGame((s) => s.online) && !useGame((s) => s.guest);
+  // NB: both useGame() calls must be UNCONDITIONAL. Writing
+  // `useGame(s=>s.online) && !useGame(s=>s.guest)` short-circuits the second
+  // hook whenever online is false, so the hook count changes the instant the
+  // socket connects (online false->true) — a Rules-of-Hooks violation that
+  // surfaces as React's areHookInputsEqual reading `.length` of undefined
+  // ("undefined is not an object (evaluating 'n.length')" in prod).
   const guest = useGame((s) => s.guest);
+  const online = useGame((s) => s.online) && !guest;
   const listingsRaw = useGame((s) => s.listings);
   const inventoryRaw = useGame((s) => s.inventory);
   const gold = useGame((s) => s.gold) ?? 0;
