@@ -42,7 +42,7 @@ import {
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
@@ -1137,6 +1137,35 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("burnResult", err
         ? { ok: false, action: "obelisk", reason: err }
         : { ok: true, action: "obelisk" });
+    });
+
+    // the Drift Roads: a verified DRIFTS burn leaps you between waystations.
+    // departure-gated (you must stand at a waygate), server-authoritative move.
+    this.onMessage("waystationTravel", async (client, msg: { to?: number; burnSig?: string }) => {
+      if (this.guestBlocked(client, "waystationTravel")) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "waystationTravel", 4, 10_000)) return;
+      const fail = (reason: string) =>
+        client.send("burnResult", { ok: false, action: "waystation", reason });
+      // departure gate: you must be standing at a waystation to use the roads
+      const from = waystationAt(Math.round(sim.px), Math.round(sim.py));
+      if (from < 0) return fail("Stand at a waystation to walk the Drift Roads.");
+      const to = Number(msg?.to);
+      if (!Number.isInteger(to) || to < 0 || to >= WAYSTATIONS.length) return fail("No such waygate.");
+      if (to === from) return fail("You already stand at this waygate.");
+      const dest = this.arrivalCell(WAYSTATIONS[to]);
+      if (!dest) return fail("The far waygate is buried by the Drift. Try another.");
+      // pay the leyline (on-chain, replay-guarded) BEFORE the leap is granted
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "waystation");
+      if (err) return fail(err);
+      sim.px = dest.x;
+      sim.py = dest.y;
+      sim.path = [];
+      sim.pendingNode = null;
+      this.cancelGather(sim);
+      sim.action = "idle";
+      client.send("burnResult", { ok: true, action: "waystation" });
     });
 
     // Phase 6: Drift-touched cosmetics — DRIFTS burns only, never gold. The
@@ -3542,6 +3571,19 @@ export class DriftRoom extends Room<DriftRoomState> {
       gridW: this.world.w,
       gridH: this.world.h,
     }).catch(() => {});
+  }
+
+  /** the first walkable cell ringing a structure (waystation arrival point) */
+  private arrivalCell(b: { x: number; y: number; r: number }): { x: number; y: number } | null {
+    for (let ring = b.r + 1; ring <= b.r + 3; ring++) {
+      for (let dy = -ring; dy <= ring; dy++)
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const x = b.x + dx, y = b.y + dy;
+          if (this.world.isWalkable(x, y) && !inPit(x, y)) return { x, y };
+        }
+    }
+    return null;
   }
 
   // ---- misc --------------------------------------------------------------------

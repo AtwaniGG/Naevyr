@@ -1396,7 +1396,7 @@ function drawRaider(facing: IsoFacing, anim: string, f: number): Grid {
 export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
   | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine'
-  | 'huskden' | 'obelisk' | 'mirehut';
+  | 'huskden' | 'obelisk' | 'mirehut' | 'waystation';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
 
@@ -2476,6 +2476,8 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'mine':      return drawMine();
     case 'huskden':   return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'obelisk':   return drawAshObelisk(frame % OBELISK_FRAMES);
+    // waystations reuse the obelisk monolith until the expansion art is ported
+    case 'waystation': return drawAshObelisk(frame % OBELISK_FRAMES);
     case 'mirehut':   return drawMirewifeHut();
   }
 }
@@ -4659,7 +4661,8 @@ export class SpriteCache {
     const fkey =
       key === 'shrine'  ? `shrine-${frame % SHRINE_FRAMES}` :
       key === 'huskden' ? `huskden-${frame % HUSKDEN_FRAMES}` :
-      key === 'obelisk' ? `obelisk-${frame % OBELISK_FRAMES}` : key;
+      // waystations reuse the Ash Obelisk monolith art (rune-pulse frames)
+      key === 'obelisk' || key === 'waystation' ? `obelisk-${frame % OBELISK_FRAMES}` : key;
     const cv = this.buildings.get(fkey);
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
@@ -4842,8 +4845,9 @@ export class SpriteCache {
 
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
+    const lookKey = key === 'waystation' ? 'obelisk' : key;
     const cv = this.buildings.get(
-      key === 'shrine' || key === 'huskden' || key === 'obelisk' ? `${key}-0` : key,
+      lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' ? `${lookKey}-0` : lookKey,
     );
     return cv ? cv.height : 0;
   }

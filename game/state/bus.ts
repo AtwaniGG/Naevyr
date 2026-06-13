@@ -44,6 +44,8 @@ type Events = {
   auraBurn: string;
   /** burn-paid Obelisk quest reroll */
   obeliskBurn: boolean;
+  /** burn-paid fast-travel to a waystation (payload = destination index) */
+  waystationTravel: number;
   /** claim a completed daily quest (server validates + pays) */
   questClaim: string;
   /** reroll the daily board for 75g (server debits + rerolls) */

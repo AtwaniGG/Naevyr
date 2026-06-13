@@ -317,6 +317,7 @@ export class Game {
     this.cleanupFns.push(bus.on("cleanseBurn", () => this.startBurn("cleanse")));
     this.cleanupFns.push(bus.on("auraBurn", (key) => this.startBurn("aura", { key })));
     this.cleanupFns.push(bus.on("obeliskBurn", () => this.startBurn("obelisk")));
+    this.cleanupFns.push(bus.on("waystationTravel", (to) => this.startBurn("waystation", { x: to })));
     this.cleanupFns.push(bus.on("reinforceBurn", () => this.startBurn("reinforce")));
     this.cleanupFns.push(
       bus.on("prestigeBurn", (key) => {
@@ -471,7 +472,8 @@ export class Game {
   private startBurn(
     action: "spin" | "claim" | "aura" | "cleanse" | "obelisk" | "reinforce"
       | "prestigeDye" | "prestigeAura" | "prestigeTitle" | "prestigeAvatar"
-      | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep",
+      | "driftSpin" | "cache" | "guildFound" | "guildTerritory" | "guildUpkeep"
+      | "waystation",
     extra: { x?: number; y?: number; key?: string; name?: string; tag?: string; region?: string } = {},
   ) {
     const store = useGame.getState();
@@ -545,6 +547,7 @@ export class Game {
         case "aura":    this.net.sendBuyAura(pending.key ?? "", signature); break;
         case "claim":   this.net.sendClaim(pending.x ?? 0, pending.y ?? 0, signature); break;
         case "obelisk": this.net.sendObeliskBurn(signature); break;
+        case "waystation": this.net.sendWaystationTravel(pending.x ?? 0, signature); break;
         case "reinforce": this.net.sendReinforce(signature); break;
         case "prestigeDye":
         case "prestigeAura":
@@ -1007,6 +1010,9 @@ export class Game {
         if (m.action === "obelisk") {
           store.rerollQuests();
           store.pushLog("THE ASH ACCEPTS. The day's tasks are rewritten.", "#d8b4fe");
+        }
+        if (m.action === "waystation") {
+          store.pushLog("The leyline takes you. You wake at a distant waygate.", "#d8b4fe");
         }
       },
     );
@@ -2444,8 +2450,17 @@ export class Game {
       if (useGame.getState().guest !== self.guest) useGame.getState().setGuest(self.guest);
       const dx = self.x - this.player.px;
       const dy = self.y - this.player.py;
-      this.player.px += dx * k;
-      this.player.py += dy * k;
+      // a big jump is a server teleport (waystation, respawn, realm reset) — snap
+      // the body and the camera rather than sliding across the whole map
+      if (Math.hypot(dx, dy) > 6) {
+        this.player.px = self.x;
+        this.player.py = self.y;
+        const iso = gridToIso(self.x, self.y);
+        this.camera.snapTo(iso.x, iso.y);
+      } else {
+        this.player.px += dx * k;
+        this.player.py += dy * k;
+      }
 
       // local combat overrides the synced action while engaged
       const engaged = this.player.action === "attack" && this.combat.target;
@@ -3732,7 +3747,7 @@ export class Game {
           const frame =
             b.key === "shrine"  ? Math.floor(performance.now() / 250) % 3 :
             b.key === "huskden" ? Math.floor(performance.now() / 500) % 2 :
-            b.key === "obelisk" ? Math.floor(performance.now() / 250) % 3 : 0;
+            b.key === "obelisk" || b.key === "waystation" ? Math.floor(performance.now() / 250) % 3 : 0;
           // east-side houses mirror so their features lean toward town center
           const mirror =
             b.key !== "pit" && b.key !== "shrine" && b.x > TOWN_CENTER.x;

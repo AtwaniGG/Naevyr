@@ -8,7 +8,7 @@ import { ResourceKind, ResourceNode, TileType } from "../types";
 export type BuildingKey =
   | "dyeworks" | "vault" | "wheel" | "lantern"
   | "furnisher" | "menagerie" | "shrine" | "pit" | "mine"
-  | "huskden" | "obelisk" | "mirehut";
+  | "huskden" | "obelisk" | "mirehut" | "waystation";
 
 export interface TownBuilding {
   key: BuildingKey;
@@ -91,7 +91,35 @@ export const WILD_STRUCTURES: TownBuilding[] = [
   wildAt("mirehut", "The Mirewife's Hut", 0.125, 0.60),
 ];
 
-export const ALL_STRUCTURES: TownBuilding[] = [...TOWN_BUILDINGS, ...WILD_STRUCTURES];
+// ─── Waystations: the fast-travel network (Phase B) ──────────────────────────
+// Blocking landmarks (reuse the obelisk monolith art) standing at fixed nodes:
+// a hub just south of the Waystation town + one out in each quadrant's frontier.
+// You step up to any node and burn DRIFTS to leap to another. Positioned by
+// fraction so they ride outward with the map (the hub stays near town center).
+const wayHub = (): TownBuilding => ({
+  key: "waystation", label: "Waystation", x: TOWN_CENTER.x, y: TOWN_CENTER.y + 6, r: 1,
+});
+export const WAYSTATIONS: TownBuilding[] = [
+  wayHub(),
+  wildAt("waystation", "Palewater Waygate",  0.82, 0.18),
+  wildAt("waystation", "Ashfall Waygate",    0.14, 0.22),
+  wildAt("waystation", "Hollowmere Waygate", 0.24, 0.80),
+  wildAt("waystation", "Bonefield Waygate",  0.82, 0.82),
+];
+
+export const ALL_STRUCTURES: TownBuilding[] = [
+  ...TOWN_BUILDINGS, ...WILD_STRUCTURES, ...WAYSTATIONS,
+];
+
+/** the waystation the given cell is standing at (within `pad`), or null. The
+ *  server uses this as the departure gate; the index keys the WAYSTATIONS list. */
+export function waystationAt(x: number, y: number, pad = 2): number {
+  for (let i = 0; i < WAYSTATIONS.length; i++) {
+    const w = WAYSTATIONS[i];
+    if (Math.max(Math.abs(x - w.x), Math.abs(y - w.y)) <= w.r + pad) return i;
+  }
+  return -1;
+}
 
 /** building footprint + a visual buffer: sprites are ~2 tiles wider than
  *  their footprint, so nodes this close clip into walls/roofs */
@@ -277,6 +305,18 @@ export class World {
       const x = (rng() * this.w) | 0;
       const y = (rng() * this.h) | 0;
       if (this.tile(x, y) === "grass") this.setTile(x, y, "dirt");
+    }
+
+    // a dirt apron under each waystation: the obelisk-style monolith art clips
+    // its own south ground pad, so it needs dirt-toned tiles beneath it.
+    for (const w of WAYSTATIONS) {
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const ax = w.x + dx, ay = w.y + dy;
+          if (this.inBounds(ax, ay) && this.tile(ax, ay) !== "water") {
+            this.setTile(ax, ay, "dirt");
+          }
+        }
     }
 
     // trees + rocks scattered on land; fish along water edge.

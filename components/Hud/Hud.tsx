@@ -39,6 +39,7 @@ import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { SpeakerGlyph } from "@/components/BgMusic";
 import { bus } from "@/game/state/bus";
+import { WAYSTATIONS } from "@/game/world/tilemap";
 import { useViewport } from "@/game/state/viewport";
 import { Component, type ReactNode } from "react";
 import WheelOverlay from "@/components/Hud/WheelOverlay";
@@ -359,6 +360,7 @@ const SHOP_TITLES: Record<string, { kicker: string; title: string }> = {
   menagerie: { kicker: "The Waystation", title: "The Menagerie" },
   shrine:    { kicker: "The Waystation", title: "Shrine of the Pale Flame" },
   pit:       { kicker: "The Waystation", title: "The Pit" },
+  waystation:{ kicker: "The Drift Roads", title: "Waystation" },
 };
 
 function ShopModal() {
@@ -388,6 +390,7 @@ function ShopModal() {
       >
         {openShop === "shrine" && <ShrinePanel />}
         {openShop === "pit" && <PitPanel />}
+        {openShop === "waystation" && <WaystationPanel />}
       </Panel>
     </div>
   );
@@ -1026,6 +1029,47 @@ function ShrinePanel() {
       <div style={{ font: "400 9.5px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 8 }}>
         Donate 500g lifetime to earn the title <b style={{ color: "var(--drift-corrupt)" }}>Flamekeeper</b>.
       </div>
+    </>
+  );
+}
+
+function WaystationPanel() {
+  const s = useGame();
+  if (!s.online || s.guest) return <OfflineNote what="The waystations" guest={s.guest} />;
+  const travel = (to: number) => {
+    bus.emit("waystationTravel", to);
+    s.setOpenShop(null);
+  };
+  const canBurn = !!s.wallet && s.holder;
+  return (
+    <>
+      <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
+        The Drift Roads bind the old waygates. Burn DRIFTS to step the leyline and
+        wake at another station, anywhere in the realm.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {WAYSTATIONS.map((w, i) => (
+          <Button
+            key={i}
+            size="sm"
+            variant="ghost"
+            disabled={!canBurn}
+            onClick={() => travel(i)}
+            style={{ justifyContent: "space-between", display: "flex", width: "100%" }}
+            title={canBurn
+              ? `Burn ${BURN_COSTS.waystation.toLocaleString()} DRIFTS to leap to ${w.label}`
+              : "Fast-travel costs a DRIFTS burn — link a holder wallet."}
+          >
+            <span>{w.label}</span>
+            <span>{burnAmt(BURN_COSTS.waystation)} <DriftsMark /></span>
+          </Button>
+        ))}
+      </div>
+      {!canBurn && (
+        <div style={{ font: "400 9.5px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 8 }}>
+          The leyline answers only to those who carry DRIFTS. Link a wallet that holds them.
+        </div>
+      )}
     </>
   );
 }

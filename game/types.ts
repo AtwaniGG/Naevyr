@@ -145,6 +145,7 @@ export const BURN_COSTS = {
   aura: 15_000,    // any Dyeworks aura
   cleanse: 10_000, // feeds the Shrine pot
   obelisk: 5_000,  // the Ash Obelisk rewrites the day's quests
+  waystation: 3_000, // leap across the realm between waystations
   reinforce: 10_000, // shore up your weakest claim against the Drift
   prestigeDye: 15_000,   // Drift-touched cloak dye (burn-only, never gold)
   prestigeAura: 25_000,  // Drift-touched aura (burn-only, never gold)

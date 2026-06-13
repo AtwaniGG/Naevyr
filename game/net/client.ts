@@ -297,6 +297,10 @@ export class NetClient {
     this.safeSend("obeliskBurn", { burnSig });
   }
 
+  sendWaystationTravel(to: number, burnSig: string) {
+    this.safeSend("waystationTravel", { to, burnSig });
+  }
+
   sendReinforce(burnSig: string) {
     this.safeSend("reinforce", { burnSig });
   }
