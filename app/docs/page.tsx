@@ -16,6 +16,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "introduction", group: "Getting Started", title: "Introduction" },
   { id: "identity", group: "Getting Started", title: "Account & Identity" },
   { id: "gate", group: "Getting Started", title: "The Entry Gate" },
+  { id: "guest", group: "Getting Started", title: "The Guest Drift" },
   { id: "first-session", group: "Getting Started", title: "Your First Session" },
   { id: "world", group: "The World", title: "The Realm & Regions" },
   { id: "drift", group: "The World", title: "The Drift & Seasons" },
@@ -269,6 +270,36 @@ export default function DocsPage() {
             With no wallet, or too few DRIFTS, the door stays shut. The realm
             can also run with the door open (no requirement), at its keepers'
             choosing.
+          </P>
+
+          <H id="guest">The Guest Drift</H>
+          <Art
+            src="/assets/design-system.nosync/assets/worldchoice/guest_vista.svg"
+            caption="The Guest Drift · free to enter, no wallet asked"
+            frames={2}
+            ratio={256 / 160}
+            maxWidth={256}
+          />
+          <P>
+            You do not need a wallet to set foot in the realm. At the door, the
+            Guest Drift opens free to anyone. You name a wanderer and step into
+            the same shared world the holders walk, alongside the same beasts,
+            caravans and other players. Walk, gather, fish, cook, craft, fight
+            the Drift's beasts, learn the land. The lessons of the Threshold are
+            yours either way.
+          </P>
+          <P>
+            What a guest cannot touch is the economy and the chain. Land claims,
+            the Market, the Vault, the Wheel, the Exchange, guilds, the Drift
+            Wheel and every burn rite stay shut behind the Realm's door. The
+            keepers' counters trade with holders only. A guest earns gold and
+            loot in the moment, but that purse is borrowed light: guest progress
+            is never bound to a wallet and does not carry into a Realm account.
+          </P>
+          <P>
+            The Guest Drift is a way to see the realm before you commit, not a
+            second world. When you are ready for land, markets and DRIFTS,
+            leave the Guest Drift, connect a wallet, and enter the Realm proper.
           </P>
 
           <H id="first-session">Your First Session</H>

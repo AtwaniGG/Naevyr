@@ -52,6 +52,16 @@ export default function HowToPlayPage() {
     <LandingShell>
       <PageFrame kicker="The Drift" title="How to Play">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={CARD}>
+            <div style={H}>0 · CHOOSE YOUR DOOR</div>
+            <div style={T}>
+              Press Play Now and pick your way in. The Guest Drift is free and
+              asks no wallet: name a wanderer and step into the same shared world
+              to gather, craft and fight, while land, markets, the Vault and the
+              chain stay locked. Enter the Realm with a wallet to unlock all of
+              it. Guest progress does not carry into a Realm account.
+            </div>
+          </div>
           {STEPS.map((s) => (
             <div key={s.title} style={CARD}>
               <div style={H}>{s.title}</div>
