@@ -238,7 +238,7 @@ export const GUILD = {
 // escrow pool (what buyers paid in) — never minted, never a house faucet.
 export const EXCHANGE = {
   buyRate: 110,   // DRIFTS paid per 1 gold bought
-  sellRate: 45,   // DRIFTS received per 1 gold sold (wide spread vs buy:
+  sellRate: 20,   // DRIFTS received per 1 gold sold (wide spread vs buy:
                   // conserves the escrow pool, blocks cheap round-trip drain)
   buyCapPerDay: 2_000,  // gold buyable per wallet per UTC day
   /** gold sellable per wallet per UTC day, by holder tier key ("" = base).

@@ -287,7 +287,7 @@ export default function DocsPage() {
 
           <H id="drift">The Drift & Seasons</H>
           <P>
-            Each <Gold>season</Gold> (a 15-minute tick at production pace) the
+            Each <Gold>season</Gold> (a 30-minute tick at production pace) the
             corruption spreads. Corrupt ground hurts to stand on, kills the
             unwary, and swallows resource nodes, which re-form elsewhere,
             preferring claimed land if any stands. Seasons carry names:

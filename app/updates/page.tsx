@@ -7,6 +7,16 @@ import LandingShell, { PageFrame } from "@/components/LandingShell";
 
 const UPDATES: { tag: string; title: string; text: string }[] = [
   {
+    tag: "The Drift",
+    title: "The seasons lengthen, the changer tightens",
+    text:
+      "The Drift loses its hunger. A season now turns every thirty minutes, a " +
+      "slower creep than the realm has known, and the green holds far longer " +
+      "between reckonings. At the Vault, the changer grows shrewd: gold sells for " +
+      "fewer DRIFTS than before, a guard set on the escrow pool against any who " +
+      "would drain it on a single turn. The merchant still buys eager and sells dear.",
+  },
+  {
     tag: "The Coin",
     title: "DRIFTS is live on Solana",
     text:

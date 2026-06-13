@@ -481,6 +481,22 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
       to blood-ash (6f @8fps).
     - `bonewisp` — **bone** — pale skeletal wisps orbiting low around the feet, with cold drift
       glints; eerie (8f @6fps).
+  - `battlepass/` — **Battle Pass "Ashfall" (Season 1)** — ornate, gilded-but-corrupted,
+    season-exclusive cosmetics (rect-grid SVG + atlas JSON; gold recovered from decay, never
+    shiny). Ramps per asset:
+    - `tarnished_chalice` — **gold + drift** — a 64×64 prestige aura (auras.js conventions, anchor
+      32,56 → wanderer 16,39): a small generic two-handled trophy cup hovering above the head,
+      gilded but rim-rot with the Drift creeping in; its detached lid orbits the head while gilded
+      motes rise from the feet (3f @4fps, `orbit`).
+    - `ashfall_dye` — **stone(base) + gold(trim) + drift(corrupt)** — a wanderer cloak colorway
+      delivered through the **existing dye-channel ramp swap** (same locked-ramp channels +
+      resolve as `avatars.js`; baked at draw time, drop-in on the 32×40 rig — no new rig): ash-grey
+      base, banded gold trim (collar + two hem bands), faint drift-purple corruption up the hem.
+      Full sheet — 5 facings × idle 2f / walk 6f / swing 4f, anchor 16,39.
+    - `pass_emblem` (+ `-mono`) — **gold(chalice + trim) + bone(parchment) + drift(flecks)**; mono =
+      bone only — a 32×32 "seasonal ledger" sigil: a gilded two-handled chalice mark over a furled
+      parchment banner with drift-corruption flecks. For panel headers / docs (not the in-HUD
+      16×16 button).
   - `world-art-preview.html` — every tile/node/character/FX/brand asset at 1× and 4×.
   - `creatures-preview.html` — every creature, facing & animation cycling live.
   - `town-preview.html` — all eight structures with anchor pins & label-clearance guides.
@@ -495,6 +511,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `mirror-preview.html` — the Drift Mirror rippling beside the hearth for scale.
   - `arena-preview.html` — composed Pit scene + catalog: floors, ring/gate tiling, torch, watchers, victory plate, blood decals.
   - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
+  - `battlepass-preview.html` — Battle Pass "Ashfall": the tarnished_chalice aura over the wanderer, the ashfall_dye colorway (default vs dyed walk + facings) with channel swatches, and the pass_emblem sigil (color + mono, 1×/2×/5×).
   - `avatars/` — **four premium playable avatars** (DRIFTS cosmetics, drop-in on the wanderer
     rig: 32×40, 5 facings, idle 2f/walk 6f/swing 4f, identical swing pivot/arc + hit-spark, so
     baked gear overlays still line up). `ashbound` (burned penitent — ember seams, chest straps,
@@ -530,7 +547,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     ×3). All inside the locked RAMP — no palette seam beside the town.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `avatars.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `wheelfaces.js`, `guildbanner.js`,
+    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `battlepass.js`, `wheelfaces.js`, `guildbanner.js`,
     `cache.js`, `exchange.js`, `arena.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 
