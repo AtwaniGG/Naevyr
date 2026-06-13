@@ -1601,7 +1601,15 @@ export class Game {
     });
 
     store.setOnline(true);
-    store.pushLog("You step into the shared Drift.", "#a855f7");
+    store.setGuest(this.guest);
+    if (this.guest) {
+      store.pushLog(
+        "You wander as a guest. The Realm's markets, land, vault and chain stay locked.",
+        "#a06bd0",
+      );
+    } else {
+      store.pushLog("You step into the shared Drift.", "#a855f7");
+    }
   }
 
   private applyNetWorld() {
@@ -2426,6 +2434,9 @@ export class Game {
     // ---- self -------------------------------------------------------------
     const self = net.self();
     if (self) {
+      // the server is authoritative for guest status: mirror its flag so the
+      // HUD restrictions can never drift from what the server actually enforces
+      if (useGame.getState().guest !== self.guest) useGame.getState().setGuest(self.guest);
       const dx = self.x - this.player.px;
       const dy = self.y - this.player.py;
       this.player.px += dx * k;
@@ -2839,11 +2850,14 @@ export class Game {
       return;
     }
 
-    // the counter (or the keeper) is the business end: walk up and talk
+    // the counter (or the keeper) is the business end: walk up and talk.
+    // A generous hitbox: anywhere within 1 tile of the counter OR keeper counts
+    // (the keeper sprite is tall and bottom-anchored, so clicks on its body/head
+    // land on neighbouring tiles — match those too).
     const talk = spec.counter ?? spec.keeper;
-    const clickedTalk =
-      (spec.counter && cell.x === spec.counter.x && cell.y === spec.counter.y) ||
-      (spec.keeper && cell.x === spec.keeper.x && cell.y === spec.keeper.y);
+    const nearTalk = (t?: Cell) =>
+      !!t && Math.max(Math.abs(cell.x - t.x), Math.abs(cell.y - t.y)) <= 1;
+    const clickedTalk = nearTalk(spec.counter) || nearTalk(spec.keeper);
     if (clickedTalk && talk) {
       if (chebyshev(this.player.cell, talk) <= 1) {
         useGame.getState().setOpenShop(spec.key);

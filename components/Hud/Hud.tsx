@@ -434,7 +434,12 @@ function KeeperDialogue() {
   const opts: TalkOpt[] = [];
   let info: string | null = null;
 
-  if (openShop === "lantern") {
+  if (s.guest) {
+    // the demo lane: every keeper counter (dyes, drinks, pets, brews, the
+    // obelisk's rites) trades in the Realm's economy — all Realm-only for guests
+    info = "This counter trades with the Realm only. Connect a wallet to deal here.";
+    opts.push({ label: "Step away", onClick: close });
+  } else if (openShop === "lantern") {
     (Object.entries(DRINK_CATALOG) as [DrinkKey, (typeof DRINK_CATALOG)[DrinkKey]][]).forEach(([k, d]) => {
       const active = s.buffs[d.buff] > Date.now();
       opts.push({
@@ -1403,8 +1408,9 @@ function MarketDock() {
   const open = useGame((s) => s.openDock) === "market";
   const setOpenDock = useGame((s) => s.setOpenDock);
   const setOpen = (next: boolean) => setOpenDock(next ? "market" : null);
-  const online = useGame((s) => s.online) && !useGame((s) => s.guest);
   const guest = useGame((s) => s.guest);
+  // guests are online but the market is Realm-only, so treat them as offline here
+  const online = useGame((s) => s.online) && !guest;
   const listingsRaw = useGame((s) => s.listings);
   const inventoryRaw = useGame((s) => s.inventory);
   const gold = useGame((s) => s.gold) ?? 0;
@@ -2107,10 +2113,35 @@ function TopLeft() {
         ← LEAVE THE REALM
       </a>
       <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
+      <GuestBadge />
       <OnlineBadge />
       <Vitals />
       <BuffChips />
       <QuestBoard />
+    </div>
+  );
+}
+
+/** demo lane: a clear badge so the wanderer knows they're a guest (and why the
+ *  Realm's economy is locked). Shown only while store.guest is true. */
+function GuestBadge() {
+  const guest = useGame((s) => s.guest);
+  if (!guest) return null;
+  return (
+    <div
+      className="drift-hud-text"
+      title="You're in the Guest Drift. Land, markets, the Vault and the chain are Realm-only. Connect a wallet to claim a Realm account."
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "3px 8px", borderRadius: 4,
+        background: "rgba(160,107,208,0.14)",
+        border: "1px solid rgba(160,107,208,0.45)",
+      }}
+    >
+      <span className="guest-seal" style={{ width: 14, height: 14 }} />
+      <span style={{ font: "700 9px/1 var(--font-ui)", letterSpacing: "0.14em", color: "#c79be6" }}>
+        GUEST
+      </span>
     </div>
   );
 }
