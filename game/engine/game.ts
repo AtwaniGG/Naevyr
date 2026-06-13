@@ -418,6 +418,11 @@ export class Game {
     action: string; x?: number; y?: number; key?: string;
     name?: string; tag?: string; region?: string;
   } | null = null;
+  /** single-flight guard: only ONE burn approval may be in flight, so a
+   *  double-clicked button (or any duplicate trigger) can't stack wallet
+   *  popups. Cleared when the sign step resolves/fails or after a timeout. */
+  private burnInFlight = false;
+  private burnGuardTimer: ReturnType<typeof setTimeout> | null = null;
   /** an Exchange buy awaiting its quote (gold amount) */
   private pendingExGold = 0;
   /** a relic purchase awaiting its quote (listing id) */
@@ -437,8 +442,22 @@ export class Game {
       store.pushLog("Burn rites need a linked wallet in the shared world.", "#6f6781");
       return;
     }
+    // drop duplicate triggers while an approval is already pending (stops the
+    // wallet popup from stacking / re-appearing)
+    if (this.burnInFlight) return;
+    this.burnInFlight = true;
+    // failsafe: if no quote/sign ever resolves, free the guard so burns aren't
+    // wedged forever (e.g. the server never answers the quote)
+    if (this.burnGuardTimer) clearTimeout(this.burnGuardTimer);
+    this.burnGuardTimer = setTimeout(() => { this.burnInFlight = false; }, 90_000);
     this.pendingBurn = { action, ...extra };
     this.net.sendBurnQuote(action);
+  }
+
+  /** release the single-flight burn guard (sign resolved, failed, or refused) */
+  private clearBurnGuard() {
+    this.burnInFlight = false;
+    if (this.burnGuardTimer) { clearTimeout(this.burnGuardTimer); this.burnGuardTimer = null; }
   }
 
   /** countersign + submit any server-built partial-signed tx (Exchange buys,
@@ -469,10 +488,11 @@ export class Game {
     const store = useGame.getState();
     const pending = this.pendingBurn;
     this.pendingBurn = null;
-    if (!pending || !this.net) return;
+    if (!pending || !this.net) { this.clearBurnGuard(); return; }
     const provider = this.detectWallet();
     if (!provider?.signAndSendTransaction) {
       store.pushLog("No Solana wallet found to sign the burn.", "#6f6781");
+      this.clearBurnGuard();
       return;
     }
     try {
@@ -507,6 +527,10 @@ export class Game {
         "The burn was declined or failed. Nothing was taken. (Is your wallet on the right network?)",
         "#6f6781",
       );
+    } finally {
+      // the approval popup is closed (confirmed, declined, or errored) — let a
+      // fresh burn be initiated again
+      this.clearBurnGuard();
     }
   }
 
@@ -597,6 +621,7 @@ export class Game {
   destroy() {
     this.running = false;
     cancelAnimationFrame(this.raf);
+    if (this.burnGuardTimer) clearTimeout(this.burnGuardTimer);
     this.net?.leave();
     this.net = null;
     this.cleanupFns.forEach((fn) => fn());
@@ -915,6 +940,7 @@ export class Game {
       (m) => {
         if (!m.ok || !m.tx) {
           this.pendingBurn = null;
+          this.clearBurnGuard();
           useGame.getState().pushLog(m.reason ?? "The rite refused you.", "#6f6781");
           return;
         }
