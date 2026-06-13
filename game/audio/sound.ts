@@ -21,7 +21,7 @@ let bedAudio: HTMLAudioElement | null = null;
 // dedicated bed gain and routed through `master`, so the in-game sound toggle
 // (setAudioEnabled) still mutes it like every other sound.
 const BED_SRC = "/audio/naevyr-bg.mp3";
-const BED_GAIN = 0.3; // not too loud — it sits under the SFX
+const BED_GAIN = 0.24; // not too loud — it sits under the SFX
 
 export function audioEnabled(): boolean {
   if (typeof window === "undefined") return false;
