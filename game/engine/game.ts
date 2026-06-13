@@ -8,9 +8,12 @@ import {
   ALL_STRUCTURES,
   WILD_STRUCTURES,
   TOWN_CENTER,
+  MAP_W,
+  MAP_H,
   TownBuilding,
   BuildingKey,
   regionAt as sharedRegionAt,
+  wildClutterZone,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
@@ -76,11 +79,13 @@ const ARENA_BLOOD: { x: number; y: number; v: number }[] = [
   { x: ARENA.x - 1, y: ARENA.y + 1, v: 0 }, { x: ARENA.x + 1, y: ARENA.y - 1, v: 2 },
 ];
 
+// banner cell per region, by map fraction (reproduces the original 40×40
+// placements and rides outward with the map): each sits deep in its quadrant.
 const REGION_BANNER_CELLS: Record<string, { x: number; y: number }> = {
-  "Palewater": { x: 33, y: 5 },
-  "The Ashen Flats": { x: 5, y: 12 },
-  "Hollowmere Reach": { x: 10, y: 34 },
-  "The Bonefields": { x: 35, y: 34 },
+  "Palewater":        { x: Math.round(MAP_W * 0.825), y: Math.round(MAP_H * 0.125) },
+  "The Ashen Flats":  { x: Math.round(MAP_W * 0.125), y: Math.round(MAP_H * 0.30) },
+  "Hollowmere Reach": { x: Math.round(MAP_W * 0.25),  y: Math.round(MAP_H * 0.85) },
+  "The Bonefields":   { x: Math.round(MAP_W * 0.875), y: Math.round(MAP_H * 0.85) },
 };
 
 /** the slice of a browser Solana wallet (Phantom/Solflare/Backpack) we use */
@@ -203,8 +208,8 @@ export class Game {
       this.player = new Player(THRESHOLD.spawn.x, THRESHOLD.spawn.y);
       this.tutorial = new TutorialDirector(this.world, this.player, this.combat);
     } else {
-      this.world = new World(40, 40);
-      this.player = new Player(20, 20);
+      this.world = new World(MAP_W, MAP_H);
+      this.player = new Player(TOWN_CENTER.x, TOWN_CENTER.y);
     }
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.snapTo(iso.x, iso.y);
@@ -3478,8 +3483,31 @@ export class Game {
     const doodads: { kind: DoodadKind; v: number; sx: number; sy: number }[] = [];
     this.corruptGlows.length = 0;
 
-    for (let y = 0; y < this.world.h; y++) {
-      for (let x = 0; x < this.world.w; x++) {
+    // Visible-tile bounds: invert the four viewport corners into grid space and
+    // take their bounding box (padded). The on-screen rectangle maps to a
+    // parallelogram in grid space, so its corners' bbox is a safe superset.
+    // This caps per-frame work to the view — independent of map size, the one
+    // thing that would otherwise choke the big realm.
+    let gx0 = Infinity, gx1 = -Infinity, gy0 = Infinity, gy1 = -Infinity;
+    for (const [csx, csy] of [
+      [0, 0], [this.camera.viewW, 0],
+      [0, this.camera.viewH], [this.camera.viewW, this.camera.viewH],
+    ] as const) {
+      const w0 = this.camera.screenToWorld(csx, csy);
+      const g = isoToGrid(w0.x, w0.y);
+      if (g.gx < gx0) gx0 = g.gx;
+      if (g.gx > gx1) gx1 = g.gx;
+      if (g.gy < gy0) gy0 = g.gy;
+      if (g.gy > gy1) gy1 = g.gy;
+    }
+    const PAD = 3;
+    const minX = Math.max(0, Math.floor(gx0) - PAD);
+    const maxX = Math.min(this.world.w - 1, Math.ceil(gx1) + PAD);
+    const minY = Math.max(0, Math.floor(gy0) - PAD);
+    const maxY = Math.min(this.world.h - 1, Math.ceil(gy1) + PAD);
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
         const s = this.tileScreen(x, y);
         if (
           s.x < -hw * 2 || s.x > this.camera.viewW + hw * 2 ||
@@ -3514,11 +3542,12 @@ export class Game {
 
         // deterministic clutter — same cell always grows the same tuft.
         // the wild quadrants grow their own kinds (DS wilds pack): bone
-        // spikes + dead trees ring the Husk Den, reeds crowd the mire
-        const nearDen  = Math.max(Math.abs(x - 8), Math.abs(y - 8)) <= 8;
-        const nearMire =
-          Math.max(Math.abs(x - 5), Math.abs(y - 24)) <= 8 ||
-          Math.max(Math.abs(x - 7), Math.abs(y - 34)) <= 6; // the Hollowmere
+        // spikes + dead trees ring the Husk Den, reeds crowd the mire. Zones
+        // are derived from the live wild-structure + mere positions, so the
+        // clutter follows them at any map size.
+        const zone     = wildClutterZone(this.world.w, this.world.h, x, y);
+        const nearDen  = zone === 1;
+        const nearMire = zone === 2;
         // the Threshold grows NO decorative clutter: the only tree/rock/pool
         // on screen must be the real lesson nodes (the den's clutter zone
         // would otherwise blanket this tiny map with fake dead trees)

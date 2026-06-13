@@ -173,6 +173,8 @@ export async function initDb(): Promise<Db> {
       corrupt jsonb NOT NULL DEFAULT '[]'::jsonb
     )
   `);
+  await db.execute(sql`ALTER TABLE realm ADD COLUMN IF NOT EXISTS grid_w integer NOT NULL DEFAULT 40`);
+  await db.execute(sql`ALTER TABLE realm ADD COLUMN IF NOT EXISTS grid_h integer NOT NULL DEFAULT 40`);
   await db.execute(sql`
     INSERT INTO realm (id, season, drift_pct, corrupt) VALUES (1, 1, 0, '[]'::jsonb) ON CONFLICT (id) DO NOTHING
   `);
@@ -508,7 +510,9 @@ export async function setShrinePot(pot: number) {
 
 // ---- the living world: corruption + season persistence ---------------------------
 
-export interface RealmState { season: number; driftPct: number; corrupt: number[] }
+export interface RealmState {
+  season: number; driftPct: number; corrupt: number[]; gridW: number; gridH: number;
+}
 
 export async function loadRealm(): Promise<RealmState | null> {
   const rows = await db.select().from(realm).where(eq(realm.id, 1));
@@ -518,12 +522,17 @@ export async function loadRealm(): Promise<RealmState | null> {
     season: r.season ?? 1,
     driftPct: r.driftPct ?? 0,
     corrupt: Array.isArray(r.corrupt) ? r.corrupt : [],
+    gridW: r.gridW ?? 40,
+    gridH: r.gridH ?? 40,
   };
 }
 
 export async function saveRealm(state: RealmState) {
   await db.update(realm)
-    .set({ season: state.season, driftPct: state.driftPct, corrupt: state.corrupt })
+    .set({
+      season: state.season, driftPct: state.driftPct, corrupt: state.corrupt,
+      gridW: state.gridW, gridH: state.gridH,
+    })
     .where(eq(realm.id, 1));
 }
 

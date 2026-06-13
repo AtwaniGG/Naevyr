@@ -42,7 +42,7 @@ import {
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
@@ -180,7 +180,8 @@ const ITEM_DELTA_CAPS: Record<string, { event: number; perMin: number; items: st
 // Ambient Drift Beasts (husk/stalker) + the Husk Den elite pack live on the
 // server: same wander-and-retaliate behavior the client sim used, but hp,
 // deaths and loot are authoritative. Raiders/colossus stay per-client for now.
-const MOB_AMBIENT_COUNT = Number(process.env.MOB_COUNT ?? 8);
+// ambient beast count: env override, else scaled by map area (≈ 40×40 → 8).
+const MOB_COUNT_ENV = process.env.MOB_COUNT ? Number(process.env.MOB_COUNT) : null;
 const DEN_RESEED_MS = Number(process.env.DEN_RESEED_S ?? 900) * 1000;
 const DEN_PACK_SIZE = 5;
 const DEN_PACK_LEVEL = 5;
@@ -481,7 +482,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
   async onCreate() {
     this.setState(new DriftRoomState());
-    this.world = new World(40, 40);
+    this.world = new World(MAP_W, MAP_H);
     this.drift = new Drift(SEASON_MS);
 
     // persisted land claims
@@ -505,7 +506,16 @@ export class DriftRoom extends Room<DriftRoomState> {
         console.log("REALM_RESET=1 → started a fresh, un-corrupted realm");
       }
       const saved = process.env.REALM_RESET === "1" ? null : await loadRealm();
-      if (saved && saved.corrupt.length > 0) {
+      // a saved realm authored at a DIFFERENT grid size can't be replayed (the
+      // linear tile index depends on width): discard it and persist the fresh
+      // realm at the new size. This is the 40×40 → 80×80 migration path.
+      const sizeMatches = saved && saved.gridW === this.world.w && saved.gridH === this.world.h;
+      if (saved && !sizeMatches) {
+        console.log(
+          `realm grid changed ${saved.gridW}×${saved.gridH} → ${this.world.w}×${this.world.h}; starting a fresh realm`,
+        );
+        this.persistRealm();
+      } else if (saved && saved.corrupt.length > 0) {
         for (const i of saved.corrupt) {
           if (i >= 0 && i < this.world.tiles.length && this.world.tiles[i] !== "water") {
             this.world.tiles[i] = "corrupt";
@@ -2631,7 +2641,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.propOwner.clear();
 
     // a fresh realm under a fresh Drift
-    this.world = new World(40, 40);
+    this.world = new World(MAP_W, MAP_H);
     this.drift = new Drift(SEASON_MS);
     this.wireDrift();
     this.state.season = 1;
@@ -2946,15 +2956,21 @@ export class DriftRoom extends Room<DriftRoomState> {
   // ---- shared mobs ------------------------------------------------------------------
 
   private spawnAmbientMobs() {
+    const target =
+      MOB_COUNT_ENV ?? Math.max(8, Math.round((this.world.w * this.world.h) / 200));
     let placed = 0;
     let guard = 0;
-    while (placed < MOB_AMBIENT_COUNT && guard++ < 2000) {
+    while (placed < target && guard++ < target * 80) {
       const x = (Math.random() * this.world.w) | 0;
       const y = (Math.random() * this.world.h) | 0;
       if (!this.world.isWalkable(x, y)) continue;
       if (Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) < 6) continue;
       if (inPit(x, y)) continue; // don't seed a beast in the duel ring
-      const level = 1 + ((Math.random() * 3) | 0);
+      // danger gradient: beasts grow stronger toward the frontier ring
+      const tier = frontierTier(this.world.w, this.world.h, x, y);
+      const base = tier === 0 ? 1 : tier === 1 ? 3 : 4;
+      const span = tier === 2 ? 4 : 3;
+      const level = base + ((Math.random() * span) | 0);
       this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level));
       placed++;
     }
@@ -3523,6 +3539,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       season: this.state.season,
       driftPct: this.state.driftPct,
       corrupt,
+      gridW: this.world.w,
+      gridH: this.world.h,
     }).catch(() => {});
   }
 

@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   jsonb,
   pgTable,
   real,
@@ -126,6 +127,11 @@ export const realm = pgTable("realm", {
   season: real("season").notNull().default(1),
   driftPct: real("drift_pct").notNull().default(0),
   corrupt: jsonb("corrupt").$type<number[]>().notNull().default([]),
+  // grid size the corrupt[] indices were authored against. A saved realm whose
+  // size differs from the live map is discarded on restore (linear tile index
+  // depends on width, so old indices can't be replayed onto a resized grid).
+  gridW: integer("grid_w").notNull().default(40),
+  gridH: integer("grid_h").notNull().default(40),
 });
 
 // Guilds: founded with a DRIFTS burn; territory = a region banner kept alive
