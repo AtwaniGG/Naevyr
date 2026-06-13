@@ -44,19 +44,13 @@ import WheelOverlay from "@/components/Hud/WheelOverlay";
 
 // Graceful HUD boundary: if any single panel throws while rendering, it drops
 // out silently instead of blanking the whole HUD (the game stays playable).
-class ErrorTrap extends Component<{ label: string; children: ReactNode }, { msg: string | null }> {
-  state = { msg: null as string | null };
-  static getDerivedStateFromError(e: unknown) {
-    return { msg: (e as Error)?.message ?? String(e) };
+class ErrorTrap extends Component<{ label: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
   }
   render() {
-    if (this.state.msg) {
-      return (
-        <div className="pointer-events-auto" style={{ position: "fixed", top: 72, left: 8, right: 8, zIndex: 99998, background: "#1a0c0c", color: "#ff6b6b", font: "600 11px/1.4 ui-monospace", padding: 10, userSelect: "text", WebkitUserSelect: "text", whiteSpace: "pre-wrap" }}>
-          {`crashed in: ${this.props.label}\n${this.state.msg}`}
-        </div>
-      );
-    }
+    if (this.state.failed) return null;
     return this.props.children;
   }
 }
@@ -1411,14 +1405,18 @@ function MarketDock() {
   const setOpen = (next: boolean) => setOpenDock(next ? "market" : null);
   const online = useGame((s) => s.online) && !useGame((s) => s.guest);
   const guest = useGame((s) => s.guest);
-  const listings = useGame((s) => s.listings) ?? [];
-  const inventory = useGame((s) => s.inventory) ?? ({} as Record<ItemKey, number>);
-  const gold = useGame((s) => s.gold);
+  const listingsRaw = useGame((s) => s.listings);
+  const inventoryRaw = useGame((s) => s.inventory);
+  const gold = useGame((s) => s.gold) ?? 0;
   const [sellItem, setSellItem] = useState<ItemKey>("wood");
   const [sellQty, setSellQty] = useState(1);
   const [sellPrice, setSellPrice] = useState(10);
 
-  const carried = INVENTORY_ORDER.filter((k) => (inventory[k] ?? 0) > 0);
+  // bulletproof: never trust the shapes coming off the wire / store
+  const listings = Array.isArray(listingsRaw) ? listingsRaw : [];
+  const inventory = (inventoryRaw && typeof inventoryRaw === "object" ? inventoryRaw : {}) as Record<ItemKey, number>;
+  const order = Array.isArray(INVENTORY_ORDER) ? INVENTORY_ORDER : [];
+  const carried = order.filter((k) => (inventory[k] ?? 0) > 0);
   // only render listings whose item this client recognizes — a listing for an
   // item the (older) client doesn't know would crash the row render
   const known = (l: { item?: string } | null | undefined) =>
@@ -1463,9 +1461,9 @@ function MarketDock() {
                   )}
                   {offers.map((l) => (
                     <div key={l.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
-                      <Icon name={ITEM_ICON[l.item]} size={16} />
+                      <Icon name={ITEM_ICON[l.item] ?? "coin"} size={16} />
                       <span style={{ font: "600 11px/1 var(--font-ui)", color: "var(--text-primary)" }}>
-                        {l.qty}× {ITEM_META[l.item].label}
+                        {l.qty}× {ITEM_META[l.item]?.label ?? l.item}
                       </span>
                       <span style={{ flex: 1, font: "400 9px/1 var(--font-ui)", color: "var(--text-muted)", textAlign: "right" }}>
                         {l.sellerName}
@@ -1494,7 +1492,7 @@ function MarketDock() {
                   )}
                   {mine.map((l) => (
                     <div key={l.id} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
-                      <Icon name={ITEM_ICON[l.item]} size={16} />
+                      <Icon name={ITEM_ICON[l.item] ?? "coin"} size={16} />
                       <span style={{ flex: 1, font: "600 11px/1 var(--font-ui)", color: "var(--text-primary)" }}>
                         {l.qty}× · {l.price}g
                       </span>
@@ -1519,9 +1517,9 @@ function MarketDock() {
                     // popout clips the price input + List button
                     style={{ flex: 1, minWidth: 0, border: 0, outline: "none", padding: "5px 6px", font: "400 11px/1 var(--font-ui)", color: "var(--text-primary)", background: "var(--surface-well)" }}
                   >
-                    {(carried.length ? carried : INVENTORY_ORDER).map((k) => (
+                    {(carried.length ? carried : order).map((k) => (
                       <option key={k} value={k}>
-                        {ITEM_META[k].label} ({inventory[k]})
+                        {ITEM_META[k]?.label ?? k} ({inventory[k] ?? 0})
                       </option>
                     ))}
                   </select>
@@ -1600,7 +1598,7 @@ function RelicStall() {
                 {r.sellerName}
               </span>
               <span className="drift-num" style={{ font: "600 10px/1 var(--font-ui)", color: "var(--drift-gold)" }}>
-                {r.price.toLocaleString()} <DriftsMark />
+                {(r.price ?? 0).toLocaleString()} <DriftsMark />
               </span>
               {mine ? (
                 <Button size="sm" variant="ghost" onClick={() => bus.emit("relicUnlist", r.id)}>Pull</Button>
