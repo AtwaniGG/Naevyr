@@ -200,6 +200,8 @@ interface GameState {
   roster: RosterEntry[];
   /** connected to the shared world (claims need it) */
   online: boolean;
+  /** demo lane: in the shared world as a guest, blocked from economy/chain */
+  guest: boolean;
   /** armed: next ground click stakes a claim */
   claimMode: boolean;
   /** how many claims you currently hold */
@@ -261,6 +263,7 @@ interface GameState {
   setMinimap: (m: MinimapSnap) => void;
   setRoster: (r: RosterEntry[]) => void;
   setOnline: (b: boolean) => void;
+  setGuest: (b: boolean) => void;
   setClaimMode: (b: boolean) => void;
   setMyClaims: (n: number) => void;
   setListings: (l: MarketListing[]) => void;
@@ -375,6 +378,7 @@ export const useGame = create<GameState>((set, get) => ({
   minimap: null,
   roster: [],
   online: false,
+  guest: false,
   claimMode: false,
   myClaims: 0,
   listings: [],
@@ -424,6 +428,7 @@ export const useGame = create<GameState>((set, get) => ({
   setMinimap: (m) => set({ minimap: m }),
   setRoster: (r) => set({ roster: r }),
   setOnline: (b) => set({ online: b }),
+  setGuest: (b) => set({ guest: b }),
   setClaimMode: (b) => set({ claimMode: b }),
   setMyClaims: (n) => set({ myClaims: n }),
   setListings: (l) => set({ listings: l }),
