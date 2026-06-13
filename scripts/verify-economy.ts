@@ -328,61 +328,6 @@ async function main() {
           `${balBefore} → ${balAfter}`);
       }
 
-      // 7a-ii) CROSS-WALLET pool drain (#1): two DIFFERENT wallets sell at once
-      // against a pool that only covers ONE payout. The per-token exTrading lock
-      // does NOT serialize them — only the global escrow lock + a FRESH balance
-      // read can stop both from passing the solvency check and over-draining.
-      {
-        const kpD = Keypair.generate();
-        const kpE = Keypair.generate();
-        mintTo(kpD.publicKey.toBase58(), "200"); // base tier (cap 200g/day)
-        mintTo(kpE.publicKey.toBase58(), "200");
-        const auth = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
-          readFileSync(resolve(SERVER_DIR, ".data/devnet-authority.json"), "utf8"))));
-        for (const to of [kpD.publicKey, kpE.publicKey]) {
-          const tx = new Transaction().add(SystemProgram.transfer({
-            fromPubkey: auth.publicKey, toPubkey: to, lamports: 0.03 * LAMPORTS_PER_SOL,
-          }));
-          await sendAndConfirmTransaction(conn, tx, [auth]);
-        }
-        const D = await join(`eco-d-${Date.now()}`, kpD);
-        const E = await join(`eco-e-${Date.now()}`, kpE);
-        // give each a gold purse to sell from
-        D.room.send("save", { snapshot: { gold: 5000, day: 0 } });
-        E.room.send("save", { snapshot: { gold: 5000, day: 0 } });
-        await wait(800);
-        const pool = await tokenBalance(conn, mint, escrow.publicKey);
-        // pick G so ONE payout fits but TWO don't, and G is within the base cap
-        const G = Math.min(200, Math.floor(pool / EXCHANGE.sellRate));
-        const oneFits = G * EXCHANGE.sellRate <= pool;
-        const twoFit = 2 * G * EXCHANGE.sellRate <= pool;
-        if (G >= EXCHANGE.minTrade && oneFits && !twoFit) {
-          const before = await tokenBalance(conn, mint, escrow.publicKey);
-          const rpD = D.on<any>("exResult", 90_000);
-          const rpE = E.on<any>("exResult", 90_000);
-          D.room.send("exSell", { gold: G });
-          E.room.send("exSell", { gold: G });
-          const [rD, rE] = await Promise.all([rpD, rpE]);
-          const ok = [rD, rE].filter((r) => r?.ok === true);
-          const light = [rD, rE].filter((r) => r?.ok === false);
-          check("cross-wallet drain: exactly one sell clears the pool",
-            ok.length === 1 && light.length === 1,
-            `ok=${ok.length} refused=${light.length} reason=${light[0]?.reason}`);
-          check("cross-wallet drain: the loser is told the purse is light (not over-drained)",
-            /light|purse/i.test(String(light[0]?.reason)), `reason=${light[0]?.reason}`);
-          await wait(3500);
-          const after = await tokenBalance(conn, mint, escrow.publicKey);
-          check("cross-wallet drain: pool fell by exactly ONE payout (never negative)",
-            after >= 0 && Math.abs((before - after) - G * EXCHANGE.sellRate) <= 1,
-            `pool ${before} → ${after}, one payout=${G * EXCHANGE.sellRate}`);
-        } else {
-          check("cross-wallet drain: pool sized for a clean 1-fits-2-don't test", false,
-            `pool=${pool} G=${G} oneFits=${oneFits} twoFit=${twoFit} (adjust escrow seed)`);
-        }
-        D.room.leave();
-        E.room.leave();
-      }
-
       // 7b) the relic RESERVATION (#3): while buyer B holds a quote on a listing,
       // a second buyer C is refused AT THE COUNTER — they can't pay against a
       // listing that's about to be gone (the old failure: pay on-chain, get
@@ -427,6 +372,63 @@ async function main() {
       check("race winner may wear the relic", wState?.aura === "ashen_crown", `aura=${wState?.aura}`);
       check("seller stripped exactly once", aState2?.aura !== "ashen_crown", `aura=${aState2?.aura}`);
       C.room.leave();
+
+      // 7c) CROSS-WALLET pool drain (#1): two DIFFERENT wallets sell at once
+      // against a pool that only covers ONE payout. The per-token exTrading lock
+      // does NOT serialize them — only the global escrow lock + a FRESH balance
+      // read stops both from passing the solvency check and over-draining. Runs
+      // LAST (it drains the pool + adds devnet load) and re-seeds the pool to a
+      // known size so the 1-fits-2-don't math is deterministic.
+      {
+        const auth = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
+          readFileSync(resolve(SERVER_DIR, ".data/devnet-authority.json"), "utf8"))));
+        mintTo(escrow.publicKey.toBase58(), "9000"); // top the pool to a known floor
+        const kpD = Keypair.generate();
+        const kpE = Keypair.generate();
+        mintTo(kpD.publicKey.toBase58(), "200"); // base tier (cap 200g/day)
+        mintTo(kpE.publicKey.toBase58(), "200");
+        for (const to of [kpD.publicKey, kpE.publicKey]) {
+          const tx = new Transaction().add(SystemProgram.transfer({
+            fromPubkey: auth.publicKey, toPubkey: to, lamports: 0.03 * LAMPORTS_PER_SOL,
+          }));
+          await sendAndConfirmTransaction(conn, tx, [auth]);
+        }
+        const D = await join(`eco-d-${Date.now()}`, kpD);
+        const E = await join(`eco-e-${Date.now()}`, kpE);
+        D.room.send("save", { snapshot: { gold: 5000, day: 0 } });
+        E.room.send("save", { snapshot: { gold: 5000, day: 0 } });
+        await wait(800);
+        const pool = await tokenBalance(conn, mint, escrow.publicKey);
+        // pick G so ONE payout fits but TWO don't, within the base 200g cap
+        const G = Math.min(200, Math.floor(pool / EXCHANGE.sellRate));
+        const oneFits = G * EXCHANGE.sellRate <= pool;
+        const twoFit = 2 * G * EXCHANGE.sellRate <= pool;
+        if (G >= EXCHANGE.minTrade && oneFits && !twoFit) {
+          const before = await tokenBalance(conn, mint, escrow.publicKey);
+          const rpD = D.on<any>("exResult", 90_000);
+          const rpE = E.on<any>("exResult", 90_000);
+          D.room.send("exSell", { gold: G });
+          E.room.send("exSell", { gold: G });
+          const [rD, rE] = await Promise.all([rpD, rpE]);
+          const ok = [rD, rE].filter((r) => r?.ok === true);
+          const lightR = [rD, rE].filter((r) => r?.ok === false);
+          check("cross-wallet drain: exactly one sell clears the pool",
+            ok.length === 1 && lightR.length === 1,
+            `ok=${ok.length} refused=${lightR.length} reason=${lightR[0]?.reason}`);
+          check("cross-wallet drain: the loser is told the purse is light (not over-drained)",
+            /light|purse/i.test(String(lightR[0]?.reason)), `reason=${lightR[0]?.reason}`);
+          await wait(3500);
+          const after = await tokenBalance(conn, mint, escrow.publicKey);
+          check("cross-wallet drain: pool fell by exactly ONE payout (never negative)",
+            after >= 0 && Math.abs((before - after) - G * EXCHANGE.sellRate) <= 1,
+            `pool ${before} → ${after}, one payout=${G * EXCHANGE.sellRate}`);
+        } else {
+          check("cross-wallet drain: pool sized for a clean 1-fits-2-don't test", false,
+            `pool=${pool} G=${G} oneFits=${oneFits} twoFit=${twoFit} (adjust escrow seed)`);
+        }
+        D.room.leave();
+        E.room.leave();
+      }
     }
 
     A.room.leave();

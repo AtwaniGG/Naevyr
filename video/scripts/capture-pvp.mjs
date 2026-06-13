@@ -92,26 +92,31 @@ await wait(1200);
 await B.page.evaluate(() => window.__demo.acceptDuel());
 await wait(1800); // duelStart + the arena veil
 
-// drive BOTH onto the Pit ring (adjacent cells 20,32 & 21,32) so the duel always
-// happens in the arena — not wherever they wandered. The engine auto-swing
-// (dist<=1.6) lands once both arrive; break the moment one drops.
+// drive BOTH onto adjacent ring cells, then STOP clicking — re-issuing walk
+// intents every tick kept interrupting the engine's stand-and-swing auto-attack
+// (so both fighters looked AFK). Once each is in place, leave them be: the
+// auto-swing (dist<=1.6) then animates BOTH (attack poses + damage floaters).
 console.log("into the ring…");
-for (let i = 0; i < 28; i++) {
-  await clickCell(A.page, 20, 32);
-  await clickCell(B.page, 21, 32);
+const AT = { ax: 20, ay: 32, bx: 21, by: 32 };
+for (let i = 0; i < 30; i++) {
+  const pa = await player(A.page), pb = await player(B.page);
+  // only nudge a fighter that hasn't reached its cell yet
+  if (Math.max(Math.abs(pa.x - AT.ax), Math.abs(pa.y - AT.ay)) > 0) await clickCell(A.page, AT.ax, AT.ay);
+  if (Math.max(Math.abs(pb.x - AT.bx), Math.abs(pb.y - AT.by)) > 0) await clickCell(B.page, AT.bx, AT.by);
   const live = await A.page.evaluate(() => !!window.__demo.duel());
   if (!live) { console.log(`resolved after ${i} ticks`); break; }
-  await wait(750);
+  await wait(700);
 }
 await wait(2800); // hold the VICTORY plate
 
 const goldA = await A.page.evaluate(() => window.__demo.gold());
 const goldB = await B.page.evaluate(() => window.__demo.gold());
-const winner = goldA >= goldB ? "A" : "B";
-console.log(`gold: Kahl=${goldA} Vey=${goldB} → winner ${winner}`);
+const kahlWon = goldA > goldB;
+console.log(`gold: Kahl=${goldA} Vey=${goldB} → KAHL ${kahlWon ? "WON" : "LOST"}`);
 
-// grab the winner's video path BEFORE closing (path resolves on context close)
-const winVid = winner === "A" ? A.page.video() : B.page.video();
+// always record KAHL (the fighter who walks to the Pit cleanly); we want a
+// VICTORY from this POV, so re-run if Kahl lost
+const winVid = A.page.video();
 await A.ctx.close(); await B.ctx.close();
 renameSync(await winVid.path(), `${OUT}pvp.webm`);
 try { rmSync(DA, { recursive: true, force: true }); rmSync(DB, { recursive: true, force: true }); } catch { /* */ }
