@@ -222,8 +222,11 @@ export const EXCHANGE = {
   buyRate: 110,   // DRIFTS paid per 1 gold bought
   sellRate: 90,   // DRIFTS received per 1 gold sold
   buyCapPerDay: 2_000,  // gold buyable per wallet per UTC day
-  /** gold sellable per wallet per UTC day, by holder tier key ("" = base) */
-  sellCapPerDay: { "": 200, keeper: 500, warden: 1_500, driftlord: 5_000 } as Record<string, number>,
+  /** gold sellable per wallet per UTC day, by holder tier key ("" = base).
+   *  Post-launch throttle: flat 100g for everyone so DRIFTS doesn't drain out
+   *  of escrow fast right after launch. Restore the tiered caps
+   *  (200/500/1500/5000) once the pool is healthy. */
+  sellCapPerDay: { "": 100, keeper: 100, warden: 100, driftlord: 100 } as Record<string, number>,
   minTrade: 10,   // gold per transaction, both directions
 } as const;
 

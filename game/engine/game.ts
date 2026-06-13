@@ -1468,6 +1468,16 @@ export class Game {
         oppHp: m.a === meId ? m.hpB : m.hpA,
       });
     });
+    // a fighter swung: play the strike on their REMOTE (the local player already
+    // animates its own swings). Without this a dueling foe just stands there.
+    net.onMessage<{ by: string; at: string }>("duelSwing", (m) => {
+      if (m.by === net.sessionId) return; // my own swings animate locally
+      const r = this.remotes.get(m.by);
+      if (!r) return;
+      r.swingUntil = performance.now() + 450;
+      const target = m.at === net.sessionId ? this.player : this.remotes.get(m.at);
+      if (target) r.swingFace = { x: Math.round(target.px), y: Math.round(target.py) };
+    });
     net.onMessage<{ a: string; b: string; winner: string | null; pot: number; winnerName: string | null; currency?: "gold" | "drifts" }>(
       "duelEnd",
       (m) => {
@@ -1819,6 +1829,16 @@ export class Game {
         // capture's spin reads as happening at the keeper, not out in the open
         enter: (key: string) => this.enterInterior(key as BuildingKey),
         exit: () => this.exitInterior(),
+        // mine a live gold vein for the capture: interiors don't share the
+        // overworld screen mapping, so drive the vein click by cell directly
+        mine: () => {
+          if (this.interior?.spec.key !== "mine") this.enterInterior("mine" as BuildingKey);
+          const room = this.interior;
+          if (!room?.veins?.length) return false;
+          const v = room.veins.find((vv) => vv.charges > 0) ?? room.veins[0];
+          this.handleInteriorClick({ x: v.x, y: v.y });
+          return true;
+        },
       };
     }
   }
@@ -2377,7 +2397,12 @@ export class Game {
       const dy = p.y - r.py;
       r.px += dx * k;
       r.py += dy * k;
-      if (p.action === "gather") {
+      if (now < r.swingUntil) {
+        // a Pit-duel strike (driven by the server's duelSwing event) overrides
+        // the synced idle so a dueling foe visibly swings on this screen
+        r.action = "attack";
+        if (r.swingFace) r.updateIsoFacing(r.swingFace.x - r.px, r.swingFace.y - r.py);
+      } else if (p.action === "gather") {
         r.action = "gather";
         r.gatherTotal = 1000;
         r.gatherMs = now % 1000; // cosmetic swing loop

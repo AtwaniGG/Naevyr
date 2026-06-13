@@ -92,20 +92,27 @@ await wait(1200);
 await B.page.evaluate(() => window.__demo.acceptDuel());
 await wait(1800); // duelStart + the arena veil
 
-// drive BOTH onto adjacent ring cells, then STOP clicking — re-issuing walk
-// intents every tick kept interrupting the engine's stand-and-swing auto-attack
-// (so both fighters looked AFK). Once each is in place, leave them be: the
-// auto-swing (dist<=1.6) then animates BOTH (attack poses + damage floaters).
-console.log("into the ring…");
-const AT = { ax: 20, ay: 32, bx: 21, by: 32 };
-for (let i = 0; i < 30; i++) {
-  const pa = await player(A.page), pb = await player(B.page);
-  // only nudge a fighter that hasn't reached its cell yet
-  if (Math.max(Math.abs(pa.x - AT.ax), Math.abs(pa.y - AT.ay)) > 0) await clickCell(A.page, AT.ax, AT.ay);
-  if (Math.max(Math.abs(pb.x - AT.bx), Math.abs(pb.y - AT.by)) > 0) await clickCell(B.page, AT.bx, AT.by);
-  const live = await A.page.evaluate(() => !!window.__demo.duel());
-  if (!live) { console.log(`resolved after ${i} ticks`); break; }
-  await wait(700);
+// THE DANCE: circle the ring, clashing. Each round both reposition to the next
+// pair of adjacent cells around the centre (visible movement), then hold a beat
+// so the stand-and-swing auto-attack lands (both animate via duelSwing). Moving
+// + fighting, not a stationary slugfest. Pairs stay dist<=1.6 so swings connect.
+console.log("the dance…");
+// [aX,aY, bX,bY] — each pair flanks the ring centre (20,32) and rotates around it
+const ROUNDS = [
+  [20, 31, 21, 32], [21, 32, 20, 33], [20, 33, 19, 32], [19, 32, 20, 31],
+  [20, 31, 20, 33], [21, 31, 20, 33], [19, 33, 20, 31],
+];
+let done = false;
+for (let i = 0; i < 16 && !done; i++) {
+  const [ax, ay, bx, by] = ROUNDS[i % ROUNDS.length];
+  await clickCell(A.page, ax, ay);
+  await clickCell(B.page, bx, by);
+  await wait(950);  // circle to the new spots — visible footwork
+  // arrive + hold: stationary + adjacent → the auto-swing trades blows both ways
+  for (let h = 0; h < 2 && !done; h++) {
+    await wait(900);
+    if (!(await A.page.evaluate(() => !!window.__demo.duel()))) { done = true; console.log(`resolved at round ${i}`); }
+  }
 }
 await wait(2800); // hold the VICTORY plate
 

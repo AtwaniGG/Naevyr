@@ -1,13 +1,24 @@
 import { Composition } from "remotion";
 import { Trailer, TRAILER_FRAMES, FPS } from "./Trailer";
+import { ExchangeClip, EXCHANGE_FRAMES } from "./ExchangeClip";
 
 export const Root: React.FC = () => (
-  <Composition
-    id="NaevyrLaunch"
-    component={Trailer}
-    durationInFrames={TRAILER_FRAMES}
-    fps={FPS}
-    width={1920}
-    height={1080}
-  />
+  <>
+    <Composition
+      id="NaevyrLaunch"
+      component={Trailer}
+      durationInFrames={TRAILER_FRAMES}
+      fps={FPS}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="ExchangeClip"
+      component={ExchangeClip}
+      durationInFrames={EXCHANGE_FRAMES}
+      fps={FPS}
+      width={1920}
+      height={1080}
+    />
+  </>
 );

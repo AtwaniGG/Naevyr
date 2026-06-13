@@ -55,6 +55,12 @@ export class Player {
   /** active chat/emote bubble, drawn above the name tag */
   bubble: { text: string; t0: number; emote: boolean } | null = null;
 
+  /** Pit duel: while now < swingUntil this player (a remote) plays the strike
+   *  animation toward swingFace — duel swings aren't carried by the synced
+   *  action, so the server's duelSwing event drives this. */
+  swingUntil = 0;
+  swingFace: Cell | null = null;
+
   // gather state
   gatherMs = 0;
   gatherTotal = 0;

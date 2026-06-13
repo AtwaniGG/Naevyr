@@ -399,8 +399,9 @@ async function main() {
         E.room.send("save", { snapshot: { gold: 5000, day: 0 } });
         await wait(800);
         const pool = await tokenBalance(conn, mint, escrow.publicKey);
-        // pick G so ONE payout fits but TWO don't, within the base 200g cap
-        const G = Math.min(200, Math.floor(pool / EXCHANGE.sellRate));
+        // pick G so ONE payout fits but TWO don't, within the per-wallet daily
+        // sell cap (this test is cross-wallet, so each wallet's own cap applies)
+        const G = Math.min(EXCHANGE.sellCapPerDay[""], Math.floor(pool / EXCHANGE.sellRate));
         const oneFits = G * EXCHANGE.sellRate <= pool;
         const twoFit = 2 * G * EXCHANGE.sellRate <= pool;
         if (G >= EXCHANGE.minTrade && oneFits && !twoFit) {

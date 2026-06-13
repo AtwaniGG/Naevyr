@@ -439,6 +439,10 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** tokens with an Exchange trade in flight — a per-TOKEN single-flight (NOT
    *  per-session: two tabs of one wallet must not split the daily cap/escrow) */
   private exTrading = new Set<string>();
+  /** regions with a territory stake in flight — a per-REGION single-flight so two
+   *  founders can't both clear the unheld-region check, both burn 25k across the
+   *  consumeBurn await, and one end up paying for a banner that doesn't hold. */
+  private territoryStaking = new Set<string>();
   /** serializes EVERY outbound escrow payout (Exchange sell + duel payout/refund)
    *  so two payers can't each read a stale pool balance and over-drain it. The
    *  escrow is one shared wallet; the per-token exTrading lock does NOT protect it. */
@@ -983,6 +987,10 @@ export class DriftRoom extends Room<DriftRoomState> {
         duel.hpA -= dmg;
       }
       this.broadcast("duelHp", { a: duel.a, b: duel.b, hpA: duel.hpA, hpB: duel.hpB });
+      // tell every client WHO swung (and at whom) so the opponent — a remote on
+      // the other screens — visibly strikes. The synced PlayerState.action only
+      // carries idle/walk/gather, so without this a dueling foe just stands there.
+      this.broadcast("duelSwing", { by: client.sessionId, at: isA ? duel.b : duel.a });
       if (duel.hpA <= 0 || duel.hpB <= 0) {
         this.endDuel(duel, duel.hpA <= 0 ? duel.b : duel.a);
       }
@@ -1253,16 +1261,24 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (row.founderToken !== sim.token) return fail("Only the founder plants the banner");
       const region = String(msg?.region ?? "");
       if (!(GUILD.regions as readonly string[]).includes(region)) return fail("That ground takes no banner");
+      // claim the per-region lock BEFORE the unheld check / burn await: a second
+      // founder must be turned away here rather than burn in parallel and lose it
+      if (this.territoryStaking.has(region)) return fail("Another banner is being planted here — try again shortly");
       const holder = this.regionHolder(region);
       if (holder && holder.id !== row.id) return fail(`${holder.name} already holds ${region}`);
-      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "guildTerritory");
-      if (err) return fail(err);
-      row.region = region;
-      row.regionUntil = Date.now() + GUILD.territoryMs;
-      void setGuildRegion(row.id, region, row.regionUntil).catch(() => {});
-      this.syncGuildState(row.id);
-      client.send("guildResult", { ok: true, region, until: row.regionUntil });
-      this.broadcast("guildBanner", { tag: row.tag, region });
+      this.territoryStaking.add(region);
+      try {
+        const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "guildTerritory");
+        if (err) return fail(err);
+        row.region = region;
+        row.regionUntil = Date.now() + GUILD.territoryMs;
+        void setGuildRegion(row.id, region, row.regionUntil).catch(() => {});
+        this.syncGuildState(row.id);
+        client.send("guildResult", { ok: true, region, until: row.regionUntil });
+        this.broadcast("guildBanner", { tag: row.tag, region });
+      } finally {
+        this.territoryStaking.delete(region);
+      }
     });
 
     this.onMessage("guildUpkeep", async (client, msg: { burnSig?: string }) => {
