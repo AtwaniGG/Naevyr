@@ -45,6 +45,7 @@ import {
   SaveData,
 } from "@/game/state/persistence";
 import { bus } from "@/game/state/bus";
+import { viewport } from "@/game/state/viewport";
 import { tileToCode, BURN_COSTS } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
 import { Transaction } from "@solana/web3.js";
@@ -113,6 +114,18 @@ export class Game {
   private pendingMob: Mob | null = null;
   private hover: { x: number; y: number } | null = null;
   private clickMarker: { x: number; y: number; t: number } | null = null;
+
+  // ---- touch input (mobile) ----
+  /** active pointers by id → last screen pos (for pinch + tap detection) */
+  private pointers = new Map<number, { x: number; y: number }>();
+  /** the down that may become a tap: start pos/time + whether it moved far */
+  private tapCandidate:
+    | { id: number; x0: number; y0: number; t0: number; moved: boolean }
+    | null = null;
+  /** distance between the two pinch fingers on the last move */
+  private pinchPrevDist = 0;
+  /** long-press timer → sets hover (touch has no mouse-hover) */
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** screen positions of visible corrupt tiles, refreshed each ground pass */
   private corruptGlows: { sx: number; sy: number }[] = [];
@@ -191,6 +204,8 @@ export class Game {
     }
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.snapTo(iso.x, iso.y);
+    // phones start zoomed-in so tiles/mobs are finger-sized tap targets
+    if (viewport.isPhone) this.camera.setZoom(1.6);
 
     spriteCache.init();
 
@@ -1755,18 +1770,102 @@ export class Game {
   // ---- events ---------------------------------------------------------------
 
   private bindEvents() {
+    const TAP_MOVE_PX = 12; // drag beyond this = not a tap (it's a pinch/pan)
+    const LONG_PRESS_MS = 450;
+
+    const localPos = (e: PointerEvent) => {
+      const r = this.canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    const cancelLongPress = () => {
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+    };
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       this.camera.zoomBy(e.deltaY, e.offsetX, e.offsetY);
     };
-    const onDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      this.handleClick(e.offsetX, e.offsetY);
+
+    const onPointerDown = (e: PointerEvent) => {
+      // mouse: only the primary (left) button drives clicks, as before
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      const p = localPos(e);
+      this.pointers.set(e.pointerId, p);
+
+      if (this.pointers.size === 2) {
+        // a second finger landed → enter pinch mode, abandon the tap
+        cancelLongPress();
+        this.tapCandidate = null;
+        const [a, b] = [...this.pointers.values()];
+        this.pinchPrevDist = Math.hypot(a.x - b.x, a.y - b.y);
+        return;
+      }
+      if (this.pointers.size > 2) return;
+
+      // first finger / mouse down: a tap candidate, and (touch) a long-press
+      this.tapCandidate = { id: e.pointerId, x0: p.x, y0: p.y, t0: performance.now(), moved: false };
+      if (e.pointerType !== "mouse") {
+        cancelLongPress();
+        this.longPressTimer = setTimeout(() => {
+          const cand = this.tapCandidate;
+          if (cand && !cand.moved) {
+            const cell = this.cellUnderCursor(cand.x0, cand.y0);
+            this.hover = cell && this.world.inBounds(cell.x, cell.y) ? cell : null;
+            this.tapCandidate = null; // consumed as a hover, not a tap
+          }
+        }, LONG_PRESS_MS);
+      }
     };
-    const onMove = (e: MouseEvent) => {
-      const cell = this.cellUnderCursor(e.offsetX, e.offsetY);
-      this.hover = cell && this.world.inBounds(cell.x, cell.y) ? cell : null;
+
+    const onPointerMove = (e: PointerEvent) => {
+      const tracked = this.pointers.has(e.pointerId);
+      const p = localPos(e);
+      if (tracked) this.pointers.set(e.pointerId, p);
+
+      // two fingers down → pinch-zoom (replaces the wheel on touch)
+      if (this.pointers.size === 2) {
+        const [a, b] = [...this.pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (this.pinchPrevDist > 0 && dist > 0) {
+          this.camera.pinchZoom(dist / this.pinchPrevDist);
+        }
+        this.pinchPrevDist = dist;
+        return;
+      }
+
+      // mouse hover tooltip (desktop, no buttons held)
+      if (e.pointerType === "mouse" && !this.tapCandidate) {
+        const cell = this.cellUnderCursor(p.x, p.y);
+        this.hover = cell && this.world.inBounds(cell.x, cell.y) ? cell : null;
+        return;
+      }
+
+      // moved too far → cancel the tap (and its long-press)
+      const cand = this.tapCandidate;
+      if (cand && cand.id === e.pointerId) {
+        if (Math.hypot(p.x - cand.x0, p.y - cand.y0) > TAP_MOVE_PX) {
+          cand.moved = true;
+          cancelLongPress();
+        }
+      }
     };
+
+    const onPointerUp = (e: PointerEvent) => {
+      cancelLongPress();
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinchPrevDist = 0;
+
+      const cand = this.tapCandidate;
+      if (cand && cand.id === e.pointerId && !cand.moved) {
+        // a real tap/click → walk or interact (existing path)
+        this.handleClick(cand.x0, cand.y0);
+      }
+      this.tapCandidate = null;
+    };
+
     const onKey = (e: KeyboardEvent) => {
       // ignore hotkeys while typing in the chat input (or any form field)
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -1776,18 +1875,27 @@ export class Game {
     const onResize = () => this.resize();
 
     this.canvas.addEventListener("wheel", onWheel, { passive: false });
-    this.canvas.addEventListener("mousedown", onDown);
-    this.canvas.addEventListener("mousemove", onMove);
+    this.canvas.addEventListener("pointerdown", onPointerDown);
+    this.canvas.addEventListener("pointermove", onPointerMove);
+    this.canvas.addEventListener("pointerup", onPointerUp);
+    this.canvas.addEventListener("pointercancel", onPointerUp);
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    // touch-action:none on the canvas stops the browser hijacking gestures
+    this.canvas.style.touchAction = "none";
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
 
     this.cleanupFns.push(
       () => this.canvas.removeEventListener("wheel", onWheel),
-      () => this.canvas.removeEventListener("mousedown", onDown),
-      () => this.canvas.removeEventListener("mousemove", onMove),
+      () => this.canvas.removeEventListener("pointerdown", onPointerDown),
+      () => this.canvas.removeEventListener("pointermove", onPointerMove),
+      () => this.canvas.removeEventListener("pointerup", onPointerUp),
+      () => this.canvas.removeEventListener("pointercancel", onPointerUp),
       () => window.removeEventListener("keydown", onKey),
       () => window.removeEventListener("resize", onResize),
+      () => window.removeEventListener("orientationchange", onResize),
+      () => cancelLongPress(),
     );
 
     // ?demo: a READ-ONLY coordinate bridge for the trailer capture script.

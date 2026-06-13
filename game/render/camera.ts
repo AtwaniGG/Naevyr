@@ -37,6 +37,16 @@ export class Camera {
     this.targetZoom = clamp(this.targetZoom * factor, this.minZoom, this.maxZoom);
   }
 
+  /** pinch: scale the target zoom by an exact factor (1 = no change). */
+  pinchZoom(factor: number) {
+    this.targetZoom = clamp(this.targetZoom * factor, this.minZoom, this.maxZoom);
+  }
+
+  /** snap zoom (used to start phones zoomed-in for finger-sized tiles). */
+  setZoom(z: number) {
+    this.zoom = this.targetZoom = clamp(z, this.minZoom, this.maxZoom);
+  }
+
   update(dt: number) {
     const k = 1 - Math.pow(0.0001, dt); // smooth, framerate-independent
     this.x += (this.tx - this.x) * k;

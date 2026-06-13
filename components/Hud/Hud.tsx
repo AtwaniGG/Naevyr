@@ -38,6 +38,7 @@ import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
+import { useViewport } from "@/game/state/viewport";
 import WheelOverlay from "@/components/Hud/WheelOverlay";
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
 import {
@@ -109,6 +110,14 @@ export default function Hud() {
   // scene when a spin rolls and the Duel overlay (HP bars + pot) IS the scene in
   // a Pit duel — keep both visible (each self-hides when idle).
   if (demo) return <><WheelOverlay /><DuelOverlay /></>;
+  // phones get a touch-native shell (bottom nav + sheets); desktop is untouched.
+  return <ResponsiveHud />;
+}
+
+/** picks the desktop tree or the mobile shell based on the live viewport. */
+function ResponsiveHud() {
+  const isPhone = useViewport().isPhone;
+  if (isPhone) return <MobileHud />;
   return (
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />
@@ -125,6 +134,145 @@ export default function Hud() {
       <ChallengePrompt />
       <WheelOverlay />
     </div>
+  );
+}
+
+// ─── mobile shell: bottom nav + sheets ───────────────────────────────────────
+
+type MobileTab = "quests" | "skills" | "chat" | "map" | null;
+
+/**
+ * Phone HUD. Reuses the desktop panel bodies verbatim:
+ *  - Forge/Market/You ride the existing `openDock` store; their DockPopout
+ *    renders as a bottom sheet on phone (see DockPopout).
+ *  - the Satchel renders its own sheet (see Satchel); a bag button in the bar
+ *    opens it.
+ *  - Quests/Skills/Chat/Map are non-dock panels shown in a local-tab sheet.
+ * All centered overlays (keeper, shop, duel, wheel, banners) work as-is.
+ */
+function MobileHud() {
+  const openDock = useGame((s) => s.openDock);
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  const satchelOpen = useGame((s) => s.satchelOpen);
+  const setSatchelOpen = useGame((s) => s.setSatchelOpen);
+  const carried = useGame((s) =>
+    INVENTORY_ORDER.reduce((n, k) => n + s.inventory[k], 0),
+  );
+  const [tab, setTab] = useState<MobileTab>(null);
+
+  // the satchel defaults open on desktop; collapse it on a phone so it isn't
+  // covering the world at spawn.
+  useEffect(() => setSatchelOpen(false), [setSatchelOpen]);
+  // one sheet at a time: opening a dock/satchel closes any local-tab sheet
+  useEffect(() => {
+    if (openDock || satchelOpen) setTab(null);
+  }, [openDock, satchelOpen]);
+
+  const openTab = (t: Exclude<MobileTab, null>) => {
+    setOpenDock(null);
+    setSatchelOpen(false);
+    setTab((cur) => (cur === t ? null : t));
+  };
+
+  const tabPanel: Record<Exclude<MobileTab, null>, React.ReactNode> = {
+    quests: <QuestBoard />,
+    skills: <SkillsPanel />,
+    chat: <ActivityPanel />,
+    map: <MinimapPanel />,
+  };
+
+  return (
+    <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
+      <div className="drift-scrim" />
+
+      {/* top: compact vitals + online state, clear of the notch */}
+      <div className="drift-mobile-top">
+        <Vitals />
+        <OnlineBadge />
+      </div>
+
+      {/* centered overlays — unchanged, they self-position */}
+      <NightBanner />
+      <TutorialBanner />
+      <KeeperDialogue />
+      <ShopModal />
+      <DuelOverlay />
+      <ChallengePrompt />
+      <WheelOverlay />
+
+      {/* dock + satchel sheets (button suppressed on phone — the bar toggles
+          them; each renders only its bottom sheet when open) */}
+      <ForgeDock />
+      <MarketDock />
+      <IdentityDock />
+      <Satchel />
+
+      {/* local-tab sheet (quests / skills / chat / map) */}
+      {tab && <MobileSheet onClose={() => setTab(null)}>{tabPanel[tab]}</MobileSheet>}
+
+      {/* hotbar, just above the bar */}
+      <div
+        className="pointer-events-auto"
+        style={{
+          position: "fixed",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "calc(var(--tabbar-h) + var(--safe-bottom) + 6px)",
+          zIndex: 21,
+        }}
+      >
+        <HotbarDock />
+      </div>
+
+      {/* bottom navigation */}
+      <div className="drift-tabbar">
+        <Button
+          variant={satchelOpen ? "primary" : "ghost"}
+          size="md"
+          onClick={() => {
+            setOpenDock(null);
+            setTab(null);
+            setSatchelOpen(!satchelOpen);
+          }}
+          iconLeft={<Icon name="bag" size={16} />}
+        >
+          Bag{carried > 0 ? ` · ${carried}` : ""}
+        </Button>
+        <ForgeTabButton />
+        <MarketTabButton />
+        <YouTabButton />
+        <StakeButton />
+        <ReinforceButton />
+        <Button variant={tab === "quests" ? "primary" : "ghost"} size="md" onClick={() => openTab("quests")} iconLeft={<Icon name="bolt" size={16} />}>Quests</Button>
+        <Button variant={tab === "skills" ? "primary" : "ghost"} size="md" onClick={() => openTab("skills")} iconLeft={<Icon name="axe" size={16} />}>Skills</Button>
+        <Button variant={tab === "chat" ? "primary" : "ghost"} size="md" onClick={() => openTab("chat")} iconLeft={<Icon name="drift" size={16} />}>Chat</Button>
+        <Button variant={tab === "map" ? "primary" : "ghost"} size="md" onClick={() => openTab("map")} iconLeft={<Icon name="leaf" size={16} />}>Map</Button>
+      </div>
+    </div>
+  );
+}
+
+/* tab-bar buttons that drive openDock (the panels themselves render as sheets
+   via the dock components below). Kept tiny so the bar stays one row. */
+function ForgeTabButton() {
+  const open = useGame((s) => s.openDock) === "forge";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  return (
+    <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "forge")} iconLeft={<Icon name="sigil" size={16} glow={open} />}>Forge</Button>
+  );
+}
+function MarketTabButton() {
+  const open = useGame((s) => s.openDock) === "market";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  return (
+    <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "market")} iconLeft={<Icon name="coin" size={16} glow={open} />}>Market</Button>
+  );
+}
+function YouTabButton() {
+  const open = useGame((s) => s.openDock) === "you";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  return (
+    <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "you")} iconLeft={<Icon name="heart" size={16} glow={open} />}>You</Button>
   );
 }
 
@@ -1178,7 +1326,13 @@ function RightRail() {
  * Tall content scrolls inside the overlay instead of growing past the screen.
  */
 function DockPopout({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const isPhone = useViewport().isPhone;
+  const setOpenDock = useGame((s) => s.setOpenDock);
   if (!open) return null;
+  // phone: the panel body rides up as a bottom sheet above the tab bar
+  if (isPhone) {
+    return <MobileSheet onClose={() => setOpenDock(null)}>{children}</MobileSheet>;
+  }
   return (
     <div
       style={{
@@ -1193,6 +1347,17 @@ function DockPopout({ open, children }: { open: boolean; children: React.ReactNo
     >
       {children}
     </div>
+  );
+}
+
+/** mobile bottom sheet: a backdrop (tap to dismiss) + a slide-up panel host.
+ *  Reused by DockPopout, the Satchel, and MobileHud's quest/skills/chat sheets. */
+function MobileSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  return (
+    <>
+      <div className="drift-sheet-backdrop pointer-events-auto" onClick={onClose} />
+      <div className="drift-sheet pointer-events-auto">{children}</div>
+    </>
   );
 }
 
@@ -1213,17 +1378,20 @@ function MarketDock() {
   const carried = INVENTORY_ORDER.filter((k) => inventory[k] > 0);
   const mine = listings.filter((l) => l.mine);
   const offers = listings.filter((l) => !l.mine);
+  const isPhone = useViewport().isPhone;
 
   return (
     <div style={{ position: "relative" }}>
-      <Button
-        variant={open ? "primary" : "ghost"}
-        size="md"
-        onClick={() => setOpen(!open)}
-        iconLeft={<Icon name="coin" size={16} glow={open} />}
-      >
-        Market
-      </Button>
+      {!isPhone && (
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen(!open)}
+          iconLeft={<Icon name="coin" size={16} glow={open} />}
+        >
+          Market
+        </Button>
+      )}
       <DockPopout open={open}>
         <Panel kicker="The Exchange" title="Market" style={{ width: 312 }}>
             {!online && (
@@ -1531,16 +1699,20 @@ function IdentityDock() {
     />
   );
 
+  const isPhone = useViewport().isPhone;
+
   return (
     <div style={{ position: "relative" }}>
-      <Button
-        variant={open ? "primary" : "ghost"}
-        size="md"
-        onClick={() => setOpen(!open)}
-        iconLeft={<Icon name="heart" size={16} glow={open} />}
-      >
-        You
-      </Button>
+      {!isPhone && (
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen(!open)}
+          iconLeft={<Icon name="heart" size={16} glow={open} />}
+        >
+          You
+        </Button>
+      )}
       <DockPopout open={open}>
         <Panel kicker="The Wanderer" title="Identity" style={{ width: 296 }}>
             {/* name: sworn at the door, fixed while inside the realm */}
@@ -2045,7 +2217,11 @@ function Satchel() {
   const setTrading = (next: boolean) => setOpenDock(next ? "trade" : null);
   const satchelOpen = useGame((s) => s.satchelOpen);
   const setSatchelOpen = useGame((s) => s.setSatchelOpen);
+  const isPhone = useViewport().isPhone;
   const carried = INVENTORY_ORDER.reduce((n, k) => n + inv[k], 0);
+
+  // phone: the bag toggle lives in the tab bar, so collapsed = render nothing
+  if (isPhone && !satchelOpen) return null;
 
   // collapsed: a slim button holds the spot; the Activity log takes the room
   if (!satchelOpen) {
@@ -2063,7 +2239,11 @@ function Satchel() {
     );
   }
 
-  return (
+  const close = () => {
+    if (trading) setOpenDock(null);
+    setSatchelOpen(false);
+  };
+  const inner = (
     <div className="pointer-events-auto" style={{ position: "relative", flexShrink: 0 }}>
       <Panel
         kicker="Satchel"
@@ -2147,7 +2327,12 @@ function Satchel() {
           kicker="Wandering Trader"
           title="Sell"
           // pops out left of the satchel so the right column never grows taller
-          style={{ width: 232, position: "absolute", right: "100%", top: 0, marginRight: 8 }}
+          // (phone: stack it inline below the satchel inside the sheet)
+          style={
+            isPhone
+              ? { width: "100%", marginTop: 10 }
+              : { width: 232, position: "absolute", right: "100%", top: 0, marginRight: 8 }
+          }
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {INVENTORY_ORDER.map((key) => {
@@ -2181,38 +2366,47 @@ function Satchel() {
       )}
     </div>
   );
+
+  if (isPhone) return <MobileSheet onClose={close}>{inner}</MobileSheet>;
+  return inner;
 }
 
 // ---- bottom-left: skills -----------------------------------------------------
 
 function SkillsPanel() {
   const skills = useGame((s) => s.skills);
+  const isPhone = useViewport().isPhone;
+  const panel = (
+    <Panel kicker="Skills" title="Gathering & War" style={{ width: 264 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        {(Object.keys(SKILL_META) as SkillKey[]).map((key) => {
+          const st = skills[key];
+          const meta = SKILL_META[key];
+          const floor = xpForLevel(st.level);
+          const next = xpForLevel(st.level + 1);
+          return (
+            <XPBar
+              key={key}
+              skill={meta.label}
+              level={st.level}
+              value={st.xp - floor}
+              max={next - floor}
+              color={meta.color}
+              icon={<Icon name={SKILL_ICON[key]} size={16} />}
+            />
+          );
+        })}
+      </div>
+    </Panel>
+  );
+  // phone: MobileHud places this inside a sheet, so render the bare panel
+  if (isPhone) return panel;
   return (
     <div
       className="absolute pointer-events-auto"
       style={{ bottom: "var(--hud-edge)", left: "var(--hud-edge)", transform: "scale(var(--hud-scale))", transformOrigin: "bottom left" }}
     >
-      <Panel kicker="Skills" title="Gathering & War" style={{ width: 264 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-          {(Object.keys(SKILL_META) as SkillKey[]).map((key) => {
-            const st = skills[key];
-            const meta = SKILL_META[key];
-            const floor = xpForLevel(st.level);
-            const next = xpForLevel(st.level + 1);
-            return (
-              <XPBar
-                key={key}
-                skill={meta.label}
-                level={st.level}
-                value={st.xp - floor}
-                max={next - floor}
-                color={meta.color}
-                icon={<Icon name={SKILL_ICON[key]} size={16} />}
-              />
-            );
-          })}
-        </div>
-      </Panel>
+      {panel}
     </div>
   );
 }
@@ -2221,7 +2415,19 @@ function SkillsPanel() {
 
 function ActivityPanel() {
   const log = useGame((s) => s.log);
+  const isPhone = useViewport().isPhone;
   const entries = [...log].reverse();
+  // phone: MobileHud hosts this in a sheet — render a self-contained panel
+  if (isPhone) {
+    return (
+      <Panel kicker="Realm" title="Activity" style={{ width: 264 }}>
+        <div style={{ maxHeight: "48dvh", overflowY: "auto" }}>
+          <ActivityLog entries={entries} max={30} />
+        </div>
+        <ChatRow />
+      </Panel>
+    );
+  }
   // The column's ONE flexible item: it GROWS into whatever the column has left
   // (all of it when the satchel is stowed) and, when the screen is short, the
   // log shrinks and scrolls internally while the chat input stays pinned.
@@ -2375,20 +2581,26 @@ function MinimapPanel() {
 function HotbarDock() {
   const hotbar = useGame((s) => s.hotbar);
   const setHotbar = useGame((s) => s.setHotbar);
+  const isPhone = useViewport().isPhone;
+  const bar = (
+    <Hotbar
+      selected={hotbar - 1}
+      onSelect={(i) => !HOTBAR_TOOLS[i].locked && setHotbar(i + 1)}
+      slots={HOTBAR_TOOLS.map((t) => ({
+        icon: <Icon name={t.icon} size={32} style={t.locked ? { opacity: 0.5, filter: "grayscale(0.8)" } : undefined} />,
+        name: t.locked ? `${t.name} · sealed for now` : t.name,
+        disabled: t.locked,
+      }))}
+    />
+  );
+  // phone: MobileHud docks the bare hotbar just above the tab bar
+  if (isPhone) return bar;
   return (
     <div
       className="absolute pointer-events-auto"
       style={{ bottom: "var(--hud-edge)", left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "bottom center" }}
     >
-      <Hotbar
-        selected={hotbar - 1}
-        onSelect={(i) => !HOTBAR_TOOLS[i].locked && setHotbar(i + 1)}
-        slots={HOTBAR_TOOLS.map((t) => ({
-          icon: <Icon name={t.icon} size={32} style={t.locked ? { opacity: 0.5, filter: "grayscale(0.8)" } : undefined} />,
-          name: t.locked ? `${t.name} · sealed for now` : t.name,
-          disabled: t.locked,
-        }))}
-      />
+      {bar}
     </div>
   );
 }
@@ -2405,17 +2617,20 @@ function ForgeDock() {
   // subscribing keeps canCraft() fresh as materials/levels change
   void inventory;
   void skills;
+  const isPhone = useViewport().isPhone;
 
   return (
     <div style={{ position: "relative" }}>
-      <Button
-        variant={open ? "primary" : "ghost"}
-        size="md"
-        onClick={() => setOpen(!open)}
-        iconLeft={<Icon name="sigil" size={16} glow={open} />}
-      >
-        Forge
-      </Button>
+      {!isPhone && (
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen(!open)}
+          iconLeft={<Icon name="sigil" size={16} glow={open} />}
+        >
+          Forge
+        </Button>
+      )}
       <DockPopout open={open}>
         <Panel kicker="The Forge" title="Smithing" style={{ width: 296 }}>
             {/* equipped */}

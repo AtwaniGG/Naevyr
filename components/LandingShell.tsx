@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ds";
 import { useGate, useBurnStats, shortAddr } from "@/components/gate";
+import { useViewport } from "@/game/state/viewport";
 
 // The landing site's chrome: one fixed nav across every page (Kintara-style),
 // wordmark left, section links, socials, balance chip, Connect. Pages render
@@ -29,6 +31,8 @@ export default function LandingShell({
   const path = usePathname();
   const { info, wallet, balance, busy, connect, disconnect } = useGate();
   const burnStats = useBurnStats(wallet);
+  const isPhone = useViewport().isPhone;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
@@ -84,31 +88,34 @@ export default function LandingShell({
         >
           BETA
         </span>
-        {NAV.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className={`landing-nav-link${path === n.href ? " active" : ""}`}
-            style={{ textDecoration: "none", whiteSpace: "nowrap" }}
-          >
-            <span className="landing-icon" style={{ "--icon-index": n.icon } as React.CSSProperties} />
-            {n.label}
-          </Link>
-        ))}
+        {!isPhone &&
+          NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={`landing-nav-link${path === n.href ? " active" : ""}`}
+              style={{ textDecoration: "none", whiteSpace: "nowrap" }}
+            >
+              <span className="landing-icon" style={{ "--icon-index": n.icon } as React.CSSProperties} />
+              {n.label}
+            </Link>
+          ))}
         <span style={{ flex: 1 }} />
-        <a
-          href="https://x.com/PlayNaevyr"
-          target="_blank"
-          rel="noreferrer noopener"
-          title="X · @PlayNaevyr"
-          style={{ display: "inline-flex", margin: "0 8px", flexShrink: 0, textDecoration: "none" }}
-        >
-          <span
-            className="landing-icon"
-            style={{ "--icon-index": 8, opacity: 0.75, cursor: "pointer" } as React.CSSProperties}
-          />
-        </a>
-        {burnStats && burnStats.burned > 0 && (
+        {!isPhone && (
+          <a
+            href="https://x.com/PlayNaevyr"
+            target="_blank"
+            rel="noreferrer noopener"
+            title="X · @PlayNaevyr"
+            style={{ display: "inline-flex", margin: "0 8px", flexShrink: 0, textDecoration: "none" }}
+          >
+            <span
+              className="landing-icon"
+              style={{ "--icon-index": 8, opacity: 0.75, cursor: "pointer" } as React.CSSProperties}
+            />
+          </a>
+        )}
+        {!isPhone && burnStats && burnStats.burned > 0 && (
           <span
             className="drift-num"
             style={{
@@ -121,7 +128,7 @@ export default function LandingShell({
             {burnStats.burned.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" /> burned
           </span>
         )}
-        {wallet && balance !== null && (
+        {!isPhone && wallet && balance !== null && (
           <span
             className="drift-num"
             style={{
@@ -155,7 +162,66 @@ export default function LandingShell({
             ✕
           </Button>
         )}
+        {isPhone && (
+          <Button
+            size="sm"
+            variant={menuOpen ? "primary" : "ghost"}
+            onClick={() => setMenuOpen((o) => !o)}
+            style={{ marginLeft: 6, flexShrink: 0 }}
+            title="Menu"
+            aria-label="Menu"
+          >
+            {menuOpen ? "✕" : "☰"}
+          </Button>
+        )}
       </div>
+
+      {/* mobile dropdown: the section links + socials + burn stat */}
+      {isPhone && menuOpen && (
+        <div
+          className="sticky"
+          style={{
+            top: 0, zIndex: 39,
+            background: "rgba(10, 8, 16, 0.97)",
+            borderBottom: "1px solid rgba(124, 58, 237, 0.25)",
+            display: "flex", flexDirection: "column",
+            padding: "8px 18px 14px",
+          }}
+        >
+          {NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              onClick={() => setMenuOpen(false)}
+              className={`landing-nav-link${path === n.href ? " active" : ""}`}
+              style={{ textDecoration: "none", padding: "11px 4px", fontSize: 15 }}
+            >
+              <span className="landing-icon" style={{ "--icon-index": n.icon } as React.CSSProperties} />
+              {n.label}
+            </Link>
+          ))}
+          <a
+            href="https://x.com/PlayNaevyr"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="landing-nav-link"
+            style={{ textDecoration: "none", padding: "11px 4px", fontSize: 15 }}
+          >
+            <span className="landing-icon" style={{ "--icon-index": 8 } as React.CSSProperties} />
+            X · @PlayNaevyr
+          </a>
+          {burnStats && burnStats.burned > 0 && (
+            <span className="drift-num" style={{ font: "600 12px/1 var(--font-ui)", color: "#d8b4fe", padding: "10px 4px" }}>
+              {burnStats.burned.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" /> burned forever
+            </span>
+          )}
+          {wallet && balance !== null && (
+            <span className="drift-num" style={{ font: "600 12px/1 var(--font-ui)", color: "var(--drift-gold)", padding: "10px 4px" }}>
+              {balance.toLocaleString()} <span className="drifts-mark" aria-label="DRIFTS" /> held
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="relative" style={{ zIndex: 5 }}>{children}</div>
 

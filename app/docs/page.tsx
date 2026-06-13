@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LandingShell from "@/components/LandingShell";
+import { useViewport } from "@/game/state/viewport";
 import {
   BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
@@ -148,17 +149,24 @@ function Art({
 
 export default function DocsPage() {
   const [open, setOpen] = useState(true);
+  const isPhone = useViewport().isPhone;
+  // the 220px sticky sidebar would steal a phone's whole content width — start
+  // it collapsed there (the "show contents" toggle still reveals it inline).
+  useEffect(() => {
+    if (isPhone) setOpen(false);
+  }, [isPhone]);
   const groups = [...new Set(SECTIONS.map((s) => s.group))];
   return (
     <LandingShell>
-      <div style={{ display: "flex", maxWidth: 1160, margin: "0 auto", padding: "28px 22px", gap: 28, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: isPhone ? "column" : "row", maxWidth: 1160, margin: "0 auto", padding: "28px 22px", gap: 28, alignItems: "flex-start" }}>
         {/* ---- sidebar ---- */}
         <nav
           style={{
-            position: "sticky", top: 70, width: 220, flexShrink: 0,
+            position: isPhone ? "static" : "sticky", top: 70,
+            width: isPhone ? "100%" : 220, flexShrink: 0, boxSizing: "border-box",
             background: "rgba(124, 58, 237, 0.05)",
             border: "1px solid rgba(124, 58, 237, 0.18)",
-            padding: "14px 16px", maxHeight: "calc(100vh - 100px)", overflowY: "auto",
+            padding: "14px 16px", maxHeight: isPhone ? "none" : "calc(100vh - 100px)", overflowY: "auto",
             display: open ? "block" : "none",
           }}
         >

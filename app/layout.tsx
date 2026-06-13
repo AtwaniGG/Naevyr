@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Pixelify_Sans, Silkscreen, Sora } from "next/font/google";
 import "./globals.css";
 import "./naevyr.css";
@@ -25,6 +25,18 @@ const sora = Sora({
 export const metadata: Metadata = {
   title: "Naevyr",
   description: "A dark-fantasy play-to-earn MMO consumed by the Drift.",
+};
+
+// viewportFit=cover exposes env(safe-area-inset-*) so the mobile HUD can dodge
+// the iPhone notch/home-bar; locking scale keeps the canvas owning all gestures
+// (the engine handles pinch-zoom itself — see game.ts bindEvents).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0a0810",
 };
 
 export default function RootLayout({
