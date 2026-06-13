@@ -693,6 +693,14 @@ export default function DocsPage() {
             dry between waves of buyers and the merchant's purse goes light until
             they return.
           </P>
+          <P>
+            <Gold>A guard on the young pool.</Gold> In the realm's first days
+            every standing shares one daily sell cap of{" "}
+            {EXCHANGE.sellCapPerDay[""]}g, no matter what it holds. The pool is
+            finite and freshly seeded, so the keeper changes coin slowly while
+            buyers deepen it. The wider, standing-scaled limits return once the
+            coffers can bear them. The table below shows the live caps.
+          </P>
           <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
               <thead>
@@ -878,11 +886,12 @@ export default function DocsPage() {
             confirm that on-chain too. When in doubt, read the chain.
           </P>
           <P>
-            <Gold>Ahead.</Gold> After the mainnet launch comes the Exchange: a
-            two-sided gold-for-DRIFTS market where payouts come only from what
-            other players paid in, with daily caps scaled by holdings. Player
-            to player, never house to player. Until then, the loop is simple:
-            hold to enter, hold more to stand taller, burn to act.
+            <Gold>Here now.</Gold> The mainnet launch and the Exchange are live:
+            a two-sided gold-for-DRIFTS market where payouts come only from what
+            other players paid in. Player to player, never house to player.
+            While the realm is young a single flat daily cap guards the pool,
+            widening with standing once the coffers can bear it. The loop is
+            simple: hold to enter, hold more to stand taller, burn to act.
           </P>
 
           <H id="trust">Architecture & Trust</H>

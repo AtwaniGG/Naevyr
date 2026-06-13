@@ -23,7 +23,9 @@ const UPDATES: { tag: string; title: string; text: string }[] = [
       "gold back for DRIFTS out of the realm's escrow pool. Payouts come only from " +
       "what buyers paid in, never minted, never a house faucet. The pool is seeded " +
       "and both sides are open. When it runs dry the merchant's purse goes light " +
-      "until buyers return. Daily limits scale with what your wallet holds.",
+      "until buyers return. While the realm is young the keeper changes no more " +
+      "than 100 gold a day from each wallet, a guard to keep the pool from " +
+      "running dry. The limit widens as the coffers deepen.",
   },
   {
     tag: "The Pit",
