@@ -27,8 +27,6 @@ import {
   setGold as persistGold,
   setInv as persistInv,
   setQuests as persistQuests,
-  setBattlePass as persistBattlePass,
-  type BattlePassBlob,
   PlayerRow,
 } from "../db";
 import {
@@ -55,8 +53,6 @@ import {
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
   GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   QUEST_POOL, rollDailyQuestIds, type QuestEvent,
-  BP_CHALLENGE_POOL, rollWeeklyChallenges, passSeasonNow, passWeekNow,
-  passEndsIn, passTierForXp, passSeasonDef, BP_TIERS, type PassEvent,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
 import {
@@ -390,8 +386,6 @@ interface PlayerSim {
   guildId: number | null;
   /** Phase 6: authoritative daily quest board (write-through to players.quests) */
   quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] };
-  /** the seasonal battle pass (write-through to players.battlepass) */
-  battlepass: BattlePassBlob;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -1127,8 +1121,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!this.allow(sim, "prestige", 4, 10_000)) return;
       const key = String(msg?.key ?? "");
       const entry = PRESTIGE_CATALOG[key];
-      if (!entry || entry.passOnly) {
-        // passOnly relics are season-exclusive — never purchasable at any rite
+      if (!entry) {
         return client.send("prestigeResult", { ok: false, reason: "Unknown rite" });
       }
       const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), entry.action);
@@ -1893,7 +1886,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       void persistInv(sim.token, sim.inv).catch(() => {});
       this.syncInv(sim);
       this.advanceQuests(sim, { type: "cook", qty: n });
-      this.advanceBattlePass(sim, { type: "cook", qty: n });
     });
 
     // ---- claim a completed daily quest: gold rides the ledger, XP stays client-side
@@ -1912,45 +1904,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       void persistQuests(sim.token, sim.quests).catch(() => {});
       client.send("questClaimed", { id, xp: def.xpReward }); // client applies XP
       this.syncQuests(sim);
-      this.advanceBattlePass(sim, { type: "questClaim" });
-    });
-
-    // ---- the battle pass: unlock Premium with a DRIFTS burn ------------------------
-    this.onMessage("buyPass", async (client, msg: { burnSig?: string }) => {
-      const sim = this.sims.get(client.sessionId);
-      if (!sim) return;
-      if (!this.allow(sim, "buyPass", 4, 10_000)) return;
-      if (this.ensureFreshBattlePass(sim)) this.syncBattlePass(sim);
-      if (sim.battlepass.premium) return client.send("passResult", { ok: false, reason: "You already hold this season's pass" });
-      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "battlePass");
-      if (err) return client.send("passResult", { ok: false, reason: err });
-      sim.battlepass.premium = true; // retro-unlock is automatic (claims check the flag)
-      void persistBattlePass(sim.token, sim.battlepass).catch(() => {});
-      client.send("passResult", { ok: true, premium: true });
-      this.syncBattlePass(sim);
-    });
-
-    // ---- the battle pass: claim an earned tier (free or premium track) -------------
-    this.onMessage("claimPassTier", (client, msg: { tier?: number; track?: string }) => {
-      const sim = this.sims.get(client.sessionId);
-      if (!sim) return;
-      if (!this.allow(sim, "claimPassTier", 12, 2000)) return;
-      if (this.ensureFreshBattlePass(sim)) this.syncBattlePass(sim);
-      const tier = Math.trunc(Number(msg?.tier ?? 0));
-      const premium = msg?.track === "premium";
-      if (tier < 1 || tier > BP_TIERS) return;
-      if (tier > passTierForXp(sim.battlepass.xp)) return; // not earned yet → refused
-      if (premium && !sim.battlepass.premium) return client.send("passResult", { ok: false, reason: "Unlock the Premium track first" });
-      const claimed = premium ? sim.battlepass.claimedPremium : sim.battlepass.claimedFree;
-      if (claimed.includes(tier)) return; // replay → ignore
-      const def = passSeasonDef(sim.battlepass.season);
-      const reward = premium ? def.tiers[tier - 1]?.premium : def.tiers[tier - 1]?.free;
-      if (!reward) { claimed.push(tier); return; } // empty slot → mark done, nothing to pay
-      this.grantPassReward(sim, reward);
-      claimed.push(tier);
-      void persistBattlePass(sim.token, sim.battlepass).catch(() => {});
-      client.send("passResult", { ok: true, tier, track: premium ? "premium" : "free", reward });
-      this.syncBattlePass(sim);
     });
 
     // ---- Obelisk: rewrite the day's tasks for 75g (the burn path is obeliskBurn)
@@ -2048,8 +2001,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       // any overworld mob death advances the kill quest (matches the current
       // client behavior where any mob death fired the kill event)
       this.advanceQuests(sim, { type: "kill" });
-      this.advanceBattlePass(sim, { type: "kill" });
-      if (mob.kind === "colossus") this.advanceBattlePass(sim, { type: "boss" });
 
       // real deaths feed the event quotas (no more trusted kill intents)
       if (mob.eventTag === "night" && this.state.nightActive) {
@@ -2170,7 +2121,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
       guildId: row.guildId != null ? Math.round(row.guildId) : null,
       quests: sanitizeQuests(row.quests),
-      battlepass: sanitizeBattlePass(row.battlepass),
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -2187,7 +2137,6 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.state.players.set(client.sessionId, ps);
 
     this.syncQuests(sim);
-    this.syncBattlePass(sim);
 
     // a player who cleared the entry gate already proved wallet ownership at the
     // door — bind it now so they're a linked holder without signing again
@@ -2308,7 +2257,6 @@ export class DriftRoom extends Room<DriftRoomState> {
         const qty = rich ? 2 : 1;
         this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
         this.advanceQuests(sim, { type: "gather", item: RESOURCE_META[node.kind].item });
-        this.advanceBattlePass(sim, { type: "gather", item: RESOURCE_META[node.kind].item });
         sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
         if (depleted) {
           this.drift.depleteNode(this.world, node.gx, node.gy);
@@ -2579,7 +2527,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       for (const sim of this.sims.values()) {
         this.credit(sim, LONG_NIGHT_REWARD);
         sim.client.send("nightReward", { gold: LONG_NIGHT_REWARD });
-        this.advanceBattlePass(sim, { type: "night" });
       }
     } else {
       this.broadcast("nightEnd", { survived: false, driftPct: this.state.driftPct });
@@ -2769,108 +2716,6 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
-  // ---- the battle pass: the seasonal Drift Ledger ----------------------------
-
-  /** push the authoritative pass state to its owner (the HUD adopts it whole) */
-  private syncBattlePass(sim: PlayerSim) {
-    const bp = sim.battlepass;
-    const def = passSeasonDef(bp.season);
-    sim.client.send("passSync", {
-      season: bp.season,
-      name: def.name,
-      endsIn: passEndsIn(),
-      week: bp.week,
-      xp: bp.xp,
-      tier: passTierForXp(bp.xp),
-      maxTier: BP_TIERS,
-      premium: bp.premium,
-      tiers: def.tiers,
-      challenges: bp.challenges,
-      claimedFree: bp.claimedFree,
-      claimedPremium: bp.claimedPremium,
-    });
-  }
-
-  /** roll the pass over to the current season/week if stale. On a NEW season,
-   *  auto-grant every still-earned-but-unclaimed reward first (no lost
-   *  cosmetics), then reset. Returns true if anything changed. */
-  private ensureFreshBattlePass(sim: PlayerSim): boolean {
-    const season = passSeasonNow();
-    const week = passWeekNow();
-    if (sim.battlepass.season === season) {
-      // same season, maybe a new challenge week — refresh the challenge set
-      if (sim.battlepass.week !== week) {
-        sim.battlepass.week = week;
-        sim.battlepass.challenges = freshChallenges(season, week);
-        void persistBattlePass(sim.token, sim.battlepass).catch(() => {});
-        return true;
-      }
-      return false;
-    }
-    // a new season has begun: settle the closing one before wiping it
-    this.autoGrantPass(sim);
-    sim.battlepass = freshBattlePass(season, week);
-    void persistBattlePass(sim.token, sim.battlepass).catch(() => {});
-    return true;
-  }
-
-  /** at season rollover, hand out every earned tier the player never claimed so
-   *  no cosmetic/gold is lost to the reset (goodwill > strictness) */
-  private autoGrantPass(sim: PlayerSim) {
-    const bp = sim.battlepass;
-    const def = passSeasonDef(bp.season);
-    const earned = passTierForXp(bp.xp);
-    for (let t = 1; t <= earned; t++) {
-      const tier = def.tiers[t - 1];
-      if (tier?.free && !bp.claimedFree.includes(t)) {
-        this.grantPassReward(sim, tier.free);
-        bp.claimedFree.push(t);
-      }
-      if (bp.premium && tier?.premium && !bp.claimedPremium.includes(t)) {
-        this.grantPassReward(sim, tier.premium);
-        bp.claimedPremium.push(t);
-      }
-    }
-  }
-
-  /** grant one tier payout on the existing ledgers (gold/inv) or prestige set */
-  private grantPassReward(sim: PlayerSim, r: import("@/game/types").PassReward) {
-    if (r.kind === "gold") this.credit(sim, r.amount);
-    else if (r.kind === "shards") this.creditItem(sim, "driftshard", r.amount);
-    else if (r.kind === "cosmetic") {
-      if (!sim.prestige.has(r.cosmetic)) {
-        sim.prestige.add(r.cosmetic);
-        void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
-      }
-    }
-  }
-
-  /** feed a server-adjudicated event through the weekly challenge matchers;
-   *  completing a challenge banks its passXp (and may cross tier thresholds) */
-  private advanceBattlePass(sim: PlayerSim, e: PassEvent) {
-    if (this.ensureFreshBattlePass(sim)) this.syncBattlePass(sim);
-    let changed = false;
-    for (const c of sim.battlepass.challenges) {
-      if (c.claimed) continue; // claimed == its XP already banked
-      const def = BP_CHALLENGE_POOL.find((d) => d.id === c.id);
-      if (!def || c.progress >= def.target) continue;
-      const inc = def.matches(e);
-      if (inc > 0) {
-        c.progress = Math.min(def.target, c.progress + inc);
-        if (c.progress >= def.target) {
-          // challenge complete → bank its season XP exactly once
-          c.claimed = true;
-          sim.battlepass.xp += def.passXp;
-        }
-        changed = true;
-      }
-    }
-    if (changed) {
-      void persistBattlePass(sim.token, sim.battlepass).catch(() => {});
-      this.syncBattlePass(sim);
-    }
-  }
-
   /** Bind the gate-proven wallet to this player's row without a second signature.
    *  The entry gate already verified an ed25519 proof of ownership over `address`
    *  (the same rail as the in-game link), so this is cryptographically equivalent
@@ -3004,9 +2849,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
 
     if (seg.kind === "prestigeAura") {
-      // passOnly relics (e.g. the season capstone) are never rollable
-      const open = [...PRESTIGE_AURA_KEYS].filter(
-        (k) => !sim.prestige.has(k) && !PRESTIGE_CATALOG[k]?.passOnly);
+      const open = [...PRESTIGE_AURA_KEYS].filter((k) => !sim.prestige.has(k));
       if (open.length === 0) {
         grantShards(seg.dupShards ?? 1);
         return { kind: seg.kind, dup: true, shards: seg.dupShards, label: seg.label, rare: true, seg: segIndex };
@@ -3375,7 +3218,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (sim) {
         if (gold > 0) this.credit(sim, gold);
         sim.client.send("caravanPayout", { run: c.run, gold, kills: e.kills });
-        this.advanceBattlePass(sim, { type: "caravan" }); // escorted a caravan home
       } else if (gold > 0) await addEscrow(token, gold).catch(() => {});
     }
     this.broadcast("caravanArrived", { run: c.run, pool, payouts });
@@ -3718,49 +3560,3 @@ function sanitizeQuests(raw: unknown): { day: number; list: { id: string; progre
   return list.length ? { day, list } : freshQuestBoard(day);
 }
 
-/** the week's challenge set: deterministic ids, all unstarted */
-function freshChallenges(season: number, week: number) {
-  return rollWeeklyChallenges(season, week).map((id) => ({ id, progress: 0, claimed: false }));
-}
-
-/** a clean pass ledger for a season (premium off, no claims, week's challenges) */
-function freshBattlePass(season: number, week: number): BattlePassBlob {
-  return {
-    season, xp: 0, premium: false,
-    claimedFree: [], claimedPremium: [],
-    week, challenges: freshChallenges(season, week),
-  };
-}
-
-/** load a stored pass ledger, resetting if absent or for a stale season. Keeps
- *  premium + claims + xp within the SAME season; only a season change wipes. */
-function sanitizeBattlePass(raw: unknown): BattlePassBlob {
-  const season = passSeasonNow();
-  const week = passWeekNow();
-  const r = raw as Partial<BattlePassBlob> | null | undefined;
-  if (!r || Number(r.season) !== season) return freshBattlePass(season, week);
-  const validC = new Set(BP_CHALLENGE_POOL.map((c) => c.id));
-  const storedWeek = Math.max(0, Math.trunc(Number(r.week) || 0));
-  // if the stored week is stale, roll this week's challenges fresh
-  const challenges = storedWeek === week && Array.isArray(r.challenges)
-    ? (r.challenges as unknown[])
-        .map((c) => c as { id?: unknown; progress?: unknown; claimed?: unknown } | null)
-        .filter((c): c is { id: unknown } => !!c && validC.has(String(c.id)))
-        .map((c) => ({
-          id: String(c.id),
-          progress: Math.max(0, Math.trunc(Number((c as { progress?: unknown }).progress) || 0)),
-          claimed: Boolean((c as { claimed?: unknown }).claimed),
-        }))
-    : freshChallenges(season, week);
-  const ints = (a: unknown): number[] =>
-    Array.isArray(a) ? a.map((n) => Math.trunc(Number(n))).filter((n) => Number.isFinite(n) && n >= 1) : [];
-  return {
-    season,
-    xp: Math.max(0, Math.trunc(Number(r.xp) || 0)),
-    premium: Boolean(r.premium),
-    claimedFree: ints(r.claimedFree),
-    claimedPremium: ints(r.claimedPremium),
-    week,
-    challenges: challenges.length ? challenges : freshChallenges(season, week),
-  };
-}

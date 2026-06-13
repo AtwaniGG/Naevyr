@@ -40,9 +40,6 @@ export const players = pgTable("players", {
   inv: jsonb("inv"),
   /** Phase 6: authoritative daily quest board { day, list:[{id,progress,claimed}] } */
   quests: jsonb("quests"),
-  /** the seasonal battle pass (Drift Ledger): { season, xp, premium,
-   *  claimedFree[], claimedPremium[], week, challenges:[{id,progress,claimed}] } */
-  battlepass: jsonb("battlepass"),
   /** burned DRIFTS during the beta window — one-time Founder cosmetics */
   founder: boolean("founder").notNull().default(false),
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative

@@ -22,10 +22,7 @@ export const CLAIM_MAX = 3;
 export type AuraKey =
   | "driftmote" | "emberwake" | "goldhalo"
   // Drift-touched (prestige): burned into being, never bought with gold
-  | "ashen_crown" | "corruption_halo" | "ember_cinder" | "bonewisp"
-  // season-exclusive relic: only the battle pass grants it, never sold (see
-  // BATTLE_PASS_SEASONS + the passOnly flag on its PRESTIGE_CATALOG entry)
-  | "tarnished_chalice";
+  | "ashen_crown" | "corruption_halo" | "ember_cinder" | "bonewisp";
 export const AURA_CATALOG: Record<
   AuraKey,
   { label: string; price: number; color: string; driftsOnly?: boolean }
@@ -37,10 +34,6 @@ export const AURA_CATALOG: Record<
   corruption_halo: { label: "Corruption Halo", price: 0, color: "#a855f7", driftsOnly: true },
   ember_cinder:    { label: "Ember Cinder", price: 0, color: "#f59e0b", driftsOnly: true },
   bonewisp:        { label: "Bonewisp", price: 0, color: "#d8cfe0", driftsOnly: true },
-  // driftsOnly keeps it out of the gold-aura buy list. Rendered as a baked DS
-  // prestige aura (PRESTIGE_AURAS.tarnished_chalice in sprites.ts); `color` is
-  // only the legacy-mote fallback (never hit while the port is registered).
-  tarnished_chalice: { label: "The Tarnished Chalice", price: 0, color: "#e7c873", driftsOnly: true },
 };
 
 // ─── Premium avatars: whole other bodies, DRIFTS burns only ───────────────────
@@ -65,10 +58,6 @@ export interface PrestigeEntry {
   label: string;
   desc: string;
   action: "prestigeDye" | "prestigeAura" | "prestigeTitle" | "prestigeAvatar";
-  /** season-exclusive relics: ownership-gated + relic-tradeable like any
-   *  prestige aura, but NEVER sold at the Dyeworks or rolled on a wheel — only
-   *  a battle pass grants them. Filtered out of every buy/roll surface. */
-  passOnly?: boolean;
 }
 export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   drift: {
@@ -98,19 +87,6 @@ export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   driftmarked: {
     kind: "title", label: "Drift-Marked", action: "prestigeTitle",
     desc: "the corruption knows you on sight",
-  },
-  // Season 1 ("Ashfall") capstone relic. passOnly: only the pass grants it; it
-  // can never be bought at the Dyeworks or rolled on a wheel. After the season
-  // closes it survives only on the Relic stall, second-hand.
-  tarnished_chalice: {
-    kind: "aura", label: "The Tarnished Chalice", action: "prestigeAura", passOnly: true,
-    desc: "a prize from a contest the world forgot it ever held. the gold still glints under the rot",
-  },
-  // Season 1 free-track cloak (tier 25). passOnly: pass-granted only, never sold,
-  // but relic-tradeable + ownership-gated like any Drift-touched dye.
-  ashfall: {
-    kind: "dye", label: "Ashfall Cloak", action: "prestigeDye", passOnly: true,
-    desc: "ash-grey weave banded in old gold, the hem already going to drift",
   },
   // premium avatars: bound to the buyer, never on the relic stall
   ashbound: {
@@ -179,7 +155,6 @@ export const BURN_COSTS = {
   guildFound: 50_000,    // found a guild (also requires holding ≥ GUILD.foundHold)
   guildTerritory: 25_000, // stake a region banner (48h)
   guildUpkeep: 10_000,   // extend the banner another 48h
-  battlePass: 40_000,    // unlock the season's Premium track (cosmetics + gold/shards)
 } as const;
 /** integrity restored per reinforce burn (cap 100 — delay, never immunity) */
 export const REINFORCE_INTEGRITY = 25;
@@ -588,167 +563,6 @@ export const SEASON_NAMES = [
 
 export function seasonName(season: number): string {
   return SEASON_NAMES[(season - 1) % SEASON_NAMES.length];
-}
-
-// ─── The Drift Ledger: the seasonal battle pass ───────────────────────────────
-// A fifth server ledger (mirrors the daily-quest ledger): season XP from weekly
-// challenges + play events fills 50 tiers; a free track for everyone and a
-// Premium track unlocked by burning DRIFTS (BURN_COSTS.battlePass). Premium pays
-// exclusive cosmetics + gold/shards, NEVER DRIFTS (utility, not investment).
-// Shared truth: the server adjudicates, the HUD renders, the verify suite asserts.
-
-/** real-world season clock — deterministic, no DB row (like rollDailyQuestIds).
- *  Env overrides let the verify suite compress a "season" to seconds. */
-export const BP_EPOCH_MS = Number(
-  (typeof process !== "undefined" && process.env?.BATTLEPASS_EPOCH_MS) || 1_717_200_000_000,
-); // 2024-06-01T00:00:00Z anchor; season boundaries fall on the period grid
-export const BP_PERIOD_MS = Number(
-  (typeof process !== "undefined" && process.env?.BATTLEPASS_PERIOD_MS) || 28 * 86_400_000,
-); // 4 weeks
-export const BP_TIERS = 50;
-export const BP_XP_PER_TIER = 1000; // flat → 50,000 XP to max the track
-export const BP_WEEKS = 4;
-export const BP_CHALLENGES_PER_WEEK = 6;
-
-/** the current real-time season number (1-based) and ms left in it */
-export function passSeasonNow(now = Date.now()): number {
-  return Math.floor((now - BP_EPOCH_MS) / BP_PERIOD_MS) + 1;
-}
-export function passEndsIn(now = Date.now()): number {
-  const elapsed = (now - BP_EPOCH_MS) % BP_PERIOD_MS;
-  return BP_PERIOD_MS - elapsed;
-}
-/** which challenge week (0-based) we're in within the current season */
-export function passWeekNow(now = Date.now()): number {
-  const elapsed = (now - BP_EPOCH_MS) % BP_PERIOD_MS;
-  return Math.min(BP_WEEKS - 1, Math.floor(elapsed / (BP_PERIOD_MS / BP_WEEKS)));
-}
-export function passTierForXp(xp: number): number {
-  return Math.min(BP_TIERS, Math.floor(Math.max(0, xp) / BP_XP_PER_TIER));
-}
-export function passXpInTier(xp: number): number {
-  return Math.max(0, xp) % BP_XP_PER_TIER;
-}
-
-/** the pass listens for the same world events the quests do, plus the big
- *  server-adjudicated milestones (caravan/night/boss) and a quest-claim tick. */
-export type PassEvent =
-  | QuestEvent
-  | { type: "caravan" }
-  | { type: "night" }
-  | { type: "boss" }
-  | { type: "questClaim" };
-
-export interface PassChallengeDef {
-  id: string;
-  label: string;
-  icon: string;
-  target: number;
-  passXp: number;
-  matches: (e: PassEvent) => number;
-}
-
-/** weekly challenge pool — like QUEST_POOL but pays season XP, not gold.
- *  rollWeeklyChallenges picks BP_CHALLENGES_PER_WEEK deterministically. */
-export const BP_CHALLENGE_POOL: PassChallengeDef[] = [
-  { id: "bp_chop", label: "Fell 40 Driftwood", icon: "🪓", target: 40, passXp: 1500,
-    matches: (e) => (e.type === "gather" && e.item === "wood" ? 1 : 0) },
-  { id: "bp_mine", label: "Mine 35 Pale Stone", icon: "⛏️", target: 35, passXp: 1500,
-    matches: (e) => (e.type === "gather" && e.item === "stone" ? 1 : 0) },
-  { id: "bp_fish", label: "Land 35 Hollowfish", icon: "🎣", target: 35, passXp: 1500,
-    matches: (e) => (e.type === "gather" && e.item === "fish" ? 1 : 0) },
-  { id: "bp_cook", label: "Cook 25 Hollowfish", icon: "🔥", target: 25, passXp: 1800,
-    matches: (e) => (e.type === "cook" ? e.qty : 0) },
-  { id: "bp_slay", label: "Slay 20 Drift Beasts", icon: "⚔️", target: 20, passXp: 2000,
-    matches: (e) => (e.type === "kill" ? 1 : 0) },
-  { id: "bp_caravan", label: "Escort 3 Caravans home", icon: "🐂", target: 3, passXp: 2500,
-    matches: (e) => (e.type === "caravan" ? 1 : 0) },
-  { id: "bp_boss", label: "Bring down 2 Colossi", icon: "💀", target: 2, passXp: 2500,
-    matches: (e) => (e.type === "boss" ? 1 : 0) },
-  { id: "bp_night", label: "Survive the Long Night", icon: "🌑", target: 1, passXp: 2500,
-    matches: (e) => (e.type === "night" ? 1 : 0) },
-];
-
-/** deterministic weekly draw: the same season+week rolls the same challenges
- *  everywhere (server authoritative, client can mirror). LCG, like daily quests. */
-export function rollWeeklyChallenges(season: number, week: number): string[] {
-  const ids: string[] = [];
-  const pool = BP_CHALLENGE_POOL.map((c) => c.id);
-  let seed = (season * 1000 + week) >>> 0;
-  for (let i = 0; i < BP_CHALLENGES_PER_WEEK && pool.length > 0; i++) {
-    seed = (seed * 1103515245 + 12345) % 2147483648;
-    const idx = seed % pool.length;
-    ids.push(pool[idx]);
-    pool.splice(idx, 1);
-  }
-  return ids;
-}
-
-/** a single tier's payout on either track */
-export type PassReward =
-  | { kind: "gold"; amount: number }
-  | { kind: "shards"; amount: number }
-  | { kind: "cosmetic"; cosmetic: string; label: string };
-
-export interface PassTier {
-  free?: PassReward;
-  premium?: PassReward;
-}
-
-export interface PassSeasonDef {
-  name: string;
-  tiers: PassTier[]; // length BP_TIERS; index 0 = tier 1
-}
-
-/** Build a generic tier table for any season we haven't hand-authored: gold and
- *  shards scale up the track, with a richer Premium node every 5th tier. Keeps
- *  unconfigured future seasons valid without bespoke art/copy. */
-function genericPassTiers(): PassTier[] {
-  const tiers: PassTier[] = [];
-  for (let i = 0; i < BP_TIERS; i++) {
-    const t = i + 1;
-    const gold = 50 + Math.round((250 * i) / (BP_TIERS - 1)); // 50 → 300
-    const tier: PassTier = { free: { kind: "gold", amount: gold } };
-    // free shards every 5th tier instead of gold
-    if (t % 5 === 0) tier.free = { kind: "shards", amount: 3 + Math.floor(t / 10) };
-    // premium: richer gold most tiers, shards on the 5s, a milestone every 10th
-    tier.premium = { kind: "gold", amount: gold * 2 };
-    if (t % 5 === 0) tier.premium = { kind: "shards", amount: 6 + Math.floor(t / 10) };
-    tiers.push(tier);
-  }
-  return tiers;
-}
-
-/** Season 1 — "Ashfall". All cosmetic rewards are PRESTIGE_CATALOG keys (granted
- *  server-side via sim.prestige, so they're owned, render, and trade like any
- *  Drift-touched cosmetic). Cosmetics ride the Premium track; the free track is
- *  a steady gold/shard drip with a beefy shard finale. */
-function ashfallTiers(): PassTier[] {
-  const tiers = genericPassTiers();
-  // free-track finales — the season cloak at the halfway mark, gold at the top
-  tiers[24].free = { kind: "cosmetic", cosmetic: "ashfall", label: "Ashfall Cloak" };
-  tiers[49].free = { kind: "gold", amount: 1000 };
-  // premium cosmetic milestones (existing prestige auras — a 25k◆-each bundle)
-  tiers[14].premium = { kind: "cosmetic", cosmetic: "ashen_crown", label: "Ashen Crown" };
-  tiers[29].premium = { kind: "cosmetic", cosmetic: "ember_cinder", label: "Ember Cinder" };
-  tiers[39].premium = { kind: "cosmetic", cosmetic: "corruption_halo", label: "Corruption Halo" };
-  // the season-exclusive capstone relic — never sold, never rolled
-  tiers[49].premium = { kind: "cosmetic", cosmetic: "tarnished_chalice", label: "The Tarnished Chalice" };
-  return tiers;
-}
-
-export const BATTLE_PASS_SEASONS: Record<number, PassSeasonDef> = {
-  1: { name: "Ashfall", tiers: ashfallTiers() },
-};
-
-/** the season's table, falling back to a generic one named off SEASON_NAMES */
-export function passSeasonDef(season: number): PassSeasonDef {
-  return (
-    BATTLE_PASS_SEASONS[season] ?? {
-      name: seasonName(season),
-      tiers: genericPassTiers(),
-    }
-  );
 }
 
 // ─── Phase 6: server-side gold ledger ─────────────────────────────────────────
