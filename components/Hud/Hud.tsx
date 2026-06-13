@@ -37,6 +37,7 @@ import {
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
+import { SpeakerGlyph } from "@/components/BgMusic";
 import { bus } from "@/game/state/bus";
 import { useViewport } from "@/game/state/viewport";
 import { Component, type ReactNode } from "react";
@@ -215,7 +216,10 @@ function MobileHud() {
           </a>
           <Trap label="Vitals"><Vitals /></Trap>
         </div>
-        <Trap label="OnlineBadge"><OnlineBadge /></Trap>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <Trap label="OnlineBadge"><OnlineBadge /></Trap>
+          <Trap label="SoundToggle"><SoundToggle /></Trap>
+        </div>
       </div>
 
       {/* centered overlays — unchanged, they self-position */}
@@ -301,6 +305,45 @@ function YouTabButton() {
   const setOpenDock = useGame((s) => s.setOpenDock);
   return (
     <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "you")} iconLeft={<Icon name="heart" size={16} glow={open} />}>You</Button>
+  );
+}
+
+/** Quick, always-visible mute for the mobile HUD. Desktop keeps its toggle in
+ *  the You panel; on a phone that's two taps + a scroll away, so this mirrors it
+ *  within thumb reach in the top-right. Same audio rail (setAudioEnabled). */
+function SoundToggle() {
+  const [sound, setSound] = useState(true);
+  useEffect(() => setSound(audioEnabled()), []);
+  return (
+    <button
+      type="button"
+      className="pointer-events-auto"
+      aria-label={sound ? "Mute the realm" : "Hear the realm"}
+      title={sound ? "Mute the realm" : "Hear the realm"}
+      aria-pressed={!sound}
+      onClick={() => {
+        const next = !sound;
+        setSound(next);
+        setAudioEnabled(next);
+        if (next) initAudio();
+      }}
+      style={{
+        width: 38,
+        height: 38,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
+        cursor: "pointer",
+        color: sound ? "var(--drift-gold, #e7c873)" : "var(--text-secondary, #9a8fb0)",
+        background: "rgba(10, 8, 16, 0.86)",
+        border: "1px solid rgba(124, 58, 237, 0.45)",
+        borderRadius: 8,
+        lineHeight: 0,
+      }}
+    >
+      <SpeakerGlyph on={sound} />
+    </button>
   );
 }
 

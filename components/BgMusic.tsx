@@ -89,7 +89,7 @@ export default function BgMusic() {
 }
 
 // crisp pixel-style speaker (sound waves when on, a slash when off)
-function SpeakerGlyph({ on }: { on: boolean }) {
+export function SpeakerGlyph({ on }: { on: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" shapeRendering="crispEdges" aria-hidden="true">
       <path d="M2 6h3l4-3v12l-4-3H2z" fill="currentColor" />

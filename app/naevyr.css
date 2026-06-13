@@ -494,6 +494,11 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
   padding: 12px max(12px, var(--safe-left)) 16px max(12px, var(--safe-right));
   display: flex;
   justify-content: center;
+  /* flex-start (not the default stretch): a tall panel must keep its natural
+     height and overflow the sheet so overflow-y:auto can scroll it. Stretch
+     pins the child to the sheet height, so nothing overflows and the bottom
+     (Guild, Sound) is clipped with no way to scroll down. */
+  align-items: flex-start;
   animation: sheet-rise var(--dur-mid, 180ms) cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 /* the reused Panel bodies carry fixed inline widths (232–360px); on a phone we
