@@ -147,7 +147,7 @@ export class Drift {
           const t = world.tile(nx, ny);
           if (
             (t === "grass" || t === "dirt") &&
-            this.rng() < 0.18 &&
+            this.rng() < 0.12 &&
             !this.isProtected?.(nx, ny)
           ) {
             additions.push({ x: nx, y: ny });

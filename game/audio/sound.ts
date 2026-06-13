@@ -15,6 +15,13 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let ambientNodes: AudioNode[] = [];
 let padTimer: ReturnType<typeof setTimeout> | null = null;
+let bedAudio: HTMLAudioElement | null = null;
+
+// the realm score (a real recording, served from /public). Kept moderate via a
+// dedicated bed gain and routed through `master`, so the in-game sound toggle
+// (setAudioEnabled) still mutes it like every other sound.
+const BED_SRC = "/audio/naevyr-bg.mp3";
+const BED_GAIN = 0.3; // not too loud — it sits under the SFX
 
 export function audioEnabled(): boolean {
   if (typeof window === "undefined") return false;
@@ -181,62 +188,40 @@ export function play(name: SfxName) {
   }
 }
 
-// ─── ambient bed: low drone + sparse generative pad ───────────────────────────
+// ─── ambient bed: the realm score (looping recording) ─────────────────────────
 
 function startAmbient() {
-  if (!ctx || !master) return;
+  if (!ctx || !master || bedAudio) return;
 
   const bed = ctx.createGain();
-  bed.gain.value = 0.05;
+  bed.gain.value = BED_GAIN;
   bed.connect(master);
 
-  // two detuned sines breathe against each other
-  for (const f of [55, 55.7]) {
-    const o = ctx.createOscillator();
-    o.type = "sine";
-    o.frequency.value = f;
-    const g = ctx.createGain();
-    g.gain.value = 0.5;
-    o.connect(g).connect(bed);
-    o.start();
-    ambientNodes.push(o);
+  try {
+    const el = new Audio(BED_SRC);
+    el.loop = true;
+    el.crossOrigin = "anonymous";
+    el.preload = "auto";
+    bedAudio = el;
+    // route through the WebAudio graph so master mute reaches it too
+    const srcNode = ctx.createMediaElementSource(el);
+    srcNode.connect(bed);
+    ambientNodes.push(srcNode);
+    void el.play().catch(() => {
+      /* a later gesture will retry via initAudio idempotency */
+    });
+  } catch {
+    /* MediaElementSource unsupported · the realm simply plays no bed */
   }
-  // slow swell LFO on the bed
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.05;
-  const lfoG = ctx.createGain();
-  lfoG.gain.value = 0.02;
-  lfo.connect(lfoG).connect(bed.gain);
-  lfo.start();
-  ambientNodes.push(lfo);
-
-  // sparse eerie pad notes, minor pentatonic, every 5-11s
-  const PENTA = [110, 130.8, 146.8, 164.8, 196];
-  const padNote = () => {
-    if (!ctx || !master || !audioEnabled()) {
-      padTimer = setTimeout(padNote, 6000);
-      return;
-    }
-    const f = PENTA[(Math.random() * PENTA.length) | 0] * (Math.random() < 0.3 ? 2 : 1);
-    const t0 = ctx.currentTime;
-    const o = ctx.createOscillator();
-    o.type = "triangle";
-    o.frequency.value = f;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.04, t0 + 1.6);
-    g.gain.linearRampToValueAtTime(0, t0 + 4);
-    o.connect(g).connect(master!);
-    o.start(t0);
-    o.stop(t0 + 4.2);
-    padTimer = setTimeout(padNote, 5000 + Math.random() * 6000);
-  };
-  padTimer = setTimeout(padNote, 3000);
 }
 
 export function destroyAudio() {
   if (padTimer) clearTimeout(padTimer);
   padTimer = null;
+  if (bedAudio) {
+    try { bedAudio.pause(); } catch { /* ignore */ }
+    bedAudio = null;
+  }
   ambientNodes.forEach((n) => {
     try { (n as OscillatorNode).stop(); } catch { /* already stopped */ }
   });

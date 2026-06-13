@@ -144,7 +144,10 @@ const CLEANSE_BURN_POT = 150; // gold-equivalent added to the pot per cleanse bu
 // shared across everyone online, on a timer. Hold it → dawn burns corruption
 // back to DAWN_TARGET_PCT + rewards. Fail (or hit the failsafe) → realm reset.
 // Env overrides exist so the verify script can compress the timeline.
-const SEASON_MS            = Number(process.env.SEASON_MS ?? 45_000);
+// a season is a slow decay tick: 30 min in production. (The old 45s default
+// raced the realm to full corruption in hours — season 221, an all-purple map.)
+// Verify scripts pass SEASON_MS to compress the timeline.
+const SEASON_MS            = Number(process.env.SEASON_MS ?? 1_800_000);
 const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 90);
 const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
@@ -497,7 +500,15 @@ export class DriftRoom extends Room<DriftRoomState> {
     // than blocking boot. Terrain is deterministic (fixed seed), so a saved
     // corrupt index maps to the same land tile.
     try {
-      const saved = await loadRealm();
+      // one-shot wipe: set REALM_RESET=1 to boot a fresh, un-corrupted realm
+      // (clears the persisted purple map). Remove the env var after one deploy.
+      if (process.env.REALM_RESET === "1") {
+        this.state.season = 1;
+        this.state.driftPct = 0;
+        this.persistRealm();
+        console.log("REALM_RESET=1 → started a fresh, un-corrupted realm");
+      }
+      const saved = process.env.REALM_RESET === "1" ? null : await loadRealm();
       if (saved && saved.corrupt.length > 0) {
         for (const i of saved.corrupt) {
           if (i >= 0 && i < this.world.tiles.length && this.world.tiles[i] !== "water") {
