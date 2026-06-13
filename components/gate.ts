@@ -3,6 +3,18 @@
 import { useEffect, useState } from "react";
 import { getGateWallet, setGateWallet, setGateProof, type GateProof } from "@/game/state/persistence";
 import { gateMessage } from "@/game/types";
+import { viewport } from "@/game/state/viewport";
+
+/** Phantom universal link: opens the current page inside Phantom's in-app
+ *  browser, where window.solana is injected. Mobile browsers (Safari/Chrome)
+ *  have no wallet to talk to otherwise, so a bare connect() silently fails. */
+function openInPhantom(): boolean {
+  if (typeof window === "undefined") return false;
+  const url = encodeURIComponent(window.location.href);
+  const ref = encodeURIComponent(window.location.origin);
+  window.location.href = `https://phantom.app/ul/browse/${url}?ref=${ref}`;
+  return true;
+}
 
 // Shared landing-site plumbing: the game server's HTTP face (/gate,
 // /leaderboard) and the browser-wallet connect used by the nav and the door.
@@ -121,7 +133,12 @@ export function useGate() {
     setBusy(true);
     try {
       const provider = detectWallet();
-      if (!provider?.connect) return null;
+      if (!provider?.connect) {
+        // no injected wallet on a phone → bounce into Phantom's in-app browser
+        // (a desktop without an extension just gets nothing, as before)
+        if (viewport.isTouch) openInPhantom();
+        return null;
+      }
       const res = await provider.connect();
       const address = res?.publicKey?.toString() ?? provider.publicKey?.toString();
       if (!address) return null;
