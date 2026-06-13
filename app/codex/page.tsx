@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LandingShell, { PageFrame } from "@/components/LandingShell";
+import { useViewport } from "@/game/state/viewport";
 import {
   INVENTORY_ORDER, ITEM_META, RECIPES, DRINK_CATALOG, AURA_CATALOG,
   PET_CATALOG, PROP_CATALOG, DYE_PRICE, EYE_PRICE, SPIN_COST, CLAIM_COST,
@@ -23,10 +24,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "rites", label: "Costs & Rites" },
 ];
 
-const ROW: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, padding: "9px 14px" };
-const NAME: React.CSSProperties = { font: "600 13px/1.3 var(--font-ui)", color: "var(--text-primary)", width: 170, flexShrink: 0 };
-const DESC: React.CSSProperties = { flex: 1, font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" };
-const VAL: React.CSSProperties = { font: "600 12.5px/1 var(--font-num)", color: "var(--drift-gold)", flexShrink: 0 };
 
 function Rows({ children }: { children: React.ReactNode }) {
   return <div style={{ display: "flex", flexDirection: "column" }}>{children}</div>;
@@ -49,6 +46,15 @@ const BEASTS = [
 
 export default function IndexPage() {
   const [tab, setTab] = useState<Tab>("items");
+  const isPhone = useViewport().isPhone;
+  // phone: the name/desc/value columns won't fit a 170px+ flex row, so the row
+  // stacks into a readable card instead of squishing the description to a sliver
+  const ROW: React.CSSProperties = isPhone
+    ? { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3, padding: "10px 14px" }
+    : { display: "flex", alignItems: "baseline", gap: 12, padding: "9px 14px" };
+  const NAME: React.CSSProperties = { font: "600 13px/1.3 var(--font-ui)", color: "var(--text-primary)", width: isPhone ? "auto" : 170, flexShrink: 0 };
+  const DESC: React.CSSProperties = { flex: isPhone ? undefined : 1, font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" };
+  const VAL: React.CSSProperties = { font: "600 12.5px/1 var(--font-num)", color: "var(--drift-gold)", flexShrink: 0 };
   const odd = (i: number): React.CSSProperties => ({
     background: i % 2 ? "transparent" : "rgba(124, 58, 237, 0.05)",
   });

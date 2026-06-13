@@ -158,7 +158,7 @@ export default function DocsPage() {
   const groups = [...new Set(SECTIONS.map((s) => s.group))];
   return (
     <LandingShell>
-      <div style={{ display: "flex", flexDirection: isPhone ? "column" : "row", maxWidth: 1160, margin: "0 auto", padding: "28px 22px", gap: 28, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: isPhone ? "column" : "row", maxWidth: 1160, margin: "0 auto", padding: "28px 22px", gap: 28, alignItems: isPhone ? "stretch" : "flex-start" }}>
         {/* ---- sidebar ---- */}
         <nav
           style={{

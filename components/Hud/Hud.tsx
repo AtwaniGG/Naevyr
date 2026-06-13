@@ -185,9 +185,19 @@ function MobileHud() {
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />
 
-      {/* top: compact vitals + online state, clear of the notch */}
+      {/* top: wordmark (leave the realm) + compact vitals, then online state */}
       <div className="drift-mobile-top">
-        <Vitals />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+          <a
+            href="/"
+            title="Leave the realm · back to the landing"
+            className="drift-wordmark drift-hud-text pointer-events-auto"
+            style={{ fontSize: 18, lineHeight: 1, textDecoration: "none", textShadow: "none" }}
+          >
+            NAEVYR
+          </a>
+          <Vitals />
+        </div>
         <OnlineBadge />
       </div>
 
@@ -613,8 +623,10 @@ function KeeperDialogue() {
       opts.push(back());
     }
   } else if (openShop === "vault") {
-    if (!s.online) {
-      info = "The Vault only opens in the shared world.";
+    if (!s.online || s.guest) {
+      info = s.guest
+        ? "The Vault is the Realm's. Connect a wallet to open an account."
+        : "The Vault only opens in the shared world.";
     } else {
       info = `In the vault ${s.banked}g · carried ${s.gold}g · withdrawals pay 2%`;
       const dep = (a: number) => {
@@ -691,8 +703,10 @@ function KeeperDialogue() {
       }
     }
   } else if (openShop === "wheel") {
-    if (!s.online) {
-      info = "The Wheel only spins in the shared world.";
+    if (!s.online || s.guest) {
+      info = s.guest
+        ? "The Wheel turns for the Realm only. Connect a wallet to spin."
+        : "The Wheel only spins in the shared world.";
     } else {
       info = `Gold, shards, or nothing. Jackpot 500g. Results land in your log.`;
       opts.push({
@@ -725,8 +739,10 @@ function KeeperDialogue() {
       }
     }
   } else if (openShop === "furnisher") {
-    if (!s.online) {
-      info = "The Furnisher only trades in the shared world.";
+    if (!s.online || s.guest) {
+      info = s.guest
+        ? "The Furnisher trades with the Realm only. Connect a wallet to deal."
+        : "The Furnisher only trades in the shared world.";
     } else {
       (Object.keys(PROP_CATALOG) as PropKey[]).forEach((k) => {
         opts.push({
@@ -906,7 +922,7 @@ function KeeperDialogue() {
 
 function ShrinePanel() {
   const s = useGame();
-  if (!s.online) return <OfflineNote what="The Shrine" />;
+  if (!s.online || s.guest) return <OfflineNote what="The Shrine" guest={s.guest} />;
   const donate = (amount: number) => {
     const a = Math.min(amount, s.gold);
     if (a <= 0) return;
@@ -952,7 +968,7 @@ function PitPanel() {
   const [wager, setWager] = useState(50);
   const [dWager, setDWager] = useState<number>(DUEL_DRIFTS.min);
   const [mode, setMode] = useState<"gold" | "drifts">("gold");
-  if (!s.online) return <OfflineNote what="The Pit" />;
+  if (!s.online || s.guest) return <OfflineNote what="The Pit" guest={s.guest} />;
   const others = s.roster.filter((r) => !r.self);
   const q = s.pitQueue;
   const qDrifts = q?.currency === "drifts";
@@ -1082,10 +1098,12 @@ function PitPanel() {
   );
 }
 
-function OfflineNote({ what }: { what: string }) {
+function OfflineNote({ what, guest }: { what: string; guest?: boolean }) {
   return (
     <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-muted)" }}>
-      {what} only opens in the shared world. Start the game server and rejoin.
+      {guest
+        ? `${what} belongs to the Realm. Connect a wallet to leave the Guest Drift.`
+        : `${what} only opens in the shared world. Start the game server and rejoin.`}
     </div>
   );
 }
@@ -1367,7 +1385,8 @@ function MarketDock() {
   const open = useGame((s) => s.openDock) === "market";
   const setOpenDock = useGame((s) => s.setOpenDock);
   const setOpen = (next: boolean) => setOpenDock(next ? "market" : null);
-  const online = useGame((s) => s.online);
+  const online = useGame((s) => s.online) && !useGame((s) => s.guest);
+  const guest = useGame((s) => s.guest);
   const listings = useGame((s) => s.listings);
   const inventory = useGame((s) => s.inventory);
   const gold = useGame((s) => s.gold);
@@ -1396,7 +1415,9 @@ function MarketDock() {
         <Panel kicker="The Exchange" title="Market" style={{ width: 312 }}>
             {!online && (
               <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--text-muted)" }}>
-                The market opens when you're in the shared world.
+                {guest
+                  ? "The market is the Realm's. Connect a wallet to trade with other wanderers."
+                  : "The market opens when you're in the shared world."}
               </div>
             )}
             {online && (
@@ -1605,19 +1626,22 @@ function RelicStall() {
 /** stake a 3×3 land claim (online only; gold cost, eroded by seasons) */
 function StakeButton() {
   const online = useGame((s) => s.online);
+  const guest = useGame((s) => s.guest);
   const claimMode = useGame((s) => s.claimMode);
   const myClaims = useGame((s) => s.myClaims);
   const gold = useGame((s) => s.gold);
-  const blocked = !online || myClaims >= CLAIM_MAX || (!claimMode && gold < CLAIM_COST);
+  const blocked = !online || guest || myClaims >= CLAIM_MAX || (!claimMode && gold < CLAIM_COST);
   return (
     <Button
       variant={claimMode ? "primary" : "ghost"}
       size="md"
-      onClick={() => bus.emit("stake", true)}
+      onClick={() => { if (guest) return; bus.emit("stake", true); }}
       iconLeft={<Icon name="sigil" size={16} glow={claimMode} />}
       style={blocked && !claimMode ? { opacity: 0.55 } : undefined}
       title={
-        !online
+        guest
+          ? "Land is the Realm's. Connect a wallet to claim ground"
+          : !online
           ? "Join the shared world to stake land"
           : myClaims >= CLAIM_MAX
             ? `You hold the maximum of ${CLAIM_MAX} claims`
@@ -1865,6 +1889,7 @@ function IdentityDock() {
  *  territory + upkeep are the recurring sink. Region perks are server-side. */
 function GuildSection() {
   const online = useGame((s) => s.online);
+  const guest = useGame((s) => s.guest);
   const wallet = useGame((s) => s.wallet);
   const tokenBalance = useGame((s) => s.tokenBalance);
   const guilds = useGame((s) => s.guilds);
@@ -1873,10 +1898,12 @@ function GuildSection() {
   const [tag, setTag] = useState("");
   const [region, setRegion] = useState<string>(GUILD.regions[0]);
 
-  if (!online) {
+  if (!online || guest) {
     return (
       <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginBottom: 8 }}>
-        Banners only rise in the shared world.
+        {guest
+          ? "Guilds belong to the Realm. Connect a wallet to raise a banner."
+          : "Banners only rise in the shared world."}
       </div>
     );
   }
@@ -1976,6 +2003,7 @@ function GuildSection() {
 function WalletRow() {
   const wallet = useGame((s) => s.wallet);
   const online = useGame((s) => s.online);
+  const guest = useGame((s) => s.guest);
   const holder = useGame((s) => s.holder);
   const tokenBalance = useGame((s) => s.tokenBalance);
   return (
@@ -2006,9 +2034,9 @@ function WalletRow() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => bus.emit("walletLink", true)}
-            style={!online ? { opacity: 0.5 } : undefined}
-            title={online ? "Sign a message to bind this wanderer to your wallet" : "Join the shared world first"}
+            onClick={() => { if (guest) return; bus.emit("walletLink", true); }}
+            style={!online || guest ? { opacity: 0.5 } : undefined}
+            title={guest ? "Guests can't link a wallet. Leave the Guest Drift and enter the Realm" : online ? "Sign a message to bind this wanderer to your wallet" : "Join the shared world first"}
           >
             Link wallet
           </Button>
