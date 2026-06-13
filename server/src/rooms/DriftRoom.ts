@@ -19,6 +19,8 @@ import {
   findPlayerByWallet,
   loadShrinePot,
   setShrinePot,
+  loadRealm,
+  saveRealm,
   loadProps,
   insertProp,
   deletePropsForClaim,
@@ -375,6 +377,11 @@ interface PlayerSim {
 
 export class DriftRoom extends Room<DriftRoomState> {
   maxClients = 32;
+  // the realm is a persistent living world: it must NOT dispose when the last
+  // wanderer leaves, or the Drift's accumulated corruption resets on the next
+  // join. The corruption + season also persist to the DB (restored in onCreate)
+  // so a server restart doesn't wipe it either.
+  autoDispose = false;
 
   private world!: World;
   private drift!: Drift;
@@ -433,6 +440,25 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.addClaim(row.id, row.token, row.x, row.y, row.integrity, owner.name);
     }
     this.wireDrift();
+
+    // restore the living world: re-apply the Drift's accumulated corruption +
+    // season. Fully defensive — any failure falls back to a fresh realm rather
+    // than blocking boot. Terrain is deterministic (fixed seed), so a saved
+    // corrupt index maps to the same land tile.
+    try {
+      const saved = await loadRealm();
+      if (saved && saved.corrupt.length > 0) {
+        for (const i of saved.corrupt) {
+          if (i >= 0 && i < this.world.tiles.length && this.world.tiles[i] !== "water") {
+            this.world.tiles[i] = "corrupt";
+          }
+        }
+        this.state.season = Math.max(1, Math.round(saved.season));
+        this.state.driftPct = this.corruptionPct();
+      }
+    } catch (e) {
+      console.error("realm restore failed, starting fresh:", (e as Error).message);
+    }
 
     // persisted marketplace listings
     for (const row of await loadListings()) {
@@ -2165,6 +2191,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const pct = this.corruptionPct();
       this.state.driftPct = pct;
       this.broadcast("season", { season: this.state.season, driftPct: pct });
+      this.persistRealm(); // the accumulated corruption survives empty + restart
       // a cleansed realm may face the Long Night again
       if (pct < 50) this.nightDone = false;
       if (pct >= RESET_FAILSAFE_PCT) return void this.realmReset();
@@ -2243,6 +2270,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
     this.syncTiles();
     this.state.driftPct = this.corruptionPct();
+    this.persistRealm(); // dawn rolled the corruption back — save the cleansed world
   }
 
   /** the Drift takes the realm: fresh world, season 1; banked/cosmetic/wallet persist */
@@ -2291,6 +2319,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       sim.action = "idle";
     }
     this.broadcast("realmReset", { season: this.state.season });
+    this.persistRealm(); // the fresh (uncorrupted) realm is the new saved truth
   }
 
   // ---- Phase 6 hardening: the rate limiter -----------------------------------------
@@ -3135,6 +3164,20 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (t === "corrupt") corrupt++;
     }
     return land > 0 ? Math.round((corrupt / land) * 100) : 0;
+  }
+
+  /** persist the living world (corrupt tile indices + season) so it survives an
+   *  empty room and a server restart. Fire-and-forget; failures never block. */
+  private persistRealm() {
+    const corrupt: number[] = [];
+    for (let i = 0; i < this.world.tiles.length; i++) {
+      if (this.world.tiles[i] === "corrupt") corrupt.push(i);
+    }
+    void saveRealm({
+      season: this.state.season,
+      driftPct: this.state.driftPct,
+      corrupt,
+    }).catch(() => {});
   }
 
   // ---- misc --------------------------------------------------------------------

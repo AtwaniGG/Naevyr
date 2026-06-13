@@ -119,6 +119,15 @@ export const shrine = pgTable("shrine", {
   pot: real("pot").notNull().default(0),
 });
 
+// The living world: one row (id=1) holding the Drift's accumulated corruption
+// (tile indices) + season so the realm survives an empty room AND a restart.
+export const realm = pgTable("realm", {
+  id: serial("id").primaryKey(),
+  season: real("season").notNull().default(1),
+  driftPct: real("drift_pct").notNull().default(0),
+  corrupt: jsonb("corrupt").$type<number[]>().notNull().default([]),
+});
+
 // Guilds: founded with a DRIFTS burn; territory = a region banner kept alive
 // by recurring upkeep burns (the structural social sink).
 export const guilds = pgTable("guilds", {

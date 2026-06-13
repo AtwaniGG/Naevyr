@@ -11,7 +11,7 @@ import {
   claims, ClaimRow,
   listings, ListingRow,
   props, PropRow,
-  shrine, burns,
+  shrine, realm, burns,
   guilds, GuildRow,
   relics, RelicRow,
   exchangeLog,
@@ -149,6 +149,18 @@ export async function initDb(): Promise<Db> {
   `);
   await db.execute(sql`
     INSERT INTO shrine (id, pot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING
+  `);
+  // the living world: corruption + season survive an empty realm AND a restart
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS realm (
+      id serial PRIMARY KEY,
+      season real NOT NULL DEFAULT 1,
+      drift_pct real NOT NULL DEFAULT 0,
+      corrupt jsonb NOT NULL DEFAULT '[]'::jsonb
+    )
+  `);
+  await db.execute(sql`
+    INSERT INTO realm (id, season, drift_pct, corrupt) VALUES (1, 1, 0, '[]'::jsonb) ON CONFLICT (id) DO NOTHING
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS listings (
@@ -466,6 +478,27 @@ export async function loadShrinePot(): Promise<number> {
 
 export async function setShrinePot(pot: number) {
   await db.update(shrine).set({ pot }).where(eq(shrine.id, 1));
+}
+
+// ---- the living world: corruption + season persistence ---------------------------
+
+export interface RealmState { season: number; driftPct: number; corrupt: number[] }
+
+export async function loadRealm(): Promise<RealmState | null> {
+  const rows = await db.select().from(realm).where(eq(realm.id, 1));
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    season: r.season ?? 1,
+    driftPct: r.driftPct ?? 0,
+    corrupt: Array.isArray(r.corrupt) ? r.corrupt : [],
+  };
+}
+
+export async function saveRealm(state: RealmState) {
+  await db.update(realm)
+    .set({ season: state.season, driftPct: state.driftPct, corrupt: state.corrupt })
+    .where(eq(realm.id, 1));
 }
 
 // ---- claim props -----------------------------------------------------------------
