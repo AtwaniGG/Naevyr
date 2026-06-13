@@ -44,13 +44,19 @@ import WheelOverlay from "@/components/Hud/WheelOverlay";
 
 // Graceful HUD boundary: if any single panel throws while rendering, it drops
 // out silently instead of blanking the whole HUD (the game stays playable).
-class ErrorTrap extends Component<{ label: string; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
+class ErrorTrap extends Component<{ label: string; children: ReactNode }, { msg: string | null }> {
+  state = { msg: null as string | null };
+  static getDerivedStateFromError(e: unknown) {
+    return { msg: (e as Error)?.message ?? String(e) };
   }
   render() {
-    if (this.state.failed) return null;
+    if (this.state.msg) {
+      return (
+        <div className="pointer-events-auto" style={{ position: "fixed", top: 72, left: 8, right: 8, zIndex: 99998, background: "#1a0c0c", color: "#ff6b6b", font: "600 11px/1.4 ui-monospace", padding: 10, userSelect: "text", WebkitUserSelect: "text", whiteSpace: "pre-wrap" }}>
+          {`crashed in: ${this.props.label}\n${this.state.msg}`}
+        </div>
+      );
+    }
     return this.props.children;
   }
 }
@@ -1413,8 +1419,12 @@ function MarketDock() {
   const [sellPrice, setSellPrice] = useState(10);
 
   const carried = INVENTORY_ORDER.filter((k) => (inventory[k] ?? 0) > 0);
-  const mine = listings.filter((l) => l.mine);
-  const offers = listings.filter((l) => !l.mine);
+  // only render listings whose item this client recognizes — a listing for an
+  // item the (older) client doesn't know would crash the row render
+  const known = (l: { item?: string } | null | undefined) =>
+    !!l && typeof l.item === "string" && !!ITEM_META[l.item as ItemKey];
+  const mine = listings.filter((l) => known(l) && l.mine);
+  const offers = listings.filter((l) => known(l) && !l.mine);
   const isPhone = useViewport().isPhone;
 
   return (
