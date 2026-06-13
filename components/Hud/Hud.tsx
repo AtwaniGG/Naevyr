@@ -39,7 +39,32 @@ import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
 import { useViewport } from "@/game/state/viewport";
+import { Component, type ReactNode } from "react";
 import WheelOverlay from "@/components/Hud/WheelOverlay";
+
+// TEMP DIAGNOSTIC: labeled boundary so the mobile crash names the exact section
+// that threw (the production stack is minified). Remove after diagnosis.
+class ErrorTrap extends Component<{ label: string; children: ReactNode }, { msg: string | null }> {
+  state = { msg: null as string | null };
+  static getDerivedStateFromError(e: unknown) {
+    return { msg: (e as Error)?.message ?? String(e) };
+  }
+  render() {
+    if (this.state.msg) {
+      return (
+        <div style={{ position: "fixed", top: 70, left: 8, right: 8, zIndex: 99998, background: "#1a0c0c", color: "#ff6b6b", font: "600 12px/1.5 ui-monospace", padding: 12, userSelect: "text", WebkitUserSelect: "text" }}>
+          crashed in: {this.props.label}
+          {"\n"}
+          {this.state.msg}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+const Trap = ({ label, children }: { label: string; children: ReactNode }) => (
+  <ErrorTrap label={label}>{children}</ErrorTrap>
+);
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
 import {
   ActivityLog,
@@ -196,26 +221,26 @@ function MobileHud() {
           >
             NAEVYR
           </a>
-          <Vitals />
+          <Trap label="Vitals"><Vitals /></Trap>
         </div>
-        <OnlineBadge />
+        <Trap label="OnlineBadge"><OnlineBadge /></Trap>
       </div>
 
       {/* centered overlays — unchanged, they self-position */}
-      <NightBanner />
-      <TutorialBanner />
-      <KeeperDialogue />
-      <ShopModal />
-      <DuelOverlay />
-      <ChallengePrompt />
-      <WheelOverlay />
+      <Trap label="NightBanner"><NightBanner /></Trap>
+      <Trap label="TutorialBanner"><TutorialBanner /></Trap>
+      <Trap label="KeeperDialogue"><KeeperDialogue /></Trap>
+      <Trap label="ShopModal"><ShopModal /></Trap>
+      <Trap label="DuelOverlay"><DuelOverlay /></Trap>
+      <Trap label="ChallengePrompt"><ChallengePrompt /></Trap>
+      <Trap label="WheelOverlay"><WheelOverlay /></Trap>
 
       {/* dock + satchel sheets (button suppressed on phone — the bar toggles
           them; each renders only its bottom sheet when open) */}
-      <ForgeDock />
-      <MarketDock />
-      <IdentityDock />
-      <Satchel />
+      <Trap label="ForgeDock"><ForgeDock /></Trap>
+      <Trap label="MarketDock"><MarketDock /></Trap>
+      <Trap label="IdentityDock"><IdentityDock /></Trap>
+      <Trap label="Satchel"><Satchel /></Trap>
 
       {/* local-tab sheet (quests / skills / chat / map) */}
       {tab && <MobileSheet onClose={() => setTab(null)}>{tabPanel[tab]}</MobileSheet>}
@@ -231,7 +256,7 @@ function MobileHud() {
           zIndex: 21,
         }}
       >
-        <HotbarDock />
+        <Trap label="HotbarDock"><HotbarDock /></Trap>
       </div>
 
       {/* bottom navigation */}
@@ -251,8 +276,8 @@ function MobileHud() {
         <ForgeTabButton />
         <MarketTabButton />
         <YouTabButton />
-        <StakeButton />
-        <ReinforceButton />
+        <Trap label="StakeButton"><StakeButton /></Trap>
+        <Trap label="ReinforceButton"><ReinforceButton /></Trap>
         <Button variant={tab === "quests" ? "primary" : "ghost"} size="md" onClick={() => openTab("quests")} iconLeft={<Icon name="bolt" size={16} />}>Quests</Button>
         <Button variant={tab === "skills" ? "primary" : "ghost"} size="md" onClick={() => openTab("skills")} iconLeft={<Icon name="axe" size={16} />}>Skills</Button>
         <Button variant={tab === "chat" ? "primary" : "ghost"} size="md" onClick={() => openTab("chat")} iconLeft={<Icon name="drift" size={16} />}>Chat</Button>
