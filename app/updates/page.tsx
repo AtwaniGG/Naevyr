@@ -5,7 +5,17 @@ import LandingShell, { PageFrame } from "@/components/LandingShell";
 // The chronicle: every era of the realm, newest first.
 // Cleared for launch — entries return as the realm grows.
 
-const UPDATES: { tag: string; title: string; text: string }[] = [];
+const UPDATES: { tag: string; title: string; text: string }[] = [
+  {
+    tag: "The Pit",
+    title: "Wager DRIFTS on the sand",
+    text:
+      "The arena takes coin or DRIFTS now. Stake at least 20,000 DRIFTS, meet a " +
+      "challenger in the ring, and the victor walks away with nine tenths of the " +
+      "pot. The house keeps a tithe. Both stakes are held on-chain until one of " +
+      "you falls. A draw returns them whole, and a stake left unanswered comes back to you.",
+  },
+];
 
 export default function UpdatesPage() {
   return (

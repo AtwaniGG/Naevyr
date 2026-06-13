@@ -12,7 +12,10 @@ import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client, Room } from "colyseus.js";
-import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  Connection, Keypair, PublicKey, Transaction,
+  SystemProgram, LAMPORTS_PER_SOL, sendAndConfirmTransaction,
+} from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { walletLinkMessage, EXCHANGE, RELIC_MARKET } from "../game/types";
 
@@ -106,6 +109,23 @@ async function main() {
   mintTo(kpB.publicKey.toBase58(), "20000");
   mintTo(kpC.publicKey.toBase58(), "5000");
   mintTo(escrow.publicKey.toBase58(), "10000"); // the sell-side pool
+
+  // burns are single-signer now (the player signs + pays their own fee), and
+  // exBuy/relic legs are player-signed too — fund the signing wallets with a
+  // little devnet SOL from the authority (the one SOL-funded account). Escrow
+  // never signs from the client, so it needs none.
+  {
+    const conn0 = new Connection(RPC, "confirmed");
+    const AUTH_FILE = resolve(SERVER_DIR, ".data/devnet-authority.json");
+    const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(AUTH_FILE, "utf8"))));
+    for (const to of [kpA.publicKey, kpB.publicKey, kpC.publicKey]) {
+      const tx = new Transaction().add(SystemProgram.transfer({
+        fromPubkey: authority.publicKey, toPubkey: to, lamports: 0.05 * LAMPORTS_PER_SOL,
+      }));
+      await sendAndConfirmTransaction(conn0, tx, [authority]);
+    }
+    console.log("funded the signing wallets with devnet SOL for fees");
+  }
 
   const server = spawn("./node_modules/.bin/tsx", ["src/index.ts"], {
     cwd: SERVER_DIR,
@@ -308,8 +328,65 @@ async function main() {
           `${balBefore} → ${balAfter}`);
       }
 
-      // 7b) two-buyer relic race: B and C both hold valid quotes + payments for
-      // ONE listing; the relicSettling lock must settle it exactly once
+      // 7a-ii) CROSS-WALLET pool drain (#1): two DIFFERENT wallets sell at once
+      // against a pool that only covers ONE payout. The per-token exTrading lock
+      // does NOT serialize them — only the global escrow lock + a FRESH balance
+      // read can stop both from passing the solvency check and over-draining.
+      {
+        const kpD = Keypair.generate();
+        const kpE = Keypair.generate();
+        mintTo(kpD.publicKey.toBase58(), "200"); // base tier (cap 200g/day)
+        mintTo(kpE.publicKey.toBase58(), "200");
+        const auth = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
+          readFileSync(resolve(SERVER_DIR, ".data/devnet-authority.json"), "utf8"))));
+        for (const to of [kpD.publicKey, kpE.publicKey]) {
+          const tx = new Transaction().add(SystemProgram.transfer({
+            fromPubkey: auth.publicKey, toPubkey: to, lamports: 0.03 * LAMPORTS_PER_SOL,
+          }));
+          await sendAndConfirmTransaction(conn, tx, [auth]);
+        }
+        const D = await join(`eco-d-${Date.now()}`, kpD);
+        const E = await join(`eco-e-${Date.now()}`, kpE);
+        // give each a gold purse to sell from
+        D.room.send("save", { snapshot: { gold: 5000, day: 0 } });
+        E.room.send("save", { snapshot: { gold: 5000, day: 0 } });
+        await wait(800);
+        const pool = await tokenBalance(conn, mint, escrow.publicKey);
+        // pick G so ONE payout fits but TWO don't, and G is within the base cap
+        const G = Math.min(200, Math.floor(pool / EXCHANGE.sellRate));
+        const oneFits = G * EXCHANGE.sellRate <= pool;
+        const twoFit = 2 * G * EXCHANGE.sellRate <= pool;
+        if (G >= EXCHANGE.minTrade && oneFits && !twoFit) {
+          const before = await tokenBalance(conn, mint, escrow.publicKey);
+          const rpD = D.on<any>("exResult", 90_000);
+          const rpE = E.on<any>("exResult", 90_000);
+          D.room.send("exSell", { gold: G });
+          E.room.send("exSell", { gold: G });
+          const [rD, rE] = await Promise.all([rpD, rpE]);
+          const ok = [rD, rE].filter((r) => r?.ok === true);
+          const light = [rD, rE].filter((r) => r?.ok === false);
+          check("cross-wallet drain: exactly one sell clears the pool",
+            ok.length === 1 && light.length === 1,
+            `ok=${ok.length} refused=${light.length} reason=${light[0]?.reason}`);
+          check("cross-wallet drain: the loser is told the purse is light (not over-drained)",
+            /light|purse/i.test(String(light[0]?.reason)), `reason=${light[0]?.reason}`);
+          await wait(3500);
+          const after = await tokenBalance(conn, mint, escrow.publicKey);
+          check("cross-wallet drain: pool fell by exactly ONE payout (never negative)",
+            after >= 0 && Math.abs((before - after) - G * EXCHANGE.sellRate) <= 1,
+            `pool ${before} → ${after}, one payout=${G * EXCHANGE.sellRate}`);
+        } else {
+          check("cross-wallet drain: pool sized for a clean 1-fits-2-don't test", false,
+            `pool=${pool} G=${G} oneFits=${oneFits} twoFit=${twoFit} (adjust escrow seed)`);
+        }
+        D.room.leave();
+        E.room.leave();
+      }
+
+      // 7b) the relic RESERVATION (#3): while buyer B holds a quote on a listing,
+      // a second buyer C is refused AT THE COUNTER — they can't pay against a
+      // listing that's about to be gone (the old failure: pay on-chain, get
+      // nothing). The relicSettling lock remains as defense-in-depth.
       const C = await join(`eco-c-${Date.now()}`, kpC);
       const pSig = await burnFor(A, "prestigeAura");
       const pp = A.on<any>("prestigeResult");
@@ -321,35 +398,31 @@ async function main() {
       const l = await lp;
       check("race relic listed", l?.ok === true && l?.listed === true, l?.reason);
 
-      const quoteFor = async (s: Session) => {
-        const qp = s.on<any>("relicQuote", 30_000);
-        s.room.send("relicQuote", { id: l?.id });
-        const q = await qp;
-        if (!q?.ok || !q.tx) return null;
-        const tx = Transaction.from(Buffer.from(q.tx, "base64"));
-        tx.partialSign(s.kp);
-        return conn.sendRawTransaction(tx.serialize());
-      };
-      const sigB = await quoteFor(B);
-      const sigC = await quoteFor(C);
-      check("both racers hold valid payments", !!sigB && !!sigC);
+      // B quotes first → reserves the listing + gets a payable tx
+      const qpB = B.on<any>("relicQuote", 30_000);
+      B.room.send("relicQuote", { id: l?.id });
+      const qB = await qpB;
+      check("B's quote reserves the listing", qB?.ok === true && !!qB?.tx, qB?.reason);
+      // C quotes the SAME listing while B holds it → refused at the counter
+      const qpC = C.on<any>("relicQuote", 30_000);
+      C.room.send("relicQuote", { id: l?.id });
+      const qC = await qpC;
+      check("a second buyer is refused while it's reserved (no pay-and-lose)",
+        qC?.ok === false && /stall/i.test(String(qC?.reason)), `reason=${qC?.reason}`);
 
+      // B completes the purchase on their reserved quote
+      const txB = Transaction.from(Buffer.from(qB.tx, "base64"));
+      txB.partialSign(kpB);
+      const sigB = await conn.sendRawTransaction(txB.serialize());
       const rpB = B.on<any>("relicResult", 90_000);
-      const rpC = C.on<any>("relicResult", 90_000);
       B.room.send("relicBuy", { id: l?.id, sig: sigB });
-      C.room.send("relicBuy", { id: l?.id, sig: sigC });
-      const [rB, rC] = await Promise.all([rpB, rpC]);
-      const winners = [rB, rC].filter((r) => r?.ok === true && r?.bought === true);
-      const losers = [rB, rC].filter((r) => !(r?.ok === true && r?.bought === true));
-      check("two-buyer relic race: exactly one settlement",
-        winners.length === 1 && losers.length === 1,
-        `winners=${winners.length} loser reason=${losers[0]?.reason}`);
-      // ownership moved exactly once: the winner wears it, the seller cannot
-      const winner = rB?.ok ? B : C;
-      winner.room.send("identity", { aura: "ashen_crown" });
+      const rB = await rpB;
+      check("the reserving buyer settles exactly once", rB?.ok === true && rB?.bought === true, rB?.reason);
+      // ownership moved: B wears it, the seller cannot
+      B.room.send("identity", { aura: "ashen_crown" });
       A.room.send("identity", { aura: "ashen_crown" });
       await wait(600);
-      const wState = winner.room.state.players.get(winner.room.sessionId);
+      const wState = B.room.state.players.get(B.room.sessionId);
       const aState2 = A.room.state.players.get(A.room.sessionId);
       check("race winner may wear the relic", wState?.aura === "ashen_crown", `aura=${wState?.aura}`);
       check("seller stripped exactly once", aState2?.aura !== "ashen_crown", `aura=${aState2?.aura}`);

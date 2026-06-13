@@ -57,34 +57,53 @@ async function walkTo(p, tx, ty, hops = 12) {
 const A = await makePlayer(DA, save("Kahl", "ember", "blood"));
 const B = await makePlayer(DB, save("Vey", "void", "ember"));
 await wait(2800);
-// zoom both in
-for (const { page } of [A, B]) { await page.mouse.move(960, 540); for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -240); await wait(110); } }
+// WIDE zoom for reliable navigation (the Pit stays on-screen from spawn)
+const zoomIn = async (page, ticks) => { await page.mouse.move(960, 540); for (let i = 0; i < ticks; i++) { await page.mouse.wheel(0, -240); await wait(110); } };
+for (const { page } of [A, B]) await zoomIn(page, 4);
 
-// both converge on the Pit (20,32), standing adjacent so the auto-swing engages
+// walk both to the Pit ring (20,32 & 21,32) — SEQUENTIALLY so neither stalls;
+// this is the on-camera approach and runs >8s so the gold ledger is seeded
+const t0 = Date.now();
 console.log("walking to the Pit…");
-await Promise.all([walkTo(A.page, 20, 32), walkTo(B.page, 22, 32)]);
-await walkTo(A.page, 20, 32, 4);
-await walkTo(B.page, 21, 32, 4);
-// let the gold ledger seed (first 8s snapshot) before the wager is checked
-await wait(7000);
+await walkTo(A.page, 20, 32, 14);
+await walkTo(B.page, 21, 32, 14);
+const pA = await player(A.page), pB = await player(B.page);
+console.log(`ATPIT Kahl@${pA.x},${pA.y} Vey@${pB.x},${pB.y}`);
+// now zoom IN to frame the ring for the duel
+for (const { page } of [A, B]) await zoomIn(page, 4);
+while (Date.now() - t0 < 9000) await wait(500); // ledger seed safety
+await wait(600);
 
 // A challenges the wanderer named Vey; B accepts
 console.log("challenge…");
+{
+  const pa = await player(A.page), pb = await player(B.page);
+  const oa = await A.page.evaluate(() => window.__demo.others().map((o) => `${o.name}@${o.x},${o.y}`));
+  const ob = await B.page.evaluate(() => window.__demo.others().map((o) => `${o.name}@${o.x},${o.y}`));
+  console.log(`DEBUG A@${pa.x},${pa.y} sees [${oa}] | B@${pb.x},${pb.y} sees [${ob}]`);
+}
 const targetId = await A.page.evaluate(() => {
   const v = window.__demo.others().find((o) => o.name === "Vey") ?? window.__demo.others()[0];
   return v ? v.id : null;
 });
 if (!targetId) { console.log("FAIL: A can't see B"); }
 await A.page.evaluate(([id, w]) => window.__demo.challenge(id, w), [targetId, WAGER]);
-await wait(1500);
+await wait(1200);
 await B.page.evaluate(() => window.__demo.acceptDuel());
-await wait(1500);
-// nudge them adjacent inside the ring so the swings land, then let it play out
-await walkTo(A.page, 20, 32, 3);
-await walkTo(B.page, 21, 32, 3);
-console.log("dueling…");
-await wait(13000); // ~12 swings each → someone drops; VICTORY/DEFEAT banners
-await wait(2500); // hold the result
+await wait(1800); // duelStart + the arena veil
+
+// drive BOTH onto the Pit ring (adjacent cells 20,32 & 21,32) so the duel always
+// happens in the arena — not wherever they wandered. The engine auto-swing
+// (dist<=1.6) lands once both arrive; break the moment one drops.
+console.log("into the ring…");
+for (let i = 0; i < 28; i++) {
+  await clickCell(A.page, 20, 32);
+  await clickCell(B.page, 21, 32);
+  const live = await A.page.evaluate(() => !!window.__demo.duel());
+  if (!live) { console.log(`resolved after ${i} ticks`); break; }
+  await wait(750);
+}
+await wait(2800); // hold the VICTORY plate
 
 const goldA = await A.page.evaluate(() => window.__demo.gold());
 const goldB = await B.page.evaluate(() => window.__demo.gold());

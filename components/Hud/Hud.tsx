@@ -106,8 +106,9 @@ export default function Hud() {
     }
   }, []);
   // ?demo hides the HUD for clean canvas capture, but the Wheel overlay IS the
-  // scene when a spin is rolling, so keep it visible (it self-hides when idle).
-  if (demo) return <WheelOverlay />;
+  // scene when a spin rolls and the Duel overlay (HP bars + pot) IS the scene in
+  // a Pit duel — keep both visible (each self-hides when idle).
+  if (demo) return <><WheelOverlay /><DuelOverlay /></>;
   return (
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />

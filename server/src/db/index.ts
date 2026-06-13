@@ -147,6 +147,20 @@ export async function initDb(): Promise<Db> {
   await db.execute(sql`
     ALTER TABLE burns ADD COLUMN IF NOT EXISTS treasury real NOT NULL DEFAULT 0
   `);
+  // OUTBOUND escrow payouts (duel wins/draws/refunds): a durable trail of every
+  // sig the server signed FROM escrow, so an indeterminate (pending) payout can
+  // be reconciled against the chain later — the Exchange sell side keeps the
+  // same trail in exchange_log.last_sig.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS escrow_payouts (
+      sig text PRIMARY KEY,
+      token text NOT NULL,
+      kind text NOT NULL,
+      amount real NOT NULL,
+      status text NOT NULL,
+      at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
   await db.execute(sql`
     INSERT INTO shrine (id, pot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING
   `);
@@ -376,6 +390,18 @@ export async function exchangeToday(token: string): Promise<{ bought: number; so
     .where(sql`${exchangeLog.token} = ${token} AND ${exchangeLog.day} = ${utcDay()}`);
   const r = rows[0];
   return { bought: r?.goldBought ?? 0, sold: r?.goldSold ?? 0 };
+}
+
+/** durably record an outbound escrow payout sig (duel win/draw/refund) so a
+ *  pending one can be reconciled against the chain later. Upserts on sig. */
+export async function recordPayout(
+  sig: string, token: string, kind: string, amount: number, status: "confirmed" | "pending",
+) {
+  await db.execute(sql`
+    INSERT INTO escrow_payouts (sig, token, kind, amount, status)
+    VALUES (${sig}, ${token}, ${kind}, ${amount}, ${status})
+    ON CONFLICT (sig) DO UPDATE SET status = ${status}
+  `);
 }
 
 /** add to today's tallies (upsert); sig recorded for sell payouts */

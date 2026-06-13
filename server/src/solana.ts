@@ -41,10 +41,12 @@ export function tokenMint(): string {
 }
 
 /** UI-unit balance of the game token held by a wallet (0 when no mint set) */
-export async function getTokenBalance(wallet: string): Promise<number> {
+export async function getTokenBalance(wallet: string, fresh = false): Promise<number> {
   if (!MINT) return 0;
   const hit = cache.get(wallet);
-  if (hit && Date.now() - hit.at < BALANCE_TTL_MS) return hit.bal;
+  // `fresh` bypasses the cache — the escrow solvency check before a payout MUST
+  // see the real pool balance, not a 60s-stale figure (in-flight payouts).
+  if (!fresh && hit && Date.now() - hit.at < BALANCE_TTL_MS) return hit.bal;
   try {
     conn ??= new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true });
     // links, profiles and gate joins all wait on this — fail over to the
@@ -302,10 +304,11 @@ export function escrowAddress(): PublicKey | null {
   return escrowPk;
 }
 
-/** the Exchange pool: DRIFTS the escrow holds (60s cache via getTokenBalance) */
-export async function escrowBalance(): Promise<number> {
+/** the Exchange pool: DRIFTS the escrow holds. Pass fresh=true for the solvency
+ *  check right before a payout (a stale read can let the pool over-drain). */
+export async function escrowBalance(fresh = false): Promise<number> {
   const pk = escrowAddress();
-  return pk ? getTokenBalance(pk.toBase58()) : 0;
+  return pk ? getTokenBalance(pk.toBase58(), fresh) : 0;
 }
 
 /** partial-signed tx: the wallet pays `amount` DRIFTS INTO the escrow pool */
@@ -434,8 +437,12 @@ export async function verifyTxLegs(
               if ((parsed.type === "burnChecked" || parsed.type === "burn") &&
                   fromOk && amt >= leg.min) satisfied[li] = true;
             } else {
+              // the source MUST be the crediting wallet's own ATA — otherwise a
+              // delegate could fund escrow from a third party's account and be
+              // credited for tokens that were never theirs.
+              const sourceOk = info.source === walletAta(leg.from);
               if (parsed.type === "transferChecked" &&
-                  info.destination === leg.destAta && fromOk && amt >= leg.min) satisfied[li] = true;
+                  info.destination === leg.destAta && sourceOk && fromOk && amt >= leg.min) satisfied[li] = true;
             }
           });
         }

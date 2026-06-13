@@ -33,13 +33,14 @@ import {
   getTokenBalance, tokenMint, buildBurnTx, verifyBurn, gateTokens, burnSplit,
   buildExchangeBuyTx, payFromEscrow, buildRelicTx, verifyTxLegs,
   escrowAta, escrowAddress, escrowKeypair, escrowBalance, walletAta,
+  type EscrowPayout,
 } from "../solana";
 import { verifyGateProof } from "../gate";
 import {
-  tryInsertBurn, deleteBurn, setFounder, setPrestige, setWheelPity,
+  tryInsertBurn, setFounder, setPrestige, setWheelPity,
   loadGuilds, insertGuild, setGuildRegion, setPlayerGuild, guildMemberCounts,
   loadRelics, insertRelic, deleteRelic,
-  exchangeToday, exchangeRecord, GuildRow,
+  exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
 import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
@@ -145,6 +146,7 @@ const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
 const DUEL_MS              = Number(process.env.DUEL_MS ?? 90_000); // duel → draw timeout
+const RELIC_RESERVE_MS     = 90_000; // a relic listing is frozen this long once quoted
 const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
 const RESET_FAILSAFE_PCT   = 97;   // theoretical max is ~92 (town/claims/water immune)
 
@@ -188,6 +190,12 @@ const BOSS_PCTS = (process.env.BOSS_PCTS ?? "10,25,40,60,80")
   .split(",").map(Number).filter((n) => Number.isFinite(n));
 
 type MobKind = "husk" | "stalker" | "raider" | "colossus";
+
+/** the Pit's duel ring is off-limits to wandering beasts — the arena is for the
+ *  two fighters and the crowd, not stray husks blundering across the sand */
+function inPit(x: number, y: number): boolean {
+  return buildingAt(Math.round(x), Math.round(y))?.key === "pit";
+}
 
 /** a server-side Drift Beast: wanders its territory, retaliates when struck */
 class ServerMob {
@@ -277,9 +285,13 @@ class ServerMob {
       if (this.idle <= 0) this.pickTarget(world);
     } else {
       const step = this.speed * dt;
+      const nx = this.px + (dx / dist) * Math.min(step, dist);
+      const ny = this.py + (dy / dist) * Math.min(step, dist);
+      // never set foot in the duel ring — back off and pick a new target
+      if (inPit(nx, ny)) { this.moving = false; this.pickTarget(world); return; }
       this.moving = true;
-      this.px += (dx / dist) * Math.min(step, dist);
-      this.py += (dy / dist) * Math.min(step, dist);
+      this.px = nx;
+      this.py = ny;
     }
   }
 
@@ -289,7 +301,7 @@ class ServerMob {
       const r = Math.random() * this.wanderRadius;
       const x = Math.round(this.spawnX + Math.cos(a) * r);
       const y = Math.round(this.spawnY + Math.sin(a) * r);
-      if (world.isWalkable(x, y)) {
+      if (world.isWalkable(x, y) && !inPit(x, y)) {
         this.tx = x;
         this.ty = y;
         this.idle = 1 + Math.random() * 2;
@@ -414,9 +426,28 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** relic ids mid-settlement — claimed synchronously before the verify await
    *  so two concurrent buyers (distinct sigs) cannot settle the same relic */
   private relicSettling = new Set<number>();
+  /** relic ids RESERVED by a quote: the buyer is about to sign+broadcast, so the
+   *  listing is frozen (no unlist, no other buyer) until they finish or the
+   *  reservation lapses — otherwise a buyer can pay on-chain and find it gone. */
+  private relicReserved = new Map<number, { token: string; until: number }>();
+  private relicReservedBy(id: number): string | null {
+    const r = this.relicReserved.get(id);
+    if (!r) return null;
+    if (Date.now() >= r.until) { this.relicReserved.delete(id); return null; }
+    return r.token;
+  }
   /** tokens with an Exchange trade in flight — a per-TOKEN single-flight (NOT
    *  per-session: two tabs of one wallet must not split the daily cap/escrow) */
   private exTrading = new Set<string>();
+  /** serializes EVERY outbound escrow payout (Exchange sell + duel payout/refund)
+   *  so two payers can't each read a stale pool balance and over-drain it. The
+   *  escrow is one shared wallet; the per-token exTrading lock does NOT protect it. */
+  private escrowChain: Promise<unknown> = Promise.resolve();
+  private withEscrowLock<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.escrowChain.then(fn, fn);
+    this.escrowChain = run.then(() => {}, () => {});
+    return run;
+  }
   // caravan run state (route + contributions live server-side only)
   private caravanPath: Cell[] = [];
   private caravanTotal = 0;
@@ -810,6 +841,20 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
       // someone already waits: meet them at THEIR stake
       const a = this.sims.get(q.sessionId)!;
+      // the joiner must cover the stake — refuse WITHOUT clearing the queue, so a
+      // broke "matcher" cannot grief away a standing challenge they can't honor
+      if (sim.gold < q.wager) {
+        client.send("duelRefused", { reason: "Your purse can't cover the wager" });
+        return;
+      }
+      // only a poster who can still cover it gets matched; a stale (now-light)
+      // poster's challenge is dropped and the joiner told why
+      if (a.gold < q.wager) {
+        this.pitQueue = null;
+        this.broadcast("pitQueue", null);
+        client.send("duelRefused", { reason: "Their purse can no longer cover the wager" });
+        return;
+      }
       this.pitQueue = null;
       this.broadcast("pitQueue", null);
       this.startDuel(a, sim, q.wager);
@@ -873,16 +918,17 @@ export class DriftRoom extends Room<DriftRoomState> {
           ? q!.wager
           : Math.max(DUEL_DRIFTS.min, Math.min(DUEL_DRIFTS.max, Math.floor(Number(msg?.wager ?? 0))));
         if (stakeAmt < DUEL_DRIFTS.min) return fail(`DRIFTS wagers start at ${DUEL_DRIFTS.min.toLocaleString()}`);
-        // insert-first replay protection, then verify the deposit landed in escrow
-        if (!(await tryInsertBurn(sig, sim.token, "duelStake"))) return fail("That stake was already spent");
+        // VERIFY FIRST, then claim the sig as the commit. A transient verify
+        // failure (RPC throttle) thus leaves the sig UNCLAIMED and retryable
+        // instead of orphaning a real deposit. The per-token duelStaking lock
+        // serializes same-wallet concurrency; a different wallet can't reuse the
+        // sig (the leg's `from` must be their own wallet).
         const v = await verifyTxLegs(sig, [
           { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: stakeAmt },
         ]);
-        if (!v.ok) {
-          await deleteBurn(sig).catch(() => {});
-          return fail(v.reason ?? "The stake could not be verified");
-        }
-        // deposit confirmed — reflect it in the live balance immediately
+        if (!v.ok) return fail(v.reason ?? "The stake could not be verified");
+        if (!(await tryInsertBurn(sig, sim.token, "duelStake"))) return fail("That stake was already spent");
+        // deposit confirmed + claimed — reflect it in the live balance immediately
         sim.tokenBalance = Math.max(0, sim.tokenBalance - stakeAmt);
         this.syncToken(sim);
         // RE-VALIDATE against the CURRENT queue: another joiner may have matched
@@ -904,8 +950,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         } else {
           // the slot is held by an incompatible poster (rare concurrent-deposit
           // collision) — refund this stake so nothing is stranded in escrow
-          const paid = await payFromEscrow(row.walletAddress, stakeAmt);
-          if (paid.ok) { sim.tokenBalance += stakeAmt; this.syncToken(sim); }
+          const paid = await this.escrowPayTo(sim, row.walletAddress, stakeAmt, "duelCollision");
           client.send("duelPayout", {
             drifts: stakeAmt, refund: true,
             reason: "The ring filled first — your stake returns.",
@@ -1298,16 +1343,17 @@ export class DriftRoom extends Room<DriftRoomState> {
         if (today.bought + gold > EXCHANGE.buyCapPerDay) return fail("Past the day's cap");
         const row = await loadOrCreatePlayer(sim.token);
         if (!row.walletAddress) return fail("No wallet linked");
-        // insert-first replay protection (the burns table is the sig ledger)
-        if (!(await tryInsertBurn(sig, sim.token, "exBuy"))) return fail("That payment was already spent");
         const cost = gold * EXCHANGE.buyRate;
+        // VERIFY FIRST, then claim the sig as the commit — a transient verify
+        // failure leaves the sig unclaimed/retryable instead of permanently
+        // orphaning a payment that really landed in escrow. The per-token
+        // exTrading lock serializes same-wallet dupes; the claim is the atomic
+        // anti-replay gate (only one credit per sig).
         const v = await verifyTxLegs(sig, [
           { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: cost },
         ]);
-        if (!v.ok) {
-          await deleteBurn(sig).catch(() => {});
-          return fail(v.reason ?? "The payment could not be verified");
-        }
+        if (!v.ok) return fail(v.reason ?? "The payment could not be verified");
+        if (!(await tryInsertBurn(sig, sim.token, "exBuy"))) return fail("That payment was already spent");
         this.credit(sim, gold);
         // AWAIT before releasing the lock so the next buy sees this one's tally
         await exchangeRecord(sim.token, gold, 0).catch(() => {});
@@ -1335,6 +1381,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       try {
         const row = await loadOrCreatePlayer(sim.token);
         if (!row.walletAddress) return fail("Link a wallet first");
+        const wallet = row.walletAddress; // narrow for the closure below
         const tier = holderPerks(sim.tokenBalance).key;
         const cap = EXCHANGE.sellCapPerDay[tier] ?? EXCHANGE.sellCapPerDay[""];
         const today = await exchangeToday(sim.token).catch(() => ({ bought: 0, sold: 0 }));
@@ -1342,27 +1389,30 @@ export class DriftRoom extends Room<DriftRoomState> {
           return fail(`Your standing sells ${cap}g a day at most (${cap - today.sold}g left)`);
         }
         const payout = gold * EXCHANGE.sellRate;
-        if ((await escrowBalance()) < payout) return fail("The merchant's purse is light");
-        // debit FIRST (the gold ledger is authoritative)
-        if (!this.debit(sim, gold)) return fail(`You carry less than ${gold}g`);
-        const paid = await payFromEscrow(row.walletAddress, payout);
-        if (paid.ok) {
-          // AWAIT the cap write before releasing the lock so the next sell of
-          // this token reads a correct sold-today (no read-then-write race)
-          await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
-          client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig });
-        } else if (paid.refundable) {
-          // nothing was paid out (no broadcast, or landed-and-reverted): refund
-          this.credit(sim, gold);
-          return fail(paid.reason);
-        } else {
-          // INDETERMINATE: the DRIFTS may already be leaving escrow. Do NOT
-          // refund (that double-pays). Hold the gold spent, record the sale +
-          // sig against the cap so a retry cannot drain more, and tell the
-          // player to check their wallet (reconcile the sig off-chain later).
-          await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
-          client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig, pending: true });
-        }
+        // Everything from the solvency check through the payout runs under the
+        // GLOBAL escrow lock with a FRESH pool read — otherwise two sellers (or a
+        // seller racing a duel payout) each see a stale balance and over-drain.
+        await this.withEscrowLock(async () => {
+          if ((await escrowBalance(true)) < payout) return void fail("The merchant's purse is light");
+          // debit FIRST (the gold ledger is authoritative)
+          if (!this.debit(sim, gold)) return void fail(`You carry less than ${gold}g`);
+          const paid = await payFromEscrow(wallet, payout);
+          if (paid.ok) {
+            await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
+            client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig });
+          } else if (paid.refundable) {
+            // nothing was paid out (no broadcast, or landed-and-reverted): refund
+            this.credit(sim, gold);
+            fail(paid.reason);
+          } else {
+            // INDETERMINATE: the DRIFTS may already be leaving escrow. Do NOT
+            // refund (that double-pays). Hold the gold spent, record the sale +
+            // sig against the cap so a retry cannot drain more, and tell the
+            // player to check their wallet (reconcile the sig off-chain later).
+            await exchangeRecord(sim.token, 0, gold, paid.sig).catch(() => {});
+            client.send("exResult", { ok: true, dir: "sell", gold, drifts: payout, sig: paid.sig, pending: true });
+          }
+        });
       } finally {
         this.exTrading.delete(sim.token);
       }
@@ -1401,6 +1451,9 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!this.allow(sim, "relicUnlist", 4, 10_000)) return;
       const id = Math.round(Number(msg?.id ?? 0));
       if (this.relicSettling.has(id)) return; // a buy is settling it — can't pull
+      // a buyer holds a live reservation (signed/broadcasting) — don't pull the
+      // listing out from under their on-chain payment
+      if (this.relicReservedBy(id)) return;
       const rec = this.relicOwner.get(id);
       if (!rec || rec.token !== sim.token) return;
       this.relicOwner.delete(id);
@@ -1419,10 +1472,16 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!rec) return fail("That relic is gone");
       if (rec.token === sim.token) return fail("It is already yours");
       if (sim.prestige.has(rec.key)) return fail("You already wear its like");
+      // another buyer is mid-purchase on this listing — don't hand out a second
+      // quote they'd pay against and lose to (it would already be gone)
+      const heldBy = this.relicReservedBy(id);
+      if (heldBy && heldBy !== sim.token) return fail("Another buyer is at the stall — try again shortly");
       const row = await loadOrCreatePlayer(sim.token);
       if (!row.walletAddress) return fail("Link a wallet first");
       const built = await buildRelicTx(row.walletAddress, rec.wallet, rec.price, RELIC_MARKET.feePct);
       if (!built.ok) return fail(built.reason);
+      // freeze the listing while this buyer signs + broadcasts + confirms
+      this.relicReserved.set(id, { token: sim.token, until: Date.now() + RELIC_RESERVE_MS });
       client.send("relicQuote", { ok: true, id, price: rec.price, key: rec.key, tx: built.tx });
     });
 
@@ -1436,6 +1495,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       const rec = this.relicOwner.get(id);
       if (!rec) return fail("That relic is gone");
       if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed signature");
+      // the reservation from the quote must still be yours (a lapsed one that
+      // another buyer grabbed means this listing is no longer purchasable by you)
+      const heldBy = this.relicReservedBy(id);
+      if (heldBy && heldBy !== sim.token) return fail("Another buyer took the stall");
       // claim the listing BEFORE any await: a second concurrent buy (distinct
       // sig) must not read the same rec and settle the relic twice
       if (this.relicSettling.has(id)) return fail("That relic is mid-sale");
@@ -1444,16 +1507,16 @@ export class DriftRoom extends Room<DriftRoomState> {
         const row = await loadOrCreatePlayer(sim.token);
         if (!row.walletAddress) return fail("No wallet linked");
         const fee = Math.ceil(rec.price * RELIC_MARKET.feePct);
-        // the fee leg burns forever — recorded on the public counter
-        if (!(await tryInsertBurn(sig, sim.token, "relic", fee, 0))) return fail("That payment was already spent");
+        // VERIFY FIRST, then claim the sig — a transient verify failure leaves the
+        // payment retryable instead of orphaning it (the buyer already paid the
+        // seller on-chain). The claim is the atomic anti-replay gate.
         const v = await verifyTxLegs(sig, [
           { type: "transfer", from: row.walletAddress, destAta: walletAta(rec.wallet), min: rec.price - fee },
           { type: "burn", from: row.walletAddress, min: fee },
         ]);
-        if (!v.ok) {
-          await deleteBurn(sig).catch(() => {});
-          return fail(v.reason ?? "The payment could not be verified");
-        }
+        if (!v.ok) return fail(v.reason ?? "The payment could not be verified");
+        // the fee leg burns forever — recorded on the public counter
+        if (!(await tryInsertBurn(sig, sim.token, "relic", fee, 0))) return fail("That payment was already spent");
         // settle: pull the listing and strip the seller's LIVE prestige
         // SYNCHRONOUSLY (no await between the two) so the seller cannot re-list
         // the key in the gap. The buyer's grant happens here too.
@@ -1488,6 +1551,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         client.send("relicResult", { ok: true, bought: true, key: rec.key, kind: PRESTIGE_CATALOG[rec.key]?.kind });
       } finally {
         this.relicSettling.delete(id);
+        this.relicReserved.delete(id); // free the listing whatever the outcome
       }
     });
 
@@ -2303,6 +2367,26 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
   }
 
+  /** the ONE outbound escrow rail for the Pit. Serialized against every other
+   *  payout (the escrow is a shared pool — see withEscrowLock), the sig persisted
+   *  for reconciliation (#escrow_payouts), and the live in-memory balance
+   *  corrected whenever funds actually moved (ok OR indeterminate-with-sig; a
+   *  clean refundable failure moved nothing). */
+  private async escrowPayTo(
+    sim: PlayerSim | undefined, wallet: string, amount: number, kind: string,
+  ): Promise<EscrowPayout> {
+    const paid = await this.withEscrowLock(() => payFromEscrow(wallet, amount));
+    const sig = paid.ok ? paid.sig : paid.sig; // present on ok AND on indeterminate
+    if (sig) {
+      await recordPayout(sig, sim?.token ?? "unknown", kind, amount,
+        paid.ok ? "confirmed" : "pending").catch(() => {});
+    }
+    // a refundable:false failure means the transfer may already be leaving escrow
+    const moved = paid.ok || paid.refundable === false;
+    if (moved && sim) { sim.tokenBalance += amount; this.syncToken(sim); }
+    return paid;
+  }
+
   /** pay a DRIFTS duel out of escrow: winner gets 90% of the pot (the house keeps
    *  the rest), a draw refunds each fighter their own stake. An indeterminate
    *  payout is held (never refunded — that would double-pay) and reported pending,
@@ -2310,12 +2394,10 @@ export class DriftRoom extends Room<DriftRoomState> {
   private async settleDriftsDuel(duel: Duel, winner: string | null) {
     const payOut = async (id: string, amount: number, refund: boolean) => {
       const sim = this.sims.get(id);
-      const token = sim?.token;
-      const wallet = token ? (await loadOrCreatePlayer(token)).walletAddress : null;
-      if (!wallet) return; // unlinked / gone — reconcile the sig off-chain
-      const paid = await payFromEscrow(wallet, amount);
+      const wallet = sim ? (await loadOrCreatePlayer(sim.token)).walletAddress : null;
+      if (!wallet) return; // unlinked / gone — the escrow row is the reconciliation trail
+      const paid = await this.escrowPayTo(sim, wallet, amount, refund ? "duelDraw" : "duelWin");
       if (paid.ok) {
-        if (sim) { sim.tokenBalance += amount; this.syncToken(sim); }
         sim?.client.send("duelPayout", { drifts: amount, refund, sig: paid.sig });
       } else {
         sim?.client.send("duelPayout", {
@@ -2341,12 +2423,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.pitQueueDrifts = null;
     this.broadcast("pitQueue", null);
     const sim = this.sims.get(q.sessionId);
-    const token = sim?.token;
-    const wallet = token ? (await loadOrCreatePlayer(token)).walletAddress : null;
+    const wallet = sim ? (await loadOrCreatePlayer(sim.token)).walletAddress : null;
     if (!wallet) return;
-    const paid = await payFromEscrow(wallet, q.wager);
+    const paid = await this.escrowPayTo(sim, wallet, q.wager, "duelRefund");
     if (paid.ok) {
-      if (sim) { sim.tokenBalance += q.wager; this.syncToken(sim); }
       sim?.client.send("duelPayout", { drifts: q.wager, refund: true, reason, sig: paid.sig });
     } else {
       sim?.client.send("duelPayout", {
@@ -2666,14 +2746,15 @@ export class DriftRoom extends Room<DriftRoomState> {
     const cost = BURN_COSTS[action];
     if (cost === undefined) return "That rite is not priced";
     const split = burnSplit(cost); // 50/50 with TREASURY_ADDRESS set, else 100% burn
-    // insert-first so a signature can never be spent twice, even concurrently
+    // VERIFY FIRST, then claim the sig as the atomic commit. A transient verify
+    // failure (RPC throttle) thus leaves the sig UNCLAIMED and retryable rather
+    // than orphaning a real burn behind a deleteBurn that may itself fail. The
+    // claim (tryInsertBurn) is still the one-and-only anti-replay gate: only the
+    // first inserter proceeds, so concurrent dupes act at most once.
+    const v = await verifyBurn(burnSig, row.walletAddress, cost);
+    if (!v.ok) return v.reason ?? "The burn could not be verified";
     if (!(await tryInsertBurn(burnSig, sim.token, action, split.burn, split.treasury))) {
       return "That burn was already spent";
-    }
-    const v = await verifyBurn(burnSig, row.walletAddress, cost);
-    if (!v.ok) {
-      await deleteBurn(burnSig).catch(() => {}); // free it for a retry
-      return v.reason ?? "The burn could not be verified";
     }
     void this.markFounder(sim, row);
     // the wallet just spent `cost` DRIFTS on-chain. Reflect it in the live
@@ -2788,6 +2869,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const y = (Math.random() * this.world.h) | 0;
       if (!this.world.isWalkable(x, y)) continue;
       if (Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) < 6) continue;
+      if (inPit(x, y)) continue; // don't seed a beast in the duel ring
       const level = 1 + ((Math.random() * 3) | 0);
       this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level));
       placed++;
