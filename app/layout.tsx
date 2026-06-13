@@ -3,7 +3,6 @@ import { Pixelify_Sans, Silkscreen, Sora } from "next/font/google";
 import "./globals.css";
 import "./naevyr.css";
 import BgMusic from "@/components/BgMusic";
-import ErrorOverlay from "@/components/ErrorOverlay";
 
 const pixelify = Pixelify_Sans({
   subsets: ["latin"],
@@ -49,7 +48,6 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${pixelify.variable} ${silkscreen.variable} ${sora.variable}`}>
         {children}
-        <ErrorOverlay />
         <BgMusic />
       </body>
     </html>
