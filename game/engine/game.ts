@@ -260,6 +260,17 @@ export class Game {
       bus.on("pitJoin", (wager) => this.net?.sendPitJoin(wager)),
     );
     this.cleanupFns.push(
+      bus.on("pitJoinDrifts", (wager) => {
+        const store = useGame.getState();
+        if (!this.net || !store.wallet) {
+          store.pushLog("DRIFTS wagers need a linked wallet in the shared world.", "#6f6781");
+          return;
+        }
+        this.pendingDuelStake = wager;
+        this.net.sendDuelStakeQuote(wager);
+      }),
+    );
+    this.cleanupFns.push(
       bus.on("pitLeave", () => this.net?.sendPitLeave()),
     );
     this.cleanupFns.push(
@@ -425,6 +436,8 @@ export class Game {
   private burnGuardTimer: ReturnType<typeof setTimeout> | null = null;
   /** an Exchange buy awaiting its quote (gold amount) */
   private pendingExGold = 0;
+  /** a DRIFTS Pit stake awaiting its deposit quote (wager amount) */
+  private pendingDuelStake = 0;
   /** a relic purchase awaiting its quote (listing id) */
   private pendingRelicId = 0;
   /** the Dyeworks glass: a premium-avatar try-on (your own draw only, never
@@ -1376,6 +1389,41 @@ export class Game {
     net.onMessage<{ reason?: string }>("duelRefused", (m) => {
       useGame.getState().pushLog(`The Pit turns you away: ${m.reason ?? "?"}.`, "#6f6781");
     });
+    // DRIFTS stake: the server quoted a deposit tx — sign it and commit the sig
+    net.onMessage<{ ok: boolean; wager?: number; tx?: string; reason?: string }>(
+      "duelStakeQuote",
+      (m) => {
+        const store = useGame.getState();
+        if (!m.ok || !m.tx) {
+          store.pushLog(m.reason ?? "The Pit turns you away.", "#6f6781");
+          return;
+        }
+        const wager = m.wager ?? this.pendingDuelStake;
+        void this.signAndSubmit(m.tx, (sig) => {
+          this.net?.sendDuelStake(wager, sig);
+          store.pushLog(`You stake ${wager.toLocaleString()} DRIFTS into the ring. Awaiting the chain…`, "#d8b4fe");
+        });
+      },
+    );
+    // DRIFTS settlement: a payout, refund, or pending notice from escrow
+    net.onMessage<{ drifts: number; refund?: boolean; pending?: boolean; reason?: string; sig?: string }>(
+      "duelPayout",
+      (m) => {
+        const store = useGame.getState();
+        if (m.pending) {
+          store.pushLog(
+            `${m.drifts.toLocaleString()} DRIFTS are owed you, but the Drift is slow to answer. Watch your wallet.`,
+            "#d8b4fe",
+          );
+          return;
+        }
+        if (m.refund) {
+          store.pushLog(`Your ${m.drifts.toLocaleString()} DRIFTS stake returns. ${m.reason ?? ""}`.trim(), "#a99fb8");
+        } else {
+          store.pushLog(`The ring pays out ${m.drifts.toLocaleString()} DRIFTS.`, "#e7c873");
+        }
+      },
+    );
     net.onMessage<{ from: string; name: string; wager: number }>("challenged", (m) => {
       useGame.getState().setDuelChallenge(m);
       play("boss");
@@ -1383,26 +1431,29 @@ export class Game {
         .getState()
         .pushLog(`${m.name} challenges you to the Pit (${m.wager}g wager)!`, "#dc2626");
     });
-    net.onMessage<{ a: string; b: string; nameA: string; nameB: string; wager: number }>(
+    net.onMessage<{ a: string; b: string; nameA: string; nameB: string; wager: number; currency?: "gold" | "drifts" }>(
       "duelStart",
       (m) => {
         const store = useGame.getState();
         const meId = net.sessionId;
+        const currency = m.currency ?? "gold";
+        const unit = currency === "drifts" ? "◆" : "g";
         this.activeDuel = { a: m.a, b: m.b }; // the ring crowd gathers for everyone
         if (m.a === meId || m.b === meId) {
-          // the server ledger already staked both wagers (goldSync carries it)
+          // the stakes are already held (gold on the ledger, DRIFTS in escrow)
           this.duelOpp = m.a === meId ? m.b : m.a;
           store.setDuel({
             oppName: m.a === meId ? m.nameB : m.nameA,
             myHp: 100,
             oppHp: 100,
             wager: m.wager,
+            currency,
           });
           useGame.getState().setOpenShop(null); // the Pit panel yields to the ring
           this.banner = { name: "THE ARENA TAKES YOU", t0: performance.now() };
         }
         play("boss");
-        store.pushLog(`${m.nameA} and ${m.nameB} enter the Pit (${m.wager}g pot).`, "#dc2626");
+        store.pushLog(`${m.nameA} and ${m.nameB} enter the Pit (${m.wager.toLocaleString()}${unit} pot).`, "#dc2626");
       },
     );
     net.onMessage<{ a: string; b: string; hpA: number; hpB: number }>("duelHp", (m) => {
@@ -1417,18 +1468,21 @@ export class Game {
         oppHp: m.a === meId ? m.hpB : m.hpA,
       });
     });
-    net.onMessage<{ a: string; b: string; winner: string | null; pot: number; winnerName: string | null }>(
+    net.onMessage<{ a: string; b: string; winner: string | null; pot: number; winnerName: string | null; currency?: "gold" | "drifts" }>(
       "duelEnd",
       (m) => {
         const store = useGame.getState();
         const meId = net.sessionId;
+        const drifts = m.currency === "drifts";
+        const unit = drifts ? "◆" : "g";
         if (m.a === meId || m.b === meId) {
           if (m.winner === meId) {
-            store.bumpStat("goldEarned", m.pot); // ledger already paid
+            // DRIFTS pay out on-chain (a separate duelPayout); gold rode the ledger
+            if (!drifts) store.bumpStat("goldEarned", m.pot);
             play("levelup");
             this.banner = { name: "VICTORY", t0: performance.now() };
             this.victoryAt = performance.now(); // the plate floats over the sand
-            store.pushLog(`You win the duel. ${m.pot}g pot.`, "#e7c873");
+            store.pushLog(`You win the duel. ${m.pot.toLocaleString()}${unit} pot.`, "#e7c873");
           } else if (m.winner === null) {
             store.pushLog("The duel ends in a draw. Stakes returned.", "#a99fb8");
           } else {
@@ -1439,21 +1493,23 @@ export class Game {
           store.setDuel(null);
           this.duelOpp = null;
         } else if (m.winnerName) {
-          store.pushLog(`${m.winnerName} wins the duel (${m.pot}g).`, "#a99fb8");
+          store.pushLog(`${m.winnerName} wins the duel (${m.pot.toLocaleString()}${unit}).`, "#a99fb8");
         }
         this.activeDuel = null; // the crowd disperses, the realm returns
       },
     );
     // the arena queue: someone waits in the ring (or it just emptied)
-    net.onMessage<{ name: string; wager: number; sessionId: string } | null>(
+    net.onMessage<{ name: string; wager: number; sessionId: string; currency?: "gold" | "drifts" } | null>(
       "pitQueue",
       (m) => {
         const store = useGame.getState();
         if (!m) return store.setPitQueue(null);
         const mine = m.sessionId === net.sessionId;
-        store.setPitQueue({ name: m.name, wager: m.wager, mine });
+        const currency = m.currency ?? "gold";
+        store.setPitQueue({ name: m.name, wager: m.wager, mine, currency });
         if (!mine) {
-          store.pushLog(`${m.name} waits in the Pit's ring (${m.wager}g stake).`, "#dc2626");
+          const unit = currency === "drifts" ? "◆" : "g";
+          store.pushLog(`${m.name} waits in the Pit's ring (${m.wager.toLocaleString()}${unit} stake).`, "#dc2626");
         }
       },
     );
@@ -1754,6 +1810,15 @@ export class Game {
         challenge: (target: string, wager: number) => bus.emit("challenge", { target, wager }),
         acceptDuel: () => bus.emit("duelAccept", true),
         duel: () => useGame.getState().duel,
+        // gold Wheel spin for the capture (rides the real bus → server validates
+        // + rolls; the WheelOverlay animates the result, same as a real click)
+        spin: () => bus.emit("spin", true),
+        online: () => useGame.getState().online,
+        gold: () => useGame.getState().gold,
+        // step inside a building interior (e.g. the Wheel of the Drift) so the
+        // capture's spin reads as happening at the keeper, not out in the open
+        enter: (key: string) => this.enterInterior(key as BuildingKey),
+        exit: () => this.exitInterior(),
       };
     }
   }
@@ -2353,11 +2418,15 @@ export class Game {
       const mdy = m.y - pup.py;
       pup.px += mdx * k;
       pup.py += mdy * k;
-      // the server says whether the beast is stepping (guessing it from the
-      // lerp residue flickered walk/idle between patches); facing still comes
-      // from the visible drift toward the synced position
-      pup.moving = !!m.moving;
-      if (pup.state !== "dead" && pup.moving && Math.hypot(mdx, mdy) > 0.01) {
+      // Drive the walk anim + facing from the ACTUAL on-screen movement, not the
+      // server's instantaneous `moving` flag. The puppet keeps lerping toward the
+      // server's cell for several frames AFTER that flag drops, and during that
+      // catch-up it used to show the idle pose — the beast slid across the ground
+      // with no walk cycle and a frozen facing. Treat a meaningful position gap
+      // as moving so the legs animate and the facing tracks the real direction.
+      const visuallyMoving = Math.hypot(mdx, mdy) > 0.03;
+      pup.moving = pup.state !== "dead" && (!!m.moving || visuallyMoving);
+      if (pup.state !== "dead" && visuallyMoving) {
         pup.facing = mdx >= 0 ? 1 : -1;
         pup.updateIsoFacing(mdx, mdy);
       }

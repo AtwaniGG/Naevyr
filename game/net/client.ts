@@ -390,6 +390,16 @@ export class NetClient {
     this.safeSend("pitLeave");
   }
 
+  /** DRIFTS arena: ask for a deposit tx (transfer the stake into escrow) */
+  sendDuelStakeQuote(wager: number) {
+    this.safeSend("duelStakeQuote", { wager });
+  }
+
+  /** DRIFTS arena: commit the signed deposit so the server verifies it on-chain */
+  sendDuelStake(wager: number, sig: string) {
+    this.safeSend("duelStake", { wager, sig });
+  }
+
   requestWalletNonce() {
     this.safeSend("walletNonce");
   }

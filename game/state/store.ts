@@ -86,6 +86,7 @@ export interface DuelState {
   myHp: number;
   oppHp: number;
   wager: number;
+  currency: "gold" | "drifts";
 }
 
 /** who else shares the Drift right now */
@@ -235,7 +236,7 @@ interface GameState {
   duel: DuelState | null;
   duelChallenge: { from: string; name: string; wager: number } | null;
   /** the arena queue: who waits in the Pit's ring (mine = it's me) */
-  pitQueue: { name: string; wager: number; mine: boolean } | null;
+  pitQueue: { name: string; wager: number; mine: boolean; currency: "gold" | "drifts" } | null;
   /** the Threshold walked (or skipped); persists in the save */
   tutorialDone: boolean;
   /** current tutorial objective line (null = no banner) */
@@ -278,7 +279,7 @@ interface GameState {
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
   setDuelChallenge: (c: { from: string; name: string; wager: number } | null) => void;
-  setPitQueue: (q: { name: string; wager: number; mine: boolean } | null) => void;
+  setPitQueue: (q: { name: string; wager: number; mine: boolean; currency: "gold" | "drifts" } | null) => void;
   setTutorialDone: (b: boolean) => void;
   setTutorialObjective: (s: string | null) => void;
   setWheelSpin: (s: WheelSpin | null) => void;

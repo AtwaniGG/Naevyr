@@ -50,7 +50,7 @@ import {
   ITEM_META, BURN_COSTS as SHARED_BURN_COSTS, holderPerks, REINFORCE_INTEGRITY,
   PRESTIGE_CATALOG, AVATAR_CHANNELS, AvatarKind,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
-  GUILD, EXCHANGE, RELIC_MARKET,
+  GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   QUEST_POOL, rollDailyQuestIds, type QuestEvent,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
@@ -144,6 +144,7 @@ const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 90);
 const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
+const DUEL_MS              = Number(process.env.DUEL_MS ?? 90_000); // duel → draw timeout
 const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
 const RESET_FAILSAFE_PCT   = 97;   // theoretical max is ~92 (town/claims/water immune)
 
@@ -308,6 +309,7 @@ interface Duel {
   a: string; // sessionIds
   b: string;
   wager: number;
+  currency: "gold" | "drifts";
   hpA: number;
   hpB: number;
   until: number;
@@ -395,6 +397,14 @@ export class DriftRoom extends Room<DriftRoomState> {
   private duels: Duel[] = [];
   /** one open arena challenge: the wanderer waiting in the ring + their stake */
   private pitQueue: { sessionId: string; wager: number; name: string } | null = null;
+  /** the DRIFTS arena queue: a SEPARATE slot (the stake is already in escrow, so
+   *  it must never be clobbered by a gold poster). `sig` is the verified deposit;
+   *  `postedAt` drives the unmatched-stake refund timeout. */
+  private pitQueueDrifts:
+    | { sessionId: string; wager: number; name: string; sig: string; postedAt: number }
+    | null = null;
+  /** per-token single-flight while a DRIFTS deposit is being verified */
+  private duelStaking = new Set<string>();
   /** guild id → row mirror (region/until/founder live server-side only) */
   private guildRows = new Map<number, GuildRow>();
   /** guild id → member headcount */
@@ -795,7 +805,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         }
         const name = this.state.players.get(client.sessionId)?.name ?? "Wanderer";
         this.pitQueue = { sessionId: client.sessionId, wager, name };
-        this.broadcast("pitQueue", { name, wager, sessionId: client.sessionId });
+        this.broadcast("pitQueue", { name, wager, sessionId: client.sessionId, currency: "gold" });
         return;
       }
       // someone already waits: meet them at THEIR stake
@@ -806,9 +816,105 @@ export class DriftRoom extends Room<DriftRoomState> {
     });
 
     this.onMessage("pitLeave", (client) => {
-      if (this.pitQueue?.sessionId !== client.sessionId) return;
-      this.pitQueue = null;
-      this.broadcast("pitQueue", null);
+      if (this.pitQueue?.sessionId === client.sessionId) {
+        this.pitQueue = null;
+        this.broadcast("pitQueue", null);
+      }
+      // leaving the DRIFTS ring refunds the staked pot from escrow
+      if (this.pitQueueDrifts?.sessionId === client.sessionId) {
+        void this.refundDriftsQueue("You left the ring");
+      }
+    });
+
+    // ---- the DRIFTS arena: stakes ride on-chain escrow, not the gold ledger ------
+    // Two steps mirror the Exchange: the client asks for a deposit tx, the wallet
+    // signs it (transfer wager → escrow), then sends the signature back to commit.
+    this.onMessage("duelStakeQuote", async (client, msg: { wager?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "duelStakeQuote", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("duelStakeQuote", { ok: false, reason });
+      if (!escrowAddress()) return fail("DRIFTS wagers are closed right now");
+      if (this.inDuel(client.sessionId)) return fail("You're already in a duel");
+      // matching an existing poster means meeting THEIR stake
+      const q = this.pitQueueDrifts;
+      const matching = q && q.sessionId !== client.sessionId && this.sims.get(q.sessionId) && !this.inDuel(q.sessionId);
+      const wager = matching
+        ? q!.wager
+        : Math.max(DUEL_DRIFTS.min, Math.min(DUEL_DRIFTS.max, Math.floor(Number(msg?.wager ?? 0))));
+      if (wager < DUEL_DRIFTS.min) return fail(`DRIFTS wagers start at ${DUEL_DRIFTS.min.toLocaleString()}`);
+      const row = await loadOrCreatePlayer(sim.token);
+      if (!row.walletAddress) return fail("Link a wallet first");
+      const built = await buildExchangeBuyTx(row.walletAddress, wager);
+      if (!built.ok) return fail(built.reason);
+      client.send("duelStakeQuote", { ok: true, wager, tx: built.tx });
+    });
+
+    this.onMessage("duelStake", async (client, msg: { wager?: number; sig?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "duelStake", 4, 10_000)) return;
+      const fail = (reason: string) => client.send("duelRefused", { reason });
+      if (!escrowKeypair()) return fail("DRIFTS wagers are closed right now");
+      if (this.inDuel(client.sessionId)) return fail("You're already in a duel");
+      const sig = String(msg?.sig ?? "");
+      if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(sig)) return fail("Malformed stake signature");
+      // re-staking while already waiting would double-deposit
+      if (this.pitQueueDrifts?.sessionId === client.sessionId) return fail("You already wait in the ring");
+      if (this.duelStaking.has(sim.token)) return fail("Still settling your last stake");
+      this.duelStaking.add(sim.token);
+      try {
+        const row = await loadOrCreatePlayer(sim.token);
+        if (!row.walletAddress) return fail("Link a wallet first");
+        // is a DRIFTS poster waiting? then this stake must meet THEIR amount
+        const q = this.pitQueueDrifts;
+        const matching = q && q.sessionId !== client.sessionId && this.sims.get(q.sessionId) && !this.inDuel(q.sessionId);
+        const stakeAmt = matching
+          ? q!.wager
+          : Math.max(DUEL_DRIFTS.min, Math.min(DUEL_DRIFTS.max, Math.floor(Number(msg?.wager ?? 0))));
+        if (stakeAmt < DUEL_DRIFTS.min) return fail(`DRIFTS wagers start at ${DUEL_DRIFTS.min.toLocaleString()}`);
+        // insert-first replay protection, then verify the deposit landed in escrow
+        if (!(await tryInsertBurn(sig, sim.token, "duelStake"))) return fail("That stake was already spent");
+        const v = await verifyTxLegs(sig, [
+          { type: "transfer", from: row.walletAddress, destAta: escrowAta(), min: stakeAmt },
+        ]);
+        if (!v.ok) {
+          await deleteBurn(sig).catch(() => {});
+          return fail(v.reason ?? "The stake could not be verified");
+        }
+        // deposit confirmed — reflect it in the live balance immediately
+        sim.tokenBalance = Math.max(0, sim.tokenBalance - stakeAmt);
+        this.syncToken(sim);
+        // RE-VALIDATE against the CURRENT queue: another joiner may have matched
+        // or cleared the poster during the on-chain verify await. Acting on the
+        // stale `q` here would let one poster be dragged into two duels.
+        const cur = this.pitQueueDrifts;
+        const canMeet = cur && cur.sessionId !== client.sessionId
+          && this.sims.get(cur.sessionId) && !this.inDuel(cur.sessionId) && cur.wager === stakeAmt;
+        if (canMeet) {
+          const a = this.sims.get(cur!.sessionId)!;
+          this.pitQueueDrifts = null;
+          this.broadcast("pitQueue", null);
+          this.startDuel(a, sim, cur!.wager, "drifts");
+        } else if (!cur) {
+          // open slot → post my stake and wait
+          const name = this.state.players.get(client.sessionId)?.name ?? "Wanderer";
+          this.pitQueueDrifts = { sessionId: client.sessionId, wager: stakeAmt, name, sig, postedAt: Date.now() };
+          this.broadcast("pitQueue", { name, wager: stakeAmt, sessionId: client.sessionId, currency: "drifts" });
+        } else {
+          // the slot is held by an incompatible poster (rare concurrent-deposit
+          // collision) — refund this stake so nothing is stranded in escrow
+          const paid = await payFromEscrow(row.walletAddress, stakeAmt);
+          if (paid.ok) { sim.tokenBalance += stakeAmt; this.syncToken(sim); }
+          client.send("duelPayout", {
+            drifts: stakeAmt, refund: true,
+            reason: "The ring filled first — your stake returns.",
+            pending: paid.ok ? undefined : !paid.refundable, sig: paid.ok ? paid.sig : undefined,
+          });
+        }
+      } finally {
+        this.duelStaking.delete(sim.token);
+      }
     });
 
     this.onMessage("duelHit", (client) => {
@@ -1962,6 +2068,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.pitQueue = null;
       this.broadcast("pitQueue", null);
     }
+    // a staked DRIFTS poster who disconnects gets their escrow stake refunded
+    if (this.pitQueueDrifts?.sessionId === client.sessionId) {
+      await this.refundDriftsQueue("You left the realm");
+    }
     const sim = this.sims.get(client.sessionId);
     const ps = this.state.players.get(client.sessionId);
     this.sims.delete(client.sessionId);
@@ -1988,6 +2098,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     const now = Date.now();
     for (const duel of [...this.duels]) {
       if (now > duel.until) this.endDuel(duel, null);
+    }
+    // an unmatched DRIFTS stake refunds itself after 5 min so escrow isn't held
+    if (this.pitQueueDrifts && now - this.pitQueueDrifts.postedAt > 300_000) {
+      void this.refundDriftsQueue("No challenger came");
     }
 
     for (const [id, sim] of this.sims) {
@@ -2102,9 +2216,10 @@ export class DriftRoom extends Room<DriftRoomState> {
   }
 
   /** stake both wagers and seal two fighters into the arena ring */
-  private startDuel(a: PlayerSim, b: PlayerSim, wager: number) {
-    // both stakes leave the ledgers up front; the pot pays out at the end
-    if (wager > 0) {
+  private startDuel(a: PlayerSim, b: PlayerSim, wager: number, currency: "gold" | "drifts" = "gold") {
+    // gold stakes leave the ledger up front; the pot pays out at the end.
+    // DRIFTS stakes are ALREADY in escrow (verified at deposit) — nothing to debit.
+    if (currency === "gold" && wager > 0) {
       if (a.gold < wager || b.gold < wager) {
         const light = a.gold < wager ? a : b;
         for (const s of [a, b]) {
@@ -2126,9 +2241,10 @@ export class DriftRoom extends Room<DriftRoomState> {
       a: a.client.sessionId,
       b: b.client.sessionId,
       wager,
+      currency,
       hpA: 100,
       hpB: 100,
-      until: Date.now() + 90_000,
+      until: Date.now() + DUEL_MS,
       lastHitA: 0,
       lastHitB: 0,
     });
@@ -2136,24 +2252,35 @@ export class DriftRoom extends Room<DriftRoomState> {
     const nameB = this.state.players.get(b.client.sessionId)?.name ?? "?";
     this.broadcast("duelStart", {
       a: a.client.sessionId, b: b.client.sessionId,
-      nameA, nameB, wager,
+      nameA, nameB, wager, currency,
     });
   }
 
-  /** winner=null → draw (timeout) */
+  /** winner=null → draw (timeout). The synchronous filter at the top is the
+   *  double-settle guard: once a duel leaves the array no other caller (duelHit,
+   *  flee, timeout) can re-find it, so the async DRIFTS payout fires exactly once. */
   private endDuel(duel: Duel, winner: string | null) {
     this.duels = this.duels.filter((d) => d !== duel);
-    // settle the pot from the ledgers: winner takes all, a draw returns stakes
-    if (duel.wager > 0) {
-      if (winner) {
-        const w = this.sims.get(winner);
-        if (w) this.credit(w, duel.wager * 2);
-      } else {
-        for (const id of [duel.a, duel.b]) {
-          const s = this.sims.get(id);
-          if (s) this.credit(s, duel.wager);
+    // the pot the winner sees: gold takes all, DRIFTS keeps the house's 10%
+    const pot = duel.currency === "drifts"
+      ? Math.floor(duel.wager * 2 * (1 - DUEL_DRIFTS.feePct))
+      : duel.wager * 2;
+    // settle the stakes
+    if (duel.currency === "gold") {
+      if (duel.wager > 0) {
+        if (winner) {
+          const w = this.sims.get(winner);
+          if (w) this.credit(w, duel.wager * 2);
+        } else {
+          for (const id of [duel.a, duel.b]) {
+            const s = this.sims.get(id);
+            if (s) this.credit(s, duel.wager);
+          }
         }
       }
+    } else {
+      // DRIFTS: pay the winner 90% out of escrow, or refund both on a draw
+      void this.settleDriftsDuel(duel, winner);
     }
     // both fighters return to the spawn steps
     for (const id of [duel.a, duel.b]) {
@@ -2170,9 +2297,62 @@ export class DriftRoom extends Room<DriftRoomState> {
       a: duel.a,
       b: duel.b,
       winner,
-      pot: duel.wager * 2,
+      pot,
+      currency: duel.currency,
       winnerName: winner ? this.state.players.get(winner)?.name ?? "?" : null,
     });
+  }
+
+  /** pay a DRIFTS duel out of escrow: winner gets 90% of the pot (the house keeps
+   *  the rest), a draw refunds each fighter their own stake. An indeterminate
+   *  payout is held (never refunded — that would double-pay) and reported pending,
+   *  same posture as the Exchange sell side. */
+  private async settleDriftsDuel(duel: Duel, winner: string | null) {
+    const payOut = async (id: string, amount: number, refund: boolean) => {
+      const sim = this.sims.get(id);
+      const token = sim?.token;
+      const wallet = token ? (await loadOrCreatePlayer(token)).walletAddress : null;
+      if (!wallet) return; // unlinked / gone — reconcile the sig off-chain
+      const paid = await payFromEscrow(wallet, amount);
+      if (paid.ok) {
+        if (sim) { sim.tokenBalance += amount; this.syncToken(sim); }
+        sim?.client.send("duelPayout", { drifts: amount, refund, sig: paid.sig });
+      } else {
+        sim?.client.send("duelPayout", {
+          drifts: amount, refund, pending: !paid.refundable, reason: paid.reason,
+        });
+      }
+    };
+    if (winner) {
+      await payOut(winner, Math.floor(duel.wager * 2 * (1 - DUEL_DRIFTS.feePct)), false);
+    } else {
+      // a draw takes no cut: each fighter gets their full stake back
+      await payOut(duel.a, duel.wager, true);
+      await payOut(duel.b, duel.wager, true);
+    }
+  }
+
+  /** refund an unmatched DRIFTS poster's stake from escrow and clear the slot.
+   *  Clearing the slot FIRST makes this idempotent against pitLeave + onLeave +
+   *  the queue timeout all firing for the same poster. */
+  private async refundDriftsQueue(reason: string) {
+    const q = this.pitQueueDrifts;
+    if (!q) return;
+    this.pitQueueDrifts = null;
+    this.broadcast("pitQueue", null);
+    const sim = this.sims.get(q.sessionId);
+    const token = sim?.token;
+    const wallet = token ? (await loadOrCreatePlayer(token)).walletAddress : null;
+    if (!wallet) return;
+    const paid = await payFromEscrow(wallet, q.wager);
+    if (paid.ok) {
+      if (sim) { sim.tokenBalance += q.wager; this.syncToken(sim); }
+      sim?.client.send("duelPayout", { drifts: q.wager, refund: true, reason, sig: paid.sig });
+    } else {
+      sim?.client.send("duelPayout", {
+        drifts: q.wager, refund: true, pending: !paid.refundable, reason: paid.reason,
+      });
+    }
   }
 
   // ---- the Drift wiring (re-applied after a realm reset) ---------------------------

@@ -1,0 +1,101 @@
+// Records a PvP Pit duel for social: two wanderers meet in the ring, wager gold,
+// trade blows (server-rolled), one walks out with the pot. Records BOTH fighters
+// and keeps the WINNER's footage (the "one comes out with everything" shot).
+//   node scripts/capture-pvp.mjs   (prereqs: dev :3000 + server :2567)
+import { chromium } from "playwright";
+import { mkdirSync, renameSync, rmSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const URL = "http://localhost:3000/play?demo=1";
+const OUT = fileURLToPath(new globalThis.URL("../public/gameplay/", import.meta.url));
+const DA = `${OUT}pvpA/`, DB = `${OUT}pvpB/`;
+mkdirSync(DA, { recursive: true }); mkdirSync(DB, { recursive: true });
+const today = Math.floor(Date.now() / 86_400_000);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const WAGER = 250;
+
+const save = (name, dye, eye) => ({
+  day: today, gold: 1000, driftSeason: 3, quests: [], tutorialDone: true,
+  cosmetics: { name, dye, eye, aura: "", pet: "" },
+  inventory: { wood: 4, stone: 4, fish: 2, cooked_fish: 2, driftshard: 6, hide: 5 }, kills: 20,
+});
+
+const browser = await chromium.launch();
+async function makePlayer(dir, s) {
+  const ctx = await browser.newContext({
+    viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1,
+    recordVideo: { dir, size: { width: 1920, height: 1080 } },
+  });
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => console.log("pageerror:", e.message));
+  await page.addInitScript((v) => localStorage.setItem("driftlands-save-v1", JSON.stringify(v)), s);
+  await page.goto(URL, { waitUntil: "domcontentloaded" });
+  await page.getByText("Step into the Drift").click({ timeout: 90_000 });
+  await page.waitForFunction(() => "__demo" in window, null, { timeout: 45_000 });
+  return { ctx, page };
+}
+const player = (p) => p.evaluate(() => window.__demo.player());
+const toScreen = (p, x, y) => p.evaluate(([gx, gy]) => window.__demo.toScreen(gx, gy), [x, y]);
+async function clickCell(p, x, y) {
+  const sc = await toScreen(p, x, y);
+  if (sc.x < 20 || sc.y < 60 || sc.x > 1900 || sc.y > 1020) return false;
+  await p.mouse.click(sc.x, sc.y); return true;
+}
+async function walkTo(p, tx, ty, hops = 12) {
+  for (let i = 0; i < hops; i++) {
+    const q = await player(p);
+    if (Math.max(Math.abs(q.x - tx), Math.abs(q.y - ty)) <= 1) return;
+    const nx = Math.round(q.x + Math.max(-4, Math.min(4, tx - q.x)));
+    const ny = Math.round(q.y + Math.max(-4, Math.min(4, ty - q.y)));
+    if (await clickCell(p, nx, ny)) {
+      const end = Date.now() + 4500;
+      for (;;) { const r = await player(p); if (Math.max(Math.abs(r.x - nx), Math.abs(r.y - ny)) <= 1 || Date.now() > end) break; await wait(260); }
+    } else await wait(500);
+  }
+}
+
+const A = await makePlayer(DA, save("Kahl", "ember", "blood"));
+const B = await makePlayer(DB, save("Vey", "void", "ember"));
+await wait(2800);
+// zoom both in
+for (const { page } of [A, B]) { await page.mouse.move(960, 540); for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -240); await wait(110); } }
+
+// both converge on the Pit (20,32), standing adjacent so the auto-swing engages
+console.log("walking to the Pit…");
+await Promise.all([walkTo(A.page, 20, 32), walkTo(B.page, 22, 32)]);
+await walkTo(A.page, 20, 32, 4);
+await walkTo(B.page, 21, 32, 4);
+// let the gold ledger seed (first 8s snapshot) before the wager is checked
+await wait(7000);
+
+// A challenges the wanderer named Vey; B accepts
+console.log("challenge…");
+const targetId = await A.page.evaluate(() => {
+  const v = window.__demo.others().find((o) => o.name === "Vey") ?? window.__demo.others()[0];
+  return v ? v.id : null;
+});
+if (!targetId) { console.log("FAIL: A can't see B"); }
+await A.page.evaluate(([id, w]) => window.__demo.challenge(id, w), [targetId, WAGER]);
+await wait(1500);
+await B.page.evaluate(() => window.__demo.acceptDuel());
+await wait(1500);
+// nudge them adjacent inside the ring so the swings land, then let it play out
+await walkTo(A.page, 20, 32, 3);
+await walkTo(B.page, 21, 32, 3);
+console.log("dueling…");
+await wait(13000); // ~12 swings each → someone drops; VICTORY/DEFEAT banners
+await wait(2500); // hold the result
+
+const goldA = await A.page.evaluate(() => window.__demo.gold());
+const goldB = await B.page.evaluate(() => window.__demo.gold());
+const winner = goldA >= goldB ? "A" : "B";
+console.log(`gold: Kahl=${goldA} Vey=${goldB} → winner ${winner}`);
+
+// grab the winner's video path BEFORE closing (path resolves on context close)
+const winVid = winner === "A" ? A.page.video() : B.page.video();
+await A.ctx.close(); await B.ctx.close();
+renameSync(await winVid.path(), `${OUT}pvp.webm`);
+try { rmSync(DA, { recursive: true, force: true }); rmSync(DB, { recursive: true, force: true }); } catch { /* */ }
+void existsSync;
+console.log(`SAVED ${OUT}pvp.webm (winner: ${winner === "A" ? "Kahl" : "Vey"})`);
+await browser.close();

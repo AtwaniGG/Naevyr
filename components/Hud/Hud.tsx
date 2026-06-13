@@ -24,6 +24,7 @@ import {
   RELIC_MARKET,
   GUILD,
   burnAmt,
+  DUEL_DRIFTS,
   holderPerks,
   INVENTORY_ORDER,
   ITEM_META,
@@ -104,7 +105,9 @@ export default function Hud() {
       setDemo(true);
     }
   }, []);
-  if (demo) return null;
+  // ?demo hides the HUD for clean canvas capture, but the Wheel overlay IS the
+  // scene when a spin is rolling, so keep it visible (it self-hides when idle).
+  if (demo) return <WheelOverlay />;
   return (
     <div className="pointer-events-none absolute inset-0 select-none" style={{ zIndex: 10 }}>
       <div className="drift-scrim" />
@@ -798,9 +801,16 @@ function ShrinePanel() {
 function PitPanel() {
   const s = useGame();
   const [wager, setWager] = useState(50);
+  const [dWager, setDWager] = useState<number>(DUEL_DRIFTS.min);
+  const [mode, setMode] = useState<"gold" | "drifts">("gold");
   if (!s.online) return <OfflineNote what="The Pit" />;
   const others = s.roster.filter((r) => !r.self);
   const q = s.pitQueue;
+  const qDrifts = q?.currency === "drifts";
+  const qUnit = qDrifts ? "◆" : "g";
+  const qShort = (n: number) => n.toLocaleString();
+  // can I cover an open stake? (gold from the purse, DRIFTS from the linked wallet)
+  const canMeet = q ? (qDrifts ? !!s.wallet && s.tokenBalance >= q.wager : s.gold >= q.wager) : false;
   return (
     <>
       <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
@@ -811,21 +821,27 @@ function PitPanel() {
       {q && !q.mine ? (
         <div style={{ marginBottom: 10 }}>
           <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--drift-corrupt)", marginBottom: 6 }}>
-            {q.name} waits in the ring. The stake is {q.wager}g.
+            {q.name} waits in the ring. The stake is {qShort(q.wager)}{qUnit}.
           </div>
           <Button size="sm" variant="primary"
-            style={s.gold < q.wager ? { opacity: 0.45 } : undefined}
+            style={!canMeet ? { opacity: 0.45 } : undefined}
             onClick={() => {
-              if (s.gold < q.wager) return;
-              bus.emit("pitJoin", q.wager);
+              if (!canMeet) return;
+              bus.emit(qDrifts ? "pitJoinDrifts" : "pitJoin", q.wager);
             }}>
-            Meet them in the ring · {q.wager}g
+            Meet them in the ring · {qShort(q.wager)}{qUnit}
           </Button>
+          {qDrifts && !s.wallet && (
+            <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 4 }}>
+              Link a wallet in the You panel to meet a DRIFTS stake.
+            </div>
+          )}
         </div>
       ) : q && q.mine ? (
         <div style={{ marginBottom: 10 }}>
           <div style={{ font: "400 11px/1.4 var(--font-ui)", color: "var(--drift-gold)", marginBottom: 6 }}>
-            You wait in the ring ({q.wager}g staked). The sand is patient.
+            You wait in the ring ({qShort(q.wager)}{qUnit} staked). The sand is patient.
+            {qDrifts && " Your DRIFTS return if no one comes."}
           </div>
           <Button size="sm" variant="ghost" onClick={() => bus.emit("pitLeave", true)}>
             Step out of the ring
@@ -833,23 +849,63 @@ function PitPanel() {
         </div>
       ) : (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-            <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
-            <input type="number" min={0} max={5000} value={wager}
-              onChange={(e) => setWager(Math.max(0, Math.min(5000, Number(e.target.value) | 0)))}
-              className="drift-well"
-              style={{ width: 70, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }} />
-            <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>gold each</span>
+          {/* currency toggle: gold rides the ledger, DRIFTS ride on-chain escrow */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+            {(["gold", "drifts"] as const).map((c) => (
+              <Button key={c} size="sm" variant={mode === c ? "primary" : "ghost"}
+                onClick={() => setMode(c)}>
+                {c === "gold" ? "Gold" : "DRIFTS"}
+              </Button>
+            ))}
           </div>
-          <Button size="sm" variant="primary"
-            style={s.gold < wager ? { opacity: 0.45 } : undefined}
-            onClick={() => {
-              if (s.gold < wager) return;
-              bus.emit("pitJoin", wager);
-              s.pushLog(`You step into the ring (${wager}g staked).`, "#dc2626");
-            }}>
-            Step into the ring
-          </Button>
+          {mode === "gold" ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
+                <input type="number" min={0} max={5000} value={wager}
+                  onChange={(e) => setWager(Math.max(0, Math.min(5000, Number(e.target.value) | 0)))}
+                  className="drift-well"
+                  style={{ width: 70, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "var(--drift-gold)", background: "var(--surface-well)" }} />
+                <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>gold each</span>
+              </div>
+              <Button size="sm" variant="primary"
+                style={s.gold < wager ? { opacity: 0.45 } : undefined}
+                onClick={() => {
+                  if (s.gold < wager) return;
+                  bus.emit("pitJoin", wager);
+                  s.pushLog(`You step into the ring (${wager}g staked).`, "#dc2626");
+                }}>
+                Step into the ring
+              </Button>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span className="drift-label" style={{ fontSize: 9 }}>Wager</span>
+                <input type="number" min={DUEL_DRIFTS.min} max={DUEL_DRIFTS.max} step={1000} value={dWager}
+                  onChange={(e) => setDWager(Math.max(DUEL_DRIFTS.min, Math.min(DUEL_DRIFTS.max, Number(e.target.value) | 0)))}
+                  className="drift-well"
+                  style={{ width: 96, border: 0, outline: "none", padding: "5px 7px", font: "400 12px/1 var(--font-ui)", color: "#d8b4fe", background: "var(--surface-well)" }} />
+                <span style={{ font: "400 9.5px/1 var(--font-ui)", color: "var(--text-muted)" }}>DRIFTS each</span>
+              </div>
+              <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginBottom: 8 }}>
+                Min {DUEL_DRIFTS.min.toLocaleString()}◆. The house keeps {DUEL_DRIFTS.feePct * 100}% of the pot; the winner takes the rest. Stakes are held on-chain.
+              </div>
+              <Button size="sm" variant="primary"
+                style={!s.wallet || s.tokenBalance < dWager ? { opacity: 0.45 } : undefined}
+                onClick={() => {
+                  if (!s.wallet || s.tokenBalance < dWager) return;
+                  bus.emit("pitJoinDrifts", dWager);
+                }}>
+                Stake into the ring
+              </Button>
+              {!s.wallet && (
+                <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 4 }}>
+                  Link a wallet in the You panel to wager DRIFTS.
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
       {/* or call someone out by name (the old way still stands) */}
@@ -1003,7 +1059,7 @@ function DuelOverlay() {
           {bar(duel.oppName, duel.oppHp, "#dc2626")}
         </div>
         <div style={{ font: "400 9px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 5, textAlign: "center" }}>
-          Stand beside your opponent. Your wanderer swings on its own. Pot: {duel.wager * 2}g
+          Stand beside your opponent. Your wanderer swings on its own. Pot: {(duel.currency === "drifts" ? Math.floor(duel.wager * 2 * (1 - DUEL_DRIFTS.feePct)) : duel.wager * 2).toLocaleString()}{duel.currency === "drifts" ? "◆" : "g"}
         </div>
       </Panel>
     </div>

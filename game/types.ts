@@ -227,6 +227,16 @@ export const EXCHANGE = {
   minTrade: 10,   // gold per transaction, both directions
 } as const;
 
+// ─── Pit DRIFTS wagers ─────────────────────────────────────────────────────────
+// Real on-chain stakes (the realm never mints, so the pot is held in escrow):
+// both fighters transfer their stake into escrow, the winner is paid 90% out of
+// it, and the house keeps 10% of the TOTAL pot. Gold wagers are unchanged.
+export const DUEL_DRIFTS = {
+  min: 20_000,      // minimum stake, DRIFTS
+  max: 1_000_000,   // bound the escrow's exposure per duel
+  feePct: 0.10,     // house cut of the total pot (winner takes the other 90%)
+} as const;
+
 // ─── The relic market (P2P, Drift-touched cosmetics only) ──────────────────────
 // Only server-authoritative prestige cosmetics trade (gold cosmetics are
 // client-trusted, so untradable). Titles are soul-bound. The fee leg BURNS.

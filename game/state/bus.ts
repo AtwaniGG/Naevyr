@@ -30,6 +30,8 @@ type Events = {
   duelAccept: boolean;
   /** post a stake and wait in the Pit's ring (the arena queue) */
   pitJoin: number;
+  /** post a DRIFTS stake in the ring (signs an on-chain escrow deposit) */
+  pitJoinDrifts: number;
   /** abandon the open arena challenge */
   pitLeave: boolean;
   /** start the Solana wallet link flow (devnet); false = unlink */
