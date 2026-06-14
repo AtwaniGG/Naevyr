@@ -238,6 +238,7 @@ function MobileHud() {
           them; each renders only its bottom sheet when open) */}
       <Trap label="ForgeDock"><ForgeDock /></Trap>
       <Trap label="MarketDock"><MarketDock /></Trap>
+      <Trap label="PassDock"><PassDock /></Trap>
       <Trap label="IdentityDock"><IdentityDock /></Trap>
       <Trap label="Satchel"><Satchel /></Trap>
 
@@ -274,6 +275,7 @@ function MobileHud() {
         </Button>
         <ForgeTabButton />
         <MarketTabButton />
+        <PassTabButton />
         <YouTabButton />
         <Trap label="StakeButton"><StakeButton /></Trap>
         <Trap label="ReinforceButton"><ReinforceButton /></Trap>
@@ -308,6 +310,13 @@ function YouTabButton() {
   const setOpenDock = useGame((s) => s.setOpenDock);
   return (
     <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "you")} iconLeft={<Icon name="heart" size={16} glow={open} />}>You</Button>
+  );
+}
+function PassTabButton() {
+  const open = useGame((s) => s.openDock) === "pass";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  return (
+    <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "pass")} iconLeft={<Icon name="pass" size={16} glow={open} />}>Pass</Button>
   );
 }
 
@@ -1427,17 +1436,20 @@ function PassDock() {
 
   const earned = bp ? bp.tier : 0;
   const xpInTier = bp ? bp.xp % 1000 : 0;
+  const isPhone = useViewport().isPhone;
 
   return (
     <div style={{ position: "relative" }}>
-      <Button
-        variant={open ? "primary" : "ghost"}
-        size="md"
-        onClick={() => setOpen(!open)}
-        iconLeft={<Icon name="pass" size={16} glow={open} />}
-      >
-        Pass
-      </Button>
+      {!isPhone && (
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpen(!open)}
+          iconLeft={<Icon name="pass" size={16} glow={open} />}
+        >
+          Pass
+        </Button>
+      )}
       <DockPopout open={open}>
         <Panel
           kicker={bp ? `Season ${bp.season} · ${bp.name}` : "The Drift Ledger"}
