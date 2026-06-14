@@ -37,7 +37,7 @@ import {
   spriteCache, hash2,
   TileType, BeastKind, BeastAnim, DoodadKind, EquipVisual, LookVisual,
   DyeKey, EyeKey, PRESTIGE_AURAS, PrestigeAuraKey,
-  beastSpriteFor, isBossKind,
+  beastSpriteFor, isBossKind, BLOOD_SKY_STOPS,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
 import {
@@ -176,6 +176,10 @@ export class Game {
   private lastHurtT0 = 0;
   private region = "";
   private banner: { name: string; t0: number } | null = null;
+  /** the active Drift Rift (server-driven): opens, boils, then closes + clears */
+  private rift: { x: number; y: number; t0: number; closeT0: number | null } | null = null;
+  /** Blood Moon window: drives the sky moon + blood-sky tint while active */
+  private bloodMoon: { t0: number } | null = null;
   private storm: { until: number } | null = null;
   private nextStormAt = performance.now() + 180_000 + Math.random() * 180_000;
   private stepAcc = 0;
@@ -974,6 +978,7 @@ export class Game {
       this.shakeUntil = performance.now() + 500;
       this.shakeMag = 4;
       this.spawnFloater(m.x, m.y - 1.5, "THE RIFT YAWNS", "#a855f7");
+      this.rift = { x: m.x, y: m.y, t0: performance.now(), closeT0: null };
       store.pushLog(
         `A DRIFT RIFT tears open in the frontier. Cut down ${m.need} of what crawls out before it seals.`,
         "#a855f7",
@@ -981,6 +986,8 @@ export class Game {
     });
     net.onMessage<{ cleared: boolean }>("riftEnd", (m) => {
       const store = useGame.getState();
+      // begin the closing animation; the rift clears itself once it finishes
+      if (this.rift) this.rift.closeT0 = performance.now();
       store.pushLog(
         m.cleared ? "The rift collapses, glutted and beaten. The frontier holds."
                   : "The rift seals itself, unbroken. It will come again.",
@@ -999,8 +1006,10 @@ export class Game {
       if (m.active) {
         play("boss");
         this.banner = { name: "A BLOOD MOON RISES", t0: performance.now() };
+        this.bloodMoon = { t0: performance.now() };
         store.pushLog("A BLOOD MOON rises. The frontier wakes hungry. Tread the deep wilds and the drops run rich.", "#dc2626");
       } else {
+        this.bloodMoon = null;
         store.pushLog("The blood moon sets. The frontier's fever breaks.", "#7c6f93");
       }
     });
@@ -1012,6 +1021,8 @@ export class Game {
         "THE DRIFT TAKES THE REALM. All claims fall. A new land rises from the ash…",
         "#a855f7",
       );
+      this.rift = null;       // the old realm's rift + blood moon are gone
+      this.bloodMoon = null;
       this.tomb = null;
       this.propPlaceKind = null;
       store.setClaimMode(false);
@@ -2236,6 +2247,10 @@ export class Game {
       this.updateInterior(dt);
       return;
     }
+    // the rift clears once its ~1s closing animation has played out
+    if (this.rift?.closeT0 != null && performance.now() - this.rift.closeT0 > 1100) {
+      this.rift = null;
+    }
     if (this.net) {
       this.updateOnline(dt);
     } else {
@@ -3449,6 +3464,24 @@ export class Game {
     ctx.fillStyle = `rgba(10, 12, 34, ${0.16 * night})`;
     ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
 
+    // BLOOD MOON: a corrupted sky tint + the moon hanging in the upper sky
+    if (this.bloodMoon) {
+      const cw = this.camera.viewW, ch = this.camera.viewH;
+      const ramp = Math.min(1, (now - this.bloodMoon.t0) / 2000); // ease in over 2s
+      const sky = ctx.createLinearGradient(0, 0, 0, ch);
+      for (const stop of BLOOD_SKY_STOPS) sky.addColorStop(stop.at, stop.hex);
+      ctx.save();
+      ctx.globalAlpha = 0.42 * ramp;
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.restore();
+      // the moon, screen-space top-right, gently bobbing
+      const mscale = 1.6 * this.camera.zoom;
+      const mx = cw - 70 * this.camera.zoom;
+      const my = 70 * this.camera.zoom + Math.sin(now / 1400) * 3;
+      spriteCache.drawBloodMoon(ctx, Math.floor(now / 700) % 2, mx, my, mscale);
+    }
+
     // red pulse at the screen edges when recently hurt
     if (now - this.lastHurtT0 < 600) {
       const t = (now - this.lastHurtT0) / 600;
@@ -4131,6 +4164,36 @@ export class Game {
       depth: pd + 0.01,
       fn: () => this.drawWandererEntity(ctx, this.player, true),
     });
+
+    // the Drift Rift: a ground-tear at its frontier cell (opens → boils → closes)
+    if (this.rift) {
+      const r = this.rift;
+      const now = performance.now();
+      let state: "opening" | "active" | "closing" = "active";
+      let frame = Math.floor(now / 150) % 4;        // boil loop
+      if (r.closeT0 != null) {
+        state = "closing"; frame = Math.min(3, Math.floor((now - r.closeT0) / 250));
+      } else if (now - r.t0 < 1200) {
+        state = "opening"; frame = Math.min(3, Math.floor((now - r.t0) / 300));
+      }
+      const s = this.tileScreen(r.x, r.y);
+      const z = this.camera.zoom;
+      draws.push({
+        depth: r.x + r.y + 0.5,
+        fn: () => {
+          spriteCache.drawRift(ctx, state, frame, s.x, s.y, z);
+          // a couple of motes orbit an open rift
+          if (state === "active") {
+            const t = now / 600;
+            for (let i = 0; i < 2; i++) {
+              const a = t + i * Math.PI;
+              spriteCache.drawRiftMote(ctx, Math.floor(now / 300 + i) % 2,
+                s.x + Math.cos(a) * 22 * z, s.y - 50 * z + Math.sin(a) * 14 * z, z);
+            }
+          }
+        },
+      });
+    }
 
     draws.sort((a, b) => a.depth - b.depth);
     for (const d of draws) d.fn();
