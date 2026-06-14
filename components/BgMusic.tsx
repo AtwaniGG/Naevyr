@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 // the choice is remembered.
 
 const KEY = "naevyr-music";
-const VOLUME = 0.156; // quiet · the realm hums, it does not shout (was 0.24, -35%)
+const VOLUME = 0.078; // very quiet · the realm hums, it does not shout (was 0.156, -50%)
 
 export default function BgMusic() {
   const path = usePathname();
