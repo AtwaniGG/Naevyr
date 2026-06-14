@@ -7,6 +7,7 @@ import {
   BURN_COSTS, burnAmt, BASE_PERKS, HOLDER_TIERS,
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, GOLD_WHEEL, GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   PRESTIGE_CATALOG, AVATAR_KINDS, AVATAR_CHANNELS,
+  BP_TIERS, BP_PERIOD_MS, BP_CHALLENGES_PER_WEEK, BP_CHALLENGE_POOL, passSeasonDef,
 } from "@/game/types";
 
 // The whitepaper: everything the realm is and how it works, in one document.
@@ -34,6 +35,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "events", group: "Core Systems", title: "World Events" },
   { id: "token", group: "DRIFTS", title: "DRIFTS & Burn Rites" },
   { id: "driftwheel", group: "DRIFTS", title: "The Drift Wheel & Relics" },
+  { id: "battlepass", group: "DRIFTS", title: "The Drift Ledger" },
   { id: "exchange", group: "DRIFTS", title: "The Exchange" },
   { id: "tokenomics", group: "DRIFTS", title: "Tokenomics" },
   { id: "trust", group: "DRIFTS", title: "Architecture & Trust" },
@@ -752,6 +754,90 @@ export default function DocsPage() {
             ownership itself. A relic worn is a relic owned, provably.
           </P>
 
+          <H id="battlepass">The Drift Ledger</H>
+          <P>
+            The realm keeps a seasonal ledger. Each{" "}
+            <Gold>{Math.round(BP_PERIOD_MS / (7 * 86_400_000))}-week season</Gold>{" "}
+            opens a fresh track of <Gold>{BP_TIERS} tiers</Gold>, named for the
+            Drift that rules it (Season 1 is <Gold>Ashfall</Gold>). When a season
+            ends the next begins on its own; the season shown on your badge is the
+            ledger's, not the corruption meter's. Every wanderer earns on the{" "}
+            <Gold>Free track</Gold>; the <Gold>Premium track</Gold> opens with a
+            single DRIFTS burn.
+          </P>
+          <P>
+            <Gold>Season XP</Gold> comes from this week's trials, a rotating set
+            of <Gold>{BP_CHALLENGES_PER_WEEK} challenges</Gold> (refreshed every
+            week of the season), plus small grants for the realm's larger deeds:
+            surviving a Long Night, escorting a caravan home, felling a Colossus,
+            claiming a daily quest. The server tracks it all; nothing is
+            client-trusted. This week's pool, the same the server rolls from:
+          </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Trial", "Goal", "Season XP"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {BP_CHALLENGE_POOL.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>{c.label}</td>
+                    <td style={{ padding: "5px 10px" }}>{c.target}</td>
+                    <td style={{ padding: "5px 10px", color: "var(--drift-gold)" }}>{c.passXp.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <P>
+            <Gold>The Premium track</Gold> opens by burning{" "}
+            <Gold>{burnAmt(BURN_COSTS.battlePass)}</Gold> once, and it{" "}
+            <Gold>retro-unlocks</Gold> every tier you have already earned. It
+            pays season-exclusive cosmetics alongside richer gold and shards, and
+            it <Gold>never pays DRIFTS</Gold>: the ledger is utility, not a
+            return. The free track keeps its own steady gold and shards so no
+            wanderer climbs for nothing. Season 1's cosmetic milestones:
+          </P>
+          <div style={{ margin: "0 0 16px", overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", font: "400 12px/1.6 var(--font-ui)", color: "var(--text-secondary)" }}>
+              <thead>
+                <tr>
+                  {["Tier", "Track", "Reward"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 10px", color: "var(--drift-gold)", borderBottom: "1px solid rgba(124,58,237,0.35)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {passSeasonDef(1).tiers.flatMap((t, i) => {
+                  const rows: { tier: number; track: string; label: string }[] = [];
+                  if (t.free?.kind === "cosmetic") rows.push({ tier: i + 1, track: "Free", label: t.free.label });
+                  if (t.premium?.kind === "cosmetic") rows.push({ tier: i + 1, track: "Premium", label: t.premium.label });
+                  return rows;
+                }).map((r, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: "5px 10px" }}>{r.tier}</td>
+                    <td style={{ padding: "5px 10px", color: r.track === "Premium" ? "#d8b4fe" : "var(--text-primary)" }}>{r.track}</td>
+                    <td style={{ padding: "5px 10px", color: "var(--text-primary)" }}>{r.label}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <P>
+            The capstone, <Gold>The Tarnished Chalice</Gold>, is a relic that
+            exists only here: never sold at a keeper, never rolled on a wheel.
+            Once Ashfall closes, the only way to wear one is to buy it second-hand
+            on the relic stall. <Gold>At season's end</Gold> any tier you earned
+            but never claimed is granted automatically, then the track resets and
+            the next season's trials roll. The burn that opens Premium splits like
+            every rite: half burned forever, half to the treasury that funds the
+            realm.
+          </P>
+
           <H id="exchange">The Exchange</H>
           <P>
             At the Vault keeper's counter, gold and DRIFTS change hands at
@@ -900,6 +986,12 @@ export default function DocsPage() {
             takes nine tenths of the pot and the house keeps a tenth. Every duel
             locks real DRIFTS in escrow and skims {DUEL_DRIFTS.feePct * 100}% to
             the realm.
+            <br />
+            7. <Gold>The ledger.</Gold> Each season's Drift Ledger opens its
+            Premium track for a <Gold>{burnAmt(BURN_COSTS.battlePass)}</Gold>{" "}
+            burn, a recurring demand that returns every{" "}
+            {Math.round(BP_PERIOD_MS / (7 * 86_400_000))} weeks per wanderer who
+            climbs it, paying cosmetics and gold but never DRIFTS.
           </P>
           <P>
             <Gold>Supply sinks, by the numbers.</Gold> Every rite splits by
