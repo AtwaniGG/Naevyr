@@ -406,6 +406,13 @@ export class Game {
     }
     const provider = this.detectWallet();
     if (!provider?.connect || !provider.signMessage) {
+      // mobile browsers have no injected wallet → bounce into Phantom's in-app
+      // browser, where window.solana exists and the link can be signed
+      if (viewport.isTouch && typeof window !== "undefined") {
+        const url = encodeURIComponent(window.location.href);
+        window.location.href = `https://phantom.app/ul/browse/${url}?ref=${encodeURIComponent(window.location.origin)}`;
+        return;
+      }
       store.pushLog("No Solana wallet found. Install Phantom, then retry.", "#6f6781");
       return;
     }

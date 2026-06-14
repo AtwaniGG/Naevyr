@@ -1498,10 +1498,20 @@ function PassDock() {
                     <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
                       The Guest Drift has no wallet. Leave it and enter the Realm with your wallet to unlock the season pass.
                     </div>
-                  ) : (
+                  ) : wallet && !holder ? (
                     <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
-                      Premium opens with {burnAmt(BURN_COSTS.battlePass)} <DriftsMark /> burned. Link a wallet that holds them.
+                      Your linked wallet holds no DRIFTS. Premium opens with {burnAmt(BURN_COSTS.battlePass)} <DriftsMark /> burned.
                     </div>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="primary" style={{ width: "100%" }}
+                        onClick={() => bus.emit("walletLink", true)}>
+                        Connect wallet to unlock
+                      </Button>
+                      <div style={{ font: "400 9px/1.3 var(--font-ui)", color: "var(--text-muted)", textAlign: "center", marginTop: 5 }}>
+                        Premium opens with {burnAmt(BURN_COSTS.battlePass)} <DriftsMark /> burned.
+                      </div>
+                    </>
                   )}
                 </div>
               )}
