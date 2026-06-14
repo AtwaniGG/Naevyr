@@ -4218,6 +4218,13 @@ export class Game {
             fn: () => spriteCache.drawKeeperNpc(ctx, kind, facing, false, nf, s.x, s.y, z),
           });
         }
+        // a watchtower + palisade gate frame the garrison (decorative)
+        const z = this.camera.zoom;
+        ([["watchtower", op.x - 3, op.y - 1], ["palisade_gate", op.x, op.y + 4]] as ["watchtower" | "palisade_gate", number, number][])
+          .forEach(([key, gx, gy]) => {
+            const s = this.tileScreen(gx, gy);
+            draws.push({ depth: gx + gy, fn: () => spriteCache.drawBuilding(ctx, key, s.x, s.y, z, 0, false) });
+          });
       }
     }
 
