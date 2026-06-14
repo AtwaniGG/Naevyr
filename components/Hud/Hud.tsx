@@ -309,9 +309,9 @@ function YouTabButton() {
   );
 }
 
-/** Quick, always-visible mute for the mobile HUD. Desktop keeps its toggle in
- *  the You panel; on a phone that's two taps + a scroll away, so this mirrors it
- *  within thumb reach in the top-right. Same audio rail (setAudioEnabled). */
+/** Quick, always-visible mute, shown top-right on mobile and beside the season
+ *  badge on desktop (the You panel keeps its own toggle, but that's a click +
+ *  scroll away). Same audio rail (setAudioEnabled) as the You panel control. */
 function SoundToggle() {
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(audioEnabled()), []);
@@ -2162,7 +2162,10 @@ function TopLeft() {
       >
         ← LEAVE THE REALM
       </a>
-      <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
+        <SoundToggle />
+      </div>
       <GuestBadge />
       <OnlineBadge />
       <Vitals />

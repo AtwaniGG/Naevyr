@@ -144,7 +144,12 @@ const CLEANSE_BURN_POT = 150; // gold-equivalent added to the pot per cleanse bu
 // raced the realm to full corruption in hours — season 221, an all-purple map.)
 // Verify scripts pass SEASON_MS to compress the timeline.
 const SEASON_MS            = Number(process.env.SEASON_MS ?? 1_800_000);
-const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 90);
+// corruption growth per corrupt-tile neighbour each season. Tuned so the realm
+// actually reaches the Long Night within ~a day of ticks even against shrine
+// cleansing — otherwise the season counter runs away (45+) over a near-clean
+// map because the cycle that resets it to season 1 never fires.
+const DRIFT_SPREAD         = Number(process.env.DRIFT_SPREAD ?? 0.25);
+const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 80);
 const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
@@ -482,7 +487,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   async onCreate() {
     this.setState(new DriftRoomState());
     this.world = new World(40, 40);
-    this.drift = new Drift(SEASON_MS);
+    this.drift = new Drift(SEASON_MS, DRIFT_SPREAD);
 
     // persisted land claims
     for (const row of await loadClaims()) {
@@ -2632,7 +2637,7 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // a fresh realm under a fresh Drift
     this.world = new World(40, 40);
-    this.drift = new Drift(SEASON_MS);
+    this.drift = new Drift(SEASON_MS, DRIFT_SPREAD);
     this.wireDrift();
     this.state.season = 1;
     this.state.driftPct = 0;

@@ -14,10 +14,12 @@ export class Drift {
   private rng = mulberry32(0xc0ffee);
   private seasonTimer = 0;
   readonly seasonLengthMs: number; // a "season" tick (server: SEASON_MS env)
+  readonly spreadChance: number;   // per-neighbour corruption odds each season
   readonly regrowDelayMs = 8_000;
 
-  constructor(seasonLengthMs = 900_000) { // 15 min per season (production pace)
+  constructor(seasonLengthMs = 900_000, spreadChance = 0.25) { // 15 min per season (production pace)
     this.seasonLengthMs = seasonLengthMs;
+    this.spreadChance = spreadChance;
   }
 
   // driftfall bookkeeping (internal clock; first fall 2-4 min in)
@@ -147,7 +149,7 @@ export class Drift {
           const t = world.tile(nx, ny);
           if (
             (t === "grass" || t === "dirt") &&
-            this.rng() < 0.12 &&
+            this.rng() < this.spreadChance &&
             !this.isProtected?.(nx, ny)
           ) {
             additions.push({ x: nx, y: ny });
