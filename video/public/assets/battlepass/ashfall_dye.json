@@ -1,0 +1,813 @@
+{
+  "image": "battlepass/ashfall_dye.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "rig": "wanderer-compatible",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "ramp": "stone(base) + gold(trim) + drift(corrupt)",
+  "season": "S01 Ashfall",
+  "tier": "season-exclusive",
+  "dyeSystem": "same locked-ramp channel swap as avatars (AVATAR_CHANNELS / resolveLook); baked at draw time, no new rig",
+  "channels": {
+    "base": [
+      "stone",
+      "bone",
+      "dirt",
+      "blood",
+      "grass"
+    ],
+    "trim": [
+      "gold",
+      "ember",
+      "bone",
+      "drift",
+      "blood"
+    ],
+    "corrupt": [
+      "drift",
+      "blood",
+      "ember",
+      "water",
+      "grass"
+    ]
+  },
+  "look": {
+    "base": "stone",
+    "trim": "gold",
+    "corrupt": "drift",
+    "note": "ash-grey base, banded gold trim, faint drift-purple corruption at the hem"
+  },
+  "channelNote": "look {base,trim,corrupt}: each value is a locked RAMP name. base=cloak/hood (ramp-swap from stone), trim=banded gilt (collar + 2 hem bands), corrupt=hem corruption + eyes (ramp-swap from drift).",
+  "frameByFrameXOffset": true,
+  "frames": {
+    "ashfall-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_00": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_01": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_02": {
+      "x": 128,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_03": {
+      "x": 160,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_04": {
+      "x": 192,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-s_05": {
+      "x": 224,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-s_00": {
+      "x": 256,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-s_01": {
+      "x": 288,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-s_02": {
+      "x": 320,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-s_03": {
+      "x": 352,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_00": {
+      "x": 64,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_01": {
+      "x": 96,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_02": {
+      "x": 128,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_03": {
+      "x": 160,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_04": {
+      "x": 192,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-se_05": {
+      "x": 224,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-se_00": {
+      "x": 256,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-se_01": {
+      "x": 288,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-se_02": {
+      "x": 320,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-se_03": {
+      "x": 352,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_00": {
+      "x": 64,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_01": {
+      "x": 96,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_02": {
+      "x": 128,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_03": {
+      "x": 160,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_04": {
+      "x": 192,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-e_05": {
+      "x": 224,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-e_00": {
+      "x": 256,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-e_01": {
+      "x": 288,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-e_02": {
+      "x": 320,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-e_03": {
+      "x": 352,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_00": {
+      "x": 64,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_01": {
+      "x": 96,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_02": {
+      "x": 128,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_03": {
+      "x": 160,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_04": {
+      "x": 192,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-ne_05": {
+      "x": 224,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-ne_00": {
+      "x": 256,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-ne_01": {
+      "x": 288,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-ne_02": {
+      "x": 320,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-ne_03": {
+      "x": 352,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_00": {
+      "x": 64,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_01": {
+      "x": 96,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_02": {
+      "x": 128,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_03": {
+      "x": 160,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_04": {
+      "x": 192,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-walk-n_05": {
+      "x": 224,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-n_00": {
+      "x": 256,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-n_01": {
+      "x": 288,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-n_02": {
+      "x": 320,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "ashfall-swing-n_03": {
+      "x": 352,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "ashfall-idle-s_00",
+        "ashfall-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "ashfall-walk-s_00",
+        "ashfall-walk-s_01",
+        "ashfall-walk-s_02",
+        "ashfall-walk-s_03",
+        "ashfall-walk-s_04",
+        "ashfall-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-s": {
+      "frames": [
+        "ashfall-swing-s_00",
+        "ashfall-swing-s_01",
+        "ashfall-swing-s_02",
+        "ashfall-swing-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "ashfall-idle-se_00",
+        "ashfall-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "ashfall-walk-se_00",
+        "ashfall-walk-se_01",
+        "ashfall-walk-se_02",
+        "ashfall-walk-se_03",
+        "ashfall-walk-se_04",
+        "ashfall-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-se": {
+      "frames": [
+        "ashfall-swing-se_00",
+        "ashfall-swing-se_01",
+        "ashfall-swing-se_02",
+        "ashfall-swing-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "ashfall-idle-e_00",
+        "ashfall-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "ashfall-walk-e_00",
+        "ashfall-walk-e_01",
+        "ashfall-walk-e_02",
+        "ashfall-walk-e_03",
+        "ashfall-walk-e_04",
+        "ashfall-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-e": {
+      "frames": [
+        "ashfall-swing-e_00",
+        "ashfall-swing-e_01",
+        "ashfall-swing-e_02",
+        "ashfall-swing-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "ashfall-idle-ne_00",
+        "ashfall-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "ashfall-walk-ne_00",
+        "ashfall-walk-ne_01",
+        "ashfall-walk-ne_02",
+        "ashfall-walk-ne_03",
+        "ashfall-walk-ne_04",
+        "ashfall-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-ne": {
+      "frames": [
+        "ashfall-swing-ne_00",
+        "ashfall-swing-ne_01",
+        "ashfall-swing-ne_02",
+        "ashfall-swing-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "ashfall-idle-n_00",
+        "ashfall-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "ashfall-walk-n_00",
+        "ashfall-walk-n_01",
+        "ashfall-walk-n_02",
+        "ashfall-walk-n_03",
+        "ashfall-walk-n_04",
+        "ashfall-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-n": {
+      "frames": [
+        "ashfall-swing-n_00",
+        "ashfall-swing-n_01",
+        "ashfall-swing-n_02",
+        "ashfall-swing-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}
