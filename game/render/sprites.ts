@@ -2644,6 +2644,230 @@ export function makeWaystation(i: number): Grid {
   return i === 0 ? drawWaystation(false, 0) : drawWaystation(true, i - 1);
 }
 
+export const CAMP_FRAMES = 2; // each camp has a subtle 2-frame idle
+
+// ── Frontier Expansion: wild camps / mini-dungeons (ported from _gen/camps.js) ──
+function drawDrownedRuins(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(120, 96);
+  const wa = RAMP.water, st = RAMP.stone, bn = RAMP.bone;
+  const cx = 60, baseY = 88;
+  for (let dy = -18; dy <= 18; dy++) for (let dx = -58; dx <= 58; dx++) {
+    const e = (dx / 58) ** 2 + (dy / 18) ** 2;
+    if (e > 1) continue;
+    const h = hash2(cx + dx, baseY + dy, 601);
+    let c: string;
+    if (e > 0.86) { c = RAMP.dirt[2]; if (h < 0.3) c = RAMP.dirt[3]; }
+    else { c = wa[2]; if (dy < -2) c = wa[1]; if (h < 0.10) c = wa[1]; if (h > 0.94) c = wa[3]; }
+    P(g, cx + dx, baseY + dy, c);
+  }
+  for (let i = 0; i < 10; i++) {
+    const rx = cx - 48 + Math.floor(hash2(i, 1, 602) * 96);
+    const ry = baseY + Math.floor((hash2(i, 2, 602) - 0.5) * 30);
+    if ((rx - cx) ** 2 / 58 ** 2 + (ry - baseY) ** 2 / 18 ** 2 > 0.95) continue;
+    for (let k = 0; k < 4; k++) P(g, rx, ry - k, RAMP.grass[k > 2 ? 2 : 1]);
+    P(g, rx, ry - 4, bn[2]);
+  }
+  const arch = (acx: number, springY: number, R: number, band: number, breakAt: number) => {
+    for (const side of [-1, 1]) {
+      const lx = acx + side * R;
+      for (let y = springY; y <= baseY + 4; y++) {
+        const sub = y > baseY - 6;
+        for (let x = -3; x <= 3; x++) {
+          let c = side < 0 ? st[0] : st[2];
+          if (x > 1) c = st[3];
+          if (sub) c = (hash2(lx + x, y, 603) < 0.4) ? RAMP.grass[3] : st[3];
+          P(g, lx + x, y, c);
+        }
+      }
+    }
+    tDisc(g, acx, springY, R + 3, (x, y, d) => {
+      if (y > springY) return;
+      if (d > R + 3 || d < R - band) return;
+      if (breakAt < 0 && x < acx - R * 0.3 && y < springY - R * 0.4) return;
+      if (breakAt > 0 && x > acx + R * 0.3 && y < springY - R * 0.4) return;
+      let c = (x < acx) ? st[0] : st[1];
+      const edge = d > R + 2 || d < R - band + 1.3;
+      if (edge) c = st[3];
+      else if (hash2(x, y, 604) < 0.10) c = bn[2];
+      P(g, x, y, c);
+    });
+    for (let s = 0; s < 3; s++) {
+      const dx2 = acx - R + 2 + s * R;
+      for (let k = 0; k < 5; k++) P(g, dx2, springY + 1 + k, RAMP.grass[3]);
+    }
+  };
+  arch(cx - 30, baseY - 30, 16, 6, +1);
+  arch(cx + 26, baseY - 36, 19, 7, -1);
+  for (let j = 0; j < 6; j++) for (let i = 0; i < 16; i++) {
+    let c = st[1]; if (i < 2) c = st[0]; if (i > 13) c = st[3]; if (j > 3) c = st[3];
+    P(g, cx - 52 + i, baseY - 4 - j + Math.round(i * 0.25), c);
+  }
+  const DX = [0, 1], DY = [0, -1];
+  const specs = [[cx - 18, baseY + 4], [cx + 4, baseY - 2], [cx + 30, baseY + 6], [cx - 40, baseY + 8], [cx + 16, baseY + 10]];
+  specs.forEach((s, i) => {
+    const sx = s[0] + DX[(frame + i) % 2], sy = s[1] + DY[(frame + i) % 2];
+    if ((sx - cx) ** 2 / 58 ** 2 + (sy - baseY) ** 2 / 18 ** 2 <= 0.84) { P(g, sx, sy, wa[0]); P(g, sx + 1, sy, wa[0]); }
+  });
+  if (frame === 1) { P(g, cx - 6, baseY + 2, wa[0]); P(g, cx - 6, baseY + 1, bn[2]); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+function drawBarrowCrypt(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(116, 100);
+  const gr = RAMP.grass, dt = RAMP.dirt, st = RAMP.stone, bn = RAMP.bone, dr = RAMP.drift;
+  const cx = 58, baseY = 92;
+  foundation(g, cx, baseY + 4, 52, { ash: false });
+  const maxH = 50;
+  for (let yy = 0; yy <= maxH; yy++) {
+    const t = yy / maxH;
+    let hw = Math.round(54 * Math.pow(1 - Math.pow(t, 2.4), 0.5));
+    hw += Math.round((hash2(yy, 0, 611) - 0.5) * 5);
+    const top = baseY - yy;
+    for (let xx = -hw; xx <= hw; xx++) {
+      const h = hash2(cx + xx, top, 612);
+      let c = gr[1];
+      if (xx < -hw + 6) c = gr[0];
+      else if (xx > hw - 6) c = gr[3];
+      else if (h < 0.10) c = gr[2];
+      else if (h < 0.13) c = gr[0];
+      if (h > 0.95) c = dt[2];
+      if (yy < 8 && h < 0.35) c = dt[2];
+      P(g, cx + xx, top, c);
+    }
+  }
+  for (let i = 0; i < 10; i++) {
+    const tx = cx - 30 + Math.floor(hash2(i, 1, 613) * 60);
+    const ty = baseY - maxH + 2 + Math.floor(hash2(i, 2, 613) * 8);
+    for (let k = 0; k < 3; k++) P(g, tx, ty - k, gr[k > 1 ? 0 : 2]);
+  }
+  const dw = 22, dh = 30, dtop = baseY - dh;
+  for (const side of [-1, 1]) {
+    const jx = cx + side * (dw / 2 + 2);
+    for (let y = dtop - 2; y <= baseY; y++) for (let x = -3; x <= 3; x++) {
+      let c = side < 0 ? st[0] : st[2]; if (x > 1) c = st[3];
+      if (hash2(jx + x, y, 614) < 0.08) c = st[2];
+      P(g, jx + x, y, c);
+    }
+  }
+  for (let j = 0; j < 5; j++) for (let i = -dw / 2 - 5; i <= dw / 2 + 5; i++) {
+    let c = i < 0 ? st[1] : st[2]; if (i < -dw / 2 - 2) c = st[0]; if (i > dw / 2 + 2) c = st[3];
+    P(g, cx + i, dtop - 2 - j, c);
+  }
+  for (let j = 0; j < dh; j++) for (let i = -dw / 2 + 1; i <= dw / 2 - 1; i++) {
+    const t = Math.abs(i) / (dw / 2);
+    if (j < dh * 0.18 * t) continue;
+    P(g, cx + i, baseY - j, RAMP.void);
+  }
+  const bright = frame === 1;
+  const gy = baseY - 10;
+  ([[-3, bright ? dr[1] : dr[3]], [3, bright ? dr[2] : dr[3]], [0, bright ? dr[0] : dr[2]]] as Array<[number, string]>).forEach(([ox, c]) => {
+    P(g, cx + ox, gy, c); P(g, cx + ox, gy + 1, bright ? dr[2] : dr[3]);
+    if (bright) { P(g, cx + ox, gy - 1, dr[2]); }
+  });
+  if (bright) for (let x = -dw / 2 + 2; x <= dw / 2 - 2; x++) if ((cx + x) % 2 === 0) P(g, cx + x, baseY + 1, dr[3]);
+  ([[-44, 7, -0.5], [44, 7, 0.5], [-30, 5, -0.2], [32, 6, 0.3]] as Array<[number, number, number]>).forEach(([ox, h, ln]) => boneSpikeShape(g, cx + ox, baseY + 1, h + 4, ln));
+  const rng = mulberry(615);
+  for (let i = 0; i < 4; i++) {
+    const kx = cx - 40 + Math.floor(rng() * 80), ky = baseY + 1 + Math.floor(rng() * 4);
+    if (Math.abs(kx - cx) < dw / 2 + 6) continue;
+    fillRect(g, kx, ky - 2, 4, 3, bn[1]); P(g, kx + 1, ky - 1, RAMP.void); P(g, kx + 3, ky - 1, RAMP.void); P(g, kx + 1, ky + 1, bn[2]);
+  }
+  for (let k = 0; k < 10; k++) P(g, cx - 14 + Math.round(k * 0.2), baseY - maxH + 6 - k, bn[2]);
+  P(g, cx - 12, baseY - maxH - 4, bn[1]); P(g, cx - 13, baseY - maxH - 3, bn[1]); P(g, cx - 11, baseY - maxH - 3, bn[1]);
+  outline(g, RAMP.void);
+  return g;
+}
+
+function drawAshenWarcamp(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(120, 104);
+  const dt = RAMP.dirt, bl = RAMP.blood, bn = RAMP.bone, em = RAMP.ember;
+  const cx = 60, baseY = 96;
+  for (let dy = -16; dy <= 16; dy++) for (let dx = -56; dx <= 56; dx++) {
+    if ((dx / 56) ** 2 + (dy / 16) ** 2 > 1) continue;
+    const h = hash2(cx + dx, baseY + dy, 621);
+    let c = dt[2];
+    if (h < 0.16) c = RAMP.ash; else if (h < 0.22) c = dt[3];
+    if (dy < -4 && dx < 0) c = dt[1];
+    P(g, cx + dx, baseY + dy, c);
+  }
+  const stakes = 13;
+  for (let i = 0; i < stakes; i++) {
+    const t = i / (stakes - 1);
+    const sx = cx - 46 + Math.round(t * 92);
+    const sy = baseY - 30 - Math.round(Math.sin(t * Math.PI) * 8);
+    const h = 22 + Math.floor(hash2(i, 1, 622) * 6);
+    const lean = Math.round((hash2(i, 2, 622) - 0.5) * 2);
+    for (let k = 0; k < h; k++) {
+      const px = sx + Math.round(lean * (k / h));
+      let c = dt[1]; if (i % 2) c = dt[2];
+      if (k < 3) c = dt[3];
+      P(g, px, sy - k, c); P(g, px + 1, sy - k, dt[3]);
+    }
+    P(g, sx + lean, sy - h, dt[3]); P(g, sx + lean, sy - h + 1, dt[2]);
+  }
+  for (let x = cx - 44; x <= cx + 44; x++) { const t = (x - (cx - 44)) / 88; const ry = baseY - 30 - Math.round(Math.sin(t * Math.PI) * 8) - 12; P(g, x, ry, bn[3]); }
+  fillRect(g, cx - 2, baseY - 58, 5, 4, bn[1]); P(g, cx - 1, baseY - 57, RAMP.void); P(g, cx + 1, baseY - 57, RAMP.void); P(g, cx, baseY - 55, bn[2]);
+  const tent = (tx: number, by: number, w: number, hgt: number, ramp: string[]) => {
+    for (let row = 0; row <= hgt; row++) {
+      const t = row / hgt, hw = Math.round((w / 2) * t);
+      const sy = by - hgt + row;
+      for (let x = -hw; x <= hw; x++) {
+        let c = ramp[1]; if (x < -hw + 2) c = ramp[0]; if (x > hw - 2) c = ramp[2];
+        if ((x - row) % 6 === 0) c = ramp[3];
+        if (hash2(tx + x, sy, 623) < 0.05) c = ramp[3];
+        P(g, tx + x, sy, c);
+      }
+      if (row === hgt) for (let x = -hw; x <= hw; x++) if (x % 2 === 0) P(g, tx + x, sy, ramp[3]);
+    }
+    for (let k = 0; k < 6; k++) P(g, tx, by - hgt - k, dt[3]);
+    P(g, tx - 2, by - hgt - 4, dt[3]); P(g, tx + 2, by - hgt - 5, dt[3]);
+    const eh = Math.round(hgt * 0.55);
+    for (let j = 0; j < eh; j++) { const ew = Math.round((1 - j / eh) * 4); for (let i = -ew; i <= ew; i++) P(g, tx + i, by - j, RAMP.void); }
+    for (let j = 0; j < eh; j++) { const ew = Math.round((1 - j / eh) * 4); P(g, tx - ew - 1, by - j, ramp[0]); P(g, tx + ew + 1, by - j, ramp[2]); }
+    for (let k = 0; k < 4; k++) { P(g, tx - Math.round(w / 2) - 1 - k, by - 2 + k, dt[3]); P(g, tx + Math.round(w / 2) + 1 + k, by - 2 + k, dt[3]); }
+  };
+  tent(cx - 30, baseY, 34, 30, dt);
+  tent(cx + 26, baseY - 2, 28, 26, bl);
+  const bx = cx + 46, byTop = baseY - 54;
+  for (let y = byTop; y <= baseY; y++) P(g, bx, y, dt[3]);
+  P(g, bx, byTop - 1, bn[1]); P(g, bx - 1, byTop - 2, bn[2]); P(g, bx + 1, byTop - 2, bn[2]);
+  const flutter = frame === 1 ? 1 : 0;
+  for (let j = 0; j < 22; j++) for (let i = 0; i < 14; i++) {
+    const wob = Math.round(Math.sin(j * 0.4 + frame) * 1.3) + (i > 9 ? flutter : 0);
+    let c = bl[2]; if (i === 0) c = bl[1]; if (i >= 12) c = bl[3];
+    if (i > 9 + flutter && j > 16) continue;
+    P(g, bx - 1 - i + wob, byTop + 2 + j, c);
+  }
+  fillRect(g, bx - 7, byTop + 9, 3, 4, bn[1]); P(g, bx - 6, byTop + 10, RAMP.void); P(g, bx - 8, byTop + 13, bn[2]); P(g, bx - 4, byTop + 13, bn[2]);
+  const fxp = cx - 4, fy = baseY - 2;
+  for (let i = -6; i <= 6; i++) P(g, fxp + i, fy, dt[3]);
+  P(g, fxp - 4, fy - 1, dt[2]); P(g, fxp + 4, fy - 1, dt[2]);
+  const sway = [0, 1][frame], tall = [0, 2][frame];
+  for (let yy = 0; yy <= 11 + tall; yy++) {
+    const t = yy / (11 + tall), hw = Math.round((1 - t) * 5);
+    const sxf = fxp + Math.round(Math.sin(yy * 0.6 + frame) * 1.1) + Math.round(sway * t);
+    for (let xx = -hw; xx <= hw; xx++) {
+      let c = em[1]; if (Math.abs(xx) >= hw - 1) c = em[2]; if (yy < 4 && Math.abs(xx) < 2) c = em[0];
+      P(g, sxf + xx, fy - 2 - yy, c);
+    }
+  }
+  for (let yy = 2; yy <= 6 + tall; yy++) { const hw = Math.max(0, Math.round((1 - yy / (7 + tall)) * 2)); for (let xx = -hw; xx <= hw; xx++) P(g, fxp + xx, fy - 4 - yy, RAMP.gold[0]); }
+  if (frame === 1) P(g, fxp + sway, fy - 15 - tall, em[0]);
+  const rr = frame === 1 ? 11 : 9;
+  for (let yy = -9; yy <= 3; yy++) for (let xx = -12; xx <= 12; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 6 && d < rr && (xx + yy + frame) % 2 === 0) P(g, fxp + xx, fy - 5 + yy, em[2]); }
+  for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { let c = dt[1]; if (i === 0) c = dt[0]; if (i === 7) c = dt[2]; if (i === 0 || i === 7 || j === 0 || j === 7) c = dt[3]; if (i === j || i === 7 - j) c = dt[2]; P(g, cx + 16 + i, baseY - 8 + j, c); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function makeDrownedRuins(f: number): Grid { return drawDrownedRuins(f % CAMP_FRAMES); }
+export function makeBarrowCrypt(f: number): Grid { return drawBarrowCrypt(f % CAMP_FRAMES); }
+export function makeAshenWarcamp(f: number): Grid { return drawAshenWarcamp(f % CAMP_FRAMES); }
+
 // (exported for the headless smoke test; frame matters for shrine/den/obelisk)
 export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
   switch (key) {
@@ -2658,11 +2882,11 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'mine':      return drawMine();
     case 'huskden':   return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'obelisk':   return drawAshObelisk(frame % OBELISK_FRAMES);
-    // the Waystation uses ported expansion art; camps still reuse existing art
+    // expansion art: the Waystation + the three frontier camps
     case 'waystation': return makeWaystation(frame % WAYSTATION_FRAMES);
-    case 'barrowcrypt': return drawAshObelisk(frame % OBELISK_FRAMES);
-    case 'ashwarcamp': return drawHuskDen(frame % HUSKDEN_FRAMES);
-    case 'drownedruins': return drawMirewifeHut();
+    case 'barrowcrypt': return makeBarrowCrypt(frame);
+    case 'ashwarcamp': return makeAshenWarcamp(frame);
+    case 'drownedruins': return makeDrownedRuins(frame);
     case 'outpost':   return drawFurnisher();
     case 'mirehut':   return drawMirewifeHut();
   }
@@ -4739,6 +4963,12 @@ export class SpriteCache {
     for (let f = 0; f < WAYSTATION_FRAMES; f++) {
       this.buildings.set(`waystation-${f}`, gridToCanvas(makeWaystation(f)));
     }
+    // the frontier camps (expansion art): 2-frame idle each
+    for (let f = 0; f < CAMP_FRAMES; f++) {
+      this.buildings.set(`drownedruins-${f}`, gridToCanvas(makeDrownedRuins(f)));
+      this.buildings.set(`barrowcrypt-${f}`, gridToCanvas(makeBarrowCrypt(f)));
+      this.buildings.set(`ashwarcamp-${f}`, gridToCanvas(makeAshenWarcamp(f)));
+    }
     for (const k of ['wisp', 'crow', 'emberling'] as PetSpriteKey[]) {
       this.pets.set(`${k}-0`, gridToCanvas(makePet(k, 0)));
       this.pets.set(`${k}-1`, gridToCanvas(makePet(k, 1)));
@@ -4848,17 +5078,16 @@ export class SpriteCache {
   ) {
     if (!this.ready) return;
     ctx.imageSmoothingEnabled = false;
-    // Phase C camps reuse existing structure art until the expansion is ported
     const fkey =
       key === 'shrine'  ? `shrine-${frame % SHRINE_FRAMES}` :
-      key === 'huskden' || key === 'ashwarcamp' ? `huskden-${frame % HUSKDEN_FRAMES}` :
-      key === 'drownedruins' ? 'mirehut' :
-      key === 'outpost' ? 'furnisher' :
+      key === 'huskden' ? `huskden-${frame % HUSKDEN_FRAMES}` :
+      key === 'obelisk' ? `obelisk-${frame % OBELISK_FRAMES}` :
       // the Waystation always reads as an ACTIVE gateway (frames 1-3 pulse)
       key === 'waystation' ? `waystation-${1 + (frame % 3)}` :
-      // barrow-crypt reuses the Ash Obelisk monolith art (placeholder)
-      key === 'obelisk' || key === 'barrowcrypt'
-        ? `obelisk-${frame % OBELISK_FRAMES}` : key;
+      // Phase C camps now render on ported expansion art (2-frame idle)
+      key === 'drownedruins' || key === 'barrowcrypt' || key === 'ashwarcamp'
+        ? `${key}-${frame % CAMP_FRAMES}` :
+      key === 'outpost' ? 'furnisher' : key;
     const cv = this.buildings.get(fkey);
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
@@ -5041,15 +5270,9 @@ export class SpriteCache {
 
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
-    const lookKey =
-      key === 'barrowcrypt' ? 'obelisk' :
-      key === 'ashwarcamp' ? 'huskden' :
-      key === 'drownedruins' ? 'mirehut' :
-      key === 'outpost' ? 'furnisher' : key;
-    const cv = this.buildings.get(
-      lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' || lookKey === 'waystation'
-        ? `${lookKey}-0` : lookKey,
-    );
+    const lookKey = key === 'outpost' ? 'furnisher' : key;
+    const framed = ['shrine', 'huskden', 'obelisk', 'waystation', 'drownedruins', 'barrowcrypt', 'ashwarcamp'];
+    const cv = this.buildings.get(framed.includes(lookKey) ? `${lookKey}-0` : lookKey);
     return cv ? cv.height : 0;
   }
 

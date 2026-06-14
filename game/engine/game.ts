@@ -3862,7 +3862,9 @@ export class Game {
           const frame =
             b.key === "shrine"  ? Math.floor(performance.now() / 250) % 3 :
             b.key === "huskden" ? Math.floor(performance.now() / 500) % 2 :
-            b.key === "obelisk" || b.key === "waystation" ? Math.floor(performance.now() / 250) % 3 : 0;
+            b.key === "obelisk" || b.key === "waystation" ? Math.floor(performance.now() / 250) % 3 :
+            b.key === "drownedruins" || b.key === "barrowcrypt" || b.key === "ashwarcamp"
+              ? Math.floor(performance.now() / 500) % 2 : 0;
           // east-side houses mirror so their features lean toward town center
           const mirror =
             b.key !== "pit" && b.key !== "shrine" && b.x > TOWN_CENTER.x;
