@@ -23,7 +23,9 @@ for (const kind of Object.keys(BEAST_SPECS) as BeastKind[]) {
           if (g.w !== spec.w || g.h !== spec.h) {
             failures++;
             console.error(`FAIL ${kind}/${facing}/${sheetAnim}#${f}: grid ${g.w}×${g.h}, expected ${spec.w}×${spec.h}`);
-          } else if (pixels < 20) {
+          } else if (pixels < (kind === "wisp" && sheetAnim === "death" ? 8 : 20)) {
+            // the Drift Wisp's final death frame is a deliberately sparse mote
+            // scatter (byte-exact vs the authored export); exempt it from the floor
             failures++;
             console.error(`FAIL ${kind}/${facing}/${sheetAnim}#${f}: only ${pixels} pixels`);
           }
@@ -91,7 +93,7 @@ import {
   makeInteriorFloor, makeFixture, makeWallSegment,
   FixtureSpriteKind, InteriorFloorStyle, WallSide, WallMatKind, WallVariant,
 } from "../game/render/sprites";
-for (const style of ["wood", "stone", "cave"] as InteriorFloorStyle[]) {
+for (const style of ["wood", "stone", "cave", "crypt"] as InteriorFloorStyle[]) {
   for (let v = 1; v <= 3; v++) {
     try {
       const g = makeInteriorFloor(style, v);
@@ -119,6 +121,8 @@ const FIXTURES: [FixtureSpriteKind, number][] = [
   ["counter", 1], ["vat", 1], ["shelf", 1], ["table", 1], ["barrel", 1],
   ["cage", 1], ["anvil", 1], ["rug", 1], ["wheelDisc", 1],
   ["goldVein", 2], ["goldVeinEmpty", 1], ["hearth", 3], ["oreCart", 1],
+  // crypt pack (Barrow-Crypt): brazier flickers 2f
+  ["sarcophagus", 1], ["rubblePile", 1], ["standingBrazier", 2], ["brokenPillar", 1], ["bonePile", 1],
 ];
 for (const [kind, nFrames] of FIXTURES) {
   for (let f = 0; f < nFrames; f++) {
@@ -138,6 +142,7 @@ import {
 } from "../game/render/sprites";
 import {
   makeWildDoodad, drawLostTombstone, drawWallTimberCharms, WildDoodadKey,
+  makeFrontierDoodad, drawAshGround, FrontierDoodadKey, ASH_GROUND_VARIANTS,
 } from "../game/render/sprites";
 const WALL2_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
   ["nw", "timber", "plain"], ["ne", "timber", "plain"], ["nw", "timber", "window"], ["ne", "timber", "banner"],
@@ -159,6 +164,27 @@ for (const mat of ["timber", "block", "cave"] as WallMatKind[]) {
     frames++;
     if (g.w !== 16 || g.h !== 72) { failures++; console.error(`FAIL wall2 corner ${mat}`); }
   } catch (e) { failures++; console.error(`THROW wall2 corner ${mat}:`, e); }
+}
+
+// frontier pack (frontier.js port): standing doodads + ash ground accents
+for (const k of ["drift_crystal", "ash_dune", "scorched_stump"] as FrontierDoodadKey[]) {
+  for (const v of [0, 1]) {
+    try {
+      const g = makeFrontierDoodad(k, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (px < 20) { failures++; console.error(`FAIL frontier doodad ${k}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW frontier doodad ${k}#${v}:`, e); }
+  }
+}
+for (let v = 0; v < ASH_GROUND_VARIANTS; v++) {
+  try {
+    const g = drawAshGround(v);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 64 || g.h !== 36) { failures++; console.error(`FAIL ash_ground#${v}: grid ${g.w}×${g.h}`); }
+    else if (px < 100) { failures++; console.error(`FAIL ash_ground#${v}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW ash_ground#${v}:`, e); }
 }
 
 // wilds pack (DS wilds.js port): structures animate, doodads + extras generate

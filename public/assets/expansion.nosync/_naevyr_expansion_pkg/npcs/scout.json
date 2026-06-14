@@ -1,0 +1,169 @@
+{
+  "image": "npcs/scout.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "rig": "keeper (idle-only)",
+  "role": "Frontier Scout — hooded watcher",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "frames": {
+    "scout-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "scout-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "scout-idle-s_00",
+        "scout-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-se": {
+      "frames": [
+        "scout-idle-se_00",
+        "scout-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-e": {
+      "frames": [
+        "scout-idle-e_00",
+        "scout-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-ne": {
+      "frames": [
+        "scout-idle-ne_00",
+        "scout-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-n": {
+      "frames": [
+        "scout-idle-n_00",
+        "scout-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "image": "crypt/bone_pile.svg",
+  "cell": {
+    "w": 30,
+    "h": 20
+  },
+  "anchor": {
+    "x": 15,
+    "y": 19
+  },
+  "labelClearTop": 6,
+  "solid": false,
+  "frames": {
+    "bone_pile": {
+      "x": 0,
+      "y": 0,
+      "w": 30,
+      "h": 20,
+      "anchor": {
+        "x": 15,
+        "y": 19
+      }
+    }
+  }
+}

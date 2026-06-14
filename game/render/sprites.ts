@@ -208,7 +208,10 @@ export type DoodadKind =
   | 'tuft' | 'pebbles' | 'bones' | 'masonry' | 'crystal'
   // wilds pack: regional clutter (reeds by the mere, bones + dead trees in the
   // Flats, bog bubbles on water — bubble "variant" is its 2-frame animation)
-  | 'reed_clump' | 'dead_tree' | 'bone_spike' | 'mire_bubble';
+  | 'reed_clump' | 'dead_tree' | 'bone_spike' | 'mire_bubble'
+  // frontier pack: the deadly outer ring (drift-crystal clusters, ash dunes,
+  // scorched stumps) — standing native-size doodads like the wilds set
+  | 'drift_crystal' | 'ash_dune' | 'scorched_stump';
 
 function makeDoodad(kind: DoodadKind, seedN: number): Grid {
   const g = makeGrid(16, 12);
@@ -918,6 +921,80 @@ function toolVeilborn(g: Grid, ex: number, ey: number, f: number, mote?: readonl
   if (f === 2) { P(g, ex + 2, ey - 1, dr[0]); P(g, ex + 2, ey, dr[1]); P(g, ex + 3, ey, dr[2]); }
 }
 
+// 5 · THE DRIFTWARDEN — frontier ranger. Open travel-cloak + hood over a leather
+// jerkin, one pauldron, a slung quiver, a belt drift-lantern (the ward glow), a
+// warden's glaive on swing. cloak ramp = a, ward ramp = b.
+function bodyDriftwarden(g: Grid, R: AvatarRig, anim: AnimName, f: number, cloak: readonly string[], ward: readonly string[]) {
+  const { cx, off, dir, top, shoulderY, hemSway, back, showFace } = R;
+  const lt = RAMP.dirt;                         // leather jerkin under the cloak
+  const flare = anim === 'idle' && f === 1;     // lantern pulses on idle f1
+
+  // slung quiver on the back (visible from behind / sides)
+  if (back || dir === 1 || dir === 2) {
+    const qx = cx + off - (back ? 0 : 3);
+    for (let y = shoulderY - 1; y <= shoulderY + 8; y++) P(g, qx, y, lt[3]);
+    P(g, qx, shoulderY - 2, ward[1]); P(g, qx - 1, shoulderY - 2, RAMP.bone[1]); P(g, qx + 1, shoulderY - 2, RAMP.bone[1]); // arrow fletching
+  }
+
+  // open travel-cloak (knee-length, parts at the front to show the jerkin)
+  for (let y = shoulderY; y <= 35; y++) {
+    const t = (y - shoulderY) / (35 - shoulderY);
+    const hw = Math.round(3.6 + t * 3.2);
+    const cxx = cx + Math.round(off * 0.5) + (y > 30 ? Math.round(hemSway * 0.5) : 0);
+    const gap = (!back && y > shoulderY + 6) ? Math.max(0, Math.round(t * 2)) : -1;  // front opening
+    for (let x = cxx - hw; x <= cxx + hw; x++) {
+      if (gap >= 0 && Math.abs(x - cxx) <= gap) {     // jerkin shows through the parted cloak
+        P(g, x, y, x < cxx ? lt[1] : lt[2]); continue;
+      }
+      let c = cloak[1]; if (x <= cxx - hw + 1) c = cloak[0]; if (x >= cxx + hw - 1) c = cloak[3];
+      if (hash2(x, y, 401) < 0.05) c = cloak[2];
+      if (back && x === cxx) c = cloak[2];
+      P(g, x, y, c);
+    }
+  }
+  // ward-trim along the cloak's leading edge (a thin glowing hem line)
+  for (let y = shoulderY + 3; y <= 34; y += 1) { const t = (y - shoulderY) / (35 - shoulderY); const cxx = cx + Math.round(off * 0.5); const hw = Math.round(3.6 + t * 3.2); if (y % 2 === 0) P(g, cxx + hw - 1, y, ward[flare ? 1 : 2]); }
+  // a pauldron on the right shoulder (leather + ward stud)
+  const px = cx + off + 4;
+  for (let y = shoulderY - 1; y <= shoulderY + 3; y++) for (let x = px - 2; x <= px + 2; x++) { let c = lt[1]; if (x < px - 1) c = lt[0]; if (x > px + 1) c = lt[2]; P(g, x, y, c); }
+  P(g, px, shoulderY, ward[flare ? 0 : 2]);
+  // belt drift-lantern (the ward glow) hanging at the left hip; sways on walk
+  if (!back) {
+    const lsw = anim === 'walk' ? [0, 1, 1, 0, -1, -1][f] : 0;
+    const lx = cx + off - 5 + lsw, ly = 28;
+    P(g, lx, ly - 1, RAMP.bone[2]);                                   // hook
+    for (let j = 0; j < 3; j++) for (let i = -1; i <= 1; i++) { let c = lt[3]; if (i === 0 && j === 1) c = flare ? ward[0] : ward[1]; P(g, lx + i, ly + j, c); }
+    if (flare) { P(g, lx, ly - 2, ward[1]); P(g, lx + 2, ly + 1, ward[2]); P(g, lx - 2, ly + 1, ward[2]); }
+  }
+  // hood (peaked, drawn over the head)
+  for (let y = top; y <= shoulderY + 1; y++) {
+    const hy = (y - top) / (shoulderY + 1 - top);
+    const hw = Math.round(2 + Math.sin(Math.min(1, hy * 1.25) * Math.PI * 0.55) * 3.4);
+    const cxx = cx + off;
+    for (let x = cxx - hw; x <= cxx + hw; x++) { let c = cloak[1]; if (x === cxx - hw) c = cloak[0]; if (x >= cxx + hw - 1) c = cloak[3]; if (y === top) c = cloak[0]; P(g, x, y, c); }
+  }
+  P(g, cx + off, top - 1, cloak[1]);
+  P(g, cx + off + (dir >= 1 && dir <= 3 ? 1 : 0), top - 2, cloak[2]);  // hood point droops toward facing
+  // face shadow + steady warden eyes (ward-tinted glint)
+  if (showFace) {
+    const fcx = cx + off + (dir === 2 ? 2 : dir === 1 ? 1 : 0), w = dir === 2 ? 2 : 3;
+    for (let y = top + 4; y <= top + 8; y++) for (let x = fcx - (dir === 2 ? 0 : w - 1); x <= fcx + w - 1; x++) P(g, x, y, RAMP.void);
+    const ey = top + 6, lit = flare;
+    if (dir === 0) { P(g, fcx - 1, ey, lit ? ward[0] : ward[1]); P(g, fcx + 1, ey, ward[1]); }
+    if (dir === 1) { P(g, fcx, ey, lit ? ward[0] : ward[1]); P(g, fcx + 2, ey, ward[1]); }
+    if (dir === 2) { P(g, fcx + 1, ey, lit ? ward[0] : ward[1]); }
+  }
+  if (flare) P(g, cx + off + 7, top + 3, ward[1]);                    // drifting mote off the shoulder
+}
+// warden's glaive — a long haft with a hooked blade; the edge sparks ward-energy on f2.
+function toolDriftwarden(g: Grid, ex: number, ey: number, f: number, ward: readonly string[]) {
+  const bn = RAMP.bone;
+  // hooked blade head
+  fillRect(g, ex - 1, ey - 2, 2, 4, bn[1]); P(g, ex, ey - 3, bn[0]);
+  P(g, ex + 1, ey - 2, bn[2]); P(g, ex + 2, ey - 3, bn[1]); P(g, ex + 2, ey - 4, bn[0]);   // hook curl
+  if (f === 2) { P(g, ex + 3, ey - 2, ward[0]); P(g, ex + 4, ey - 1, ward[1]); P(g, ex + 3, ey, ward[2]); }  // ward arc-spark
+}
+
 /** worn equipment overlay for premium avatars (same anchors as the wanderer's
  *  worn-gear block, stone ramp standing in for the cloak dye; the avatar's own
  *  signature swing prop replaces the wanderer's held-blade swap) */
@@ -980,6 +1057,11 @@ export function drawAvatar(
   } else if (kind === 'veilborn') {
     bodyVeilborn(g, R, anim, f, rA, rB);   // draws its own mote "feet"
     avatarSwingArm(g, R, anim, f, rA, (gg, ex, ey, ff) => toolVeilborn(gg, ex, ey, ff, rB));
+  } else if (kind === 'driftwarden') {
+    const stomp = (anim === 'walk' && (f === 1 || f === 4)) ? 1 : 0;
+    bodyDriftwarden(g, R, anim, f, rA, rB);
+    avatarFeet(g, R, RAMP.dirt, stomp);
+    avatarSwingArm(g, R, anim, f, rA, (gg, ex, ey, ff) => toolDriftwarden(gg, ex, ey, ff, rB));
   }
   if (equip && (equip.weapon || equip.tool || equip.ward)) avatarWornGear(g, R, anim, f, equip);
   outline(g, RAMP.void);
@@ -1005,16 +1087,20 @@ export function drawAvatarPortrait(kind: AvatarKind, f = 0, look?: AvatarLook): 
 
 // ─── beasts.js — creature set ─────────────────────────────────────────────────
 
-export type BeastKind = 'husk' | 'stalker' | 'colossus' | 'raider';
+export type BeastKind =
+  | 'husk' | 'stalker' | 'colossus' | 'raider'
+  // frontier expansion: real ported species + camp mini-bosses
+  | 'bogwretch' | 'wight' | 'bonehusk' | 'brute' | 'wisp'
+  | 'drownedking' | 'barrowlord' | 'ashwarlord';
 export type BeastAnim = 'idle' | 'move' | 'attack' | 'death';
 
-/** Phase C: the server's new species + mini-bosses are placeholder-rendered with
- *  existing beast art until the expansion sprites are ported. Maps any server
- *  mob `kind` string to a real BeastKind the cache can draw. */
+/** maps a server mob `kind` string to the BeastKind the cache draws. The
+ *  expansion species + mini-bosses now have real ported art (identity map);
+ *  any unknown kind falls back to the husk. */
 const BEAST_PLACEHOLDER: Record<string, BeastKind> = {
   husk: 'husk', stalker: 'stalker', colossus: 'colossus', raider: 'raider',
-  bogwretch: 'stalker', wisp: 'stalker', wight: 'husk', bonehusk: 'husk', brute: 'colossus',
-  drownedking: 'colossus', barrowlord: 'colossus', ashwarlord: 'colossus',
+  bogwretch: 'bogwretch', wisp: 'wisp', wight: 'wight', bonehusk: 'bonehusk', brute: 'brute',
+  drownedking: 'drownedking', barrowlord: 'barrowlord', ashwarlord: 'ashwarlord',
 };
 export function beastSpriteFor(kind: string): BeastKind {
   return BEAST_PLACEHOLDER[kind] ?? 'husk';
@@ -1413,7 +1499,8 @@ export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
   | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine'
   | 'huskden' | 'obelisk' | 'mirehut' | 'waystation'
-  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp' | 'outpost';
+  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp' | 'outpost'
+  | 'palisade_gate' | 'watchtower';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
 
@@ -2392,6 +2479,160 @@ export function makeWildDoodad(key: WildDoodadKey, v = 0): Grid {
   }
 }
 
+// ── Frontier Expansion: ground accents + doodads (ported from _gen/frontier.js) ──
+// Heavier ash / corruption ground-accent tiles (64×36, drawn UNDER entities like
+// the threshold accents) + native-size bottom-anchored frontier doodads.
+
+/** ash / corruption ground accent (64×36, 2 variants): keeps only its diamond
+ *  edge (no full outline) so it tiles seam-continuous under entities */
+export function drawAshGround(variant: number): Grid {
+  const g = makeGrid(64, 36); const rows = diamondRows();
+  const st = RAMP.stone, bn = RAMP.bone, dr = RAMP.drift;
+  const seed = 801 + variant;
+  // dark ashen face (ash + deep-stone dither)
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+    let c = ((x + y) % 2 === 0) ? RAMP.ash : st[3];
+    if (y > 23) c = RAMP.void;
+    P(g, x, y, c);
+  }
+  // 3px south lip + 1px void north edge
+  for (let x = 0; x < 64; x++) {
+    const my = contourMaxY(rows, x);
+    if (my >= 0) for (let k = 1; k <= 3; k++) P(g, x, my + k, RAMP.void);
+    for (let y = 0; y < 32; y++) if (inDiamond(rows, x, y)) { P(g, x, y, RAMP.void); break; }
+  }
+
+  if (variant === 0) {
+    // ASH DRIFT — pale wind-blown ash piled in streaks, scorch blotches
+    for (let i = 0; i < 64; i++) {
+      const ax = 8 + Math.floor(hash2(i, 1, seed) * 48), ay = 6 + Math.floor(hash2(i, 2, seed) * 20);
+      if (!inDiamond(rows, ax, ay)) continue;
+      const a = hash2(i, 3, seed);
+      if (a < 0.5) { P(g, ax, ay, bn[3]); if (a < 0.22) { P(g, ax + 1, ay, bn[2]); } }
+      else if (a < 0.62) P(g, ax, ay, st[2]);             // grey grit
+    }
+    // a couple of darker scorch patches
+    ([[22, 14], [40, 18]] as [number, number][]).forEach(([bx, by]) => { for (let yy = -3; yy <= 3; yy++) for (let xx = -4; xx <= 4; xx++) { if ((xx / 4) ** 2 + (yy / 3) ** 2 > 1) continue; if (inDiamond(rows, bx + xx, by + yy) && hash2(bx + xx, by + yy, seed + 5) < 0.7) P(g, bx + xx, by + yy, RAMP.void); } });
+  } else {
+    // CORRUPTION STAIN — drift-purple dither bloom welling from a void core + motes
+    const ccx = 32, ccy = 16;
+    for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+      const d = Math.abs(x - ccx) / 2 + Math.abs(y - ccy);     // diamond metric
+      const density = Math.max(0, 1 - d / 16);
+      const h = hash2(x, y, seed);
+      if (d < 3) { if (h < 0.7) P(g, x, y, RAMP.void); }        // dead core
+      else if ((x + y) % 2 === 0 && h < density * 0.95) P(g, x, y, dr[3]);
+      else if (h < density * 0.28) P(g, x, y, dr[4] || dr[3]);
+    }
+    // bright drift motes welling up
+    ([[26, 12], [36, 18], [30, 20], [40, 10]] as [number, number][]).forEach(([mx, my], i) => { if (!inDiamond(rows, mx, my)) return; P(g, mx, my, i % 2 ? dr[1] : dr[2]); if (i % 2 === 0) P(g, mx, my - 1, dr[2]); });
+    // faint purple veins crawling to the rim
+    let vx = ccx, vy = ccy;
+    for (let k = 0; k < 22; k++) { if (inDiamond(rows, vx, vy)) P(g, vx, vy, dr[2]); vx += (hash2(vx, vy, seed + 9) < 0.5 ? 1 : -1); vy += (hash2(vx, vy, seed + 8) < 0.5 ? 1 : 0); }
+  }
+  return g;  // ground accent: keep only its diamond edge (no full outline)
+}
+
+/** drift-crystal cluster (28×44, 2 variants): shards erupting from a rocky base */
+export function drawDriftCrystal(variant: number): Grid {
+  const g = makeGrid(28, 44); const dr = RAMP.drift, st = RAMP.stone;
+  const cx = 14, baseY = 41;
+  // small dark rocky base the shards erupt from
+  for (let yy = 0; yy < 5; yy++) for (let xx = -9 + yy; xx <= 9 - yy; xx++) { let c = st[2]; if (xx < -7 + yy) c = st[1]; if (xx > 7 - yy) c = st[3]; P(g, cx + xx, baseY - yy, c); }
+  // a single drift shard (tapered crystal) leaning by `lean`
+  function shard(sx: number, sy: number, h: number, lean: number, thick: number) {
+    for (let k = 0; k < h; k++) {
+      const t = k / h, w = Math.max(0, Math.round((1 - t) * thick));
+      const x = sx + Math.round(lean * t * 4);
+      for (let i = -w; i <= w; i++) {
+        let c = dr[2]; if (i < 0) c = dr[1]; if (i > 0) c = dr[3]; if (i === 0 && k < h * 0.7) c = dr[0];
+        P(g, x + i, sy - k, c);
+      }
+    }
+    P(g, sx + Math.round(lean * 4), sy - h, dr[0]);     // bright tip
+  }
+  // cluster layout per variant
+  if (variant === 0) {                                  // upright tall cluster
+    shard(cx, baseY - 2, 34, 0.1, 3);
+    shard(cx - 6, baseY - 1, 20, -0.5, 2);
+    shard(cx + 6, baseY - 1, 24, 0.5, 2);
+    shard(cx - 2, baseY, 12, -0.2, 1);
+  } else {                                              // wider, splayed cluster
+    shard(cx - 2, baseY - 1, 26, -0.3, 3);
+    shard(cx + 4, baseY - 2, 30, 0.4, 2);
+    shard(cx - 8, baseY, 16, -0.7, 2);
+    shard(cx + 9, baseY, 14, 0.8, 1);
+    shard(cx + 1, baseY, 10, 0.1, 1);
+  }
+  // faint glow halo (dither)
+  for (let yy = -2; yy <= 6; yy++) for (let xx = -11; xx <= 11; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 8 && d < 12 && (xx + yy) % 2 === 0 && !G(g, cx + xx, baseY - 18 + yy)) P(g, cx + xx, baseY - 18 + yy, dr[3]); }
+  outline(g, RAMP.void); return g;
+}
+
+/** low wind-blown ash dune tuft (26×16, 2 variants) */
+export function drawAshDune(variant: number): Grid {
+  const g = makeGrid(26, 16); const dt = RAMP.dirt, bn = RAMP.bone;
+  const cx = 13, baseY = 14;
+  // a low wind-blown ash mound (asymmetric, tail to the right)
+  const peak = variant ? 7 : 6;
+  for (let xx = -12; xx <= 12; xx++) {
+    const t = (xx + 12) / 24;
+    // asymmetric profile: steep left face, long drift tail right
+    const h = Math.round(peak * Math.exp(-Math.pow((xx + (variant ? -2 : 2)) / 7, 2)) * (1 + 0.3 * (xx > 0 ? (1 - t) : 0)));
+    for (let k = 0; k < h; k++) {
+      let c = dt[2]; if (k > h - 2) c = bn[3]; if (xx < -peak + 2) c = dt[1]; if (xx > peak) c = RAMP.ash;
+      P(g, cx + xx, baseY - k, c);
+    }
+    // pale ash crest streaks
+    if (h > 1 && hash2(cx + xx, h, 821 + variant) < 0.5) P(g, cx + xx, baseY - h, bn[2]);
+  }
+  // wind-blown ash flecks trailing off the tail
+  for (let i = 0; i < 4; i++) { const fx = cx + 8 + i * 2, fy = baseY - 4 - Math.floor(hash2(i, 1, 822 + variant) * 3); P(g, fx, fy, bn[3]); }
+  // a dead reed or bone shard poking out (variant differs)
+  if (variant === 0) { for (let k = 0; k < 6; k++) P(g, cx - 3, baseY - peak - k, bn[2]); P(g, cx - 3, baseY - peak - 6, bn[1]); }
+  else { for (let k = 0; k < 5; k++) P(g, cx + 1, baseY - peak - k, RAMP.grass[2]); P(g, cx + 1, baseY - peak - 5, RAMP.grass[0]); }
+  outline(g, RAMP.void); return g;
+}
+
+/** burnt broken trunk with smouldering embers (24×22, 2 variants) */
+export function drawScorchedStump(variant: number): Grid {
+  const g = makeGrid(24, 22); const dt = RAMP.dirt, em = RAMP.ember;
+  const cx = 12, baseY = 20;
+  // burnt broken trunk — charred dark wood, jagged snapped top
+  const hgt = variant ? 13 : 10, rad = variant ? 4 : 5;
+  const topProfile = [hgt, hgt - 2, hgt + 1, hgt - 3, hgt, hgt - 1];
+  for (let x = -rad; x <= rad; x++) {
+    const col = x + rad, top = topProfile[Math.min(topProfile.length - 1, Math.floor((col / (rad * 2)) * (topProfile.length - 1)))];
+    for (let y = 0; y < top; y++) {
+      let c = dt[3]; if (x < -rad + 1) c = dt[2]; if (x > rad - 1) c = RAMP.void;
+      if (y > top - 3) c = RAMP.void;                       // charred black crown
+      if (hash2(cx + x, y, 831 + variant) < 0.10) c = RAMP.ash;
+      P(g, cx + x, baseY - y, c);
+    }
+    // ember glow smouldering in the cracks of the crown
+    if (x % 2 === 0 && Math.abs(x) < rad) { P(g, cx + x, baseY - top + 2, em[2]); if (Math.abs(x) < 2) P(g, cx + x, baseY - top + 3, em[1]); }
+  }
+  // exposed charred roots flaring at the base
+  for (const dir of [-1, 1]) for (let k = 0; k < 4; k++) P(g, cx + dir * (rad + k), baseY - Math.floor(k / 2), k > 1 ? dt[3] : dt[2]);
+  // a broken branch stub (variant 1) or an ember spark drifting up (variant 0)
+  if (variant === 1) { for (let k = 0; k < 5; k++) P(g, cx + rad - 1 + k, baseY - hgt + 4 - Math.floor(k * 0.6), dt[3]); }
+  else { P(g, cx + 1, baseY - hgt - 2, em[1]); P(g, cx, baseY - hgt - 4, em[2]); }
+  // faint rising ash/ember glow
+  for (let yy = -2; yy <= 1; yy++) for (let xx = -4; xx <= 4; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 3 && d < 5 && (xx + yy) % 2 === 0) P(g, cx + xx, baseY - hgt + yy, em[2]); }
+  outline(g, RAMP.void); return g;
+}
+
+/** frontier standing doodads (drift_crystal / ash_dune / scorched_stump) */
+export type FrontierDoodadKey = 'drift_crystal' | 'ash_dune' | 'scorched_stump';
+export function makeFrontierDoodad(key: FrontierDoodadKey, v = 0): Grid {
+  switch (key) {
+    case 'drift_crystal':  return drawDriftCrystal(v);
+    case 'ash_dune':       return drawAshDune(v);
+    case 'scorched_stump': return drawScorchedStump(v);
+  }
+}
+export const ASH_GROUND_VARIANTS = 2;
+
 /** the Mirewife's drying rack (interior fixture, 24×30) */
 export function drawHerbRack(): Grid {
   const g = makeGrid(24, 30); const baseY = 27, x0 = 2, top = 6; const dr = RAMP.dirt;
@@ -2868,6 +3109,143 @@ export function makeDrownedRuins(f: number): Grid { return drawDrownedRuins(f % 
 export function makeBarrowCrypt(f: number): Grid { return drawBarrowCrypt(f % CAMP_FRAMES); }
 export function makeAshenWarcamp(f: number): Grid { return drawAshenWarcamp(f % CAMP_FRAMES); }
 
+// ── Frontier Expansion: the Outpost (second hub) buildings (ported from
+//    _gen/outpost.js — town.js helper vocabulary; `smoke` == chimneySmoke) ──
+export function drawPalisadeGate(): Grid {
+  const g = makeGrid(144, 128); const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, bn = RAMP.bone;
+  const cx = 72, baseY = 112;
+  foundation(g, cx, baseY + 8, 60, { ash: true });
+
+  function stakeRun(x0: number, x1: number, topBase: number) {
+    for (let sx = x0; sx <= x1; sx += 5) {
+      const h = topBase + Math.floor(hash2(sx, 1, 701) * 5);
+      for (let k = 0; k < h; k++) { let c = (sx / 5 % 2 < 1) ? dt[1] : dt[2]; if (k < 3) c = dt[3]; P(g, sx, baseY - k, c); P(g, sx + 1, baseY - k, dt[3]); P(g, sx + 2, baseY - k, dt[2]); }
+      P(g, sx, baseY - h, dt[3]); P(g, sx + 1, baseY - h, dt[3]);
+    }
+  }
+  stakeRun(8, 30, 38);
+  stakeRun(114, 136, 38);
+
+  function tower(tx: number) {
+    const w = 22, h = 64, x0 = tx - w / 2, ytop = baseY - h;
+    for (let y = ytop; y <= baseY; y++) for (let x = x0; x <= x0 + w; x++) {
+      let c = dt[1]; if (x <= x0 + 1) c = dt[0]; if (x >= x0 + w - 1) c = dt[2];
+      const r = (y - ytop) % 5; if (r === 0) c = dt[3]; else if (r === 1) c = dt[0];
+      if (hash2(x, y, 702) < 0.05) c = dt[2];
+      P(g, x, y, c);
+    }
+    for (let d = 1; d <= 10; d++) for (let y = ytop; y <= baseY; y++) P(g, x0 + w + d, y - Math.floor(d / 2), d >= 9 ? dt[3] : dt[2]);
+    for (let x = x0 - 2; x <= x0 + w + 2; x += 4) for (let k = 0; k < 6; k++) { P(g, x, ytop - 1 - k, dt[3]); P(g, x + 1, ytop - 1 - k, dt[2]); }
+    for (let x = x0 - 2; x <= x0 + w + 2; x++) P(g, x, ytop, dt[3]);
+    return { x0, ytop, w };
+  }
+  const lt = tower(cx - 30), rt = tower(cx + 30);
+
+  for (let j = 0; j < 7; j++) for (let x = lt.x0 + lt.w; x <= rt.x0; x++) {
+    let c = dt[1]; if (j === 0) c = dt[0]; if (j > 4) c = dt[3];
+    if ((x % 6) === 0) c = dt[3];
+    P(g, x, baseY - 60 + j, c);
+  }
+  const gl = lt.x0 + lt.w + 2, gr = rt.x0 - 2, gtop = baseY - 53;
+  for (let y = gtop; y <= baseY; y++) for (let x = gl; x <= gr; x++) {
+    let c = dt[2]; if ((x - gl) % 2 === 0) c = dt[3];
+    if (x === Math.round((gl + gr) / 2) || x === Math.round((gl + gr) / 2) + 1) c = RAMP.void;
+    if (x <= gl + 1) c = dt[1]; if (x >= gr - 1) c = dt[3];
+    P(g, x, y, c);
+  }
+  for (const sy of [gtop + 6, gtop + 24, baseY - 8]) { for (let x = gl; x <= gr; x++) P(g, x, sy, st[3]); for (let x = gl + 2; x <= gr - 2; x += 6) { P(g, x, sy - 1, st[2]); } }
+  P(g, Math.round((gl + gr) / 2) - 5, baseY - 28, st[2]); P(g, Math.round((gl + gr) / 2) + 6, baseY - 28, st[2]);
+  fillRect(g, cx - 2, baseY - 64, 5, 4, bn[1]); P(g, cx - 1, baseY - 63, RAMP.void); P(g, cx + 1, baseY - 63, RAMP.void); P(g, cx, baseY - 60, bn[2]);
+  [lt, rt].forEach((t) => { const bxp = t.x0 + t.w / 2; for (let k = 0; k < 4; k++) { const hw = 2 - Math.floor(k / 2); for (let i = -hw; i <= hw; i++) P(g, bxp + i, t.ytop - 7 - k, k < 2 ? em[1] : em[2]); } P(g, bxp, t.ytop - 11, em[0]); for (let yy = -3; yy <= 1; yy++) for (let xx = -4; xx <= 4; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 3 && d < 6 && (xx + yy) % 2 === 0) P(g, bxp + xx, t.ytop - 9 + yy, em[2]); } });
+
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function drawTradingPost(): Grid {
+  const g = makeGrid(120, 130); const dt = RAMP.dirt, gd = RAMP.gold, bn = RAMP.bone;
+  const cx = 60, baseY = 112;
+  foundation(g, cx, baseY + 8, 50, { ash: true });
+  const fw = 58, fh = 54, dep = 24, roofH = 22, x0 = cx - fw / 2, x1 = cx + fw / 2, ytop = baseY - fh;
+  rightWall(g, x1, ytop, baseY, dep, dt, 'timber', 71);
+  frontWall(g, x0, x1, ytop, baseY, dt, 71, 'timber');
+  gableRoof(g, x0, x1, ytop, dep, roofH, RAMP.stone, { overhang: 4 });
+  for (let k = 0; k < fh; k++) { P(g, x0 + 2 + Math.round(k * 0.4), baseY - k, dt[3]); P(g, x1 - 2 - Math.round(k * 0.4), baseY - k, dt[3]); }
+  door(g, cx + 10, baseY, 11, 22, dt);
+  litWindow(g, cx - 14, ytop + 16, 9, 9);
+
+  const ax0 = x0 - 30, ax1 = x0 + 2, ay = ytop + 18;
+  for (let x = ax0; x <= ax1; x++) { const yy = ay + Math.round((x - ax0) * 0.42); P(g, x, yy, dt[2]); P(g, x, yy + 1, dt[3]); }
+  for (let k = 0; k < 22; k++) { P(g, ax0, ay + 1 + k, dt[3]); P(g, ax0 + 1, ay + 1 + k, dt[2]); }
+  for (let x = ax0; x <= ax1; x++) { const yy = ay + Math.round((x - ax0) * 0.42); for (let k = 2; k < 6; k++) P(g, x, yy + k, ((x % 6) < 3) ? bn[2] : RAMP.blood[2]); }
+  const wbx = ax0 + 3, wby = baseY - 4;
+  for (let i = 0; i < 24; i++) P(g, wbx + i, wby, dt[1]);
+  for (let i = 0; i < 24; i++) P(g, wbx + i, wby + 1, dt[3]);
+  P(g, wbx + 1, wby + 2, dt[3]); P(g, wbx + 22, wby + 2, dt[3]);
+  for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { let c = dt[1]; if (i === 0 || i === 7 || j === 0 || j === 7) c = dt[3]; if (i === j || i === 7 - j) c = dt[2]; P(g, wbx + 2 + i, wby - 8 + j, c); }
+  for (let j = 0; j < 6; j++) { const w = 6 - Math.abs(j - 3); for (let i = -w; i <= w; i++) P(g, wbx + 14 + i, wby - 1 - j, i < 0 ? bn[2] : bn[3]); }
+  for (let k = 0; k < 4; k++) { P(g, wbx + 19, wby - 1 - k, gd[1]); P(g, wbx + 20, wby - 1 - k, gd[2]); }
+  P(g, wbx + 19, wby - 5, gd[0]);
+  hangingSign(g, x1 + 2, ytop + 24, 12, 9, dt, (gg, x, y) => {
+    for (let yy = -2; yy <= 2; yy++) for (let xx = -2; xx <= 2; xx++) if (xx * xx + yy * yy <= 4) P(gg, x + 6 + xx, y + 4 + yy, RAMP.gold[1]); P(gg, x + 6, y + 4, RAMP.gold[0]);
+  });
+  chimneySmoke(g, x1 - 8, ytop - 14);
+
+  outline(g, RAMP.void);
+  return g;
+}
+
+export function drawWatchtower(): Grid {
+  const g = makeGrid(80, 152); const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, bn = RAMP.bone, dr = RAMP.drift;
+  const cx = 40, baseY = 140;
+  foundation(g, cx, baseY + 6, 30, { ash: true });
+
+  const baseHW = 17, topHW = 13, botY = baseY, platY = 40;
+  function leg(sideX: number, depth: number) {
+    for (let y = platY; y <= botY; y++) {
+      const t = (botY - y) / (botY - platY);
+      const lx = cx + sideX * Math.round(baseHW - t * (baseHW - topHW)) + depth;
+      P(g, lx, y - (depth ? Math.floor(depth / 2) : 0), depth ? dt[3] : (sideX < 0 ? dt[1] : dt[2]));
+      P(g, lx + 1, y - (depth ? Math.floor(depth / 2) : 0), dt[3]);
+    }
+  }
+  leg(-1, 7); leg(1, 7);
+  leg(-1, 0); leg(1, 0);
+  for (const by of [botY - 28, botY - 60, botY - 88]) {
+    const t0 = (botY - by) / (botY - platY), t1 = (botY - (by - 28)) / (botY - platY);
+    const lxB = cx - Math.round(baseHW - t0 * (baseHW - topHW)), rxB = cx + Math.round(baseHW - t0 * (baseHW - topHW));
+    const lxT = cx - Math.round(baseHW - t1 * (baseHW - topHW)), rxT = cx + Math.round(baseHW - t1 * (baseHW - topHW));
+    const n = 30;
+    for (let k = 0; k <= n; k++) { P(g, Math.round(lxB + (rxT - lxB) * k / n), Math.round(by - 28 * k / n), dt[2]); P(g, Math.round(rxB + (lxT - rxB) * k / n), Math.round(by - 28 * k / n), dt[3]); }
+    for (let x = lxB; x <= rxB; x++) P(g, x, by, dt[3]);
+  }
+
+  const pHW = topHW + 5, pTop = platY;
+  for (let d = 0; d <= 10; d++) for (let x = -pHW; x <= pHW; x++) P(g, cx + x + d, pTop + 6 - Math.floor(d / 2), (d === 0 || x === -pHW) ? dt[1] : (d >= 9 ? dt[3] : dt[2]));
+  for (let x = -pHW; x <= pHW; x++) { P(g, cx + x, pTop + 6, dt[3]); P(g, cx + x, pTop + 7, dt[3]); }
+  for (let x = -pHW; x <= pHW; x += 1) if (x === -pHW || x === pHW || x % 6 === 0) for (let k = 0; k < 9; k++) P(g, cx + x, pTop + 5 - k, dt[3]);
+  for (let x = -pHW; x <= pHW; x++) P(g, cx + x, pTop - 4, dt[2]);
+  const rHW = pHW + 3, roofH = 16;
+  for (let y = 0; y <= roofH; y++) { const t = y / roofH, hw = Math.round(rHW * t); const yy = pTop - 5 - roofH + y; for (let x = -hw; x <= hw; x++) { let c = st[1]; if (x < -hw + 2) c = st[0]; if (x > hw - 1) c = st[2]; if (y % 3 === 0) c = st[3]; P(g, cx + x, yy, c); } }
+  for (let d = 1; d <= 10; d++) for (let y = 0; y <= roofH; y++) { const t = y / roofH; const x = Math.round(d + rHW * t); const yy = Math.round(pTop - 5 - roofH - Math.floor(d / 2) + y); P(g, cx + x, yy, y % 3 === 0 ? st[3] : st[2]); }
+  for (let d = 0; d <= 10; d++) P(g, cx + d, pTop - 5 - roofH - Math.floor(d / 2), st[0]);
+  P(g, cx + pHW - 3, pTop - 6, st[3]); for (let j = 0; j < 4; j++) { const w = 1 + j; for (let i = -w; i <= w; i++) P(g, cx + pHW - 3 + i, pTop - 5 + j, st[2]); } P(g, cx + pHW - 3, pTop - 1, st[3]);
+
+  const fxp = cx - 4, fy = pTop + 2;
+  for (let i = -3; i <= 3; i++) P(g, fxp + i, fy, st[3]);
+  for (let k = 0; k < 5; k++) { const hw = 3 - Math.floor(k / 2); for (let i = -hw; i <= hw; i++) P(g, fxp + i, fy - 2 - k, k < 2 ? em[0] : em[1]); }
+  for (let yy = -3; yy <= 1; yy++) for (let xx = -5; xx <= 5; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 3 && d < 6 && (xx + yy) % 2 === 0) P(g, fxp + xx, fy - 3 + yy, em[2]); }
+  const ldx = cx - baseHW + 4;
+  for (let y = pTop + 8; y <= botY - 2; y += 4) for (let i = 0; i < 6; i++) P(g, ldx + i, y, dt[3]);
+  for (let y = pTop + 8; y <= botY - 2; y++) { P(g, ldx, y, dt[2]); P(g, ldx + 5, y, dt[2]); }
+  const bx = cx + baseHW - 4;
+  for (let y = botY - 70; y <= botY - 46; y++) for (let i = 0; i < 8; i++) { const wob = Math.round(Math.sin(y * 0.4) * 0.6); let c = bn[2]; if (i === 0) c = bn[1]; if (i >= 6) c = bn[3]; P(g, bx - i + wob, y, c); }
+  P(g, bx - 4, botY - 60, dr[1]); P(g, bx - 5, botY - 59, dr[2]); P(g, bx - 3, botY - 59, dr[2]); P(g, bx - 4, botY - 58, dr[2]);
+
+  outline(g, RAMP.void);
+  return g;
+}
+
 // (exported for the headless smoke test; frame matters for shrine/den/obelisk)
 export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
   switch (key) {
@@ -2887,7 +3265,11 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'barrowcrypt': return makeBarrowCrypt(frame);
     case 'ashwarcamp': return makeAshenWarcamp(frame);
     case 'drownedruins': return makeDrownedRuins(frame);
-    case 'outpost':   return drawFurnisher();
+    // the Frontier Outpost now renders on its real trade house; the gate +
+    // watchtower flank it as decor
+    case 'outpost':   return drawTradingPost();
+    case 'palisade_gate': return drawPalisadeGate();
+    case 'watchtower':    return drawWatchtower();
     case 'mirehut':   return drawMirewifeHut();
   }
 }
@@ -3077,7 +3459,7 @@ export function makeWagon(f: number): Grid {
 // Faithful port of _gen/interiors.js. Floors 64×36 (tiles.js format), walls
 // 64×56 (bottom-center anchor), fixtures bottom-center anchored.
 
-export type InteriorFloorStyle = 'wood' | 'stone' | 'cave';
+export type InteriorFloorStyle = 'wood' | 'stone' | 'cave' | 'crypt';
 
 /** map a room accent hex to its RAMP ramp (banner/rug/vat tinting) */
 const ACCENT_RAMP: Record<string, readonly string[]> = {
@@ -3095,6 +3477,7 @@ const RAMP_BY_NAME: Record<string, readonly string[]> = {
 };
 
 export function makeInteriorFloor(style: InteriorFloorStyle, seedN: number): Grid {
+  if (style === 'crypt') return makeCryptFloor(seedN);
   const g = makeGrid(64, 36);
   const rows = diamondRows();
   const ramp = style === 'wood' ? RAMP.dirt : RAMP.stone;
@@ -3137,6 +3520,188 @@ export function makeInteriorFloor(style: InteriorFloorStyle, seedN: number): Gri
   }
   return g;
 }
+
+// ── Frontier Expansion: crypt / ruin interior tileset (ported from _gen/crypt.js) ──
+// A crypt FLOOR variant (dark cracked flagstone, bone/gold flecks, drift seep) +
+// dungeon fixtures (bottom-center anchored, each carries a `solid` flag).
+
+/** crypt floor (64×36, 3 seed variants): coarse cracked flagstone, kin to
+ *  floor_stone but corrupted (bone fragments, gold rune fleck, drift seep) */
+export function makeCryptFloor(seedN: number): Grid {
+  const g = makeGrid(64, 36);
+  const rows = diamondRows();
+  const st = RAMP.stone, bn = RAMP.bone, gd = RAMP.gold, dr = RAMP.drift;
+  const hi = st[1], sh = st[3];
+  const face = st[2];
+
+  for (let y = 0; y < 32; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) P(g, x, y, face);
+  // 3px south lip + 1px void north edge
+  for (let x = 0; x < 64; x++) {
+    const my = contourMaxY(rows, x);
+    if (my >= 0) for (let k = 1; k <= 3; k++) P(g, x, my + k, sh);
+    for (let y = 0; y < 32; y++) if (inDiamond(rows, x, y)) { P(g, x, y, RAMP.void); break; }
+  }
+  // big crypt flagstones (coarser courses than floor_stone) + cracks
+  for (let y = 1; y < 31; y++) for (let x = rows[y].x0; x <= rows[y].x1; x++) {
+    const joint = (x + 2 * y) % 16 === 0 || (x - 2 * y + 128) % 16 === 0;
+    if (joint) { P(g, x, y, sh); if (hash2(x, y, seedN) < 0.4) P(g, x, y, RAMP.void); continue; }
+    const bx = Math.floor((x + 2 * y) / 16), by = Math.floor((x - 2 * y + 128) / 16);
+    if (hash2(bx, by, seedN) < 0.22 && hash2(x, y, seedN + 1) < 0.5) P(g, x, y, hash2(x, y, seedN + 2) < 0.5 ? hi : sh);
+    if (hash2(x, y, seedN + 7) < 0.018) P(g, x, y, RAMP.void);            // hairline crack
+    // dim drift seep welling from the joints
+    if (joint === false && hash2(x, y, seedN + 8) < 0.010) { P(g, x, y, dr[3]); if (hash2(x, y, seedN + 9) < 0.4) P(g, x, y, dr[2]); }
+  }
+  // a scatter of bone fragments + a worn gold rune fleck per variant
+  const rng = mulberry(seedN * 13 + 3);
+  for (let i = 0; i < 5; i++) {
+    const fx = 14 + Math.floor(rng() * 36), fy = 6 + Math.floor(rng() * 20);
+    if (!inDiamond(rows, fx, fy)) continue;
+    P(g, fx, fy, bn[3]); if (rng() < 0.5) P(g, fx + 1, fy, bn[2]);
+  }
+  const gx = 20 + (seedN % 3) * 10, gy = 12 + (seedN % 2) * 6;
+  if (inDiamond(rows, gx, gy)) { P(g, gx, gy, gd[2]); P(g, gx + 1, gy, gd[3]); }
+  return g;
+}
+
+// SARCOPHAGUS — stone coffin: tapered body + heavy carved lid, gold trim, crack. SOLID.
+function fxSarcophagus(): Grid {
+  const g = makeGrid(44, 36); const st = RAMP.stone, bn = RAMP.bone, gd = RAMP.gold, dr = RAMP.drift;
+  const baseY = 33;
+  // coffin body — slightly tapered cuboid (head end wider, left)
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 34; x++) {
+    const taper = Math.round((x / 34) * 1.5);
+    let c = st[1]; if (x < 2) c = st[0]; if (x > 31) c = st[2];
+    if (y > 9) c = st[3];
+    P(g, 4 + x, baseY - y - taper, c);
+  }
+  // right iso side (shadow)
+  for (let d = 1; d <= 6; d++) for (let y = 0; y < 12; y++) P(g, 4 + 33 + d, baseY - y - Math.floor(d / 2), d >= 5 ? st[3] : st[2]);
+  // the lid — a wider slab on top with a carved figure
+  for (let d = 0; d <= 7; d++) for (let x = -1; x < 35; x++) {
+    let c = (d === 0 || x < 1) ? st[0] : st[1];
+    if (d >= 6) c = st[2];
+    P(g, 4 + x + d, baseY - 12 - Math.floor(d / 2), c);
+  }
+  // recumbent figure carved into the lid (bone, simplified effigy)
+  const lx = 12, ly = baseY - 14;
+  fillRect(g, lx, ly - 2, 16, 1, bn[2]);                       // body line
+  P(g, lx - 1, ly - 2, bn[1]); P(g, lx, ly - 3, bn[1]); P(g, lx + 1, ly - 3, bn[2]);  // head
+  fillRect(g, lx + 4, ly - 3, 6, 1, bn[3]); fillRect(g, lx + 5, ly - 4, 4, 1, bn[2]); // crossed arms
+  // gold trim band + a worn rune on the foot
+  for (let x = 4; x < 38; x++) if (x % 2 === 0) P(g, x, baseY - 1, gd[3]);
+  P(g, 30, baseY - 6, gd[2]); P(g, 31, baseY - 6, gd[3]); P(g, 30, baseY - 7, gd[3]);
+  // crack across the lid with faint drift seep
+  for (let k = 0; k < 8; k++) { const cxk = 18 + Math.round(Math.sin(k) * 1.5), cyk = baseY - 18 + k; P(g, cxk, cyk, st[3]); if (k % 2 === 0) P(g, cxk, cyk, dr[3]); }
+  outline(g, RAMP.void); return g;
+}
+
+// RUBBLE PILE — collapsed stone blocks heaped up, dust. SOLID (low cover).
+function fxRubblePile(): Grid {
+  const g = makeGrid(34, 24); const st = RAMP.stone; const baseY = 21, cx = 17;
+  const blocks: [number, number, number, number][] = [
+    [cx - 11, baseY, 8, 6], [cx - 2, baseY, 9, 7], [cx + 7, baseY, 7, 5],
+    [cx - 7, baseY - 6, 7, 5], [cx + 1, baseY - 7, 8, 6], [cx - 1, baseY - 12, 6, 5],
+  ];
+  blocks.forEach(([bx, by, w, h], i) => {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let c = st[1]; if (x < 1) c = st[0]; if (x > w - 2) c = st[2]; if (y === 0) c = st[0]; if (y > h - 2) c = st[3];
+      if (hash2(bx + x, by - y, 631 + i) < 0.12) c = st[2];
+      P(g, bx + x, by - y, c);
+    }
+    // dark gap seams between blocks
+    for (let x = 0; x < w; x++) P(g, bx + x, by + 1, st[3]);
+  });
+  // dust / gravel at the base
+  const rng = mulberry(632);
+  for (let i = 0; i < 14; i++) { const dx = cx - 14 + Math.floor(rng() * 28); P(g, dx, baseY + 1 + Math.floor(rng() * 2), st[3]); }
+  outline(g, RAMP.void); return g;
+}
+
+// STANDING BRAZIER — iron tripod bowl with ember flame (2-frame flicker @4fps). SOLID.
+function fxStandingBrazier(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(24, 40); const st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold; const cx = 12, baseY = 37;
+  // three splayed iron legs
+  ([[-6, -1], [0, 0], [6, 1]] as [number, number][]).forEach(([ox, dir]) => {
+    for (let k = 0; k < 18; k++) { const lx = cx + ox + Math.round(dir * k * 0.4); P(g, lx, baseY - k, dir === 0 ? st[1] : st[2]); P(g, lx + 1, baseY - k, st[3]); }
+  });
+  // cross-brace ring
+  for (let x = cx - 5; x <= cx + 6; x++) P(g, x, baseY - 10, st[3]);
+  // the bowl (iso half-ellipse)
+  for (let yy = 0; yy < 7; yy++) for (let xx = -9 + yy; xx <= 9 - yy; xx++) {
+    let c = st[1]; if (xx < -7 + yy) c = st[0]; if (xx > 7 - yy) c = st[3]; if (yy === 0) c = st[2];
+    P(g, cx + xx, baseY - 19 - yy, c);
+  }
+  for (let xx = -9; xx <= 9; xx++) P(g, cx + xx, baseY - 19, st[2]);    // rim
+  // ember coals
+  for (let xx = -6; xx <= 6; xx++) if (hash2(cx + xx, frame, 633) < 0.6) P(g, cx + xx, baseY - 20, em[2]);
+  // flame (2-frame flicker)
+  const sway = [0, 1][frame], tall = [0, 2][frame];
+  for (let yy = 0; yy <= 12 + tall; yy++) {
+    const t = yy / (12 + tall), hw = Math.round((1 - t) * 5);
+    const sx = cx + Math.round(Math.sin(yy * 0.6 + frame * 2) * 1.2) + Math.round(sway * t);
+    for (let xx = -hw; xx <= hw; xx++) { let c = em[1]; if (Math.abs(xx) >= hw - 1) c = em[2]; if (yy < 4 && Math.abs(xx) < 2) c = em[0]; P(g, sx + xx, baseY - 21 - yy, c); }
+  }
+  for (let yy = 2; yy <= 7 + tall; yy++) { const hw = Math.max(0, Math.round((1 - yy / (8 + tall)) * 2)); for (let xx = -hw; xx <= hw; xx++) P(g, cx + xx, baseY - 23 - yy, gd[0]); }
+  if (frame === 1) P(g, cx + sway, baseY - 35 - tall, em[0]);
+  // glow halo (dither)
+  const rr = frame === 1 ? 10 : 8;
+  for (let yy = -9; yy <= 3; yy++) for (let xx = -10; xx <= 10; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 5 && d < rr && (xx + yy + frame) % 2 === 0) P(g, cx + xx, baseY - 24 + yy, em[2]); }
+  outline(g, RAMP.void); return g;
+}
+
+// BROKEN PILLAR — a fluted column snapped off jagged, on a square plinth. SOLID.
+function fxBrokenPillar(): Grid {
+  const g = makeGrid(24, 40); const st = RAMP.stone; const cx = 12, baseY = 37;
+  // square plinth (iso cuboid)
+  isoCuboid(g, cx - 8, baseY, 14, 5, 4, st);
+  // the column shaft, snapped at ~70% with a jagged top
+  const shaftBot = baseY - 5, shaftTop = 10;
+  const breakProfile = [shaftTop + 2, shaftTop, shaftTop + 3, shaftTop + 1, shaftTop + 4];
+  for (let x = -5; x <= 5; x++) {
+    const col = x + 5;
+    const topY = breakProfile[Math.min(breakProfile.length - 1, Math.floor((col / 10) * (breakProfile.length - 1)))] + ((col % 2) ? 1 : 0);
+    for (let y = shaftBot; y >= topY; y--) {
+      let c = st[1]; if (x < -3) c = st[0]; if (x > 3) c = st[2]; if (x > 4) c = st[3];
+      // vertical fluting
+      if (x % 2 === 0) c = (x < 0) ? st[0] : st[2];
+      if (hash2(cx + x, y, 641) < 0.05) c = st[3];
+      P(g, cx + x, y, c);
+    }
+    // dark broken-core top edge
+    P(g, cx + x, topY - 1, st[3]);
+  }
+  // capital ring near the break
+  for (let x = -6; x <= 6; x++) P(g, cx + x, shaftBot - 2, st[2]);
+  // a chunk of fallen column lying at the base (right)
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 9; i++) { let c = st[1]; if (i < 1) c = st[0]; if (i > 7) c = st[3]; if (j > 2) c = st[3]; P(g, cx + 4 + i, baseY - 1 - j, c); }
+  outline(g, RAMP.void); return g;
+}
+
+// BONE PILE — a heap of bones, ribs & two skulls. Decorative, NOT solid.
+function fxBonePile(): Grid {
+  const g = makeGrid(30, 20); const bn = RAMP.bone; const cx = 15, baseY = 17;
+  // mound of long bones crossing
+  const rng = mulberry(651);
+  for (let i = 0; i < 9; i++) {
+    const bx = cx - 11 + Math.floor(rng() * 22), by = baseY - Math.floor(rng() * 6);
+    const len = 5 + Math.floor(rng() * 5), ang = (rng() - 0.5) * 1.6;
+    for (let k = 0; k < len; k++) { const x = Math.round(bx + Math.cos(ang) * k), y = Math.round(by - Math.sin(ang) * k * 0.5); P(g, x, y, i % 2 ? bn[1] : bn[2]); }
+    // knuckle ends
+    P(g, bx, by, bn[0]); P(g, Math.round(bx + Math.cos(ang) * len), Math.round(by - Math.sin(ang) * len * 0.5), bn[0]);
+  }
+  // two skulls nestled in the pile
+  ([[cx - 6, baseY - 2], [cx + 4, baseY - 4]] as [number, number][]).forEach(([sx, sy]) => {
+    fillRect(g, sx, sy - 3, 5, 4, bn[1]); P(g, sx, sy - 3, bn[0]);
+    P(g, sx + 1, sy - 2, RAMP.void); P(g, sx + 3, sy - 2, RAMP.void);   // eye sockets
+    P(g, sx + 2, sy, bn[3]); fillRect(g, sx + 1, sy + 1, 3, 1, bn[2]);  // jaw
+  });
+  outline(g, RAMP.void); return g;
+}
+
+// exported for the byte-diff + smoke (engine goes through SpriteCache/makeFixture)
+export { fxSarcophagus, fxRubblePile, fxStandingBrazier, fxBrokenPillar, fxBonePile };
+export const BRAZIER_FRAMES = 2;
 
 // ── wall segments (64×56): flat face + sheared iso top cap ────────────────────
 export type WallSide = 'nw' | 'ne';
@@ -3401,7 +3966,9 @@ export type FixtureSpriteKind =
   | 'counter' | 'vat' | 'shelf' | 'table' | 'barrel'
   | 'cage' | 'anvil' | 'rug' | 'wheelDisc'
   | 'goldVein' | 'goldVeinEmpty' | 'hearth' | 'oreCart' | 'herbrack'
-  | 'exchange' | 'mirror';
+  | 'exchange' | 'mirror'
+  // crypt pack (dungeon fixtures): brazier flame is a 2f flicker @4fps
+  | 'sarcophagus' | 'rubblePile' | 'standingBrazier' | 'brokenPillar' | 'bonePile';
 
 // generic iso cuboid: front (lit) + right side (shadow) + top
 function isoCuboid(g: Grid, x0: number, baseY: number, w: number, h: number, dep: number, ramp: readonly string[]) {
@@ -3715,12 +4282,775 @@ export function makeFixture(kind: FixtureSpriteKind, accent: string, frame = 0):
     case 'exchange':      return drawExchangeCounter(frame % 2);
     case 'herbrack':      return drawHerbRack();
     case 'mirror':        return fxMirror(frame % 2);
+    case 'sarcophagus':     return fxSarcophagus();
+    case 'rubblePile':      return fxRubblePile();
+    case 'standingBrazier': return fxStandingBrazier(frame % BRAZIER_FRAMES);
+    case 'brokenPillar':    return fxBrokenPillar();
+    case 'bonePile':        return fxBonePile();
   }
 }
 
 // kind → cell dims, anim table (generic name → [sheet anim, frames]) and
 // hurt-flash tint, all per the design package's beasts metadata.
 // (exported for the headless smoke test — engine code goes through SpriteCache)
+// ── Frontier Expansion: new mob species + camp mini-bosses ───────────────────
+// Ported from _gen/mobs.js + _gen/minibosses.js + _gen/deaths.js. Same beasts.js
+// rig (drawX(facing, anim, f) → grid; ell/shadeMass/spike/moteBurst reused).
+// The death sequences are authored (deaths.js): solids 1px-outlined, then
+// outline-free motes/scatter painted after, like moteBurst.
+
+/* shared death helpers (ported from deaths.js) */
+function deathMound(g: Grid, cx: number, baseY: number, halfW: number, height: number, ramp: string[], seed: number, fill = 0.8) {
+  for (let yy = 0; yy < height; yy++) {
+    const t = yy / height;
+    const w = Math.round(halfW * (1 - t * t * 0.85));
+    for (let x = cx - w; x <= cx + w; x++) {
+      if (hash2(x, baseY - yy, seed) > fill) continue;
+      let c = ramp[1];
+      if (x < cx - w + 2) c = ramp[0];
+      if (x > cx + w - 2) c = ramp[3];
+      if (yy === 0) c = ramp[3];
+      if (hash2(x, baseY - yy, seed + 7) < 0.16) c = ramp[2];
+      P(g, x, baseY - yy, c);
+    }
+  }
+}
+function deathScatter(g: Grid, cx: number, baseY: number, spread: number, n: number, ramp: string[], seed: number) {
+  const r = mulberry(seed);
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(cx + (r() - 0.5) * spread * 2);
+    const y = baseY - Math.floor(r() * 2);
+    P(g, x, y, r() < 0.5 ? ramp[2] : ramp[3]);
+  }
+}
+function leanOf(dir: number) { return [0, 1, 2, 1, 0][dir]; }
+
+// BOGWRETCH death (4f) — collapses, sac deflates, dissolves to drift motes
+function bogwretchDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(32, 40); const wa = RAMP.water, gr = RAMP.grass, bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2; const cx = 16 + leanOf(dir), groundY = 38;
+  if (f === 0) {
+    shadeMass(g, cx, groundY - 4, profile ? 9 : 8, 4, wa, 110);
+    if (!back) { const hx = cx + (profile ? 5 : 0); shadeMass(g, hx, groundY - 5, 4, 3, wa, 112); P(g, hx + (profile ? 2 : -2), groundY - 6, dr[3]); if (!profile) P(g, hx + 2, groundY - 6, dr[3]); for (let i = -3; i <= 3; i++) P(g, hx + i, groundY - 1, wa[3]); }
+    P(g, cx - 8, groundY - 1, wa[2]); P(g, cx + 8, groundY - 1, wa[2]);
+    outline(g, RAMP.void); P(g, cx, groundY - 8, dr[3]);
+  } else if (f === 1) {
+    ell(g, cx, groundY - 2, 11, 3, (x, y, d, dx, dy) => { let c = wa[2]; if (dx + dy < -0.4) c = wa[1]; if (d > 0.7) c = wa[3]; if (hash2(x, y, 113) < 0.18) c = gr[2]; P(g, x, y, c); });
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 6, 8, 0.5, 114);
+  } else if (f === 2) {
+    for (let x = cx - 9; x <= cx + 9; x++) { if (hash2(x, 0, 115) < 0.7) P(g, x, groundY - 1, wa[3]); if (hash2(x, 1, 115) < 0.3) P(g, x, groundY - 2, wa[2]); }
+    P(g, cx - 4, groundY - 1, bn[3]); P(g, cx + 3, groundY - 1, bn[3]);
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 9, 12, 0.7, 116);
+  } else {
+    for (let x = cx - 6; x <= cx + 6; x++) if (hash2(x, 2, 117) < 0.35) P(g, x, groundY - 1, wa[3]);
+    moteBurst(g, cx, groundY - 12, 14, 0.4, 118);
+  }
+  return g;
+}
+
+// BARROW WIGHT death (4f) — robe crumples, bones clatter apart
+function barrowWightDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(32, 44); const st = RAMP.stone, bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2; const cx = 16 + Math.round(leanOf(dir) * 0.5), groundY = 42;
+  if (f === 0) {
+    for (let y = groundY - 26; y <= groundY; y++) { const t = (y - (groundY - 26)) / 26; const w = Math.round(4 + t * 5); for (let x = cx - w; x <= cx + w; x++) { let c = st[1]; if (x < cx - w + 1) c = st[0]; if (x > cx + w - 1) c = st[3]; if (hash2(x, y, 121) < 0.05) c = st[2]; P(g, x, y, c); } }
+    if (!back) { P(g, cx + (profile ? 3 : -2), groundY - 22, dr[3]); if (!profile) P(g, cx + 2, groundY - 22, dr[3]); }
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    for (let y = groundY - 16; y <= groundY; y++) { const t = (y - (groundY - 16)) / 16; const w = Math.round(6 + t * 4); for (let x = cx - w; x <= cx + w; x++) { if (hash2(x, y, 122) > 0.85) continue; let c = st[1]; if (x < cx - w + 1) c = st[0]; if (x > cx + w - 1) c = st[3]; P(g, x, y, c); } }
+    ([[-7, 6], [8, 9], [-9, 4]] as [number, number][]).forEach(([ox, oy], i) => { for (let k = 0; k < 4; k++) P(g, cx + ox + (i ? 1 : -1), groundY - oy + k, bn[1]); });
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 18, 9, 0.5, 123);
+  } else if (f === 2) {
+    deathMound(g, cx, groundY - 1, 9, 6, st, 124, 0.82);
+    const r = mulberry(125); for (let i = 0; i < 7; i++) { const bx = cx + Math.round((r() - 0.5) * 22), by = groundY - 1 - Math.floor(r() * 3); const len = 3 + Math.floor(r() * 3); const ang = (r() - 0.5) * 1.5; for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(ang) * k), Math.round(by - Math.sin(ang) * k * 0.5), bn[1]); P(g, bx, by, bn[0]); }
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 12, 11, 0.5, 126);
+  } else {
+    deathMound(g, cx, groundY - 1, 7, 4, st, 127, 0.7);
+    const r = mulberry(128); for (let i = 0; i < 9; i++) { const bx = cx + Math.round((r() - 0.5) * 24), by = groundY - 1 - Math.floor(r() * 2); P(g, bx, by, bn[2]); if (r() < 0.5) P(g, bx + 1, by, bn[1]); }
+    fillRect(g, cx - 8, groundY - 4, 4, 3, bn[1]); P(g, cx - 7, groundY - 3, RAMP.void);
+    outline(g, RAMP.void); P(g, cx + 2, groundY - 8, dr[2]); P(g, cx + 2, groundY - 10, dr[3]);
+  }
+  return g;
+}
+
+// BONE HUSK death (4f) — skeleton shatters
+function boneHuskDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(28, 36); const bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3; const cx = 14 + leanOf(dir), groundY = 34;
+  if (f === 0) {
+    const top = 9, hipY = top + 13;
+    for (let y = top + 6; y <= hipY; y++) { P(g, cx - 2, y, bn[2]); P(g, cx + 2, y, bn[3]); if ((y - top) % 2 === 0) for (let x = cx - 1; x <= cx + 1; x++) P(g, x, y, bn[1]); }
+    shadeMass(g, cx + 1, top + 3, 3, 3, bn, 131); if (!back) { P(g, cx, top + 3, dr[0]); P(g, cx + 2, top + 3, dr[0]); }
+    for (let y = hipY; y < groundY - 1; y++) { P(g, cx - 2, y, bn[2]); P(g, cx + 3, y, bn[2]); }
+    P(g, cx, top + 8, RAMP.void); P(g, cx + 1, top + 10, RAMP.void);
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    const cyk = 20; const r = mulberry(132);
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; const dst = 4 + r() * 6; const bx = Math.round(cx + Math.cos(a) * dst), by = Math.round(cyk + Math.sin(a) * dst * 0.7); const len = 2 + Math.floor(r() * 3); for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(a) * k), Math.round(by + Math.sin(a) * k * 0.6), i % 2 ? bn[1] : bn[2]); }
+    shadeMass(g, cx, cyk, 2, 2, bn, 133);
+    outline(g, RAMP.void); moteBurst(g, cx, cyk, 9, 0.4, 134);
+  } else if (f === 2) {
+    const r = mulberry(135); for (let i = 0; i < 11; i++) { const bx = cx + Math.round((r() - 0.5) * 22), by = groundY - 1 - Math.floor(r() * 3); const len = 2 + Math.floor(r() * 3), ang = (r() - 0.5) * 1.8; for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(ang) * k), Math.round(by - Math.sin(ang) * k * 0.4), bn[1]); }
+    outline(g, RAMP.void); deathScatter(g, cx, groundY - 1, 12, 8, bn, 136);
+  } else {
+    deathMound(g, cx, groundY - 1, 6, 4, bn, 137, 0.75);
+    fillRect(g, cx - 5, groundY - 3, 4, 3, bn[1]); P(g, cx - 4, groundY - 2, RAMP.void);
+    outline(g, RAMP.void); deathScatter(g, cx, groundY - 1, 13, 6, bn, 138);
+  }
+  return g;
+}
+
+// ASH BRUTE death (4f) — ember cracks flare then go cold, slumps
+function ashBruteDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(48, 52); const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold;
+  const dir = DIR_OF[facing]; const cx = 24 + leanOf(dir) * 2, groundY = 50;
+  const crk: [number, number][] = [[-7, 8], [4, 12], [-2, 18], [8, 6], [-9, 15], [1, 22], [-5, 26], [6, 24]];
+  if (f === 0) {
+    deathMound(g, cx, groundY - 1, 17, 34, dt, 141, 0.96);
+    crk.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 34 + oy; P(g, x, y, gd[0]); P(g, x, y + 1, em[0]); P(g, x + 1, y, em[0]); P(g, x - 1, y, em[1]); });
+    shadeMass(g, cx, groundY - 38, 5, 4, dt, 145); P(g, cx - 2, groundY - 38, gd[0]); P(g, cx + 2, groundY - 38, gd[0]);
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    deathMound(g, cx, groundY - 1, 18, 26, dt, 142, 0.95);
+    crk.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 26 + Math.round(oy * 0.7); P(g, x, y, em[0]); P(g, x, y + 1, gd[0]); });
+    outline(g, RAMP.void);
+    for (let i = 0; i < 10; i++) { const t = hash2(i, 1, 143) * Math.PI; P(g, Math.round(cx + Math.cos(t) * 14), groundY - 24 - Math.floor(hash2(i, 2, 143) * 8), i % 2 ? em[0] : gd[0]); }
+  } else if (f === 2) {
+    deathMound(g, cx, groundY - 1, 19, 16, dt, 144, 0.9);
+    crk.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 14 + Math.round(oy * 0.4); P(g, x, y, em[2]); if (hash2(x, y, 145) < 0.4) P(g, x, y, em[3]); });
+    outline(g, RAMP.void);
+    for (let i = 0; i < 6; i++) P(g, cx + Math.round((hash2(i, 3, 146) - 0.5) * 26), groundY - 1, em[3]);
+  } else {
+    deathMound(g, cx, groundY - 1, 20, 11, st, 147, 0.85);
+    for (let i = 0; i < 14; i++) { const x = cx + Math.round((hash2(i, 4, 148) - 0.5) * 38); P(g, x, groundY - 1, st[3]); if (hash2(i, 5, 148) < 0.3) P(g, x, groundY - 2, dt[3]); }
+    outline(g, RAMP.void);
+    P(g, cx - 6, groundY - 4, em[3]); P(g, cx + 5, groundY - 3, em[3]);
+  }
+  return g;
+}
+
+// DRIFT WISP death (3f, NO outline) — pops into scattering motes
+function driftWispDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(28, 32); const dr = RAMP.drift; const cx = 14, cy = 12;
+  if (f === 0) {
+    ell(g, cx, cy, 5, 4.4, (x, y, d) => P(g, x, y, d < 0.4 ? dr[0] : d < 0.7 ? dr[1] : dr[2]));
+    P(g, cx, cy, dr[0]);
+    for (let a = 0; a < 8; a++) { const t = a / 8 * Math.PI * 2; P(g, Math.round(cx + Math.cos(t) * 7), Math.round(cy + Math.sin(t) * 6), dr[0]); }
+    moteBurst(g, cx, cy, 9, 0.6, 150);
+  } else if (f === 1) {
+    const r = mulberry(151);
+    for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, dst = 4 + r() * 9; const x = Math.round(cx + Math.cos(a) * dst), y = Math.round(cy + Math.sin(a) * dst * 0.9); P(g, x, y, r() < 0.3 ? dr[0] : r() < 0.6 ? dr[1] : dr[2]); }
+    P(g, cx, cy, dr[1]);
+  } else {
+    const r = mulberry(152);
+    for (let i = 0; i < 16; i++) { const a = r() * Math.PI * 2, dst = 7 + r() * 6; P(g, Math.round(cx + Math.cos(a) * dst), Math.round(cy - 2 + Math.sin(a) * dst * 0.8), r() < 0.5 ? dr[2] : dr[3]); }
+  }
+  return g;
+}
+
+// THE DROWNED KING death (5f) — topples, water bursts, crumbles to rubble + drift
+function drownedKingDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(110, 110); const wa = RAMP.water, st = RAMP.stone, bn = RAMP.bone, gd = RAMP.gold, gr = RAMP.grass;
+  const dir = DIR_OF[facing]; const cx = 55 + leanOf(dir) * 3, groundY = 106; const tip = dir <= 2 ? 1 : -1;
+  if (f === 0) {
+    deathMound(g, cx + tip * 4, groundY - 1, 26, 64, st, 301, 0.95);
+    for (let i = 0; i < 16; i++) { const x = cx + Math.round((hash2(i, 0, 302) - 0.5) * 44), y = groundY - 20 - Math.floor(hash2(i, 1, 302) * 40); if (hash2(i, 2, 302) < 0.5) P(g, x, y, wa[2]); }
+    for (let i = -8; i <= 8; i += 2) P(g, cx + tip * 8 + i, groundY - 70, gd[1]);
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    for (let yy = 0; yy < 50; yy++) { const t = yy / 50; const w = Math.round(24 * (1 - t * 0.6)); const sx = cx + tip * Math.round(t * 22); for (let x = sx - w; x <= sx + w; x++) { if (hash2(x, yy, 303) > 0.9) continue; let c = st[1]; if (x < sx - w + 3) c = st[0]; if (x > sx + w - 3) c = st[3]; if (t > 0.5 && hash2(x, yy, 304) < 0.3) c = wa[2]; P(g, x, groundY - yy, c); } }
+    for (let i = 0; i < 24; i++) { const a = Math.PI + (i / 24) * Math.PI; P(g, Math.round(cx + tip * 30 + Math.cos(a) * 26), Math.round(groundY - 10 + Math.sin(a) * 14), i % 2 ? wa[0] : wa[1]); }
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 40, 18, 0.4, 305);
+  } else if (f === 2) {
+    deathMound(g, cx + tip * 10, groundY - 1, 34, 30, st, 306, 0.82);
+    ([[-18, 8], [16, 12], [24, 6], [-26, 5]] as [number, number][]).forEach(([ox, oy]) => ell(g, cx + ox, groundY - oy, 6, 4, (x, y, d) => P(g, x, y, d < 0.5 ? st[1] : st[3])));
+    for (let i = 0; i < 8; i++) { const x = cx + Math.round((hash2(i, 0, 307) - 0.5) * 56); P(g, x, groundY - 1 - Math.floor(hash2(i, 1, 307) * 6), bn[1]); }
+    for (let a = 0; a < 30; a++) { const t = a / 30 * Math.PI * 2; if (a % 2) P(g, Math.round(cx + Math.cos(t) * 40), Math.round(groundY - 2 + Math.sin(t) * 9), wa[0]); }
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 30, 24, 0.5, 308);
+  } else if (f === 3) {
+    deathMound(g, cx, groundY - 1, 32, 18, st, 309, 0.8);
+    for (let i = 0; i < 12; i++) { const x = cx + Math.round((hash2(i, 0, 310) - 0.5) * 60); P(g, x, groundY - 1 - Math.floor(hash2(i, 1, 310) * 4), bn[2]); }
+    for (let i = 0; i < 8; i++) { const kx = cx + Math.round((hash2(i, 2, 310) - 0.5) * 54); for (let k = 0; k < 4; k++) P(g, kx, groundY - 1 - k, gr[2]); }
+    for (let i = -6; i <= 6; i += 2) P(g, cx - 24 + i, groundY - 3, gd[1]); for (let x = cx - 30; x <= cx - 18; x++) P(g, x, groundY - 2, gd[2]);
+    for (let x = cx - 44; x <= cx + 44; x++) if (hash2(x, 3, 311) < 0.4) P(g, x, groundY - 1, wa[3]);
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 20, 22, 0.35, 312);
+  } else {
+    deathMound(g, cx, groundY - 1, 28, 12, st, 313, 0.78);
+    for (let i = 0; i < 14; i++) { const x = cx + Math.round((hash2(i, 0, 314) - 0.5) * 56); P(g, x, groundY - 1, st[3]); P(g, x, groundY - 2 - Math.floor(hash2(i, 1, 314) * 3), bn[2]); }
+    for (let i = -6; i <= 6; i += 2) P(g, cx - 22 + i, groundY - 3, gd[2]);
+    for (let x = cx - 46; x <= cx + 46; x++) if (hash2(x, 4, 315) < 0.3) P(g, x, groundY - 1, wa[3]);
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 16, 20, 0.3, 316);
+  }
+  return g;
+}
+
+// THE BARROW LORD death (5f) — collapses, bones explode apart, crown falls
+function barrowLordDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(110, 116); const bn = RAMP.bone, st = RAMP.stone, gd = RAMP.gold, dr = RAMP.drift;
+  const dir = DIR_OF[facing]; const cx = 55 + leanOf(dir) * 3, groundY = 112;
+  if (f === 0) {
+    for (let y = groundY - 78; y <= groundY - 28; y++) P(g, cx, y, bn[2]);
+    for (let r = 0; r < 7; r++) { const ry = groundY - 72 + r * 6, span = 16 - r; for (let s = -1; s <= 1; s += 2) for (let k = 1; k <= span; k++) { const x = cx + s * k, y = ry + Math.round((k / span) ** 2 * 7) + (r % 2 ? 1 : 0); P(g, x, y, bn[1]); } }
+    for (const lx of [-13, 13]) for (let y = groundY - 30; y <= groundY; y++) P(g, cx + lx, y, bn[2]);
+    const hy = groundY - 90; for (let y = hy - 8; y <= hy + 7; y++) for (let x = cx - 9; x <= cx + 9; x++) { if (Math.abs(x - cx) + Math.abs(y - hy) > 13) continue; P(g, x, y, bn[1]); }
+    for (let i = -8; i <= 8; i += 2) for (let k = 0; k < 3; k++) P(g, cx + i, hy - 9 - k, gd[2]);
+    P(g, cx - 4, hy - 1, dr[0]); P(g, cx + 4, hy - 1, dr[0]);
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    for (let r = 0; r < 6; r++) { const ry = groundY - 66 + r * 7, span = 15 - r, off = (r % 2 ? 3 : -3); for (let s = -1; s <= 1; s += 2) for (let k = 1; k <= span; k++) { if (hash2(k, ry, 320) > 0.85) continue; const x = cx + off + s * k, y = ry + Math.round((k / span) ** 2 * 6); P(g, x, y, bn[1]); } }
+    const r = mulberry(321); for (let i = 0; i < 10; i++) { const a = r() * Math.PI * 2, dst = 16 + r() * 18; const bx = Math.round(cx + Math.cos(a) * dst), by = Math.round(groundY - 50 + Math.sin(a) * dst * 0.7); const len = 4 + Math.floor(r() * 4); for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(a) * k), Math.round(by + Math.sin(a) * k * 0.6), bn[2]); }
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 56, 26, 0.4, 322);
+  } else if (f === 2) {
+    const r = mulberry(323);
+    for (let i = 0; i < 26; i++) { const a = r() * Math.PI * 2, dst = 10 + r() * 40; const bx = Math.round(cx + Math.cos(a) * dst), by = Math.round(groundY - 40 + Math.sin(a) * dst * 0.6); const len = 3 + Math.floor(r() * 5); const ang = a + (r() - 0.5); for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(ang) * k), Math.round(by - Math.sin(ang) * k * 0.5), i % 2 ? bn[0] : bn[1]); }
+    deathMound(g, cx, groundY - 1, 14, 8, bn, 324, 0.7);
+    outline(g, RAMP.void); moteBurst(g, cx, groundY - 40, 30, 0.5, 325);
+  } else if (f === 3) {
+    deathMound(g, cx, groundY - 1, 26, 16, st, 326, 0.74);
+    const r = mulberry(327); for (let i = 0; i < 20; i++) { const bx = cx + Math.round((r() - 0.5) * 70), by = groundY - 1 - Math.floor(r() * 5); const len = 3 + Math.floor(r() * 4), ang = (r() - 0.5) * 1.8; for (let k = 0; k < len; k++) P(g, Math.round(bx + Math.cos(ang) * k), Math.round(by - Math.sin(ang) * k * 0.4), bn[1]); }
+    for (let i = -6; i <= 6; i += 2) P(g, cx - 4 + i, groundY - 14, gd[1]); for (let x = cx - 12; x <= cx + 4; x++) P(g, x, groundY - 13, gd[2]);
+    outline(g, RAMP.void); P(g, cx - 10, groundY - 18, dr[2]); P(g, cx + 8, groundY - 16, dr[3]);
+  } else {
+    deathMound(g, cx, groundY - 1, 22, 11, st, 328, 0.7);
+    const r = mulberry(329); for (let i = 0; i < 26; i++) { const bx = cx + Math.round((r() - 0.5) * 78), by = groundY - 1 - Math.floor(r() * 3); P(g, bx, by, bn[2]); if (r() < 0.5) P(g, bx + 1, by, bn[1]); }
+    fillRect(g, cx + 14, groundY - 6, 7, 5, bn[1]); P(g, cx + 16, groundY - 5, RAMP.void); P(g, cx + 18, groundY - 5, RAMP.void);
+    for (let i = -6; i <= 6; i += 2) P(g, cx - 18 + i, groundY - 4, gd[2]); for (let x = cx - 26; x <= cx - 10; x++) P(g, x, groundY - 3, gd[1]);
+    outline(g, RAMP.void); P(g, cx - 2, groundY - 14, dr[3]); P(g, cx + 4, groundY - 12, dr[3]);
+  }
+  return g;
+}
+
+// THE ASH WARLORD death (5f) — armor cracks blaze then cool, buckles, collapses
+function ashWarlordDeath(facing: IsoFacing, f: number): Grid {
+  const g = makeGrid(100, 110); const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold, bl = RAMP.blood, bn = RAMP.bone;
+  const dir = DIR_OF[facing]; const cx = 50 + leanOf(dir) * 2, groundY = 106; const tip = dir <= 2 ? 1 : -1;
+  const seams: [number, number][] = [[-8, 12], [5, 18], [-2, 26], [9, 14], [-10, 32], [2, 40], [-5, 46], [7, 36]];
+  if (f === 0) {
+    if (dir <= 2) for (let y = groundY - 70; y <= groundY - 6; y++) { const t = (y - (groundY - 70)) / 64; const w = Math.round(16 + t * 10); for (let s = -1; s <= 1; s += 2) for (let x = 0; x < 5; x++) P(g, cx + s * (w - x), y, x === 0 ? bl[1] : bl[2]); }
+    deathMound(g, cx, groundY - 1, 19, 70, dt, 341, 0.95);
+    seams.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 70 + oy; P(g, x, y, gd[0]); P(g, x, y + 1, em[0]); });
+    shadeMass(g, cx, groundY - 74, 7, 5, dt, 342); P(g, cx - 2, groundY - 73, em[0]); P(g, cx + 2, groundY - 73, em[0]);
+    outline(g, RAMP.void);
+  } else if (f === 1) {
+    deathMound(g, cx + tip * 3, groundY - 1, 21, 50, dt, 343, 0.93);
+    seams.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 50 + Math.round(oy * 0.7); P(g, x, y, em[0]); P(g, x, y + 1, gd[0]); P(g, x + 1, y, em[1]); });
+    if (dir <= 2) for (let i = 0; i < 16; i++) { const a = Math.PI + (i / 16) * Math.PI; P(g, Math.round(cx + tip * 18 + Math.cos(a) * 22), Math.round(groundY - 30 + Math.sin(a) * 16), bl[2]); }
+    outline(g, RAMP.void);
+    for (let i = 0; i < 12; i++) P(g, cx + Math.round((hash2(i, 0, 344) - 0.5) * 30), groundY - 44 - Math.floor(hash2(i, 1, 344) * 10), i % 2 ? em[0] : gd[0]);
+  } else if (f === 2) {
+    for (let yy = 0; yy < 40; yy++) { const t = yy / 40, w = Math.round(20 * (1 - t * 0.5)), sx = cx + tip * Math.round(t * 20); for (let x = sx - w; x <= sx + w; x++) { if (hash2(x, yy, 345) > 0.88) continue; let c = dt[1]; if (x < sx - w + 3) c = dt[0]; if (x > sx + w - 3) c = dt[3]; P(g, x, groundY - yy, c); } }
+    seams.forEach(([ox, oy]) => { const x = cx + tip * 10 + ox, y = groundY - 30 + Math.round(oy * 0.4); P(g, x, y, em[2]); if (hash2(x, y, 346) < 0.4) P(g, x, y, em[3]); });
+    outline(g, RAMP.void);
+    for (let i = 0; i < 18; i++) { const a = hash2(i, 0, 347) * Math.PI; P(g, Math.round(cx + tip * 24 + Math.cos(a) * 20), Math.round(groundY - 12 + Math.sin(a) * 10), i % 2 ? em[1] : em[2]); }
+  } else if (f === 3) {
+    deathMound(g, cx, groundY - 1, 24, 18, dt, 348, 0.84);
+    for (let x = cx - 30; x <= cx + 6; x++) P(g, x, groundY - 2, bl[3]);
+    seams.forEach(([ox, oy]) => { const x = cx + ox, y = groundY - 14 + Math.round(oy * 0.2); if (y < groundY) { P(g, x, y, em[3]); if (hash2(x, y, 349) < 0.5) P(g, x, y, em[2]); } });
+    for (let k = 0; k < 30; k++) { const x = cx + 18 + k, y = groundY - 2 - Math.round(k * 0.1); P(g, x, y, k % 4 === 0 ? em[2] : st[1]); }
+    outline(g, RAMP.void);
+  } else {
+    deathMound(g, cx, groundY - 1, 26, 12, st, 350, 0.8);
+    for (let i = 0; i < 16; i++) { const x = cx + Math.round((hash2(i, 0, 351) - 0.5) * 50); P(g, x, groundY - 1, st[3]); if (hash2(i, 1, 351) < 0.3) P(g, x, groundY - 2, dt[3]); }
+    for (let x = cx - 32; x <= cx - 6; x++) P(g, x, groundY - 2, bl[3]);
+    for (let k = 0; k < 32; k++) P(g, cx + 16 + k, groundY - 2, k % 5 === 0 ? st[0] : st[1]);
+    fillRect(g, cx - 24, groundY - 5, 6, 4, bn[1]); P(g, cx - 23, groundY - 4, RAMP.void); P(g, cx - 21, groundY - 4, RAMP.void);
+    outline(g, RAMP.void);
+    P(g, cx - 4, groundY - 6, em[3]); P(g, cx + 6, groundY - 5, em[3]);
+  }
+  return g;
+}
+
+/* ── BOGWRETCH (32×40) — Palewater ranged spitter ── */
+function drawBogwretch(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return bogwretchDeath(facing, f);
+  const g = makeGrid(32, 40);
+  const wa = RAMP.water, gr = RAMP.grass, bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const lean = [0, 1, 2, 1, 0][dir], cx = 16 + lean, groundY = 38;
+
+  let bob = 0, sac = 0, rear = 0, mouth = 0, step = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; sac = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -1, 0, 0, -1, 0][f]; step = [2, 1, 0, -2, -1, 0][f]; }
+  if (anim === 'cast') { rear = [-2, -3, 1, 2][f]; sac = [1, 3, 1, 0][f]; mouth = [0, 0, 2, 1][f]; }
+
+  const hipY = groundY - 7 + bob;
+  ([[-7, -1], [7, 1]] as [number, number][]).forEach(([lx, ph], i) => {
+    const k2 = anim === 'walk' ? ((f + i) % 2 ? 1 : 0) : 0;
+    const fx = cx + lx + (i ? -step : step);
+    P(g, fx - ph, hipY - 1, wa[2]); P(g, fx - ph, hipY, wa[1]);
+    for (let y = hipY + 1; y < groundY - 1 - k2; y++) { P(g, fx, y, wa[2]); P(g, fx + ph, y, wa[3]); }
+    P(g, fx - 1, groundY - 1, wa[1]); P(g, fx, groundY - 1, RAMP.void); P(g, fx + 1, groundY - 1, wa[1]); P(g, fx + ph, groundY - 1, wa[2]);
+  });
+  const bx = cx + rear * 0.4;
+  shadeMass(g, bx, hipY - 4, profile ? 8 : 7, 5, wa, 110);
+  if (!back) {
+    const ax = bx + (profile ? 5 : 4);
+    P(g, ax, hipY + 1, wa[2]); P(g, ax + 1, hipY + 2, wa[1]); P(g, ax + 2, hipY + 2, wa[1]);
+    if (!profile) { P(g, bx - 4, hipY + 1, wa[2]); P(g, bx - 5, hipY + 2, wa[1]); P(g, bx - 6, hipY + 2, wa[1]); }
+  }
+  ([[-3, -5], [2, -6], [4, -2], [-5, -1]] as [number, number][]).forEach(([ox, oy], i) => { if (hash2(i, 1, 111) < 0.8) P(g, bx + ox, hipY - 4 + oy, gr[2]); });
+  if (back) { [-3, 0, 3].forEach(sx => spike(g, bx + sx, hipY - 8, 3, false)); }
+  if (!back) {
+    const hx = bx + (profile ? 6 : 0), hy = hipY - 6;
+    shadeMass(g, hx, hy, profile ? 5 : 5, 4, wa, 112);
+    const lit = (anim === 'idle' && f === 1) || anim === 'cast';
+    if (profile) { P(g, hx + 3, hy - 2, bn[0]); P(g, hx + 3, hy - 2, lit ? dr[1] : bn[2]); }
+    else { P(g, hx - 2, hy - 2, lit ? dr[1] : bn[0]); P(g, hx + 2, hy - 2, lit ? dr[1] : bn[0]); }
+    if (mouth > 0) { for (let i = -2; i <= 2; i++) P(g, hx + (profile ? 3 : i), hy + 2 + (profile ? i : 0), RAMP.void); P(g, hx + (profile ? 4 : 0), hy + 2, dr[2]); }
+    const sw = 3 + sac;
+    ell(g, hx, hy + 4 + Math.floor(sac / 2), sw, 2 + sac, (x, y, d, dx, dy) => { let c = wa[1]; if (dy < -0.3) c = wa[0]; if (d > 0.7) c = wa[3]; P(g, x, y, c); });
+    if (sac >= 2) for (let i = -1; i <= 1; i++) P(g, hx + i, hy + 4, dr[3]);
+  } else {
+    shadeMass(g, bx, hipY - 6, 4, 3, wa, 113);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── BARROW WIGHT (32×44) — Bonefields summoner ── */
+function drawBarrowWight(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return barrowWightDeath(facing, f);
+  const g = makeGrid(32, 44);
+  const st = RAMP.stone, bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const off = [0, 1, 2, 1, 0][dir], cx = 16, groundY = 42;
+
+  let bob = 0, hemSway = 0, arms = 0, glow = 0, step = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; hemSway = f === 1 ? 1 : 0; glow = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -1, 0, 0, -1, 0][f]; hemSway = [0, 1, 1, 0, -1, -1][f]; step = [1, 1, 0, -1, -1, 0][f]; }
+  if (anim === 'summon') { arms = [1, 3, 4, 2][f]; glow = [0, 1, 2, 1][f]; }
+
+  const top = 7 + bob, shoulderY = 17 + bob;
+  for (let y = shoulderY; y <= 40; y++) {
+    const t = (y - shoulderY) / (40 - shoulderY);
+    const hw = Math.round(3.4 + t * 4.0);
+    const cxx = cx + Math.round(off * 0.5) + (y > 33 ? Math.round(hemSway * 0.6) : 0) + (anim === 'walk' ? Math.round(step * t) : 0);
+    for (let x = cxx - hw; x <= cxx + hw; x++) {
+      let c = st[1]; if (x <= cxx - hw + 1) c = st[0]; if (x >= cxx + hw - 1) c = st[3];
+      if (hash2(x, y, 121) < 0.05) c = st[2];
+      if (back && x === cxx) c = st[2];
+      P(g, x, y, c);
+    }
+  }
+  for (let x = 0; x < 32; x++) { const v = G(g, x, 40); if (v && hash2(x, 0, 122) < 0.4) P(g, x, 40, RAMP.void); }
+  P(g, cx + off, shoulderY + 6, dr[glow > 0 ? 1 : 2]);
+  if (glow >= 1) { P(g, cx + off - 1, shoulderY + 6, dr[2]); P(g, cx + off + 1, shoulderY + 6, dr[2]); P(g, cx + off, shoulderY + 5, dr[2]); }
+  for (let y = top; y <= shoulderY + 1; y++) {
+    const hy = (y - top) / (shoulderY + 1 - top);
+    const hw = Math.round(2 + Math.sin(Math.min(1, hy * 1.2) * Math.PI * 0.55) * 3.6);
+    const cxx = cx + off;
+    for (let x = cxx - hw; x <= cxx + hw; x++) { let c = st[1]; if (x === cxx - hw) c = st[0]; if (x >= cxx + hw - 1) c = st[3]; if (y === top) c = st[0]; P(g, x, y, c); }
+  }
+  P(g, cx + off, top - 1, st[1]);
+  if (!back) {
+    const fcx = cx + off + (profile ? 2 : 0); const ey = top + 5;
+    for (let y = top + 3; y <= top + 8; y++) for (let x = fcx - (profile ? 0 : 2); x <= fcx + 2; x++) P(g, x, y, RAMP.void);
+    const lit = glow > 0 || anim === 'summon';
+    if (profile) P(g, fcx + 1, ey, lit ? dr[0] : dr[1]);
+    else { P(g, fcx - 1, ey, lit ? dr[0] : dr[1]); P(g, fcx + 1, ey, lit ? dr[0] : dr[1]); }
+  }
+  ([[-1], [1]] as [number][]).forEach(([s]) => {
+    const ax = cx + off + s * 4;
+    if (anim === 'summon') {
+      const ay = shoulderY + 2 - arms;
+      for (let k = 0; k < 6; k++) { const x = ax + s * Math.round(k * 0.5), y = ay - k; P(g, x, y, bn[1]); }
+      const hx = ax + s * 3, hy = ay - 6;
+      P(g, hx, hy, bn[0]); P(g, hx + s, hy, bn[1]); P(g, hx, hy - 1, bn[0]);
+      if (glow >= 1) moteBurst(g, hx, hy - 2, 3 + glow, 0.6, 125 + s);
+    } else {
+      for (let y = shoulderY + 2; y <= 30; y++) P(g, ax + s * (profile ? 1 : 0), y, st[3]);
+      P(g, ax + s, 30, bn[2]);
+    }
+  });
+  if (anim === 'summon' && f >= 2) {
+    ([[-7, 2], [7, 1], [0, 3]] as [number, number][]).forEach(([ox, h]) => { for (let k = 0; k < h + f - 1; k++) P(g, cx + off + ox, groundY - 1 - k, bn[k > h ? 0 : 1]); });
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── BONE HUSK (28×36) — the Wight's skeletal add ── */
+function drawBoneHusk(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return boneHuskDeath(facing, f);
+  const g = makeGrid(28, 36);
+  const bn = RAMP.bone, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const off = [0, 1, 2, 1, 0][dir], cx = 14, groundY = 34;
+
+  let bob = 0, step = 0, ang: number | null = null, rattle = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; rattle = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -1, 0, 0, -1, 0][f]; step = [2, 1, 0, -2, -1, 0][f]; }
+  if (anim === 'swing') ang = [-2.1, -1.35, -0.45, 0.35][f];
+
+  const top = 8 + bob, hipY = top + 14, shoulderY = top + 6;
+  ([[-2, -1], [2, 1]] as [number, number][]).forEach(([lx, ph], i) => {
+    const sx = cx + lx + (i ? -step : step);
+    for (let y = hipY; y < groundY - 1; y++) P(g, sx, y, bn[2]);
+    P(g, sx, groundY - 1, RAMP.void); P(g, sx + ph, groundY - 1, bn[1]);
+  });
+  for (let y = shoulderY; y <= hipY; y++) {
+    const hw = 3; const cxx = cx + Math.round(off * 0.4);
+    P(g, cxx - hw, y, bn[2]); P(g, cxx + hw, y, bn[3]);
+    if ((y - shoulderY) % 2 === 0) for (let x = cxx - hw + 1; x <= cxx + hw - 1; x++) P(g, x, y, bn[1]);
+    else P(g, cxx, y, bn[2]);
+  }
+  const hx = cx + off;
+  shadeMass(g, hx, top + 3, 3, 3, bn, 131);
+  if (!back) {
+    const lit = rattle || anim === 'swing';
+    if (profile) P(g, hx + 2, top + 3, lit ? dr[0] : dr[2]);
+    else { P(g, hx - 1, top + 3, lit ? dr[0] : dr[2]); P(g, hx + 1, top + 3, lit ? dr[0] : dr[2]); }
+    P(g, hx, top + 5, RAMP.void);
+  }
+  const shx = hx + 3, shy = shoulderY + 1;
+  if (anim === 'swing' && ang !== null) {
+    for (let k = 1; k < 6; k++) P(g, Math.round(shx + Math.cos(ang) * k), Math.round(shy + Math.sin(ang) * k), bn[2]);
+    const ex = Math.round(shx + Math.cos(ang) * 6), ey = Math.round(shy + Math.sin(ang) * 6);
+    fillRect(g, ex - 1, ey - 1, 2, 3, bn[1]); P(g, ex, ey - 2, bn[0]);
+    if (f === 2) P(g, ex + 2, ey, dr[0]);
+  } else {
+    for (let y = shy; y <= shy + 5; y++) P(g, shx, y, bn[2]);
+    P(g, shx, shy + 6, bn[1]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── ASH BRUTE (48×52) — Ashen AoE slammer ── */
+function drawAshBrute(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return ashBruteDeath(facing, f);
+  const g = makeGrid(48, 52);
+  const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const lean = [0, 2, 3, 2, 0][dir], cx = 24 + lean, groundY = 50;
+
+  let stomp = 0, armUp = 0, hot = 0;
+  if (anim === 'idle') { stomp = f === 1 ? 1 : 0; hot = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { stomp = [0, 1, 0, 1][f] ?? 0; }
+  if (anim === 'slam') { armUp = [4, 7, 7, -3][f]; hot = [1, 2, 2, 0][f]; }
+
+  const baseY = groundY;
+  ([[-9, 0], [9, 0]] as [number, number][]).forEach(([lx], i) => {
+    const lift = anim === 'walk' && ((f + i) % 2 === 0) ? 2 : 0;
+    for (let y = baseY - 16; y <= baseY - lift; y++) for (let x = cx + lx - 4; x <= cx + lx + 4; x++) {
+      let c = dt[1]; if (x < cx + lx - 2) c = dt[0]; if (x > cx + lx + 2) c = dt[3];
+      if (hash2(x, y, 141) < 0.06) c = st[2];
+      P(g, x, y, c);
+    }
+    P(g, cx + lx, baseY - lift, RAMP.void);
+  });
+  const tx = cx + (profile ? 3 : 0), tTop = baseY - 40 + stomp, tBot = baseY - 15;
+  for (let y = tTop; y <= tBot; y++) {
+    const w = 14 + Math.round((y - tTop) / 7);
+    for (let x = tx - w; x <= tx + w; x++) {
+      let c = dt[1]; if (x < tx - w + 3) c = dt[0]; if (x > tx + w - 3) c = dt[3];
+      if (y > tBot - 4) c = dt[3];
+      if (hash2(x, y, 142) < 0.06) c = st[2];
+      P(g, x, y, c);
+    }
+  }
+  const crk: [number, number][] = [[-7, 8], [4, 12], [-2, 18], [8, 6], [-9, 15], [1, 22]];
+  crk.forEach(([ox, oy]) => {
+    const x = tx + ox, y = tTop + oy;
+    P(g, x, y, hot ? em[0] : em[2]); P(g, x, y + 1, hot ? em[1] : em[3]);
+    if (hot >= 2) { P(g, x + 1, y, gd[0]); P(g, x, y - 1, em[1]); }
+  });
+  ([[-1, -15], [1, 15]] as [number, number][]).forEach(([, ox]) => {
+    const shX = tx + ox, shY = tTop + 3;
+    shadeMass(g, shX, shY + 1, 5, 4, dt, 143);
+    const drop = (anim === 'slam') ? armUp : 0;
+    for (let y = shY + 3; y <= shY + 16; y++) {
+      const yy = y - drop;
+      for (let x = shX - 3; x <= shX + 3; x++) { let c = dt[1]; if (x < shX - 1) c = dt[0]; if (x > shX + 1) c = dt[3]; P(g, x, Math.round(yy), c); }
+    }
+    const fy = shY + 16 - drop;
+    shadeMass(g, shX, fy, 5, 4, st, 144);
+    if (hot >= 1) { P(g, shX, fy - 1, em[1]); }
+  });
+  if (!back) {
+    const hx = tx + (profile ? 4 : 0), hy = tTop - 3 + stomp;
+    shadeMass(g, hx, hy, 5, 4, dt, 145);
+    const lit = hot || anim === 'slam';
+    if (profile) P(g, hx + 2, hy, lit ? em[0] : em[1]);
+    else { P(g, hx - 2, hy, lit ? em[0] : em[1]); P(g, hx + 2, hy, lit ? em[0] : em[1]); }
+    for (let x = hx - 3; x <= hx + 3; x++) P(g, x, hy + 3, dt[3]);
+  } else shadeMass(g, tx, tTop - 3 + stomp, 5, 4, dt, 146);
+  if (anim === 'slam' && f === 3) {
+    for (let i = 0; i < 10; i++) { const ox = -20 + i * 4; P(g, cx + ox, groundY - 1, em[2]); if (i % 2) P(g, cx + ox, groundY - 2, em[1]); }
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── DRIFT WISP (28×32, flying) — hovering corrupted mote ── */
+function drawDriftWisp(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return driftWispDeath(facing, f);
+  const g = makeGrid(28, 32);
+  const dr = RAMP.drift;
+  const dir = DIR_OF[facing]; const profile = dir === 2;
+  const cx = 14 + [0, 1, 1, 1, 0][dir];
+
+  let cy = 12, gather = 0;
+  if (anim === 'hover') { cy = 12 + [0, -1, -2, -1][f]; }
+  if (anim === 'dive')  { cy = [10, 8, 18][f]; gather = [1, 2, 0][f]; }
+
+  for (let i = -1; i <= 1; i++) {
+    const tx = cx + i * 3;
+    for (let k = 1; k <= 5; k++) {
+      const wob = Math.round(Math.sin(k * 0.8 + f + i) * 1.2);
+      P(g, tx + wob, cy + 3 + k, k > 3 ? dr[3] : dr[2]);
+    }
+  }
+  ell(g, cx, cy, 4, 3.4, (x, y, d) => P(g, x, y, d < 0.28 ? dr[0] : d < 0.62 ? dr[1] : d < 0.85 ? dr[2] : dr[3]));
+  P(g, cx, cy, dr[0]); P(g, cx + (profile ? 1 : 0), cy, dr[0]);
+  moteBurst(g, cx, cy, 6 + gather * 2, 0.4 + gather * 0.18, 150 + f);
+  if (gather >= 1) { P(g, cx, cy - 5, dr[0]); P(g, cx - 5, cy, dr[1]); P(g, cx + 5, cy, dr[1]); }
+  outline(g, RAMP.void);
+  return g;
+}
+/** the wisp's separate ground shadow (16×8, 4f, no outline — a cast shadow) */
+export function drawWispShadow(f: number): Grid {
+  const g = makeGrid(16, 8);
+  const wide = [4, 3, 2, 3][f] || 3;
+  ell(g, 8, 5, wide, 1.6, (x, y, d) => P(g, x, y, d < 0.5 ? RAMP.drift[4] : RAMP.stone[3]));
+  return g;
+}
+
+/* shared: a thick limb segment (boulder/bone leg) bottom→top with iso shading */
+function pillarLeg(g: Grid, cx: number, topY: number, botY: number, hw: number, ramp: string[], seed?: number) {
+  for (let y = topY; y <= botY; y++) for (let x = cx - hw; x <= cx + hw; x++) {
+    let c = ramp[1]; if (x < cx - hw + 2) c = ramp[0]; if (x > cx + hw - 2) c = ramp[3];
+    if (seed != null && hash2(x, y, seed) < 0.06) c = ramp[2];
+    P(g, x, y, c);
+  }
+}
+
+/* ── THE DROWNED KING (110×110) — Drowned Ruins mini-boss ── */
+function drawDrownedKing(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return drownedKingDeath(facing, f);
+  const g = makeGrid(110, 110);
+  const wa = RAMP.water, st = RAMP.stone, bn = RAMP.bone, gd = RAMP.gold, gr = RAMP.grass, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const lean = [0, 3, 6, 3, 0][dir], cx = 55 + lean, groundY = 106;
+
+  let bob = 0, armUp = 0, sway = 0, glow = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; glow = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -2, 0, 0, -2, 0][f]; sway = [0, 1, 2, 0, -1, -2][f]; }
+  if (anim === 'attack') { armUp = [10, 16, -10, -4][f]; glow = [1, 2, 2, 1][f]; bob = [-1, -2, 2, 1][f]; }
+
+  ell(g, cx, groundY, 40, 7, (x, y, d) => P(g, x, y, d > 0.6 ? wa[3] : (hash2(x, y, 300) < 0.4 ? wa[2] : wa[3])));
+  ([[-16, 0], [15, 1]] as [number, number][]).forEach(([lx, ph], i) => {
+    const lift = anim === 'walk' && ((f + i) % 2 === 0) ? 4 : 0;
+    pillarLeg(g, cx + lx + (i ? -sway : sway), groundY - 26, groundY - lift, 8, wa, 301);
+    P(g, cx + lx, groundY - lift, RAMP.void);
+  });
+  const tx = cx + (profile ? 4 : 0), tTop = groundY - 78 + bob, tBot = groundY - 18;
+  for (let y = tTop; y <= tBot; y++) {
+    const t = (y - tTop) / (tBot - tTop);
+    const w = Math.round(20 + Math.sin(t * Math.PI) * 12);
+    for (let x = tx - w; x <= tx + w; x++) {
+      let c = st[1]; if (x < tx - w + 4) c = st[0]; if (x > tx + w - 4) c = st[3];
+      if (hash2(x, y, 302) < 0.05) c = st[2];
+      if (t > 0.66) { c = wa[2]; if (x < tx - w + 4) c = wa[1]; if (x > tx + w - 4) c = wa[3]; if (hash2(x, y, 303) < 0.12) c = wa[3]; }
+      P(g, x, y, c);
+    }
+  }
+  for (let i = -3; i <= 3; i++) { const sx = tx + i * 9; for (let k = 0; k < 5 + (i % 2 ? 2 : 0); k++) P(g, sx + Math.round(Math.sin(k + f) * 0.8), tBot + k, gr[2 + (k > 3 ? 1 : 0)]); }
+  ([[-20, tTop + 6], [20, tTop + 7], [-14, tTop + 2]] as [number, number][]).forEach(([ox, oy]) => { ell(g, tx + ox, oy, 4, 3, (x, y, d) => P(g, x, y, d < 0.4 ? bn[0] : bn[2])); P(g, tx + ox, oy, bn[1]); });
+  P(g, tx, tTop + 22, gd[1]); P(g, tx - 1, tTop + 22, gd[2]); P(g, tx + 1, tTop + 22, gd[2]); P(g, tx, tTop + 21, gd[0]);
+  if (!back) { const ax = tx - 22; for (let y = tTop + 8; y <= tTop + 34; y++) { P(g, ax, y, wa[1]); P(g, ax + 1, y, wa[2]); } shadeMass(g, ax, tTop + 36, 4, 3, wa, 304); }
+  const shX = tx + 20, shY = tTop + 8;
+  const wRaise = (anim === 'attack') ? armUp : (anim === 'idle' ? 0 : sway);
+  for (let y = shY; y <= shY + 26 - Math.max(0, wRaise); y++) { P(g, shX, y, wa[1]); P(g, shX + 1, y, wa[2]); P(g, shX - 1, y, wa[2]); }
+  const hgx = shX + 2, hgy = shY + 26 - Math.max(0, wRaise);
+  if (!back) {
+    if (anim === 'attack' && f >= 2) {
+      for (let k = 0; k < 30; k++) P(g, hgx + 2 + Math.round(k * 0.2), hgy + k, st[3]);
+      const bx = hgx + 8, by = hgy + 28;
+      for (let yy = 0; yy < 16; yy++) for (let xx = -10; xx <= 4; xx++) { if (xx < -10 + yy * 0.4) continue; let c = bn[3]; if (xx < -6) c = st[2]; if (hash2(bx + xx, by + yy, 305) < 0.2) c = RAMP.ember[3]; P(g, bx + xx, by + yy, c); }
+      if (f === 2) for (let i = 0; i < 12; i++) { const a = Math.PI + (i / 12) * Math.PI; P(g, Math.round(bx + Math.cos(a) * 14), Math.round(by + 12 + Math.sin(a) * 6), wa[0]); }
+    } else {
+      for (let k = 0; k < 30; k++) P(g, hgx + Math.round(k * 0.1), hgy - k, st[3]);
+      const bx = hgx + 2, by = hgy - 30;
+      for (let yy = 0; yy < 14; yy++) for (let xx = -3; xx <= 9; xx++) { if (xx > 9 - yy * 0.3) continue; let c = bn[3]; if (xx > 5) c = st[2]; if (hash2(bx + xx, by + yy, 306) < 0.2) c = RAMP.ember[3]; P(g, bx + xx, by + yy, c); }
+    }
+  }
+  const hx = tx + (profile ? 5 : 0), hy = tTop - 6 + bob;
+  shadeMass(g, hx, hy, 10, 8, wa, 307);
+  for (let i = -8; i <= 8; i += 2) { const ch = (i === -2 || i === 4) ? 0 : (2 + (Math.abs(i) % 4 === 0 ? 1 : 0)); for (let k = 0; k < ch; k++) P(g, hx + i, hy - 8 - k, gd[1]); }
+  for (let x = hx - 8; x <= hx + 8; x++) P(g, x, hy - 7, gd[2]);
+  for (let i = -6; i <= 6; i += 2) P(g, hx + i, hy - 5 + (i % 4 ? 1 : 0), gr[1]);
+  if (!back) {
+    const lit = glow > 0 || anim === 'attack';
+    if (profile) P(g, hx + 6, hy - 1, lit ? dr[0] : wa[0]);
+    else { P(g, hx - 4, hy - 1, lit ? dr[0] : wa[0]); P(g, hx + 4, hy - 1, lit ? dr[0] : wa[0]); }
+    for (let x = hx - 5; x <= hx + 5; x++) P(g, x, hy + 4, wa[3]);
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── THE BARROW LORD (110×116) — Barrow-Crypt mini-boss ── */
+function drawBarrowLord(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return barrowLordDeath(facing, f);
+  const g = makeGrid(110, 116);
+  const bn = RAMP.bone, st = RAMP.stone, gd = RAMP.gold, dr = RAMP.drift;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const lean = [0, 3, 6, 3, 0][dir], cx = 55 + lean, groundY = 112;
+
+  let bob = 0, armUp = 0, sway = 0, glow = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; glow = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -2, 0, 0, -2, 0][f]; sway = [0, 1, 2, 0, -1, -2][f]; }
+  if (anim === 'attack') { armUp = [12, 18, -12, -5][f]; glow = [1, 2, 2, 1][f]; bob = [-1, -2, 2, 1][f]; }
+
+  ([[-14, 0], [14, 1]] as [number, number][]).forEach(([lx], i) => {
+    const lift = anim === 'walk' && ((f + i) % 2 === 0) ? 4 : 0;
+    const lxx = cx + lx + (i ? -sway : sway);
+    for (let y = groundY - 30; y <= groundY - lift; y++) { const w = 5 - Math.round(Math.abs(y - (groundY - 15)) / 14); P(g, lxx - w, y, bn[2]); for (let x = lxx - w + 1; x <= lxx + w - 1; x++) P(g, x, y, bn[1]); P(g, lxx + w, y, bn[3]); }
+    P(g, lxx, groundY - lift, RAMP.void);
+    ell(g, lxx, groundY - lift - 1, 5, 3, (x, y, d) => P(g, x, y, d < 0.4 ? bn[0] : bn[2]));
+  });
+  const tx = cx + (profile ? 4 : 0), tTop = groundY - 80 + bob, tBot = groundY - 28;
+  for (let y = tTop; y <= tBot; y++) P(g, tx, y, bn[2]);
+  for (let r = 0; r < 7; r++) {
+    const ry = tTop + 6 + r * 6; const span = 16 - r;
+    for (let s = -1; s <= 1; s += 2) for (let k = 1; k <= span; k++) {
+      const x = tx + s * k, y = ry + Math.round((k / span) * (k / span) * 7);
+      P(g, x, y, k > span - 2 ? bn[2] : bn[1]);
+    }
+  }
+  for (let y = tTop - 2; y <= tBot - 6; y++) {
+    const t = (y - (tTop - 2)) / (tBot - 6 - (tTop - 2));
+    const w = Math.round(20 + t * 6);
+    for (let s = -1; s <= 1; s += 2) for (let x = 0; x < 6; x++) { const xx = tx + s * (w - x) + (y > tBot - 16 ? Math.round(sway * t) : 0); let c = st[1]; if (x === 0) c = st[0]; if (x > 4) c = st[3]; if (hash2(xx, y, 311) < 0.06) c = st[2]; P(g, xx, y, c); }
+  }
+  for (let x = tx - 26; x <= tx + 26; x++) { const yy = tBot - 6 + Math.round(Math.sin(x * 0.5) * 1.5); if (Math.abs(x - tx) > 14 && hash2(x, 0, 312) < 0.7) P(g, x, yy, st[3]); }
+  if (glow > 0 || anim === 'attack') { ([[-30, tTop + 14], [32, tTop + 24], [-26, tTop + 40], [30, tTop + 6]] as [number, number][]).forEach(([ox, oy]) => { for (let k = 0; k < 3; k++) P(g, tx + ox, oy + k, k === 1 ? bn[0] : bn[2]); }); }
+  if (!back) { const ax = tx - 20; for (let y = tTop + 4; y <= tTop + 30; y++) { P(g, ax, y, bn[1]); P(g, ax - 1, y, bn[2]); P(g, ax + 1, y, bn[3]); } ell(g, ax, tTop + 32, 4, 3, (x, y, d) => P(g, x, y, d < 0.4 ? bn[0] : bn[2])); }
+  const shX = tx + 18, shY = tTop + 4;
+  const wRaise = (anim === 'attack') ? armUp : (anim === 'idle' ? 0 : sway);
+  for (let y = shY; y <= shY + 24 - Math.max(0, wRaise); y++) { P(g, shX, y, bn[1]); P(g, shX + 1, y, bn[3]); P(g, shX - 1, y, bn[2]); }
+  const hgx = shX, hgy = shY + 24 - Math.max(0, wRaise);
+  if (!back) {
+    if (anim === 'attack' && f >= 2) {
+      for (let k = 0; k < 34; k++) { const x = hgx + 4 + Math.round(k * 0.2), y = hgy + k; const w = 1 + Math.round(k / 10); for (let i = -1; i <= w; i++) P(g, x + i, y, i === w ? bn[3] : (i < 0 ? bn[0] : bn[1])); }
+      if (f === 2) moteBurst(g, hgx + 12, hgy + 30, 10, 0.6, 313);
+    } else {
+      for (let k = 0; k < 36; k++) { const x = hgx - Math.round(k * 0.1), y = hgy - k; const w = 1 + Math.round(k / 11); for (let i = -1; i <= w; i++) P(g, x + i, y, i === w ? bn[3] : (i < 0 ? bn[0] : bn[1])); }
+    }
+  }
+  const hx = tx + (profile ? 5 : 0), hy = tTop - 10 + bob;
+  for (let y = hy - 8; y <= hy + 7; y++) for (let x = hx - 9; x <= hx + 9; x++) { if (Math.abs(x - hx) + Math.abs(y - hy) > 13) continue; let c = bn[1]; if (x < hx - 4) c = bn[0]; if (y > hy + 3) c = bn[2]; if (x > hx + 5) c = bn[3]; P(g, x, y, c); }
+  for (let x = hx - 6; x <= hx + 6; x++) P(g, x, hy + 8, bn[2]); for (let x = hx - 5; x <= hx + 5; x += 2) P(g, x, hy + 7, bn[3]);
+  for (let i = -8; i <= 8; i += 2) { const chh = 2 + (Math.abs(i) % 4 === 0 ? 1 : 0); for (let k = 0; k < chh; k++) P(g, hx + i, hy - 9 - k, gd[2]); P(g, hx + i, hy - 9, gd[1]); }
+  for (let x = hx - 8; x <= hx + 8; x++) P(g, x, hy - 8, gd[2]);
+  if (!back) {
+    const lit = glow > 0 || anim === 'attack';
+    if (profile) { for (let y = hy - 3; y <= hy; y++) P(g, hx + 5, y, RAMP.void); P(g, hx + 5, hy - 1, lit ? dr[0] : dr[1]); }
+    else { for (const ox of [-4, 4]) { for (let y = hy - 3; y <= hy; y++) P(g, hx + ox, y, RAMP.void); P(g, hx + ox, hy - 1, lit ? dr[0] : dr[1]); } }
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+/* ── THE ASH WARLORD (100×110) — Ashen Warcamp mini-boss ── */
+function drawAshWarlord(facing: IsoFacing, anim: string, f: number): Grid {
+  if (anim === 'death') return ashWarlordDeath(facing, f);
+  const g = makeGrid(100, 110);
+  const dt = RAMP.dirt, st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold, bl = RAMP.blood, bn = RAMP.bone;
+  const dir = DIR_OF[facing], back = dir >= 3, profile = dir === 2;
+  const lean = [0, 3, 5, 3, 0][dir], cx = 50 + lean, groundY = 106;
+
+  let bob = 0, armUp = 0, sway = 0, hot = 0;
+  if (anim === 'idle') { bob = f === 1 ? -1 : 0; hot = f === 1 ? 1 : 0; }
+  if (anim === 'walk') { bob = [0, -2, 0, 0, -2, 0][f]; sway = [0, 1, 2, 0, -1, -2][f]; }
+  if (anim === 'attack') { armUp = [14, 20, -14, -6][f]; hot = [1, 2, 2, 1][f]; bob = [-1, -2, 2, 1][f]; }
+
+  if (!profile) {
+    for (let y = groundY - 74 + bob; y <= groundY - 6; y++) {
+      const t = (y - (groundY - 74 + bob)) / 68; const w = Math.round(16 + t * 10);
+      for (let s = -1; s <= 1; s += 2) for (let x = 0; x < 5; x++) { const xx = cx + s * (w - x) + (y > groundY - 24 ? Math.round(sway) : 0); let c = bl[2]; if (x === 0) c = bl[1]; if (x > 3) c = bl[3]; P(g, xx, y, c); }
+    }
+  }
+  ([[-13, 0], [13, 1]] as [number, number][]).forEach(([lx], i) => {
+    const lift = anim === 'walk' && ((f + i) % 2 === 0) ? 4 : 0;
+    pillarLeg(g, cx + lx + (i ? -sway : sway), groundY - 30, groundY - lift, 7, dt, 321);
+    P(g, cx + lx, groundY - 16, em[hot ? 0 : 2]); for (let x = cx + lx - 6; x <= cx + lx + 6; x++) P(g, x, groundY - 22, gd[3]);
+    P(g, cx + lx, groundY - lift, RAMP.void);
+  });
+  const tx = cx + (profile ? 3 : 0), tTop = groundY - 74 + bob, tBot = groundY - 26;
+  for (let y = tTop; y <= tBot; y++) {
+    const t = (y - tTop) / (tBot - tTop); const w = Math.round(19 - t * 4);
+    for (let x = tx - w; x <= tx + w; x++) {
+      let c = dt[1]; if (x < tx - w + 4) c = dt[0]; if (x > tx + w - 4) c = dt[3];
+      if (hash2(x, y, 322) < 0.06) c = st[2];
+      P(g, x, y, c);
+    }
+  }
+  ([[-8, 10], [5, 16], [-2, 24], [9, 12], [-10, 30], [2, 36]] as [number, number][]).forEach(([ox, oy]) => { const x = tx + ox, y = tTop + oy; P(g, x, y, hot ? em[0] : em[2]); P(g, x, y + 1, hot ? em[1] : em[3]); if (hot >= 2) P(g, x + 1, y, gd[0]); });
+  for (let x = tx - 20; x <= tx - 8; x++) P(g, x, tTop + 4, gd[2]);
+  for (let x = tx + 8; x <= tx + 20; x++) P(g, x, tTop + 4, gd[2]);
+  shadeMass(g, tx - 18, tTop + 2, 5, 4, dt, 323); P(g, tx - 18, tTop + 1, bn[1]); P(g, tx - 19, tTop + 2, RAMP.void); P(g, tx - 17, tTop + 2, RAMP.void);
+  ([[-1, -17], [1, 17]] as [number, number][]).forEach(([sgn, ox]) => {
+    const shX = tx + ox, shY = tTop + 3;
+    shadeMass(g, shX, shY + 2, 6, 4, dt, 324);
+    const drop = (anim === 'attack' && sgn > 0) ? armUp : (anim === 'attack' ? Math.round(armUp * 0.6) : 0);
+    for (let y = shY + 4; y <= shY + 20; y++) { const yy = y - drop; for (let x = shX - 3; x <= shX + 3; x++) { let c = dt[1]; if (x < shX - 1) c = dt[0]; if (x > shX + 1) c = dt[3]; P(g, x, Math.round(yy), c); } }
+    shadeMass(g, shX, shY + 22 - drop, 4, 3, st, 325);
+  });
+  if (!back) {
+    const fistX = tx + 17, fistY = tTop + 25 - (anim === 'attack' ? armUp : 0);
+    if (anim === 'attack' && f >= 2) {
+      for (let k = 0; k < 46; k++) { const x = fistX + 2 + Math.round(k * 0.5), y = fistY - 6 + k; const w = 2 + Math.round(k / 12); for (let i = -1; i <= w; i++) { let c = st[0]; if (i === w) c = st[3]; if (i >= 0 && i < w) c = (hash2(x, y, 326) < 0.5 ? em[hot ? 0 : 1] : st[1]); P(g, x + i, y, c); } }
+      if (f === 2) for (let i = 0; i < 14; i++) { const a = Math.PI * 0.2 + (i / 14) * Math.PI * 0.7; P(g, Math.round(fistX + 22 + Math.cos(a) * 16), Math.round(fistY + 28 + Math.sin(a) * 10), em[i % 2 ? 0 : 1]); }
+    } else {
+      for (let k = 0; k < 48; k++) { const x = fistX - Math.round(k * 0.08), y = fistY - 6 - k; const w = 2 + Math.round(k / 13); for (let i = -1; i <= w; i++) { let c = st[0]; if (i === w) c = st[3]; if (i >= 0 && i < w) c = (hash2(x, y, 327) < 0.5 ? em[hot ? 0 : 1] : st[1]); P(g, x + i, y, c); } }
+      for (let x = fistX - 5; x <= fistX + 5; x++) P(g, x, fistY - 4, gd[2]);
+    }
+  }
+  const hx = tx + (profile ? 4 : 0), hy = tTop - 8 + bob;
+  shadeMass(g, hx, hy, 8, 7, dt, 328);
+  for (let s = -1; s <= 1; s += 2) { for (let k = 0; k < 6; k++) P(g, hx + s * (7 + Math.round(k * 0.4)), hy - 4 - k, k > 3 ? bn[0] : bn[2]); }
+  for (let x = hx - 6; x <= hx + 6; x++) P(g, x, hy - 6, gd[2]); P(g, hx, hy - 8, gd[1]);
+  if (!back) {
+    const lit = hot || anim === 'attack';
+    if (profile) { for (let x = hx + 2; x <= hx + 6; x++) P(g, x, hy, RAMP.void); P(g, hx + 5, hy, lit ? em[0] : em[1]); }
+    else { for (let x = hx - 6; x <= hx + 6; x++) P(g, x, hy + 1, RAMP.void); for (let x = hx - 5; x <= hx + 5; x += 2) P(g, x, hy + 1, lit ? em[0] : em[1]); }
+  }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// 48×64 boss-alert banner portrait — a menacing bust, 2f idle, from the s-facing.
+const BOSS_PORTRAIT_SRC: Record<string, (facing: IsoFacing, anim: string, f: number) => Grid> = {
+  drowned_king: drawDrownedKing, barrow_lord: drawBarrowLord, ash_warlord: drawAshWarlord,
+};
+const BOSS_PORTRAIT_CELL: Record<string, [number, number]> = {
+  drowned_king: [110, 110], barrow_lord: [110, 116], ash_warlord: [100, 110],
+};
+export function drawBossPortrait(name: string, f: number): Grid {
+  const g = makeGrid(48, 64);
+  const src = BOSS_PORTRAIT_SRC[name]('s', 'idle', f || 0);
+  const [cw] = BOSS_PORTRAIT_CELL[name];
+  const cropX0 = Math.round(cw / 2 - 22), cropY0 = (name === 'ash_warlord' ? 18 : 14);
+  const cropW = 44, cropH = 40, sc = 48 / cropW;
+  for (let y = 0; y < cropH; y++) for (let x = 0; x < cropW; x++) {
+    const v = G(src, cropX0 + x, cropY0 + y); if (!v) continue;
+    const px = Math.round(x * sc), py = 6 + Math.round(y * sc);
+    fillRect(g, px, py, Math.ceil(sc), Math.ceil(sc), v.c);
+  }
+  for (let x = 0; x < 48; x++) P(g, x, 60, RAMP.void);
+  for (let x = 0; x < 48; x++) if ((x + (f || 0)) % 2 === 0) P(g, x, 61, RAMP.blood[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+
+// exported for the byte-diff + smoke (engine renders via BEAST_SPECS/drawBeast)
+export {
+  drawBogwretch, drawBarrowWight, drawBoneHusk, drawAshBrute, drawDriftWisp,
+  drawDrownedKing, drawBarrowLord, drawAshWarlord,
+};
+
 export const BEAST_SPECS: Record<BeastKind, {
   w: number; h: number;
   anims: Record<BeastAnim, [string, number]>;
@@ -3742,6 +5072,41 @@ export const BEAST_SPECS: Record<BeastKind, {
   raider: {
     w: 32, h: 40, hurt: '#ef4444', draw: drawRaider,
     anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['slash', 4], death: ['death', 3] },
+  },
+  // ── frontier species (authored death anims, ported from deaths.js) ──
+  bogwretch: {
+    w: 32, h: 40, hurt: '#4a7fa0', draw: drawBogwretch,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['cast', 4], death: ['death', 4] },
+  },
+  wight: {
+    w: 32, h: 44, hurt: '#d8b4fe', draw: drawBarrowWight,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['summon', 4], death: ['death', 4] },
+  },
+  bonehusk: {
+    w: 28, h: 36, hurt: '#efe9f4', draw: drawBoneHusk,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['swing', 4], death: ['death', 4] },
+  },
+  brute: {
+    w: 48, h: 52, hurt: '#fcd34d', draw: drawAshBrute,
+    anims: { idle: ['idle', 2], move: ['walk', 4], attack: ['slam', 4], death: ['death', 4] },
+  },
+  // the wisp flies (body hovers in the upper cell): idle/move both hover
+  wisp: {
+    w: 28, h: 32, hurt: '#f3e8ff', draw: drawDriftWisp,
+    anims: { idle: ['hover', 4], move: ['hover', 4], attack: ['dive', 3], death: ['death', 3] },
+  },
+  // ── camp mini-bosses (Colossus-scale; 5f dramatic collapse) ──
+  drownedking: {
+    w: 110, h: 110, hurt: '#4a7fa0', draw: drawDrownedKing,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['attack', 4], death: ['death', 5] },
+  },
+  barrowlord: {
+    w: 110, h: 116, hurt: '#efe9f4', draw: drawBarrowLord,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['attack', 4], death: ['death', 5] },
+  },
+  ashwarlord: {
+    w: 100, h: 110, hurt: '#fcd34d', draw: drawAshWarlord,
+    anims: { idle: ['idle', 2], move: ['walk', 6], attack: ['attack', 4], death: ['death', 5] },
   },
 };
 
@@ -4879,6 +6244,8 @@ export class SpriteCache {
   private waterShore: OffscreenCanvas[] = [];
   private corruptOv: OffscreenCanvas[]  = [];
   private doodads  = new Map<string, OffscreenCanvas>();
+  /** frontier ash/corruption ground accents, keyed by variant (under entities) */
+  private ashGround = new Map<number, OffscreenCanvas>();
   private glow!: OffscreenCanvas;
   private tombstone!: OffscreenCanvas;
   /** [rich (gold glint), sunken] Drowned Field grave slabs */
@@ -4937,6 +6304,14 @@ export class SpriteCache {
       this.doodads.set(`${k}-0`, gridToCanvas(makeWildDoodad(k, 0)));
       this.doodads.set(`${k}-1`, gridToCanvas(makeWildDoodad(k, 1)));
     }
+    // frontier pack: standing doodads (deadly outer ring) + ash ground accents
+    for (const k of ['drift_crystal', 'ash_dune', 'scorched_stump'] as FrontierDoodadKey[]) {
+      this.doodads.set(`${k}-0`, gridToCanvas(makeFrontierDoodad(k, 0)));
+      this.doodads.set(`${k}-1`, gridToCanvas(makeFrontierDoodad(k, 1)));
+    }
+    for (let v = 0; v < ASH_GROUND_VARIANTS; v++) {
+      this.ashGround.set(v, gridToCanvas(drawAshGround(v)));
+    }
     this.lostTombs = [gridToCanvas(drawLostTombstone(false)), gridToCanvas(drawLostTombstone(true))];
     // soft corruption glow (screen-space atmosphere, drawn additively)
     this.glow = makeGlowCanvas();
@@ -4946,6 +6321,7 @@ export class SpriteCache {
     for (const k of [
       'dyeworks', 'vault', 'wheel', 'lantern',
       'furnisher', 'menagerie', 'pit', 'mine', 'mirehut',
+      'outpost', 'palisade_gate', 'watchtower',
     ] as BuildingSpriteKey[]) {
       this.buildings.set(k, gridToCanvas(makeBuildingSprite(k)));
     }
@@ -5065,6 +6441,16 @@ export class SpriteCache {
     ctx.drawImage(cv, sx - (cv.width / 2) * z, sy - (cv.height - 1) * z, cv.width * z, cv.height * z);
   }
 
+  /** frontier ash/corruption ground accent: a 64×36 tile-aligned overlay drawn
+   *  UNDER entities (same anchor as a floor diamond, sx,sy = tile center) */
+  drawGroundAccent(ctx: CanvasRenderingContext2D, variant: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const cv = this.ashGround.get(variant % ASH_GROUND_VARIANTS);
+    if (!cv) return;
+    ctx.drawImage(cv, sx - 32 * z, sy - 15 * z, 64 * z, 36 * z);
+  }
+
   /** town building, bottom-center anchored on its south tile (frame: shrine
    *  flicker; mirror flips east-side houses so they lean toward town) */
   drawBuilding(
@@ -5087,7 +6473,7 @@ export class SpriteCache {
       // Phase C camps now render on ported expansion art (2-frame idle)
       key === 'drownedruins' || key === 'barrowcrypt' || key === 'ashwarcamp'
         ? `${key}-${frame % CAMP_FRAMES}` :
-      key === 'outpost' ? 'furnisher' : key;
+      key;
     const cv = this.buildings.get(fkey);
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
@@ -5270,9 +6656,8 @@ export class SpriteCache {
 
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
-    const lookKey = key === 'outpost' ? 'furnisher' : key;
     const framed = ['shrine', 'huskden', 'obelisk', 'waystation', 'drownedruins', 'barrowcrypt', 'ashwarcamp'];
-    const cv = this.buildings.get(framed.includes(lookKey) ? `${lookKey}-0` : lookKey);
+    const cv = this.buildings.get(framed.includes(key) ? `${key}-0` : key);
     return cv ? cv.height : 0;
   }
 
@@ -5324,7 +6709,8 @@ export class SpriteCache {
       kind === 'hearth' ? Math.floor(performance.now() / 250) % 3 :
       kind === 'goldVein' ? Math.floor(performance.now() / 500) % 2 :
       kind === 'exchange' ? Math.floor(performance.now() / 500) % 2 :
-      kind === 'mirror' ? Math.floor(performance.now() / 500) % 2 : 0;
+      kind === 'mirror' ? Math.floor(performance.now() / 500) % 2 :
+      kind === 'standingBrazier' ? Math.floor(performance.now() / 250) % 2 : 0;
     const k = `${kind}-${accent}-${frame}`;
     let cv = this.fixtures.get(k);
     if (!cv) {

@@ -1,0 +1,48 @@
+{
+  "image": "crypt/floor_crypt.svg",
+  "cell": {
+    "w": 64,
+    "h": 36
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "anchor": {
+    "x": 32,
+    "y": 16
+  },
+  "variants": 3,
+  "frames": {
+    "floor_crypt_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "floor_crypt_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    },
+    "floor_crypt_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  }
+}

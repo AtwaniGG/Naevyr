@@ -40,12 +40,13 @@ export const AURA_CATALOG: Record<
 // The art lives in game/render/sprites.ts (DS avatars.js port); this table is
 // the shared truth for the HUD shop, the server's identity validation and the
 // codex. Each kind has two cosmetic channels; options are locked-ramp names.
-export type AvatarKind = "ashbound" | "mireborn" | "bonecaller" | "veilborn";
+export type AvatarKind = "ashbound" | "mireborn" | "bonecaller" | "veilborn" | "driftwarden";
 export const AVATAR_CHANNELS: Record<AvatarKind, Record<string, readonly string[]>> = {
   ashbound:   { seam:   ["ember", "gold", "blood", "drift", "bone"],  wrap:   ["stone", "dirt", "blood", "bone", "drift"] },
   mireborn:   { flame:  ["ember", "drift", "gold", "water", "blood"], shawl:  ["grass", "dirt", "stone", "water", "bone"] },
   bonecaller: { socket: ["drift", "ember", "gold", "blood", "water"], mantle: ["bone", "stone", "gold", "dirt", "blood"] },
   veilborn:   { veil:   ["stone", "drift", "blood", "water", "bone"], mote:   ["drift", "ember", "gold", "water", "blood"] },
+  driftwarden:{ cloak:  ["stone", "dirt", "grass", "blood", "drift"], ward:   ["drift", "ember", "gold", "water", "blood"] },
 };
 export const AVATAR_KINDS = Object.keys(AVATAR_CHANNELS) as AvatarKind[];
 
@@ -104,6 +105,10 @@ export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
   veilborn: {
     kind: "avatar", label: "The Veilborn", action: "prestigeAvatar",
     desc: "one the Drift gave back. The hem never touches the ground",
+  },
+  driftwarden: {
+    kind: "avatar", label: "The Driftwarden", action: "prestigeAvatar",
+    desc: "a ranger of the frontier line. The belt-lantern burns where the Drift is thickest",
   },
 };
 

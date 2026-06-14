@@ -14,6 +14,7 @@ import {
   BuildingKey,
   regionAt as sharedRegionAt,
   wildClutterZone,
+  frontierTier,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
@@ -3622,6 +3623,18 @@ export class Game {
 
         if (t === 'corrupt') this.corruptGlows.push({ sx: s.x, sy: s.y });
 
+        // the deadly outer ring grows its own ashen clutter (frontier pack)
+        const frontier = !this.tutorial && frontierTier(this.world.w, this.world.h, x, y) === 2;
+
+        // frontier ash/corruption ground accents: sparse, drawn UNDER entities
+        // (right after the tile) so the outer ring reads as scorched ground
+        if (
+          frontier && (t === 'grass' || t === 'dirt' || t === 'stone') &&
+          !this.world.getNode(x, y) && !buildingAt(x, y) && hash2(x, y, 97) < 0.06
+        ) {
+          spriteCache.drawGroundAccent(ctx, (hash2(x, y, 98) * 2) | 0, s.x, s.y, z);
+        }
+
         // deterministic clutter — same cell always grows the same tuft.
         // the wild quadrants grow their own kinds (DS wilds pack): bone
         // spikes + dead trees ring the Husk Den, reeds crowd the mire. Zones
@@ -3647,6 +3660,10 @@ export class Game {
           } else if (nearMire && (t === 'grass' || t === 'dirt')) {
             if (h < 0.11) kind = 'reed_clump';
             else if (h < 0.125) kind = 'dead_tree';
+          } else if (frontier && (t === 'grass' || t === 'dirt' || t === 'stone')) {
+            if (h < 0.025) kind = 'drift_crystal';
+            else if (h < 0.05) kind = 'scorched_stump';
+            else if (h < 0.075) kind = 'ash_dune';
           } else if (t === 'grass') {
             if (h < 0.05) kind = 'tuft';
             else if (h < 0.062) kind = 'pebbles';

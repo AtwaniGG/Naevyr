@@ -1,0 +1,29 @@
+{
+  "image": "outpost/trading_post.svg",
+  "cell": {
+    "w": 120,
+    "h": 130
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 60,
+    "y": 129
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "trading_post": {
+      "x": 0,
+      "y": 0,
+      "w": 120,
+      "h": 130,
+      "anchor": {
+        "x": 60,
+        "y": 129
+      }
+    }
+  }
+}

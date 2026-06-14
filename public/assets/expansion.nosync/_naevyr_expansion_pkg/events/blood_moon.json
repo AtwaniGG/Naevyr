@@ -1,0 +1,44 @@
+{
+  "image": "events/blood_moon.svg",
+  "cell": {
+    "w": 64,
+    "h": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 32
+  },
+  "note": "Blood Moon event moon sprite (sky element)",
+  "frames": {
+    "blood_moon_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": [
+        32,
+        32
+      ]
+    },
+    "blood_moon_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "anchor": [
+        32,
+        32
+      ]
+    }
+  },
+  "animations": {
+    "glimmer": {
+      "frames": [
+        "blood_moon_00",
+        "blood_moon_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}
