@@ -34,6 +34,7 @@ import {
   SkillKey,
   seasonName,
   BP_CHALLENGE_POOL,
+  passSeasonNow,
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
@@ -2330,7 +2331,11 @@ function WalletRow() {
 // ---- top-left: wordmark + season + vitals + quests --------------------------
 
 function TopLeft() {
-  const season = useGame((s) => s.driftSeason);
+  // the displayed season is the BATTLE-PASS season (4-week cycle) — authoritative
+  // from the server's passSync when online, deterministic passSeasonNow() before
+  // it arrives / offline. The DRIFT % is the live corruption meter, unchanged.
+  const bpSeason = useGame((s) => s.battlePass?.season);
+  const season = bpSeason ?? passSeasonNow();
   const driftPct = useGame((s) => s.driftPct);
   return (
     <div
