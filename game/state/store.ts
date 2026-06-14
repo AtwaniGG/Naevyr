@@ -12,7 +12,7 @@ import {
   SKILL_META,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
-import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason, AvatarKind } from "@/game/types";
+import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason, AvatarKind, PassTier } from "@/game/types";
 import { play } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
 
@@ -39,6 +39,22 @@ export interface QuestState {
   def: QuestDef;
   progress: number;
   claimed: boolean;
+}
+
+/** the authoritative battle-pass snapshot the server pushes via "passSync" */
+export interface PassSync {
+  season: number;
+  name: string;
+  endsIn: number;
+  week: number;
+  xp: number;
+  tier: number;
+  maxTier: number;
+  premium: boolean;
+  tiers: PassTier[];
+  challenges: { id: string; progress: number; claimed: boolean }[];
+  claimedFree: number[];
+  claimedPremium: number[];
 }
 
 export interface Cosmetics {
@@ -185,6 +201,8 @@ interface GameState {
   equipment: Record<EquipSlot, EquipmentItem | null>;
   gold: number;
   quests: QuestState[];
+  /** the seasonal battle pass (server-authoritative; null offline/until first sync) */
+  battlePass: PassSync | null;
   hotbar: number; // 1..6 selected slot
   log: LogLine[];
   driftSeason: number;
@@ -231,7 +249,7 @@ interface GameState {
   /** THE LONG NIGHT: live defense status (null when no night) */
   night: { kills: number; need: number; endsIn: number } | null;
   /** which right-rail popout is open (one at a time) */
-  openDock: "forge" | "market" | "you" | "trade" | null;
+  openDock: "forge" | "market" | "you" | "trade" | "pass" | null;
   /** the Satchel panel: collapsed to a button when false (Activity grows) */
   satchelOpen: boolean;
   shrine: { pot: number; goal: number };
@@ -277,7 +295,7 @@ interface GameState {
   setWallet: (a: string | null) => void;
   setTokenStatus: (balance: number, holder: boolean) => void;
   setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
-  setOpenDock: (d: "forge" | "market" | "you" | "trade" | null) => void;
+  setOpenDock: (d: "forge" | "market" | "you" | "trade" | "pass" | null) => void;
   setSatchelOpen: (b: boolean) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
@@ -315,6 +333,8 @@ interface GameState {
   rerollQuests: () => void;
   /** adopt the server's authoritative quest board (online; wholesale replace) */
   setQuests: (list: { id: string; progress: number; claimed: boolean }[]) => void;
+  /** adopt the server's authoritative battle-pass snapshot */
+  setBattlePass: (bp: PassSync) => void;
   addXp: (skill: SkillKey, xp: number) => { leveledTo: number | null };
   setHp: (hp: number) => void;
   damage: (amount: number) => number; // returns remaining hp
@@ -367,6 +387,7 @@ export const useGame = create<GameState>((set, get) => ({
   equipment: { weapon: null, tool: null, ward: null },
   gold: 0,
   quests: rollDailyQuests(),
+  battlePass: null,
   hotbar: 1,
   log: [],
   driftSeason: 1,
@@ -510,6 +531,8 @@ export const useGame = create<GameState>((set, get) => ({
         return def ? [{ def, progress: q.progress, claimed: q.claimed }] : [];
       }),
     }),
+
+  setBattlePass: (bp) => set({ battlePass: bp }),
 
   questEvent: (e) =>
     set((s) => {

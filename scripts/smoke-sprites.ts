@@ -195,7 +195,20 @@ if (JSON.stringify(makeBuildingSprite("obelisk", 0).d) === JSON.stringify(makeBu
 import {
   drawThresholdGate, drawGatewarden, drawBeacon, drawArrowPip,
   drawDriftWall, drawThresholdTile, PRESTIGE_AURAS, PrestigeAuraKey,
+  drawPassEmblem,
 } from "../game/render/sprites";
+
+// battle-pass sigil (DS battlepass.js): 32×32 color + mono, must differ
+for (const mono of [false, true]) {
+  try {
+    const g = drawPassEmblem(mono); frames++;
+    if (g.w !== 32 || g.h !== 32) { failures++; console.error(`FAIL pass_emblem mono=${mono}: grid ${g.w}×${g.h}`); }
+    else if (g.d.filter(Boolean).length < 100) { failures++; console.error(`FAIL pass_emblem mono=${mono}: too few pixels`); }
+  } catch (e) { failures++; console.error(`THROW pass_emblem mono=${mono}:`, e); }
+}
+if (JSON.stringify(drawPassEmblem(false).d) === JSON.stringify(drawPassEmblem(true).d)) {
+  failures++; console.error("FAIL pass_emblem: color and mono are identical");
+}
 for (const open of [false, true]) for (let f = 0; f < 3; f++) {
   try {
     const g = drawThresholdGate(open, f);

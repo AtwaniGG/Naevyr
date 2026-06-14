@@ -86,6 +86,9 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS guild_id real
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS battlepass jsonb
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS guilds (
       id serial PRIMARY KEY,
       name text NOT NULL UNIQUE,
@@ -493,6 +496,22 @@ export async function setQuests(
   quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] },
 ) {
   await db.update(players).set({ quests }).where(eq(players.token, token));
+}
+
+/** the persisted battle-pass blob (the seasonal Drift Ledger) */
+export interface BattlePassBlob {
+  season: number;
+  xp: number;
+  premium: boolean;
+  claimedFree: number[];
+  claimedPremium: number[];
+  week: number;
+  challenges: { id: string; progress: number; claimed: boolean }[];
+}
+
+/** write-through persist of the authoritative battle-pass ledger */
+export async function setBattlePass(token: string, battlepass: BattlePassBlob) {
+  await db.update(players).set({ battlepass }).where(eq(players.token, token));
 }
 
 // ---- the Shrine ------------------------------------------------------------------
