@@ -10,7 +10,9 @@ export type BuildingKey =
   | "furnisher" | "menagerie" | "shrine" | "pit" | "mine"
   | "huskden" | "obelisk" | "mirehut" | "waystation"
   // Phase C wild camps (mini-dungeon sites in the frontier)
-  | "drownedruins" | "barrowcrypt" | "ashwarcamp";
+  | "drownedruins" | "barrowcrypt" | "ashwarcamp"
+  // Phase D the Frontier Outpost (second hub) keeper
+  | "outpost";
 
 export interface TownBuilding {
   key: BuildingKey;
@@ -113,8 +115,19 @@ export const WAYSTATIONS: TownBuilding[] = [
   wildAt("waystation", "Bonefield Waygate",  0.82, 0.82),
 ];
 
+// ─── The Frontier Outpost (Phase D): a second hub deep in the SE Bonefields ───
+// The Quartermaster (open-air keeper, key "outpost") plus a co-located strongbox
+// + tavern (reused vault/lantern services) and the Bonefield waygate nearby.
+// Placed on a shared screen-depth (x+y) so the three never cover each other's
+// doors, and by fraction so the outpost rides outward with the map.
+export const OUTPOST_BUILDINGS: TownBuilding[] = [
+  wildAt("outpost", "The Frontier Outpost", 0.75, 0.75),
+  wildAt("vault",   "Outpost Strongbox",    0.79, 0.71),
+  wildAt("lantern", "The Last Drop",         0.71, 0.79),
+];
+
 export const ALL_STRUCTURES: TownBuilding[] = [
-  ...TOWN_BUILDINGS, ...WILD_STRUCTURES, ...WAYSTATIONS,
+  ...TOWN_BUILDINGS, ...WILD_STRUCTURES, ...WAYSTATIONS, ...OUTPOST_BUILDINGS,
 ];
 
 /** the waystation the given cell is standing at (within `pad`), or null. The

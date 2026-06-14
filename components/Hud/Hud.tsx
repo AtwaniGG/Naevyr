@@ -427,6 +427,7 @@ const KEEPERS: Record<string, { name: string; swatch: string; leave: string }> =
   furnisher: { name: "Carver Hesk",        swatch: "#4d7c4d", leave: "Another time" },
   menagerie: { name: "Keeper Vey",         swatch: "#2c5775", leave: "Just looking" },
   mine:      { name: "Overseer Dunn",      swatch: "#4a4360", leave: "To work" },
+  outpost:   { name: "Quartermaster Rell", swatch: "#8a6a3a", leave: "Back to the wall" },
   mirehut:   { name: "The Mirewife",       swatch: "#4d7c4d", leave: "Wade out" },
   obelisk:   { name: "The Ash Obelisk",    swatch: "#a855f7", leave: "Step back" },
 };
@@ -913,6 +914,21 @@ function KeeperDialogue() {
         if (!s.spendGold(60, "shop")) return respond("THE ASH TAKES COIN. 60.");
         s.applyBuff("gather", 10 * 60_000);
         respond("WORK, LITTLE WANDERER. THE ASH WATCHES.");
+      },
+    });
+  } else if (openShop === "outpost") {
+    opts.push({
+      label: "The frontier report", sub: "what stirs out here",
+      onClick: () => respond(
+        "Camps in the deep wilds, caravans bound for the gates, the Drift at every back. The strongbox and the bottle are yours if you've coin.",
+      ),
+    });
+    opts.push({
+      label: "Frontier rations", sub: "+gather speed, 10 min", right: "60g",
+      onClick: () => {
+        if (!s.spendGold(60, "shop")) return respond("Sixty, and the satchel's yours.");
+        s.applyBuff("gather", 10 * 60_000);
+        respond("Travel light, work fast. The wall won't hold itself.");
       },
     });
   }

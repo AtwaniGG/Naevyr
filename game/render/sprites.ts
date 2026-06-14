@@ -1413,7 +1413,7 @@ export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
   | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine'
   | 'huskden' | 'obelisk' | 'mirehut' | 'waystation'
-  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp';
+  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp' | 'outpost';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
 
@@ -2498,6 +2498,7 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'barrowcrypt': return drawAshObelisk(frame % OBELISK_FRAMES);
     case 'ashwarcamp': return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'drownedruins': return drawMirewifeHut();
+    case 'outpost':   return drawFurnisher();
     case 'mirehut':   return drawMirewifeHut();
   }
 }
@@ -4683,6 +4684,7 @@ export class SpriteCache {
       key === 'shrine'  ? `shrine-${frame % SHRINE_FRAMES}` :
       key === 'huskden' || key === 'ashwarcamp' ? `huskden-${frame % HUSKDEN_FRAMES}` :
       key === 'drownedruins' ? 'mirehut' :
+      key === 'outpost' ? 'furnisher' :
       // waystations + barrow-crypt reuse the Ash Obelisk monolith art
       key === 'obelisk' || key === 'waystation' || key === 'barrowcrypt'
         ? `obelisk-${frame % OBELISK_FRAMES}` : key;
@@ -4871,7 +4873,8 @@ export class SpriteCache {
     const lookKey =
       key === 'waystation' || key === 'barrowcrypt' ? 'obelisk' :
       key === 'ashwarcamp' ? 'huskden' :
-      key === 'drownedruins' ? 'mirehut' : key;
+      key === 'drownedruins' ? 'mirehut' :
+      key === 'outpost' ? 'furnisher' : key;
     const cv = this.buildings.get(
       lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' ? `${lookKey}-0` : lookKey,
     );
