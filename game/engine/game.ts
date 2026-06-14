@@ -965,6 +965,44 @@ export class Game {
       play("levelup");
       store.pushLog(`You stood through the Long Night. ${m.gold}g for the dawn.`, "#e7c873");
     });
+    // ---- Drift Rifts -----------------------------------------------------------
+    net.onMessage<{ x: number; y: number; need: number; durationMs: number }>("rift", (m) => {
+      const store = useGame.getState();
+      play("boss");
+      this.banner = { name: "A DRIFT RIFT TEARS OPEN", t0: performance.now() };
+      this.shakeUntil = performance.now() + 500;
+      this.shakeMag = 4;
+      this.spawnFloater(m.x, m.y - 1.5, "THE RIFT YAWNS", "#a855f7");
+      store.pushLog(
+        `A DRIFT RIFT tears open in the frontier. Cut down ${m.need} of what crawls out before it seals.`,
+        "#a855f7",
+      );
+    });
+    net.onMessage<{ cleared: boolean }>("riftEnd", (m) => {
+      const store = useGame.getState();
+      store.pushLog(
+        m.cleared ? "The rift collapses, glutted and beaten. The frontier holds."
+                  : "The rift seals itself, unbroken. It will come again.",
+        m.cleared ? "#e7c873" : "#7c6f93",
+      );
+    });
+    net.onMessage<{ gold: number; shards: number }>("riftReward", (m) => {
+      const store = useGame.getState();
+      store.bumpStat("goldEarned", m.gold); // ledger already paid
+      play("levelup");
+      store.pushLog(`The rift's hoard scatters: ${m.gold}g and ${m.shards} shards.`, "#e7c873");
+    });
+    // ---- Blood Moon ------------------------------------------------------------
+    net.onMessage<{ active: boolean; durationMs?: number }>("bloodMoon", (m) => {
+      const store = useGame.getState();
+      if (m.active) {
+        play("boss");
+        this.banner = { name: "A BLOOD MOON RISES", t0: performance.now() };
+        store.pushLog("A BLOOD MOON rises. The frontier wakes hungry. Tread the deep wilds and the drops run rich.", "#dc2626");
+      } else {
+        store.pushLog("The blood moon sets. The frontier's fever breaks.", "#7c6f93");
+      }
+    });
     net.onMessage<{ season: number }>("realmReset", (m) => {
       const store = useGame.getState();
       play("death");
@@ -2666,6 +2704,18 @@ export class Game {
     } else if (sn) {
       store.setNight(null);
     }
+
+    // ---- Drift Rift + Blood Moon (schema-synced; HUD reads the store) --------
+    const rift = net.rift;
+    const sr = store.rift;
+    if (rift.active) {
+      if (!sr || sr.kills !== rift.kills || sr.endsIn !== rift.endsIn) {
+        store.setRift({ kills: rift.kills, need: rift.need, endsIn: rift.endsIn, x: rift.x, y: rift.y });
+      }
+    } else if (sr) {
+      store.setRift(null);
+    }
+    if (store.bloodMoon !== net.bloodMoon.active) store.setBloodMoon(net.bloodMoon.active);
 
     // ---- nodes (authoritative mirror) ---------------------------------------
     net.forEachNode((n) =>

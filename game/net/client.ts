@@ -226,6 +226,23 @@ export class NetClient {
     };
   }
 
+  get rift(): { active: boolean; kills: number; need: number; endsIn: number; x: number; y: number } {
+    const s = this.room.state;
+    return {
+      active: !!s.riftActive,
+      kills: s.riftKills ?? 0,
+      need: s.riftNeed ?? 0,
+      endsIn: s.riftEndsIn ?? 0,
+      x: s.riftX ?? 0,
+      y: s.riftY ?? 0,
+    };
+  }
+
+  get bloodMoon(): { active: boolean; endsIn: number } {
+    const s = this.room.state;
+    return { active: !!s.bloodMoon, endsIn: s.bloodMoonEndsIn ?? 0 };
+  }
+
   get shrinePot(): number {
     return this.room.state.shrinePot ?? 0;
   }

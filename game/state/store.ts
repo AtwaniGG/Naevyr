@@ -230,6 +230,10 @@ interface GameState {
   holder: boolean;
   /** THE LONG NIGHT: live defense status (null when no night) */
   night: { kills: number; need: number; endsIn: number } | null;
+  /** DRIFT RIFT: live incursion status (null when no rift) */
+  rift: { kills: number; need: number; endsIn: number; x: number; y: number } | null;
+  /** BLOOD MOON: true while the corrupted night is up */
+  bloodMoon: boolean;
   /** which right-rail popout is open (one at a time) */
   openDock: "forge" | "market" | "you" | "trade" | null;
   /** the Satchel panel: collapsed to a button when false (Activity grows) */
@@ -277,6 +281,8 @@ interface GameState {
   setWallet: (a: string | null) => void;
   setTokenStatus: (balance: number, holder: boolean) => void;
   setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
+  setRift: (r: { kills: number; need: number; endsIn: number; x: number; y: number } | null) => void;
+  setBloodMoon: (b: boolean) => void;
   setOpenDock: (d: "forge" | "market" | "you" | "trade" | null) => void;
   setSatchelOpen: (b: boolean) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
@@ -395,6 +401,8 @@ export const useGame = create<GameState>((set, get) => ({
   tokenBalance: 0,
   holder: false,
   night: null,
+  rift: null,
+  bloodMoon: false,
   tutorialDone: false,
   tutorialObjective: null,
   wheelSpin: null,
@@ -469,6 +477,8 @@ export const useGame = create<GameState>((set, get) => ({
   setWallet: (a) => set({ wallet: a }),
   setTokenStatus: (tokenBalance, holder) => set({ tokenBalance, holder }),
   setNight: (night) => set({ night }),
+  setRift: (rift) => set({ rift }),
+  setBloodMoon: (bloodMoon) => set({ bloodMoon }),
   setTutorialDone: (tutorialDone) => set({ tutorialDone }),
   setTutorialObjective: (tutorialObjective) => set({ tutorialObjective }),
   setWheelSpin: (wheelSpin) => set({ wheelSpin }),

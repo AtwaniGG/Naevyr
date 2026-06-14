@@ -148,6 +148,17 @@ const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 90);
 const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
+// DRIFT RIFTS: repeatable timed frontier incursions (clear the wave for loot)
+const RIFT_PERIOD_MS  = Number(process.env.RIFT_PERIOD_S ?? 600) * 1000; // gap between rifts
+const RIFT_MS         = Number(process.env.RIFT_MS ?? 120_000);          // time to clear one
+const RIFT_BASE_KILLS = Number(process.env.RIFT_KILLS ?? 8);
+const RIFT_FIRST_MS   = Number(process.env.RIFT_FIRST_S ?? 240) * 1000;  // first rift delay
+const RIFT_REWARD     = 120;  // gold per defender on a cleared rift (+2 shards)
+// BLOOD MOON: a scheduled corrupted night that buffs the frontier mobs
+const BLOOD_MOON_PERIOD_MS = Number(process.env.BLOOD_MOON_PERIOD_S ?? 1200) * 1000;
+const BLOOD_MOON_MS        = Number(process.env.BLOOD_MOON_MS ?? 120_000);
+const BLOOD_MOON_FIRST_MS  = Number(process.env.BLOOD_MOON_FIRST_S ?? 900) * 1000;
+const BLOOD_MOON_DMG_MUL   = 1.4;
 const DUEL_MS              = Number(process.env.DUEL_MS ?? 90_000); // duel → draw timeout
 const RELIC_RESERVE_MS     = 90_000; // a relic listing is frozen this long once quoted
 const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
@@ -278,7 +289,7 @@ class ServerMob {
   /** a summoner's conjured add: vanishes on death instead of respawning */
   summoned = false;
   /** which event owns this mob (its deaths feed that event's quota) */
-  eventTag: "ambush" | "night" | null = null;
+  eventTag: "ambush" | "night" | "rift" | null = null;
   /** dead raiders/colossi leave the schema once their death anim has played */
   pruneAt = 0;
   /** combat XP the kill pays (client applies it from mobKill) */
@@ -335,7 +346,7 @@ class ServerMob {
   die() {
     this.state = "dead";
     this.engagedBy = null;
-    if (this.kind === "raider" || this.kind === "colossus" || this.summoned) {
+    if (this.kind === "raider" || this.kind === "colossus" || this.summoned || this.eventTag) {
       // event mobs + conjured adds stay slain; the corpse leaves after the anim
       this.respawnIn = Number.POSITIVE_INFINITY;
       this.pruneAt = Date.now() + 2500;
@@ -550,6 +561,11 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** Long Night bookkeeping (server-side only) */
   private nightUntil = 0;
   private nightDone = false;
+  // Drift Rift + Blood Moon event clocks
+  private riftUntil = 0;
+  private nextRiftAt = Date.now() + RIFT_FIRST_MS;
+  private bloodMoonUntil = 0;
+  private nextBloodMoonAt = Date.now() + BLOOD_MOON_FIRST_MS;
 
   /** gold recorded into a tombstone at death, reclaimable once (token → g) */
   private tombGold = new Map<string, number>();
@@ -2175,6 +2191,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       // real deaths feed the event quotas (no more trusted kill intents)
       if (mob.eventTag === "night" && this.state.nightActive) {
         this.state.nightKills += 1;
+      } else if (mob.eventTag === "rift" && this.state.riftActive) {
+        this.state.riftKills += 1;
       } else if (mob.eventTag === "ambush") {
         const c = this.state.caravan;
         if (c.phase !== "ambushed") return;
@@ -2373,6 +2391,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.syncNodes();
     this.stepCaravan(dt);
     this.stepNight();
+    this.stepRift();
+    this.stepBloodMoon();
     this.stepMobs(dt);
 
     // duel timeouts → draw, both refunded client-side
@@ -2724,6 +2744,93 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
+  /** a random walkable cell out in the frontier ring (rift/event anchor). Keeps
+   *  a margin from the map edge so an event pack has room to spawn around it. */
+  private frontierCell(): { x: number; y: number } | null {
+    const M = 6;
+    for (let i = 0; i < 300; i++) {
+      const x = M + ((Math.random() * (this.world.w - 2 * M)) | 0);
+      const y = M + ((Math.random() * (this.world.h - 2 * M)) | 0);
+      if (!this.world.isWalkable(x, y) || inPit(x, y)) continue;
+      if (frontierTier(this.world.w, this.world.h, x, y) < 2) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
+  // ---- Drift Rifts: repeatable timed frontier incursions ----------------------
+  private stepRift() {
+    const now = Date.now();
+    if (this.state.riftActive) {
+      const leftS = Math.max(0, Math.round((this.riftUntil - now) / 1000));
+      if (leftS !== this.state.riftEndsIn) this.state.riftEndsIn = leftS;
+      if (this.state.riftKills >= this.state.riftNeed) return this.sealRift(true);
+      if (leftS <= 0) this.sealRift(false);
+      return;
+    }
+    // open on the cadence — never on top of the Long Night, never with no one to fight
+    if (now >= this.nextRiftAt && this.sims.size > 0 && !this.state.nightActive) {
+      this.openRift();
+    }
+  }
+
+  private openRift() {
+    const cell = this.frontierCell() ?? { x: TOWN_CENTER.x, y: TOWN_CENTER.y };
+    const defenders = Math.max(1, this.sims.size);
+    this.state.riftActive = true;
+    this.state.riftKills = 0;
+    this.state.riftNeed = RIFT_BASE_KILLS + (defenders - 1) * 4;
+    this.state.riftX = cell.x;
+    this.state.riftY = cell.y;
+    this.riftUntil = Date.now() + RIFT_MS;
+    this.state.riftEndsIn = Math.round(RIFT_MS / 1000);
+    const level = 4 + Math.floor(this.corruptionPct() / 30);
+    const species: MobKind[] = ["bogwretch", "wisp", "brute", "wight"];
+    const k = species[(Math.random() * species.length) | 0];
+    this.spawnEventRaiders(cell.x, cell.y, this.state.riftNeed, level, "rift", k);
+    this.broadcast("rift", { x: cell.x, y: cell.y, need: this.state.riftNeed, durationMs: RIFT_MS });
+  }
+
+  private sealRift(cleared: boolean) {
+    this.state.riftActive = false;
+    this.clearEventMobs("rift");
+    this.nextRiftAt = Date.now() + RIFT_PERIOD_MS;
+    if (cleared) {
+      for (const sim of this.sims.values()) {
+        this.credit(sim, RIFT_REWARD);
+        this.creditItem(sim, "driftshard", 2);
+        sim.client.send("riftReward", { gold: RIFT_REWARD, shards: 2 });
+      }
+    }
+    this.broadcast("riftEnd", { cleared });
+  }
+
+  // ---- Blood Moon: a scheduled corrupted night that buffs the frontier --------
+  private stepBloodMoon() {
+    const now = Date.now();
+    if (this.state.bloodMoon) {
+      const leftS = Math.max(0, Math.round((this.bloodMoonUntil - now) / 1000));
+      if (leftS !== this.state.bloodMoonEndsIn) this.state.bloodMoonEndsIn = leftS;
+      if (leftS <= 0) {
+        this.state.bloodMoon = false;
+        this.nextBloodMoonAt = now + BLOOD_MOON_PERIOD_MS;
+        this.broadcast("bloodMoon", { active: false });
+      }
+      return;
+    }
+    if (now >= this.nextBloodMoonAt && this.sims.size > 0) {
+      this.state.bloodMoon = true;
+      this.bloodMoonUntil = now + BLOOD_MOON_MS;
+      this.state.bloodMoonEndsIn = Math.round(BLOOD_MOON_MS / 1000);
+      this.broadcast("bloodMoon", { active: true, durationMs: BLOOD_MOON_MS });
+    }
+  }
+
+  /** the Blood Moon makes the frontier bite harder (mob damage multiplier) */
+  private mobDmg(base: number): number {
+    return Math.round(base * (this.state.bloodMoon ? BLOOD_MOON_DMG_MUL : 1));
+  }
+
   /** dawn burns outward from the Waystation until the realm breathes again */
   private dawnCleanse() {
     const corrupt: { x: number; y: number; d: number }[] = [];
@@ -2753,6 +2860,10 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** the Drift takes the realm: fresh world, season 1; banked/cosmetic/wallet persist */
   private async realmReset() {
     this.state.nightActive = false;
+    this.state.riftActive = false;
+    this.state.bloodMoon = false;
+    this.nextRiftAt = Date.now() + RIFT_FIRST_MS;
+    this.nextBloodMoonAt = Date.now() + BLOOD_MOON_FIRST_MS;
     // claims and their furnishings fall with the old realm
     for (const [key, cs] of [...this.state.claims.entries()]) {
       this.state.claims.delete(key);
@@ -3179,7 +3290,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     y: number,
     count: number,
     level: number,
-    tag: "ambush" | "night",
+    tag: "ambush" | "night" | "rift",
+    kind: MobKind = "raider",
   ) {
     let placed = 0;
     let guard = 0;
@@ -3190,7 +3302,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const cx = x + dx;
       const cy = y + dy;
       if (!this.world.isWalkable(cx, cy)) continue;
-      const raider = new ServerMob(this.nextMobId++, cx, cy, level, "raider");
+      const raider = new ServerMob(this.nextMobId++, cx, cy, level, kind);
       raider.eventTag = tag;
       this.mobSims.push(raider);
       placed++;
@@ -3198,7 +3310,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   }
 
   /** an event ends: its surviving raiders crumble (clients see the death anim) */
-  private clearEventMobs(tag: "ambush" | "night") {
+  private clearEventMobs(tag: "ambush" | "night" | "rift") {
     for (const mob of this.mobSims) {
       if (mob.eventTag === tag && mob.state !== "dead") mob.die();
     }
@@ -3270,8 +3382,8 @@ export class DriftRoom extends Room<DriftRoomState> {
           if (mob.retaliateIn <= 0) {
             mob.retaliateIn += MOB_ATTACK_MS;
             // raw damage; the client applies its ward reduction (gear is
-            // client-trusted until server equipment lands)
-            const dmg = mob.damage + ((Math.random() * 3) | 0);
+            // client-trusted until server equipment lands). Blood Moon bites harder.
+            const dmg = this.mobDmg(mob.damage + ((Math.random() * 3) | 0));
             if (mob.archetype === "aoe" && mob.splash > 0) {
               // the slam catches everyone in the splash radius, not just the engager
               let hit = false;
@@ -3743,7 +3855,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (best) {
         const target = best as PlayerSim;
         mob.abilityIn = mob.abilityMs;
-        const dmg = mob.damage + ((Math.random() * 3) | 0);
+        const dmg = this.mobDmg(mob.damage + ((Math.random() * 3) | 0));
         target.client.send("mobHit", { id: mob.id, dmg });
         this.broadcast("mobFx", { fx: "bolt", x: mob.px, y: mob.py, tx: target.px, ty: target.py });
       }

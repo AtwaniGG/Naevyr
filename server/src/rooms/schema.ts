@@ -138,6 +138,16 @@ export class DriftRoomState extends Schema {
   @type("number") nightEndsIn = 0; // seconds
   @type("number") nightKills = 0;
   @type("number") nightNeed = 0;
+  // DRIFT RIFT: a timed frontier incursion (clear the wave for loot, then it seals)
+  @type("boolean") riftActive = false;
+  @type("number") riftEndsIn = 0; // seconds
+  @type("number") riftKills = 0;
+  @type("number") riftNeed = 0;
+  @type("number") riftX = 0;
+  @type("number") riftY = 0;
+  // BLOOD MOON: a scheduled corrupted night that buffs the frontier
+  @type("boolean") bloodMoon = false;
+  @type("number") bloodMoonEndsIn = 0; // seconds
   @type("number") shrinePot = 0;
   @type("number") shrineGoal = 500;
   @type("number") season = 1;

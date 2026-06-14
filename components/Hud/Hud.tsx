@@ -145,6 +145,8 @@ function ResponsiveHud() {
       <HotbarDock />
       <RightColumn />
       <NightBanner />
+      <RiftBanner />
+      <BloodMoonTint />
       <ZoomTip />
       <TutorialBanner />
       <KeeperDialogue />
@@ -226,6 +228,8 @@ function MobileHud() {
 
       {/* centered overlays — unchanged, they self-position */}
       <Trap label="NightBanner"><NightBanner /></Trap>
+      <Trap label="RiftBanner"><RiftBanner /></Trap>
+      <Trap label="BloodMoonTint"><BloodMoonTint /></Trap>
       <Trap label="TutorialBanner"><TutorialBanner /></Trap>
       <Trap label="KeeperDialogue"><KeeperDialogue /></Trap>
       <Trap label="ShopModal"><ShopModal /></Trap>
@@ -1322,6 +1326,50 @@ function NightBanner() {
         </div>
       </Panel>
     </div>
+  );
+}
+
+function RiftBanner() {
+  const rift = useGame((s) => s.rift);
+  if (!rift) return null;
+  const mm = Math.floor(rift.endsIn / 60);
+  const ss = String(rift.endsIn % 60).padStart(2, "0");
+  const done = rift.kills >= rift.need;
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{ top: 14, left: "50%", transform: "translateX(-50%) scale(var(--hud-scale))", transformOrigin: "top center", zIndex: 24 }}
+    >
+      <Panel padded={false} corners={false} style={{ padding: "8px 16px", boxShadow: "0 0 0 1px #a855f7, var(--shadow-pixel)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="drift-label" style={{ fontSize: 11, color: "#c084fc", letterSpacing: 2 }}>
+            A DRIFT RIFT
+          </div>
+          <div style={{ font: "600 12px/1.4 var(--font-ui)", color: done ? "var(--drift-gold)" : "var(--text-primary)" }}>
+            {done ? "The rift buckles. Hold" : "Close the rift"}
+            {" · "}
+            <span className="drift-num">{rift.kills}/{rift.need}</span>
+            {" slain · "}
+            <span className="drift-num">{mm}:{ss}</span>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function BloodMoonTint() {
+  const bm = useGame((s) => s.bloodMoon);
+  if (!bm) return null;
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        zIndex: 5,
+        background: "radial-gradient(ellipse at center, rgba(120,10,10,0) 38%, rgba(150,14,14,0.30) 100%)",
+        mixBlendMode: "multiply",
+      }}
+    />
   );
 }
 
