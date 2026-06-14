@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Drift Rift</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const DRH='#d8b4fe',CORE='#f3e8ff',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const rift=await Reel.loadImg('assets/events/drift_rift.svg');   // fw96 fh128: sealed0-1, opening2-5, active6-9, closing10-13
+  const wisp=await Reel.loadImg('assets/mobs/drift_wisp.svg');     // fw28 fh32: hover0-3, dive4-6
+  const bolt=await Reel.loadImg('assets/mobs/drift_bolt.svg');     // fw10 fh10: travel0-2
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  const LOOP=8000, cx=W/2-40, baseY=H-90;
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=0.45; ctx.imageSmoothingEnabled=false; ctx.drawImage(vista,0,0,480,270,-20,-30,1320,760); ctx.globalAlpha=1;
+    // big drift backlight (grows with the rift)
+    let open = t<500?0 : t<1500?(t-500)/1000 : t<6800?1 : Math.max(0,(8000-t)/1200);
+    ctx.fillStyle=Reel.radial(ctx,cx,baseY-190,420,[[0,'rgba(168,85,247,'+(0.28*open)+')'],[0.5,'rgba(107,33,168,'+(0.14*open)+')'],[0.8,'rgba(0,0,0,0)']]);
+    ctx.fillRect(0,0,W,H);
+    // rift frame selection
+    let col;
+    if(t<500) col=0;                                   // sealed
+    else if(t<1500) col=2+Math.min(3,Math.floor((t-500)/250));   // opening 2-5
+    else if(t<6800) col=6+Math.floor((t-1500)/150)%4;  // active boil 6-9
+    else col=10+Math.min(3,Math.floor((t-6800)/300));  // closing 10-13
+    Reel.sprBase(ctx,rift,96,128,col,cx,baseY,3.0);
+    // drift wisp hovering right of the rift; dives toward it ~3.4-4.4s
+    let wx=cx+250, wy=baseY-220, wcol;
+    if(t>3400&&t<4400){ const p=(t-3400)/1000; wcol=4+Math.min(2,Math.floor(p*3)); wx=cx+250-(p*220); wy=baseY-220+(p*120); }
+    else { wcol=Math.floor(t/140)%4; wy+=Math.round(Math.sin(t/300)*6); }
+    Reel.sprBase(ctx,wisp,28,32,wcol,wx,wy+32*3,3.0);
+    // a drift-bolt streaks out ~5.0-5.5s
+    if(t>5000&&t<5500){ const p=(t-5000)/500; const bx=cx+p*340, by=baseY-200+p*150; ctx.save(); ctx.translate(bx,by); ctx.rotate(0.5); ctx.imageSmoothingEnabled=false; ctx.drawImage(bolt,0,0,10,10,-15,-15,30,30); ctx.restore(); }
+    Reel.motes(ctx,W,H,t,30,'#a855f7',3);
+    Reel.vignette(ctx,W,H,0.92);
+    // text
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   WORLD EVENTS',54,58);
+    ctx.textAlign='center';
+    const tin=Math.min(1,Math.max(0,(t-1600)/500))*Math.min(1,(8000-t)/600);
+    ctx.globalAlpha=tin;
+    ctx.fillStyle=CORE; ctx.font=`700 60px ${PIX}`; ctx.shadowColor='rgba(168,85,247,0.6)'; ctx.shadowBlur=24; ctx.fillText('THE DRIFT TEARS OPEN',W/2,H-58); ctx.shadowBlur=0;
+    ctx.fillStyle=DRH; ctx.font=`15px ${SILK}`; ctx.fillText('RIFT EVENTS  ·  STEP THROUGH — IF YOU DARE',W/2,H-30);
+    ctx.globalAlpha=1;
+  });
+})();
+</script>
+</body></html>

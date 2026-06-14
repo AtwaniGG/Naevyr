@@ -14,6 +14,7 @@ import { useViewport } from "@/game/state/viewport";
 const NAV: { href: string; label: string; icon: number }[] = [
   { href: "/dashboard", label: "Dashboard", icon: 0 },
   { href: "/updates", label: "Updates", icon: 1 },
+  { href: "/roadmap", label: "Roadmap", icon: 2 },
   { href: "/events", label: "Events", icon: 2 },
   { href: "/how-to-play", label: "How to Play", icon: 3 },
   { href: "/leaderboard", label: "Leaderboard", icon: 4 },

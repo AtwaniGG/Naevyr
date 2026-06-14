@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Blood Moon</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const BLOODH='#ef4444',BLOOD='#dc2626',GOLD='#f6e0a6',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const moon=await Reel.loadImg('assets/events/blood_moon.svg');   // fw64 fh64: 0,1
+  const sky=await Reel.loadImg('assets/events/blood_sky.svg');     // 64x128 gradient swatch
+  const aura=await Reel.loadImg('assets/events/blood_aura.svg');   // fw96 fh48: 0,1,2
+  const warlord=await Reel.loadImg('assets/_reel/ash_warlord.png');// strip: idle0,1,atk...
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  const LOOP=6000, cx=W/2, baseY=H-96;
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    // vista (dim) then red sky tint stretched over it
+    ctx.globalAlpha=0.5; ctx.imageSmoothingEnabled=false; ctx.drawImage(vista,0,0,480,270,-20,-30,1320,760);
+    ctx.globalAlpha=0.6; ctx.drawImage(sky,0,0,64,128,0,0,W,H); ctx.globalAlpha=1;
+    // blood moon, top-right, slow rise + glow
+    const my=150-Math.sin(t/3000*Math.PI)*14, mx=W-230;
+    ctx.fillStyle=Reel.radial(ctx,mx,my,220,[[0,'rgba(220,38,38,0.32)'],[0.6,'rgba(95,18,18,0.12)'],[0.85,'rgba(0,0,0,0)']]); ctx.fillRect(0,0,W,H);
+    Reel.spr(ctx,moon,64,64,(Math.floor(t/700)%2),0,mx,my+64*2.6,2.6);
+    // blood aura ring pulsing under the warlord (buffed mob)
+    const acol=Math.floor(t/240)%3, asc=2.4;
+    ctx.globalAlpha=0.92; ctx.drawImage(aura,acol*96,0,96,48, Math.round(cx-96*asc/2), Math.round(baseY-24*asc+10), 96*asc,48*asc); ctx.globalAlpha=1;
+    // warlord idle (swap 0/1 @ ~2fps) with a slow bob
+    const bob=Math.round(Math.sin(t/650)*3);
+    Reel.sprBase(ctx,warlord,100,110,(Math.floor(t/500)%2),cx,baseY+bob,2.7);
+    Reel.motes(ctx,W,H,t,30,'#ef4444',5);
+    Reel.vignette(ctx,W,H,0.94);
+    // text
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   WORLD EVENTS',54,58);
+    ctx.textAlign='center';
+    ctx.fillStyle=BLOODH; ctx.font=`700 60px ${PIX}`; ctx.shadowColor='rgba(220,38,38,0.6)'; ctx.shadowBlur=24; ctx.fillText('THE BLOOD MOON RISES',W/2,H-58); ctx.shadowBlur=0;
+    ctx.fillStyle=GOLD; ctx.font=`15px ${SILK}`; ctx.fillText('WHEN IT HANGS FULL, THE FRONTIER TURNS DEADLY',W/2,H-30);
+  });
+})();
+</script>
+</body></html>

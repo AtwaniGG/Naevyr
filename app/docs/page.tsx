@@ -22,6 +22,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "drift", group: "The World", title: "The Drift & Seasons" },
   { id: "waystation", group: "The World", title: "The Waystation" },
   { id: "wilds", group: "The World", title: "The Wild Quadrants" },
+  { id: "core-loop", group: "Core Systems", title: "The Core Loop" },
   { id: "gathering", group: "Core Systems", title: "Gathering & Skills" },
   { id: "forge", group: "Core Systems", title: "The Forge & Equipment" },
   { id: "combat", group: "Core Systems", title: "Combat & Beasts" },
@@ -151,8 +152,8 @@ function Art({
 export default function DocsPage() {
   const [open, setOpen] = useState(true);
   const isPhone = useViewport().isPhone;
-  // the 220px sticky sidebar would steal a phone's whole content width — start
-  // it collapsed there (the "show contents" toggle still reveals it inline).
+  // the 220px sticky sidebar would steal a phone's whole content width, so it
+  // starts collapsed there (the "show contents" toggle still reveals it inline).
   useEffect(() => {
     if (isPhone) setOpen(false);
   }, [isPhone]);
@@ -378,6 +379,54 @@ export default function DocsPage() {
             besieges them like anywhere else.
           </P>
 
+          <H id="core-loop">The Core Loop</H>
+          <P>
+            Strip away the systems and the realm runs on one loop:{" "}
+            <Gold>gather, heal, upgrade, spend</Gold>, then walk a little
+            further into the Drift and do it again. Everything below is a
+            deeper turn of this same wheel.
+          </P>
+          <Sub>What you grind</Sub>
+          <P>
+            Work the land for raw goods: trees give driftwood, rocks give pale
+            stone, pools give hollowfish, and beasts drop shards and hides.
+            Coin comes from the Mine's veins, the Husk Den's war-chest, sold
+            goods, caravans and quests. Wood, stone and fish feed the Forge and
+            the cookfire; shards and hides are wealth and craft stock; gold buys
+            everything else. Fuller satchel, faster wheel.
+          </P>
+          <Sub>How you heal</Sub>
+          <P>
+            Your wanderer holds <Gold>50 health</Gold>. Corrupt ground and
+            beasts wear it down, and it does <Gold>not</Gold> mend on its own.
+            You heal by eating: catch hollowfish, cook them at the{" "}
+            <Gold>Cook</Gold> button in your satchel, and eat a{" "}
+            <Gold>Cooked Hollowfish</Gold> to restore <Gold>18 health</Gold>.
+            Raw fish is only a promise; carry cooked fish before a fight or a
+            walk through corruption. At zero you fall and drop a tombstone (see
+            Death & Tombstones), so heal early, not at the edge.
+          </P>
+          <Sub>How you upgrade</Sub>
+          <P>
+            Two ladders climb at once. Your four <Gold>skills</Gold>,
+            Woodcutting, Mining, Fishing and Combat, rise as you work them, and
+            higher skill makes every swing faster, harder and richer. Your{" "}
+            <Gold>gear</Gold> comes from the Forge: spend materials on weapons,
+            tools and wards, and the better piece auto-equips, renders on your
+            wanderer, and follows you everywhere. Skills make you stronger for
+            free over time; gear converts today's grind into power now.
+          </P>
+          <Sub>How you spend and keep it</Sub>
+          <P>
+            Turn goods to gold at the Market or a keeper, then put it to work:
+            bank it at the <Gold>Vault</Gold> so a death cannot take it, stake a
+            land claim, pour buffing drinks, or buy cosmetics and pets. Coin you
+            do not protect rides in your purse, and half of it drops when you
+            fall. The loop closes here: gathered goods become gold, gold becomes
+            standing and power, and power lets you grind ground the Drift used to
+            own.
+          </P>
+
           <H id="gathering">Gathering & Skills</H>
           <P>
             Trees give driftwood, rocks give pale stone, pools give hollowfish.
@@ -464,7 +513,7 @@ export default function DocsPage() {
             free; your tag rides your nameplate everywhere.
           </P>
           <P>
-            <Gold>Territory.</Gold> The four wild regions — {GUILD.regions.join(", ")} —
+            <Gold>Territory.</Gold> The four wild regions, {GUILD.regions.join(", ")},
             each take one banner (the Waystation takes none). The founder
             stakes a region for <Gold>{burnAmt(BURN_COSTS.guildTerritory)} DRIFTS</Gold>,
             which holds it for <Gold>48 hours</Gold>. Any member can feed the
@@ -477,7 +526,7 @@ export default function DocsPage() {
             <Gold>+{Math.round(GUILD.richStrikeBonus * 100)}% rich-strike odds</Gold>{" "}
             gathering inside their held region, and{" "}
             <Gold>+{GUILD.caravanWeightBonus} caravan payout weight</Gold> per
-            kill anywhere (a heavier share of the same pool — zero inflation,
+            kill anywhere (a heavier share of the same pool, zero inflation,
             like every perk in the realm). An active guild burns about{" "}
             <Gold>5,000 DRIFTS a day</Gold> keeping its ground: territory is
             the realm's structural, recurring sink.
@@ -644,11 +693,11 @@ export default function DocsPage() {
           <H id="driftwheel">The Drift Wheel & Relics</H>
           <P>
             Beside the gold wheel stands a darker one. The{" "}
-            <Gold>Drift Wheel</Gold> takes only burned DRIFTS —{" "}
+            <Gold>Drift Wheel</Gold> takes only burned DRIFTS:{" "}
             <Gold>{burnAmt(BURN_COSTS.driftSpin)} a spin</Gold>, or a{" "}
             <Gold>Drift Cache</Gold>: three spins bundled for{" "}
             <Gold>{burnAmt(BURN_COSTS.cache)}</Gold> (20% off). It pays
-            cosmetics and shards, <Gold>never DRIFTS</Gold> — the wheel is a
+            cosmetics and shards, <Gold>never DRIFTS</Gold>. The wheel is a
             sink with style, not a faucet. The exact odds, the same table the
             server rolls:
           </P>
@@ -674,7 +723,7 @@ export default function DocsPage() {
                         : s.kind === "title" ? "The title Wheelturned"
                         : "A Drift-touched prestige aura"}
                     </td>
-                    <td style={{ padding: "5px 10px" }}>{s.dupShards ? `${s.dupShards} shards` : "—"}</td>
+                    <td style={{ padding: "5px 10px" }}>{s.dupShards ? `${s.dupShards} shards` : "·"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -686,12 +735,12 @@ export default function DocsPage() {
             re-weighted 47.6% aura · 28.6% pet · 19% title · 4.8% relic. The
             counter persists across sessions and resets on any rare. Long-run,
             a spin returns roughly 4-5 shards' worth of value (60-75g) per{" "}
-            {burnAmt(BURN_COSTS.driftSpin)} burned — the house keeps its edge;
+            {burnAmt(BURN_COSTS.driftSpin)} burned. The house keeps its edge;
             the prize is the look.
           </P>
           <P>
-            <Gold>The relic market.</Gold> Drift-touched cosmetics — and only
-            those, because only their ownership lives on the realm's ledgers —
+            <Gold>The relic market.</Gold> Drift-touched cosmetics, and only
+            those, because only their ownership lives on the realm's ledgers,
             trade wanderer to wanderer, priced in DRIFTS (
             {RELIC_MARKET.minPrice.toLocaleString()} minimum,{" "}
             {RELIC_MARKET.maxListings} listings per seller). The buyer pays the
@@ -700,13 +749,13 @@ export default function DocsPage() {
             Worked through: a relic sold at 30,000 DRIFTS pays the seller
             28,500 and burns 1,500 forever. Titles and premium avatars are
             soul-bound and never trade. The server verifies both legs of every sale and moves the
-            ownership itself — a relic worn is a relic owned, provably.
+            ownership itself. A relic worn is a relic owned, provably.
           </P>
 
           <H id="exchange">The Exchange</H>
           <P>
             At the Vault keeper's counter, gold and DRIFTS change hands at
-            fixed rates — anchored to the realm's own arithmetic. The economy
+            fixed rates, anchored to the realm's own arithmetic. The economy
             already prices <Gold>100 DRIFTS ≈ 1 gold</Gold> (a 50g spin or a{" "}
             {burnAmt(BURN_COSTS.spin)}-DRIFTS burn buy the same wheel; a 250g
             claim or {burnAmt(BURN_COSTS.claim)} DRIFTS stake the same land).
@@ -720,7 +769,7 @@ export default function DocsPage() {
             wallet per day</Gold>.
             <br />
             <Gold>Selling gold</Gold> pays <Gold>{EXCHANGE.sellRate} DRIFTS per
-            1g</Gold>, out of that same pool — and ONLY out of it. Payouts come
+            1g</Gold>, out of that same pool, and ONLY out of it. Payouts come
             from what other players paid in, never minted, never a house
             faucet. When the pool runs dry, the merchant's purse is light and
             the counter waits for buyers.
@@ -770,7 +819,7 @@ export default function DocsPage() {
           <P>
             The {EXCHANGE.buyRate - EXCHANGE.sellRate}-DRIFTS round-trip spread
             (buy at {EXCHANGE.buyRate}, sell at {EXCHANGE.sellRate}) stays in the
-            pool as its buffer — it blocks wash-trading and keeps the counter
+            pool as its buffer. It blocks wash-trading and keeps the counter
             solvent. Trades start at{" "}
             {EXCHANGE.minTrade}g. The grind loop is complete: items sell for
             gold, gold trades for DRIFTS, DRIFTS burn for standing. Play feeds
@@ -953,10 +1002,45 @@ export default function DocsPage() {
 
           <H id="roadmap">Roadmap</H>
           <P>
-            The realm is hardened and deployed; the beta stands on public
-            infrastructure now. Next, and only on its own word: the DRIFTS
-            mainnet launch on pump.fun, then the Exchange. The realm does not
-            rush its own door.
+            The realm is hardened and deployed. DRIFTS walks on Solana mainnet,
+            the entry gate stands, and the Exchange changes coin both ways. What
+            follows is the road ahead, nearest first. Nothing here is promised on
+            a calendar: each step lands only when it stands hardened and proven,
+            and the plan bends as wanderers walk it. You can walk this same road
+            as a living trail at <Gold><a href="/roadmap" style={{ color: "inherit" }}>The Long Road</a></Gold>.
+          </P>
+          <Sub>I · The Wider Realm (nearly here)</Sub>
+          <P>
+            The map breaks its bounds. A true frontier opens past the old edge,
+            and the Drift comes with it: new outposts and war camps, new beasts
+            and mini-bosses, Drift Rifts that tear the ground open, and the Blood
+            Moon that turns the night against you.
+          </P>
+          <Sub>II · The Drift Ledger (planned)</Sub>
+          <P>
+            A season pass for those who keep walking. Four weeks to a season;
+            marks earned by walking, gathering, fighting and surviving; tiers
+            that pay cosmetics and coin; and a single relic struck at each
+            season's end. Earned, never given.
+          </P>
+          <Sub>III · Guild Wars (forming)</Sub>
+          <P>
+            Banners clash over the wild quadrants. Rival claims over open ground,
+            upkeep that bleeds the war-chest, and perks worth fighting for. Ground
+            is held, not owned.
+          </P>
+          <Sub>IV · The Living Economy (tuning)</Sub>
+          <P>
+            The coin must keep flowing. The Exchange, the sinks and the burn
+            rites are tuned by hand as the realm fills: rates and daily limits
+            shift, and new ways to spend <Gold>DRIFTS</Gold> open so a wanderer
+            never runs out of doors.
+          </P>
+          <Sub>V · The Long Road (always)</Sub>
+          <P>
+            The realm does not rush its own door. Each step is proven before it
+            is promised, and the Drift takes everything eventually. What is built
+            in its path is built to last as long as it can. The door stays open.
           </P>
 
           <H id="disclaimer">Disclaimer</H>

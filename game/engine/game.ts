@@ -2572,21 +2572,34 @@ export class Game {
       pup.level = m.level;
       pup.maxHp = m.maxHp;
       pup.hp = m.hp;
+      const prevPx = pup.px, prevPy = pup.py;
       const mdx = m.x - pup.px;
       const mdy = m.y - pup.py;
       pup.px += mdx * k;
       pup.py += mdy * k;
-      // Drive the walk anim + facing from the ACTUAL on-screen movement, not the
-      // server's instantaneous `moving` flag. The puppet keeps lerping toward the
-      // server's cell for several frames AFTER that flag drops, and during that
-      // catch-up it used to show the idle pose — the beast slid across the ground
-      // with no walk cycle and a frozen facing. Treat a meaningful position gap
-      // as moving so the legs animate and the facing tracks the real direction.
-      const visuallyMoving = Math.hypot(mdx, mdy) > 0.03;
-      pup.moving = pup.state !== "dead" && (!!m.moving || visuallyMoving);
-      if (pup.state !== "dead" && visuallyMoving) {
-        pup.facing = mdx >= 0 ? 1 : -1;
-        pup.updateIsoFacing(mdx, mdy);
+      // Walk anim + facing come from a LOW-PASSED render velocity, never the raw
+      // per-frame lerp residue. That residue's direction wobbles (twitched the
+      // facing) and its magnitude crosses the move threshold between the 20Hz
+      // server ticks (flickered walk/idle); right after the server's wander cell
+      // jumps it even points backward (the moonwalk). Smoothing the velocity the
+      // sprite is ACTUALLY rendering at gives a stable heading along real travel.
+      const vSmooth = Math.min(1, dt * 10); // ~100ms time constant
+      const rvx = dt > 0 ? (pup.px - prevPx) / dt : 0;
+      const rvy = dt > 0 ? (pup.py - prevPy) / dt : 0;
+      pup.vxSmooth += (rvx - pup.vxSmooth) * vSmooth;
+      pup.vySmooth += (rvy - pup.vySmooth) * vSmooth;
+      if (m.state !== "dead") {
+        const sp = Math.hypot(pup.vxSmooth, pup.vySmooth);
+        // Hysteresis: a clear speed (mobs travel ~1.4 cell/s) arms the walk hold,
+        // which decays so the legs don't strobe off between server ticks.
+        if (sp > 0.5) pup.moveHold = 0.2;
+        else pup.moveHold = Math.max(0, pup.moveHold - dt);
+        pup.moving = !!m.moving || pup.moveHold > 0;
+        // Only re-aim while genuinely travelling, off the smoothed heading.
+        if (sp > 0.5) {
+          pup.facing = pup.vxSmooth >= 0 ? 1 : -1;
+          pup.updateIsoFacing(pup.vxSmooth, pup.vySmooth);
+        }
       }
       if (m.state === "dead") {
         if (pup.state !== "dead") {
@@ -2594,10 +2607,14 @@ export class Game {
           pup.deathT = 0;
         }
       } else if (pup.state === "dead") {
-        // respawned on the server — snap to the fresh spot
+        // respawned on the server — snap to the fresh spot (and clear the
+        // smoothed velocity so the teleport isn't read as a walk burst)
         pup.state = "wander";
         pup.px = m.x;
         pup.py = m.y;
+        pup.vxSmooth = pup.vySmooth = 0;
+        pup.moveHold = 0;
+        pup.moving = false;
       } else {
         pup.state = this.combat.isEngaged(pup) ? "engaged" : (m.state as never);
       }

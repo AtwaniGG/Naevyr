@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Pixelify_Sans, Silkscreen, Sora } from "next/font/google";
+import { Pixelify_Sans, Silkscreen, Sora, Space_Mono, Jacquard_12 } from "next/font/google";
 import "./globals.css";
 import "./naevyr.css";
 import BgMusic from "@/components/BgMusic";
@@ -20,6 +20,20 @@ const sora = Sora({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
   variable: "--font-sora",
+});
+
+// Used only by the /roadmap "Long Road" page: Space Mono = body, Jacquard 12 =
+// one decorative endcap glyph. Scoped under #nvr-road in app/roadmap/roadmap.css.
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
+});
+
+const jacquard = Jacquard_12({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-jacquard",
 });
 
 export const metadata: Metadata = {
@@ -46,7 +60,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${pixelify.variable} ${silkscreen.variable} ${sora.variable}`}>
+      <body className={`${pixelify.variable} ${silkscreen.variable} ${sora.variable} ${spaceMono.variable} ${jacquard.variable}`}>
         {children}
         <BgMusic />
       </body>

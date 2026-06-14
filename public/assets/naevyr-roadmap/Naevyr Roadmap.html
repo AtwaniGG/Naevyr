@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Naevyr · The Long Road</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jacquard+12&family=Silkscreen:wght@400;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   NAEVYR · THE LONG ROAD
+   A roadmap walked into the Drift.
+   All logic inline. Lift the .trail markup + the layout()/drift()
+   functions into a Next.js client component when ready.
+   ============================================================ */
+
+:root{
+  --void:#0a0810;
+  --void2:#0d0a16;
+  --pur:#a855f7;
+  --pur2:#7c3aed;
+  --pur-fill:rgba(124,58,237,0.05);
+  --pur-fill2:rgba(124,58,237,0.10);
+  --pur-bd:rgba(124,58,237,0.18);
+  --pur-bd2:rgba(124,58,237,0.34);
+  --gold:#e7c873;
+  --gold-dim:rgba(231,200,115,0.5);
+  --t1:#d8cfe0;
+  --t2:#a99fb8;
+  --muted:#6f6781;
+
+  --pixel:'Silkscreen', monospace;
+  --black:'Jacquard 12', serif;
+  --mono:'Space Mono', monospace;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  background:var(--void);
+  color:var(--t1);
+  font-family:var(--mono);
+  overflow:hidden;
+  -webkit-font-smoothing:none;
+  text-rendering:geometricPrecision;
+}
+img,svg,canvas{ image-rendering:pixelated; }
+
+/* ---------- app shell ---------- */
+#app{ position:fixed; inset:0; overflow:hidden; background:radial-gradient(120% 90% at 12% 50%, #120d1f 0%, var(--void) 60%); }
+
+/* ---------- atmosphere layers (fixed, screen-space) ---------- */
+#ridges{ position:absolute; inset:0; pointer-events:none; z-index:1; }
+#ridges svg{ position:absolute; bottom:0; left:0; width:200%; height:62%; display:block; }
+.ridge-far{ opacity:.5; }
+.ridge-near{ opacity:.8; }
+
+#particles{ position:absolute; inset:0; z-index:3; pointer-events:none; }
+
+#fog{
+  position:absolute; inset:0; z-index:4; pointer-events:none; opacity:0;
+  background:
+    linear-gradient(90deg, rgba(124,58,237,0) 30%, rgba(124,58,237,0.06) 70%, rgba(124,58,237,0.16) 100%),
+    radial-gradient(140% 120% at 100% 50%, rgba(124,58,237,0.22) 0%, rgba(124,58,237,0) 55%);
+  transition:opacity .25s linear;
+}
+/* hard-edged dither veil that thickens to the right (no blur) */
+#dither{
+  position:absolute; inset:0; z-index:4; pointer-events:none; opacity:0;
+  background-image:radial-gradient(rgba(124,58,237,0.5) 1px, transparent 1px);
+  background-size:4px 4px;
+  -webkit-mask-image:linear-gradient(90deg, transparent 35%, #000 100%);
+  mask-image:linear-gradient(90deg, transparent 35%, #000 100%);
+  transition:opacity .25s linear;
+}
+
+/* ---------- scroller ---------- */
+.trail{
+  position:absolute; inset:0; z-index:2;
+  overflow-x:auto; overflow-y:hidden;
+  scroll-snap-type:x proximity;
+  cursor:grab;
+  scrollbar-width:none;
+}
+.trail::-webkit-scrollbar{ display:none; }
+.trail.dragging{ cursor:grabbing; scroll-snap-type:none; }
+.track{ position:relative; height:100%; }
+
+#line{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+.line-flow{ stroke-dasharray:2 10; animation:flow 2.4s linear infinite; }
+@keyframes flow{ to{ stroke-dashoffset:-120; } }
+
+/* ---------- wanderer (you are here) ---------- */
+.wanderer{ position:absolute; transform:translate(-50%,-50%); pointer-events:none; z-index:5; text-align:center; }
+.wanderer .pip{
+  width:13px; height:13px; margin:0 auto 9px; background:var(--gold);
+  box-shadow:0 0 0 3px rgba(231,200,115,0.18), 0 0 18px 4px rgba(231,200,115,0.45);
+  animation:beat 2.6s ease-in-out infinite;
+}
+.wanderer .pip::after{ content:""; position:absolute; inset:-9px; border:1px solid var(--gold-dim); animation:ripple 2.6s ease-out infinite; }
+.wanderer .lab{ font-family:var(--pixel); font-size:9px; letter-spacing:1px; color:var(--gold); text-shadow:0 0 8px rgba(231,200,115,.5); white-space:nowrap; }
+.wanderer .sub{ font-size:10px; color:var(--t2); margin-top:3px; white-space:nowrap; }
+@keyframes beat{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.35); } }
+@keyframes ripple{ 0%{ transform:scale(.6); opacity:.8; } 100%{ transform:scale(1.9); opacity:0; } }
+
+/* ---------- waystation node ---------- */
+.way{
+  position:absolute; transform:translate(-50%,-50%); z-index:6;
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  background:none; border:0; color:inherit; cursor:pointer; padding:6px;
+  font-family:inherit; outline:none; width:230px;
+}
+.way .fogblob{
+  position:absolute; left:50%; top:38px; width:180px; height:180px; transform:translate(-50%,-50%);
+  background:radial-gradient(circle, rgba(124,58,237,0.16) 0%, transparent 60%); pointer-events:none; opacity:0;
+}
+.way .stone{ position:relative; transition:transform .3s cubic-bezier(.2,.8,.2,1), filter .3s; }
+.way .meta{ text-align:center; transition:transform .3s; }
+.way .num{ font-family:var(--pixel); font-size:10px; letter-spacing:2px; color:var(--muted); display:block; }
+.way .status{
+  display:inline-block; font-family:var(--pixel); font-size:8px; letter-spacing:1.5px; text-transform:uppercase;
+  padding:4px 8px 3px; margin:7px 0 6px; border:1px solid var(--pur-bd2); color:var(--pur);
+  background:var(--pur-fill2);
+}
+.way.near .status{ color:var(--gold); border-color:var(--gold-dim); background:rgba(231,200,115,0.06); }
+.way .title{ font-family:var(--pixel); font-size:15px; line-height:1.35; letter-spacing:.5px; color:var(--t1); text-transform:uppercase; max-width:210px; }
+.way .tag{ font-size:11px; color:var(--t2); margin-top:7px; font-style:italic; max-width:210px; }
+
+.way:hover .stone, .way:focus-visible .stone, .way.active .stone{ transform:translateY(-7px); }
+.way:hover .fogblob, .way.active .fogblob{ opacity:1; }
+.way:focus-visible .title{ color:var(--gold); }
+
+/* ---------- detail card ---------- */
+.card{
+  position:absolute; left:50%; width:312px; transform:translateX(-50%) translateY(8px);
+  background:linear-gradient(180deg, rgba(18,13,28,0.96), rgba(10,8,16,0.98));
+  border:1px solid var(--pur-bd2); padding:20px 20px 18px; text-align:left;
+  opacity:0; visibility:hidden; pointer-events:none; z-index:9;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 22px 50px -18px rgba(0,0,0,.9), 0 0 34px -6px rgba(124,58,237,.35);
+  transition:opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1);
+}
+.card.below{ top:calc(100% + 4px); }
+.card.above{ bottom:calc(100% + 4px); transform:translateX(-50%) translateY(-8px); }
+.way.open .card{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+.card::before{ /* pixel seam at top */
+  content:""; position:absolute; left:0; right:0; top:0; height:2px;
+  background:repeating-linear-gradient(90deg, var(--pur2) 0 4px, transparent 4px 8px);
+}
+.way.near .card::before{ background:repeating-linear-gradient(90deg, var(--gold) 0 4px, transparent 4px 8px); }
+.card .c-status{ font-family:var(--pixel); font-size:8px; letter-spacing:1.5px; color:var(--pur); text-transform:uppercase; }
+.way.near .card .c-status{ color:var(--gold); }
+.card .c-title{ font-family:var(--pixel); font-size:14px; color:var(--t1); text-transform:uppercase; margin:6px 0 10px; letter-spacing:.5px; }
+.card .c-lede{ font-size:12.5px; line-height:1.6; color:var(--t2); margin-bottom:14px; }
+.card ul{ list-style:none; display:flex; flex-direction:column; gap:9px; }
+.card li{ font-size:12px; line-height:1.45; color:var(--t1); padding-left:18px; position:relative; }
+.card li::before{ content:""; position:absolute; left:0; top:5px; width:6px; height:6px; background:var(--pur); transform:rotate(45deg); }
+.way.near .card li::before{ background:var(--gold); }
+.card .c-foot{ margin-top:15px; padding-top:12px; border-top:1px solid var(--pur-bd); font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+.card .c-close{ font-family:var(--pixel); font-size:8px; letter-spacing:1px; color:var(--muted); border:1px solid var(--pur-bd); padding:5px 7px 4px; background:none; cursor:pointer; }
+.card .c-close:hover{ color:var(--t1); border-color:var(--pur-bd2); }
+
+/* ---------- HUD: top bar ---------- */
+.hud{ position:absolute; left:0; right:0; z-index:20; pointer-events:none; }
+.hud > *{ pointer-events:auto; }
+.topbar{ top:0; display:flex; align-items:center; justify-content:space-between; padding:20px 26px; gap:18px;
+  background:linear-gradient(180deg, rgba(10,8,16,.85), transparent); }
+.brand{ display:flex; align-items:baseline; gap:12px; }
+.brand .mark{ font-family:var(--pixel); font-weight:700; font-size:22px; line-height:1; color:var(--t1); letter-spacing:3px; text-shadow:0 0 14px rgba(124,58,237,.25); }
+.brand .mark b{ color:var(--gold); font-weight:700; text-shadow:0 0 12px rgba(231,200,115,.4); }
+.brand .sub{ font-family:var(--pixel); font-size:8px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+
+.rail{ display:flex; align-items:center; gap:2px; }
+.rail .seg{ display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; background:none; border:0; padding:4px 2px; font-family:inherit; }
+.rail .seg .dot{ width:9px; height:9px; background:#241b35; border:1px solid var(--pur-bd2); transform:rotate(45deg); transition:.25s; }
+.rail .seg .rl{ font-family:var(--pixel); font-size:8px; letter-spacing:1px; color:var(--muted); transition:.25s; }
+.rail .seg:hover .dot{ border-color:var(--pur); }
+.rail .seg:hover .rl{ color:var(--t2); }
+.rail .seg.on .dot{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 10px 1px rgba(231,200,115,.5); }
+.rail .seg.on .rl{ color:var(--gold); }
+.rail .bar{ width:30px; height:1px; background:var(--pur-bd2); }
+
+/* ---------- HUD: drift meter ---------- */
+.meter{ position:absolute; left:26px; bottom:24px; z-index:20; }
+.meter .lab{ display:flex; justify-content:space-between; font-family:var(--pixel); font-size:8px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; width:180px; }
+.meter .lab .pct{ color:var(--pur); }
+.meter .track2{ width:180px; height:8px; border:1px solid var(--pur-bd2); padding:1px; background:var(--void2); }
+.meter .fill{ height:100%; width:0%; background:repeating-linear-gradient(90deg, var(--pur2) 0 3px, var(--pur) 3px 6px); transition:width .15s linear; }
+
+/* ---------- HUD: hint ---------- */
+.hint{ position:absolute; right:26px; bottom:24px; z-index:20; font-family:var(--pixel); font-size:8px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; display:flex; align-items:center; gap:8px; }
+.hint .ar{ color:var(--gold); animation:nudge 1.8s ease-in-out infinite; }
+@keyframes nudge{ 0%,100%{ transform:translateX(0); opacity:.6; } 50%{ transform:translateX(4px); opacity:1; } }
+
+/* ---------- end marker (the Drift swallows the road) ---------- */
+.endcap{ position:absolute; transform:translate(-50%,-50%); z-index:5; text-align:center; pointer-events:none; }
+.endcap .glyph{ font-family:var(--black); font-size:40px; color:var(--pur2); opacity:.55; line-height:1; filter:drop-shadow(0 0 14px rgba(124,58,237,.5)); }
+.endcap .t{ font-family:var(--pixel); font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-top:10px; }
+
+/* ---------- mobile ---------- */
+.is-mobile .trail{ overflow-x:hidden; overflow-y:auto; scroll-snap-type:y proximity; }
+.is-mobile .way{ width:min(86vw, 360px); }
+.is-mobile .card{ position:static; transform:none; width:100%; opacity:1; visibility:visible; pointer-events:auto;
+  max-height:0; padding-top:0; padding-bottom:0; border-color:transparent; overflow:hidden;
+  transition:max-height .35s ease, padding .35s ease, border-color .35s; box-shadow:none; }
+.is-mobile .way.open .card{ max-height:420px; padding-top:18px; padding-bottom:16px; border-color:var(--pur-bd2); margin-top:14px; transform:none; }
+.is-mobile .card.above{ bottom:auto; }
+.is-mobile .topbar{ padding:16px 18px; }
+.is-mobile .brand .mark{ font-size:17px; letter-spacing:2px; }
+.is-mobile .rail{ display:none; }
+.is-mobile .hint{ display:none; }
+.is-mobile .meter{ left:50%; transform:translateX(-50%); bottom:16px; }
+.is-mobile .wanderer .sub{ display:none; }
+
+@media (max-width:760px){
+  .way .title{ font-size:14px; }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion:reduce){
+  .line-flow{ animation:none; }
+  .wanderer .pip{ animation:none; }
+  .wanderer .pip::after{ animation:none; opacity:.4; }
+  .hint .ar{ animation:none; }
+  *{ scroll-behavior:auto !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="ridges">
+    <svg id="ridgeFar" class="ridge-far" viewBox="0 0 1600 300" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <svg id="ridgeNear" class="ridge-near" viewBox="0 0 1600 300" preserveAspectRatio="none" aria-hidden="true"></svg>
+  </div>
+
+  <div class="trail" id="trail" tabindex="0" aria-label="Naevyr roadmap. Scroll, drag or use arrow keys to walk the road.">
+    <div class="track" id="track">
+      <svg id="line" aria-hidden="true"></svg>
+      <!-- wanderer, nodes, endcap injected by script -->
+    </div>
+  </div>
+
+  <canvas id="particles"></canvas>
+  <div id="fog"></div>
+  <div id="dither"></div>
+
+  <div class="hud">
+    <div class="topbar">
+      <div class="brand">
+        <span class="mark">NAE<b>V</b>YR</span>
+        <span class="sub">The Long Road</span>
+      </div>
+      <nav class="rail" id="rail" aria-label="Milestones"></nav>
+    </div>
+  </div>
+
+  <div class="meter" aria-hidden="true">
+    <div class="lab"><span>Drift Encroach</span><span class="pct" id="pct">0%</span></div>
+    <div class="track2"><div class="fill" id="fill"></div></div>
+  </div>
+
+  <div class="hint">walk the road <span class="ar">&rsaquo;&rsaquo;&rsaquo;</span></div>
+</div>
+
+<script>
+/* ============================================================
+   DATA
+   ============================================================ */
+const MILES = [
+  { n:'I', title:'The Wider Realm', status:'Nearly here', near:true,
+    tag:'Carved, and nearly walked.',
+    lede:'The map breaks its bounds. A true frontier opens past the old edge, and the Drift comes with it.',
+    items:['New outposts and war camps','New beasts, new mini-bosses','Drift Rifts tear the ground open','The Blood Moon turns the night against you'],
+    foot:'The door opens first.' },
+  { n:'II', title:'The Drift Ledger', status:'Planned',
+    tag:'A pass for those who keep walking.',
+    lede:'Four weeks to a season. Marks are earned by walking, gathering, fighting, surviving.',
+    items:['Four-week seasons','Tiers pay cosmetics and coin','Each season strikes one relic'],
+    foot:'Earned, never given.' },
+  { n:'III', title:'Guild Wars', status:'Forming',
+    tag:'Banners clash over the wild quadrants.',
+    lede:'Rival claims over open ground. Hold the quadrant, or bleed for it.',
+    items:['Contest the wild quadrants','Upkeep bleeds the war-chest','Perks worth fighting for'],
+    foot:'Ground is held, not owned.' },
+  { n:'IV', title:'The Living Economy', status:'Tuning',
+    tag:'The coin must keep flowing.',
+    lede:'The Exchange opens. Sinks and burn rites tuned by hand as the realm fills.',
+    items:['Rates and limits shift','Sinks and burn rites','New ways to spend DRIFTS'],
+    foot:'Tuned, while you sleep.' },
+  { n:'V', title:'The Long Road', status:'Always',
+    tag:'The door stays open.',
+    lede:'Nothing promised on a calendar. Each step lands only when hardened and proven.',
+    items:['The plan bends as wanderers walk it','Proven before it is promised','The Drift takes you'],
+    foot:'The Drift takes you. The door stays open.' },
+];
+
+/* ============================================================
+   ELEMENTS / STATE
+   ============================================================ */
+const trail = document.getElementById('trail');
+const track = document.getElementById('track');
+const lineSvg = document.getElementById('line');
+const rail = document.getElementById('rail');
+const fog = document.getElementById('fog');
+const dither = document.getElementById('dither');
+const fillEl = document.getElementById('fill');
+const pctEl = document.getElementById('pct');
+const cv = document.getElementById('particles');
+const ctx = cv.getContext('2d');
+const ridgeFar = document.getElementById('ridgeFar');
+const ridgeNear = document.getElementById('ridgeNear');
+
+const reduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+let isMobile = false;
+let progress = 0;            // 0..1 along the road
+let nodes = [];             // {el, x, y, i}
+let coords = [];            // path point coords (px)
+const GAP = 470;            // horizontal spacing between waystations (desktop)
+
+/* node clarity: bright/clear near, faint/corrupted far */
+const clarity = i => Math.max(0.42, 1 - i*0.155);
+
+/* ============================================================
+   BUILD DOM (waystations, wanderer, endcap, rail)
+   ============================================================ */
+function obelisk(i){
+  const c = clarity(i);
+  const near = MILES[i].near;
+  const runeFill = near ? 'var(--gold)' : 'var(--pur)';
+  const glow = near ? 'rgba(231,200,115,.55)' : 'rgba(168,85,247,.4)';
+  return `
+  <svg class="ob" width="76" height="132" viewBox="0 0 76 132" style="opacity:${c}; filter:drop-shadow(0 0 ${near?14:8}px ${glow});" aria-hidden="true">
+    <polygon points="30,18 46,18 50,108 26,108" fill="#160f24" stroke="#060409" stroke-width="2"/>
+    <polygon points="30,18 38,18 36,108 26,108" fill="rgba(124,58,237,0.16)"/>
+    <polygon points="33,4 43,4 46,18 30,18" fill="#1c1330" stroke="#060409" stroke-width="2"/>
+    <rect x="18" y="108" width="40" height="12" fill="#160f24" stroke="#060409" stroke-width="2"/>
+    <rect x="12" y="120" width="52" height="8" fill="#120c1d" stroke="#060409" stroke-width="2"/>
+    <rect x="33" y="50" width="10" height="10" transform="rotate(45 38 55)" fill="${runeFill}" stroke="#060409" stroke-width="1.5"/>
+  </svg>`;
+}
+
+function buildNodes(){
+  // remove old
+  nodes.forEach(n=>n.el.remove());
+  nodes = [];
+  MILES.forEach((m,i)=>{
+    const el = document.createElement('button');
+    el.className = 'way' + (m.near ? ' near' : '');
+    el.setAttribute('data-i', i);
+    el.setAttribute('aria-label', `${m.title}. Status: ${m.status}. Click to reveal.`);
+    el.innerHTML = `
+      <div class="fogblob"></div>
+      <div class="stone">${obelisk(i)}</div>
+      <div class="meta">
+        <span class="num">${m.n}</span>
+        <span class="status">${m.status}</span>
+        <h3 class="title">${m.title}</h3>
+        <p class="tag">${m.tag}</p>
+      </div>
+      <div class="card">
+        <span class="c-status">${m.status}</span>
+        <h4 class="c-title">${m.title}</h4>
+        <p class="c-lede">${m.lede}</p>
+        <ul>${m.items.map(it=>`<li>${it}</li>`).join('')}</ul>
+        <div class="c-foot"><span>${m.foot}</span><button class="c-close" data-close>Seal &times;</button></div>
+      </div>`;
+    track.appendChild(el);
+    nodes.push({el, i, x:0, y:0});
+
+    el.addEventListener('click', (e)=>{
+      if (el.dataset.dragged === '1') return;
+      if (e.target.closest('[data-close]')) { close(el); return; }
+      toggle(el);
+    });
+  });
+
+  // wanderer
+  const w = document.createElement('div');
+  w.className = 'wanderer'; w.id = 'wanderer';
+  w.innerHTML = `<div class="pip"></div><div class="lab">YOU ARE HERE</div><div class="sub">the present &middot; the road runs forward</div>`;
+  track.appendChild(w);
+
+  // endcap (road swallowed by the Drift)
+  const ec = document.createElement('div');
+  ec.className = 'endcap'; ec.id = 'endcap';
+  ec.innerHTML = `<div class="glyph">&#10070;</div><div class="t">the road dissolves</div>`;
+  track.appendChild(ec);
+}
+
+function buildRail(){
+  rail.innerHTML = '';
+  MILES.forEach((m,i)=>{
+    if (i>0){ const b=document.createElement('span'); b.className='bar'; rail.appendChild(b); }
+    const s = document.createElement('button');
+    s.className = 'seg'; s.setAttribute('data-i', i);
+    s.innerHTML = `<span class="dot"></span><span class="rl">${m.n}</span>`;
+    s.addEventListener('click', ()=> jumpTo(i));
+    rail.appendChild(s);
+  });
+}
+
+/* ============================================================
+   LAYOUT  (desktop = horizontal winding; mobile = vertical descent)
+   ============================================================ */
+function layout(){
+  isMobile = window.innerWidth <= 760;
+  document.body.classList.toggle('is-mobile', isMobile);
+  const H = trail.clientHeight, W = trail.clientWidth;
+  const wander = document.getElementById('wanderer');
+  const endcap = document.getElementById('endcap');
+
+  if (!isMobile){
+    const yFrac = [0.60, 0.40, 0.63, 0.37, 0.55];
+    const startX = W*0.42;                 // first node sits ~mid-first-screen
+    nodes.forEach((n,i)=>{ n.x = startX + i*GAP; n.y = H*yFrac[i]; });
+    const totalW = startX + (nodes.length-1)*GAP + W*0.55;
+    track.style.width = totalW + 'px';
+    track.style.height = '100%';
+
+    nodes.forEach(n=>{
+      n.el.style.left = n.x+'px'; n.el.style.top = n.y+'px';
+      n.el.style.scrollSnapAlign = 'center';
+      placeCard(n);
+    });
+    wander.style.left = (W*0.16)+'px'; wander.style.top = (H*0.52)+'px';
+    endcap.style.left = (totalW - W*0.22)+'px'; endcap.style.top = (H*0.5)+'px';
+
+    drawLine(W, H, totalW, false);
+  } else {
+    const stepY = 360, topPad = 150;
+    const xOff = [0.50, 0.62, 0.40, 0.60, 0.46]; // gentle wind
+    nodes.forEach((n,i)=>{ n.x = W*xOff[i]; n.y = topPad + i*stepY; });
+    const totalH = topPad + (nodes.length-1)*stepY + 420;
+    track.style.width = '100%';
+    track.style.height = totalH + 'px';
+
+    nodes.forEach(n=>{
+      n.el.style.left = n.x+'px'; n.el.style.top = n.y+'px';
+      n.el.style.scrollSnapAlign = 'center';
+      n.el.querySelector('.card').className = 'card below';
+    });
+    wander.style.left = (W*0.5)+'px'; wander.style.top = '70px';
+    endcap.style.left = (W*0.5)+'px'; endcap.style.top = (totalH-150)+'px';
+
+    drawLine(W, totalH, 0, true);
+  }
+  sizeCanvas();
+  onScroll();
+}
+
+function placeCard(n){
+  const card = n.el.querySelector('.card');
+  const H = trail.clientHeight;
+  card.className = 'card ' + (n.y < H*0.5 ? 'below' : 'above');
+}
+
+/* ---------- the Drift line ---------- */
+function smoothPath(pts){
+  if (pts.length<2) return '';
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+    const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+function drawLine(W, H, totalW, vertical){
+  const svgW = vertical ? W : totalW;
+  const svgH = H;
+  lineSvg.setAttribute('width', svgW);
+  lineSvg.setAttribute('height', svgH);
+  lineSvg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+
+  const wEl = document.getElementById('wanderer');
+  const eEl = document.getElementById('endcap');
+  const pts = [
+    { x: parseFloat(wEl.style.left), y: parseFloat(wEl.style.top) },
+    ...nodes.map(n=>({x:n.x, y:n.y})),
+    { x: parseFloat(eEl.style.left), y: parseFloat(eEl.style.top) },
+  ];
+  const d = smoothPath(pts);
+  const dir = vertical ? '0%,0%,0%,100%' : '0%,0%,100%,0%';
+  const [x1,y1,x2,y2] = dir.split(',');
+  const flowAnim = reduced ? '' : 'line-flow';
+
+  lineSvg.innerHTML = `
+    <defs>
+      <linearGradient id="lg" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
+        <stop offset="0%" stop-color="#e7c873"/>
+        <stop offset="22%" stop-color="#e7c873"/>
+        <stop offset="48%" stop-color="#a855f7"/>
+        <stop offset="78%" stop-color="#7c3aed"/>
+        <stop offset="100%" stop-color="#3a2560"/>
+      </linearGradient>
+      <linearGradient id="lgGlow" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
+        <stop offset="0%" stop-color="rgba(231,200,115,0.55)"/>
+        <stop offset="50%" stop-color="rgba(168,85,247,0.45)"/>
+        <stop offset="100%" stop-color="rgba(124,58,237,0.05)"/>
+      </linearGradient>
+      <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="6"/>
+      </filter>
+    </defs>
+    <path d="${d}" fill="none" stroke="url(#lgGlow)" stroke-width="14" stroke-linecap="round" filter="url(#soft)" opacity="0.9"/>
+    <path d="${d}" fill="none" stroke="url(#lg)" stroke-width="2.5" stroke-linecap="round" opacity="0.92"/>
+    <path class="${flowAnim}" d="${d}" fill="none" stroke="#d8b8ff" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  `;
+  coords = pts;
+}
+
+/* ============================================================
+   SCROLL / PROGRESS / EFFECTS
+   ============================================================ */
+function onScroll(){
+  const max = isMobile
+    ? (trail.scrollHeight - trail.clientHeight)
+    : (trail.scrollWidth - trail.clientWidth);
+  const pos = isMobile ? trail.scrollTop : trail.scrollLeft;
+  progress = max>0 ? Math.min(1, Math.max(0, pos/max)) : 0;
+
+  // drift meter
+  const p = Math.round(progress*100);
+  fillEl.style.width = p + '%';
+  pctEl.textContent = p + '%';
+
+  // fog + dither thicken with progress
+  fog.style.opacity = (0.15 + progress*0.85).toFixed(3);
+  dither.style.opacity = (progress*0.7).toFixed(3);
+
+  // parallax ridges (desktop horizontal)
+  if (!isMobile){
+    ridgeFar.style.transform = `translateX(${-pos*0.06}px)`;
+    ridgeNear.style.transform = `translateX(${-pos*0.13}px)`;
+  } else {
+    ridgeFar.style.transform = ''; ridgeNear.style.transform = '';
+  }
+
+  // active node = nearest to viewport centre
+  const centre = isMobile ? pos + trail.clientHeight/2 : pos + trail.clientWidth/2;
+  let best=0, bd=Infinity;
+  nodes.forEach(n=>{ const c=isMobile?n.y:n.x; const dd=Math.abs(c-centre); if(dd<bd){bd=dd;best=n.i;} });
+  nodes.forEach(n=> n.el.classList.toggle('active', n.i===best));
+  [...rail.querySelectorAll('.seg')].forEach(s=> s.classList.toggle('on', +s.dataset.i===best));
+}
+
+trail.addEventListener('scroll', ()=>{ if(!ticking){ requestAnimationFrame(()=>{onScroll();ticking=false;}); ticking=true; } }, {passive:true});
+let ticking=false;
+
+/* wheel -> horizontal on desktop */
+trail.addEventListener('wheel', (e)=>{
+  if (isMobile) return;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){
+    e.preventDefault();
+    trail.scrollLeft += e.deltaY;
+  }
+}, {passive:false});
+
+/* drag to pan */
+let down=false, sx=0, sy=0, sl=0, st=0, moved=0, activeWay=null;
+trail.addEventListener('pointerdown', (e)=>{
+  down=true; moved=0; sx=e.clientX; sy=e.clientY; sl=trail.scrollLeft; st=trail.scrollTop;
+  activeWay = e.target.closest('.way');
+  if (activeWay) activeWay.dataset.dragged='0';
+  trail.classList.add('dragging');
+});
+window.addEventListener('pointermove', (e)=>{
+  if(!down) return;
+  const dx=e.clientX-sx, dy=e.clientY-sy;
+  moved=Math.max(moved, Math.abs(dx)+Math.abs(dy));
+  if (isMobile) return;            // let native vertical handle mobile
+  trail.scrollLeft = sl - dx;
+  if (moved>6 && activeWay) activeWay.dataset.dragged='1';
+});
+window.addEventListener('pointerup', ()=>{
+  down=false; trail.classList.remove('dragging');
+  if (activeWay) setTimeout(()=>{ if(activeWay) activeWay.dataset.dragged='0'; activeWay=null; }, 30);
+});
+
+/* keyboard */
+trail.addEventListener('keydown', (e)=>{
+  const step = isMobile ? 340 : GAP*0.6;
+  if (e.key==='ArrowRight' || e.key==='ArrowDown'){ e.preventDefault(); nudge(step); }
+  else if (e.key==='ArrowLeft' || e.key==='ArrowUp'){ e.preventDefault(); nudge(-step); }
+  else if (e.key==='Home'){ e.preventDefault(); scrollTo(0); }
+  else if (e.key==='End'){ e.preventDefault(); scrollTo(1e9); }
+});
+function nudge(d){ if(isMobile) trail.scrollTop+=d; else trail.scrollLeft+=d; }
+function scrollTo(v){ if(isMobile) trail.scrollTo({top:v,behavior:reduced?'auto':'smooth'}); else trail.scrollTo({left:v,behavior:reduced?'auto':'smooth'}); }
+
+function jumpTo(i){
+  const n = nodes[i]; if(!n) return;
+  if (isMobile){
+    trail.scrollTo({ top: n.y - trail.clientHeight/2, behavior: reduced?'auto':'smooth' });
+  } else {
+    trail.scrollTo({ left: n.x - trail.clientWidth/2, behavior: reduced?'auto':'smooth' });
+  }
+}
+
+/* card open/close */
+function toggle(el){
+  const open = el.classList.contains('open');
+  closeAll();
+  if (!open){ el.classList.add('open'); }
+}
+function close(el){ el.classList.remove('open'); }
+function closeAll(){ nodes.forEach(n=>n.el.classList.remove('open')); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAll(); });
+
+/* ============================================================
+   CANVAS DRIFT PARTICLES  (pixel sparks; density ramps with drift)
+   ============================================================ */
+let parts=[], dpr=1, cw=0, ch=0;
+function sizeCanvas(){
+  dpr = Math.min(2, window.devicePixelRatio||1);
+  cw = trail.clientWidth; ch = trail.clientHeight;
+  cv.width = cw*dpr; cv.height = ch*dpr;
+  cv.style.width = cw+'px'; cv.style.height = ch+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  seed();
+}
+function seed(){
+  parts = [];
+  const N = 140;
+  for (let i=0;i<N;i++){
+    parts.push({
+      x: Math.random()*cw, y: Math.random()*ch,
+      vx: -(0.12 + Math.random()*0.4), vy: -(Math.random()*0.18) + 0.06,
+      s: Math.random()<0.18 ? 3 : 2,
+      a: 0.2 + Math.random()*0.6,
+      gold: Math.random()<0.10,
+      home: Math.random(),         // 0..1 across width; spawns where drift is
+    });
+  }
+}
+function drawParticles(){
+  ctx.clearRect(0,0,cw,ch);
+  // density: how many particles are "awake" rises with progress and to the right
+  for (const pt of parts){
+    // a particle is active if its home position is within the encroaching drift band
+    const band = 0.15 + progress*0.95;          // drift reaches this far across screen
+    const screenFrac = pt.x/cw;
+    const active = screenFrac < band || pt.gold;
+    if (!active) continue;
+
+    pt.x += pt.vx; pt.y += pt.vy;
+    if (pt.x < -4){ pt.x = cw+4; pt.y = Math.random()*ch; }
+    if (pt.y < -4){ pt.y = ch+4; }
+    if (pt.y > ch+4){ pt.y = -4; }
+
+    // brighter / denser toward the right (deeper into the Drift)
+    const intensity = 0.35 + screenFrac*0.65;
+    const alpha = pt.a * intensity * (pt.gold ? 0.9 : 1);
+    if (pt.gold){ ctx.fillStyle = `rgba(231,200,115,${alpha*0.8})`; }
+    else { ctx.fillStyle = `rgba(168,85,247,${alpha})`; }
+    ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.s, pt.s);
+  }
+}
+let raf=null;
+function loop(){ drawParticles(); raf=requestAnimationFrame(loop); }
+
+/* ============================================================
+   RIDGES  (jagged silhouettes for parallax depth)
+   ============================================================ */
+function ridgePath(seed, amp, base){
+  let d = `M0 300 L0 ${base}`;
+  let x=0; const step=80; let r=seed;
+  while (x <= 1600){
+    r = (r*9301+49297)%233280;
+    const h = base - (r/233280)*amp;
+    d += ` L${x} ${h.toFixed(0)}`;
+    x += step;
+  }
+  d += ` L1600 ${base} L1600 300 Z`;
+  return d;
+}
+ridgeFar.innerHTML = `<path d="${ridgePath(7,70,200)}" fill="#15102099"/>`;
+ridgeNear.innerHTML = `<path d="${ridgePath(31,120,250)}" fill="#0d0a16"/>`;
+// tint near ridge edge with faint purple
+ridgeNear.innerHTML += `<path d="${ridgePath(31,120,250)}" fill="none" stroke="rgba(124,58,237,0.25)" stroke-width="1"/>`;
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  buildNodes();
+  buildRail();
+  layout();
+  if (!reduced) loop();
+  else { sizeCanvas(); drawParticles(); }   // static sprinkle
+}
+init();
+
+let rt=null;
+window.addEventListener('resize', ()=>{ clearTimeout(rt); rt=setTimeout(()=>{ closeAll(); layout(); if(reduced) drawParticles(); }, 140); });
+
+document.addEventListener('visibilitychange', ()=>{
+  if (document.hidden){ if(raf){cancelAnimationFrame(raf); raf=null;} }
+  else if (!reduced && !raf){ loop(); }
+});
+</script>
+</body>
+</html>

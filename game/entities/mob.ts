@@ -41,6 +41,15 @@ export class Mob {
   bob = 0;
   phase = Math.random() * Math.PI * 2;
   hurtFlash = 0;
+  /**
+   * Schema-puppet motion smoothing: a low-passed render velocity plus a
+   * walk-hold timer (hysteresis). Facing and the walk flag are driven from
+   * these, NEVER from the raw per-frame lerp residue — that residue twitched
+   * the facing and flickered walk/idle between the 20Hz server ticks.
+   */
+  vxSmooth = 0;
+  vySmooth = 0;
+  moveHold = 0;
 
   private tx: number;
   private ty: number;
