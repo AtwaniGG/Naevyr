@@ -385,6 +385,10 @@ interface PlayerSim {
    * rolls come with server XP)
    */
   combatLevel: number;
+  /** the linked Solana wallet, tracked on the sim so reads (getProfile, burns)
+   *  never race the async DB write the gate auto-link does on join. null until
+   *  a wallet is gate-proven or linked in-game; set BEFORE the DB commit. */
+  walletAddress: string | null;
   /** last known DRIFTS balance of the linked wallet (drives holder-tier perks;
    *  refreshed on link and on every profile fetch, 0 for guests/unlinked) */
   tokenBalance: number;
@@ -1077,6 +1081,7 @@ export class DriftRoom extends Room<DriftRoomState> {
           return fail("That wallet already belongs to another wanderer.");
         }
         await setWalletAddress(sim.token, address).catch(() => {});
+        sim.walletAddress = address; // live truth for getProfile/burns
         const tokenBalance = await getTokenBalance(address);
         sim.tokenBalance = tokenBalance; // holder-tier perks follow the link
         client.send("walletResult", {
@@ -1103,8 +1108,9 @@ export class DriftRoom extends Room<DriftRoomState> {
       const cost = BURN_COSTS[action];
       if (!cost) return fail("Unknown rite");
       const row = await loadOrCreatePlayer(sim.token);
-      if (!row.walletAddress) return fail("Link a wallet first");
-      const built = await buildBurnTx(row.walletAddress, cost);
+      const walletAddress = sim.walletAddress ?? row.walletAddress;
+      if (!walletAddress) return fail("Link a wallet first");
+      const built = await buildBurnTx(walletAddress, cost);
       if (!built.ok) return fail(built.reason);
       client.send("burnQuote", { ok: true, action, amount: cost, tx: built.tx });
     });
@@ -1632,6 +1638,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (!sim) return;
       if (!this.allow(sim, "unlinkWallet", 3, 10_000)) return;
       await setWalletAddress(sim.token, null).catch(() => {});
+      sim.walletAddress = null;
       sim.tokenBalance = 0; // tier perks leave with the wallet
       client.send("walletResult", { ok: true, address: null });
     });
@@ -1653,8 +1660,11 @@ export class DriftRoom extends Room<DriftRoomState> {
       const escrowGold = await takeEscrow(sim.token).catch(() => 0);
       if (escrowGold > 0) this.credit(sim, escrowGold);
       const row = await loadOrCreatePlayer(sim.token);
-      const tokenBalance = row.walletAddress
-        ? await getTokenBalance(row.walletAddress)
+      // the sim's wallet is the live truth (a gate auto-link may still be
+      // committing to the DB); fall back to the persisted row for safety
+      const walletAddress = sim.walletAddress ?? row.walletAddress ?? null;
+      const tokenBalance = walletAddress
+        ? await getTokenBalance(walletAddress)
         : 0;
       sim.tokenBalance = tokenBalance; // holder-tier perks track the wallet
       client.send("profile", {
@@ -1667,7 +1677,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         ...(sim.goldSeeded ? { gold: Math.round(sim.gold) } : {}),
         ...(sim.invSeeded ? { inv: sim.inv } : {}),
         banked: row.bankGold,
-        wallet: row.walletAddress ?? null,
+        wallet: walletAddress,
         tokenBalance,
         holder: tokenBalance >= 1,
         mint: tokenMint() || null,
@@ -2231,6 +2241,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       deltaWindow: new Map(),
       rates: new Map(),
       combatLevel: snapCombatLevel(row.snapshot),
+      walletAddress: row.walletAddress ?? null, // persisted link; gate auto-link below may set it
       tokenBalance: 0, // refreshed by getProfile/linkWallet (chain reads are async)
       prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
       wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
@@ -2260,6 +2271,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     // door — bind it now so they're a linked holder without signing again
     const gateAddress = (row as PlayerRow & { gateAddress?: string }).gateAddress;
     if (gateAddress) {
+      // reflect the proven wallet on the sim SYNCHRONOUSLY so the client's
+      // getProfile (which races the async DB write below) never reads a stale
+      // null and tells the player to "connect a wallet" they already linked
+      if (!sim.walletAddress) sim.walletAddress = gateAddress;
       void this.autoLinkGateWallet(sim, gateAddress, row.walletAddress ?? null);
     }
   }
@@ -2945,13 +2960,20 @@ export class DriftRoom extends Room<DriftRoomState> {
    *  global wallet-uniqueness rule (never hijacks a wallet another token owns). */
   private async autoLinkGateWallet(sim: PlayerSim, gateAddress: string, currentWallet: string | null) {
     // already linked to a different wallet on purpose — leave it alone
-    if (currentWallet && currentWallet !== gateAddress) return;
+    if (currentWallet && currentWallet !== gateAddress) {
+      sim.walletAddress = currentWallet; // undo the optimistic onJoin set
+      return;
+    }
     if (!currentWallet) {
       // binding fresh: make sure no other wanderer already owns this wallet
       const existing = await findPlayerByWallet(gateAddress).catch(() => null);
-      if (existing && existing.token !== sim.token) return;
+      if (existing && existing.token !== sim.token) {
+        sim.walletAddress = null; // never report a wallet another token owns
+        return;
+      }
       await setWalletAddress(sim.token, gateAddress).catch(() => {});
     }
+    sim.walletAddress = gateAddress;
     const tokenBalance = await getTokenBalance(gateAddress);
     sim.tokenBalance = tokenBalance; // holder-tier perks follow the link
     sim.client.send("walletResult", {
@@ -2989,7 +3011,9 @@ export class DriftRoom extends Room<DriftRoomState> {
     // a Solana tx signature is 64 bytes → 86-88 base58 chars
     if (!/^[1-9A-HJ-NP-Za-km-z]{86,90}$/.test(burnSig)) return "Malformed burn signature";
     const row = await loadOrCreatePlayer(sim.token);
-    if (!row.walletAddress) return "No wallet linked";
+    // sim wallet is the live truth (a gate auto-link may still be committing)
+    const walletAddress = sim.walletAddress ?? row.walletAddress;
+    if (!walletAddress) return "No wallet linked";
     // an action missing from BURN_COSTS is a wiring bug — refuse rather than
     // silently price it at a near-free default
     const cost = BURN_COSTS[action];
@@ -3000,7 +3024,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // than orphaning a real burn behind a deleteBurn that may itself fail. The
     // claim (tryInsertBurn) is still the one-and-only anti-replay gate: only the
     // first inserter proceeds, so concurrent dupes act at most once.
-    const v = await verifyBurn(burnSig, row.walletAddress, cost);
+    const v = await verifyBurn(burnSig, walletAddress, cost);
     if (!v.ok) return v.reason ?? "The burn could not be verified";
     if (!(await tryInsertBurn(burnSig, sim.token, action, split.burn, split.treasury))) {
       return "That burn was already spent";

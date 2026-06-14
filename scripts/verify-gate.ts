@@ -143,15 +143,25 @@ async function main() {
     {
       let joined = true;
       let wr: any = null;
+      let prof: any = null;
       try {
         const room = await new Client(WS_URL).joinOrCreate<any>("drift", {
           token: token(), address: holderAddr,
           gateNonce: allowed.nonce, gateSig: holderSig,
         });
+        // fire getProfile IMMEDIATELY (racing the async auto-link DB write): a
+        // fresh token has no persisted wallet yet, so the profile must read the
+        // sim's gate-proven wallet, not a stale null that says "connect a wallet"
+        const profP = new Promise<any>((resolve) => {
+          const to = setTimeout(() => resolve(null), 6000);
+          room.onMessage("profile", (m: any) => { clearTimeout(to); resolve(m); });
+        });
+        room.send("getProfile");
         wr = await new Promise<any>((resolve) => {
           const to = setTimeout(() => resolve(null), 6000);
           room.onMessage("walletResult", (m: any) => { clearTimeout(to); resolve(m); });
         });
+        prof = await profP;
         await room.leave();
       } catch {
         joined = false;
@@ -163,6 +173,9 @@ async function main() {
       check("auto-linked wallet reads as a holder",
         !!wr && wr.holder === true && wr.tokenBalance >= GATE,
         wr ? `balance=${wr.tokenBalance}` : "");
+      check("getProfile returns the auto-linked wallet (no race to a stale null)",
+        !!prof && prof.wallet === holderAddr,
+        prof ? `wallet=${prof.wallet}` : "no profile");
     }
   } catch (e) {
     console.error("THROW", e);

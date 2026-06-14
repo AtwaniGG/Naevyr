@@ -722,6 +722,14 @@ export class Game {
     store.setSeason(net.season);
     store.setDriftPct(net.driftPct);
     store.setPlayersOnline(net.playerCount());
+    // a wallet proven at the door is already linking server-side (onAuth carries
+    // the proof through to an auto-link) — show it as linked NOW so the HUD chip
+    // and the battle pass never tell the player to connect a wallet they already
+    // connected. walletResult/profile confirm the balance + holder shortly.
+    if (!this.guest) {
+      const gateWallet = getGateWallet();
+      if (gateWallet) store.setWallet(gateWallet);
+    }
     this.sentIdentity = "";
     this.pushIdentity(net);
 
