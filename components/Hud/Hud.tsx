@@ -1430,6 +1430,7 @@ function PassDock() {
   const setOpenDock = useGame((s) => s.setOpenDock);
   const setOpen = (next: boolean) => setOpenDock(next ? "pass" : null);
   const online = useGame((s) => s.online);
+  const guest = useGame((s) => s.guest);
   const bp = useGame((s) => s.battlePass);
   const wallet = useGame((s) => s.wallet);
   const holder = useGame((s) => s.holder);
@@ -1493,6 +1494,10 @@ function PassDock() {
                       onClick={() => bus.emit("passBuyBurn", true)}>
                       Unlock Premium · {burnAmt(BURN_COSTS.battlePass)} <DriftsMark />
                     </Button>
+                  ) : guest ? (
+                    <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
+                      The Guest Drift has no wallet. Leave it and enter the Realm with your wallet to unlock the season pass.
+                    </div>
                   ) : (
                     <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
                       Premium opens with {burnAmt(BURN_COSTS.battlePass)} <DriftsMark /> burned. Link a wallet that holds them.
