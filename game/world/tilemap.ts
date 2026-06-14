@@ -24,6 +24,10 @@ export interface TownBuilding {
 export const TOWN_CENTER = { x: 20, y: 20 };
 /** no resource nodes inside this euclidean radius of town */
 export const TOWN_NODE_FREE_RADIUS = 8;
+/** keep nodes off the outermost ring of tiles: tree/rock sprites (48x56) are
+ *  taller and wider than a tile, so on a border cell their canopy spills past
+ *  the map's diamond edge into the void. */
+export const EDGE_MARGIN = 2;
 
 // Organic scatter with one hard rule: no building may stand close enough
 // south of another to cover its door. In iso terms, for any pair with
@@ -133,6 +137,8 @@ export class World {
       const t = this.tile(x, y);
       if (
         (t === "grass" || t === "dirt") &&
+        x >= EDGE_MARGIN && y >= EDGE_MARGIN &&
+        x < this.w - EDGE_MARGIN && y < this.h - EDGE_MARGIN &&
         !this.nodeAt.has(this.idx(x, y)) &&
         !nearBuilding(x, y) &&
         Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) >= TOWN_NODE_FREE_RADIUS
@@ -254,6 +260,10 @@ export class World {
       while (placed < count && guard++ < 2000) {
         const x = (rng() * this.w) | 0;
         const y = (rng() * this.h) | 0;
+        if (
+          x < EDGE_MARGIN || y < EDGE_MARGIN ||
+          x >= this.w - EDGE_MARGIN || y >= this.h - EDGE_MARGIN
+        ) continue;
         if (this.tile(x, y) === "water") continue;
         if (this.nodeAt.has(this.idx(x, y))) continue;
         if (nearWater && !this.adjacentToWater(x, y)) continue;
@@ -274,6 +284,10 @@ export class World {
       const x = mereCx - 5 + ((rng() * 11) | 0);
       const y = mereCy - 5 + ((rng() * 11) | 0);
       if (!this.inBounds(x, y) || this.tile(x, y) === "water") continue;
+      if (
+        x < EDGE_MARGIN || y < EDGE_MARGIN ||
+        x >= this.w - EDGE_MARGIN || y >= this.h - EDGE_MARGIN
+      ) continue;
       if (this.nodeAt.has(this.idx(x, y)) || nearBuilding(x, y)) continue;
       if (!this.adjacentToWater(x, y)) continue;
       this.addNode("fish", x, y);
