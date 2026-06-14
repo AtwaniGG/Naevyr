@@ -274,8 +274,8 @@ export class World {
         placed++;
       }
     };
-    place("tree", 22);
-    place("rock", 14);
+    place("tree", 16);
+    place("rock", 10);
     place("fish", 8, true);
     // the Hollowmere is the realm's best fishing: extra schools on its banks
     let mereFish = 0;

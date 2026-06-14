@@ -3391,8 +3391,10 @@ export class Game {
     // slow day/night breath (8-min cycle); deep night leans cold blue
     const night = 0.5 - 0.5 * Math.cos(((now / 480_000) % 1) * Math.PI * 2);
 
-    // pulsing additive glow on corrupt ground — fiercer in the dark
-    const pulse = (0.55 + Math.sin(now / 900) * 0.2) * (1 + night * 0.5);
+    // pulsing additive glow on corrupt ground — fiercer in the dark. kept
+    // dim so a small corrupt footprint doesn't bloom into a giant purple haze
+    // (the glow sprite is now tile-sized too — see drawGlow).
+    const pulse = (0.34 + Math.sin(now / 900) * 0.12) * (1 + night * 0.35);
     for (const gpos of this.corruptGlows) {
       spriteCache.drawGlow(ctx, gpos.sx, gpos.sy, z, pulse);
     }
@@ -3564,26 +3566,29 @@ export class Game {
         if (!this.tutorial && t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
           const h = hash2(x, y, 91);
           let kind: DoodadKind | null = null;
+          // densities roughly halved from the original pass: the old values
+          // blanketed the small map with clutter ("trees and rocks
+          // everywhere"). Regional character (den/mire) stays, just thinner.
           if (t === 'corrupt') {
-            if (h < 0.10) kind = 'crystal';
-          } else if ([nw, nn, se, ss].includes('corrupt') && h < 0.08) {
+            if (h < 0.06) kind = 'crystal';
+          } else if ([nw, nn, se, ss].includes('corrupt') && h < 0.045) {
             kind = 'crystal'; // corruption seeps ahead of itself
           } else if (nearDen) {
-            if (h < 0.05) kind = 'bone_spike';
-            else if (h < 0.075) kind = 'dead_tree';
-            else if (h < 0.09) kind = 'bones';
+            if (h < 0.026) kind = 'bone_spike';
+            else if (h < 0.04) kind = 'dead_tree';
+            else if (h < 0.05) kind = 'bones';
           } else if (nearMire && (t === 'grass' || t === 'dirt')) {
-            if (h < 0.11) kind = 'reed_clump';
-            else if (h < 0.125) kind = 'dead_tree';
+            if (h < 0.055) kind = 'reed_clump';
+            else if (h < 0.065) kind = 'dead_tree';
           } else if (t === 'grass') {
-            if (h < 0.05) kind = 'tuft';
-            else if (h < 0.062) kind = 'pebbles';
-            else if (h < 0.07) kind = 'bones';
+            if (h < 0.025) kind = 'tuft';
+            else if (h < 0.032) kind = 'pebbles';
+            else if (h < 0.037) kind = 'bones';
           } else if (t === 'dirt') {
-            if (h < 0.05) kind = 'pebbles';
-            else if (h < 0.062) kind = 'masonry';
+            if (h < 0.025) kind = 'pebbles';
+            else if (h < 0.033) kind = 'masonry';
           } else if (t === 'stone') {
-            if (h < 0.06) kind = 'masonry';
+            if (h < 0.03) kind = 'masonry';
           }
           if (kind) {
             doodads.push({

@@ -5190,7 +5190,11 @@ export class SpriteCache {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = alpha;
-    ctx.drawImage(this.glow, sx - 64 * z, sy - 32 * z, 128 * z, 64 * z);
+    // keep the glow close to the tile footprint (72x36 ≈ one diamond + a thin
+    // halo) so corruption reads at its true size; the old 128x64 bled a full
+    // tile outward and additively bloomed clusters into looking far larger
+    // than the drift % actually is.
+    ctx.drawImage(this.glow, sx - 36 * z, sy - 18 * z, 72 * z, 36 * z);
     ctx.restore();
   }
 
