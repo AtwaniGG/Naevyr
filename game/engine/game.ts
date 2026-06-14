@@ -37,7 +37,7 @@ import {
   spriteCache, hash2,
   TileType, BeastKind, BeastAnim, DoodadKind, EquipVisual, LookVisual,
   DyeKey, EyeKey, PRESTIGE_AURAS, PrestigeAuraKey,
-  beastSpriteFor, isBossKind, BLOOD_SKY_STOPS,
+  beastSpriteFor, isBossKind, BLOOD_SKY_STOPS, type IsoFacing,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
 import {
@@ -4196,6 +4196,29 @@ export class Game {
           }
         },
       });
+    }
+
+    // Frontier Outpost garrison: open-air keeper NPCs (decorative, idle 2f).
+    // The Quartermaster stands at the trade house (its dialogue triggers on the
+    // building); a scout watches and a hermit lingers nearby.
+    if (!this.tutorial) {
+      const op = ALL_STRUCTURES.find((b) => b.key === "outpost");
+      if (op && Math.max(Math.abs(op.x - this.player.cell.x), Math.abs(op.y - this.player.cell.y)) < 20) {
+        const nf = Math.floor(performance.now() / 600) % 2;
+        const npcs: [("quartermaster" | "scout" | "hermit"), number, number, IsoFacing][] = [
+          ["quartermaster", op.x + 1, op.y + 1, "s"],
+          ["scout", op.x - 2, op.y, "se"],
+          ["hermit", op.x + 2, op.y + 2, "s"],
+        ];
+        for (const [kind, gx, gy, facing] of npcs) {
+          const s = this.tileScreen(gx, gy);
+          const z = this.camera.zoom;
+          draws.push({
+            depth: gx + gy,
+            fn: () => spriteCache.drawKeeperNpc(ctx, kind, facing, false, nf, s.x, s.y, z),
+          });
+        }
+      }
     }
 
     draws.sort((a, b) => a.depth - b.depth);
