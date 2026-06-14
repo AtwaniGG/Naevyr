@@ -2478,6 +2478,171 @@ export function drawLostTombstone(sunken: boolean): Grid {
 export const SHRINE_FRAMES = 3;
 export const HUSKDEN_FRAMES = 2;
 export const OBELISK_FRAMES = 3;
+export const WAYSTATION_FRAMES = 4; // 0 = sealed, 1-3 = active rune-pulse
+
+// ── Frontier Expansion: the Waystation fast-travel monolith (ported from the
+//    expansion _gen/waystation.js — a rune-arch gateway on a dirt apron) ──
+function drawWaystation(active: boolean, frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(64, 112);
+  const st = RAMP.stone, dr = RAMP.drift;
+  const cx = 32, baseY = 104;
+
+  // dirt apron (packed earth + ash drifts) — no grass
+  foundation(g, cx, baseY + 2, 27, { ash: true });
+
+  // active ground glow on the apron (dithered drift, pulses)
+  if (active) {
+    const reach = [6, 8, 7][frame];
+    for (let dy = -4; dy <= 6; dy++) for (let dx = -24; dx <= 24; dx++) {
+      if ((dx / 24) ** 2 + (dy / 7) ** 2 > 1) continue;
+      const d = Math.abs(dx) / 3 + Math.abs(dy);
+      if ((dx + dy + frame) % 2 === 0 && d > 4 && d < reach + 14 && hash2(dx, dy, 501) < 0.4)
+        P(g, cx + dx, baseY + 4 + dy, dr[3]);
+    }
+  }
+
+  // two leaning standing stones
+  const postBot = baseY, postTop = 34;
+  const stone = (side: number) => {
+    for (let y = postBot; y >= postTop; y--) {
+      const t = (postBot - y) / (postBot - postTop);
+      const cxp = cx + side * (16 - Math.round(t * 4));
+      const hw = Math.round(6 - t * 1.2);
+      for (let x = -hw; x <= hw; x++) {
+        const sx = cxp + x;
+        let c = side < 0 ? st[1] : st[2];
+        if (x < -hw + 2) c = side < 0 ? st[0] : st[1];
+        else if (x > hw - 2) c = st[3];
+        if (hash2(sx, y, 502) < 0.06) c = st[2];
+        if (hash2(sx, y, 503) < 0.02) c = st[3];
+        P(g, sx, y, c);
+      }
+    }
+    const rng = mulberry(504 + side);
+    for (let i = 0; i < 5; i++) {
+      const y = postTop + 6 + Math.floor(rng() * (postBot - postTop - 12));
+      const t = (postBot - y) / (postBot - postTop);
+      const cxp = cx + side * (16 - Math.round(t * 4));
+      const hw = Math.round(6 - t * 1.2);
+      P(g, cxp + side * hw, y, RAMP.void);
+      P(g, cxp + side * (hw - 1), y, st[3]);
+    }
+  };
+  stone(-1); stone(1);
+
+  // the arch (semicircle band spanning the post tops)
+  const archCx = cx, archCy = postTop + 4, archR = 21, band = 8;
+  tDisc(g, archCx, archCy, archR, (x, y, d) => {
+    if (y > archCy) return;
+    if (d > archR || d < archR - band) return;
+    let c = (x < archCx) ? st[1] : st[2];
+    const edge = d > archR - 1.4 || d < archR - band + 1.4;
+    if (edge) c = st[3];
+    else if (hash2(x, y, 505) < 0.07) c = st[2];
+    if (x < archCx - archR + 4) c = st[0];
+    P(g, x, y, c);
+  });
+  for (let dd = 1; dd <= 4; dd++) tDisc(g, archCx, archCy, archR, (x, y, d) => {
+    if (y > archCy) return; if (d > archR || d < archR - band) return; if (x < archCx + 6) return;
+    P(g, x + dd, y - Math.floor(dd / 2), st[3]);
+  });
+
+  // keystone block at the crown, carrying the gate sigil
+  const ksY = archCy - archR - 1;
+  for (let j = 0; j < 12; j++) for (let i = -7; i <= 7; i++) {
+    const t = Math.abs(i) / 7;
+    if (j < 2 && t > 0.6) continue;
+    let c = i < 0 ? st[1] : st[2];
+    if (i < -5) c = st[0]; if (i > 5) c = st[3];
+    if (j === 0) c = st[0];
+    if (hash2(cx + i, ksY + j, 506) < 0.08) c = st[2];
+    P(g, cx + i, ksY + j, c);
+  }
+  gateSigil(g, cx, ksY + 6, 5, active);
+
+  // drift-crystal shard crown above the keystone
+  const cty = ksY - 1;
+  for (let k = 0; k < 9; k++) {
+    const w = Math.max(0, Math.round((1 - k / 9) * 3));
+    for (let i = -w; i <= w; i++) {
+      let c = dr[2]; if (i < 0) c = dr[1]; if (i > 0) c = dr[3]; if (i === 0 && k < 6) c = dr[0];
+      P(g, cx + i, cty - k, c);
+    }
+  }
+  P(g, cx, cty - 9, dr[0]);
+  if (active) {
+    const rr = [6, 8, 7][frame];
+    for (let yy = -8; yy <= 4; yy++) for (let xx = -7; xx <= 7; xx++) {
+      const d = Math.abs(xx) + Math.abs(yy);
+      if (d > 4 && d < rr && (xx + yy + frame) % 2 === 0) P(g, cx + xx, cty - 4 + yy, dr[2]);
+    }
+  }
+
+  // the portal opening (between posts, under the arch)
+  const pl = cx - 9, pr = cx + 9, ptop = archCy, pbot = baseY - 2;
+  for (let y = ptop; y <= pbot; y++) for (let x = pl; x <= pr; x++) {
+    const underArch = (x - archCx) ** 2 + (y - archCy) ** 2 <= (archR - band) ** 2 || y >= archCy;
+    if (!underArch) continue;
+    if (active) {
+      const t = (y - ptop) / (pbot - ptop);
+      let c = dr[4] || dr[3];
+      if ((x + y) % 2 === 0) c = t < 0.5 ? dr[3] : (dr[4] || dr[3]);
+      if (Math.abs(x - cx) < 6 && hash2(x, y + frame, 507) < 0.20) c = dr[2];
+      if (Math.abs(x - cx) < 3 && hash2(x, y - frame * 2, 508) < 0.14) c = dr[1];
+      P(g, x, y, c);
+    } else {
+      let c: string = RAMP.void;
+      if (x === cx && (y % 3 !== 0)) c = dr[3];
+      if (x === cx && y % 6 === 0) c = dr[2];
+      P(g, x, y, c);
+    }
+  }
+
+  // carved runes down the inner faces of the posts (pulse when active)
+  const lit = active ? [dr[2], dr[1], dr[0]][frame] : dr[3];
+  const dim = active ? [dr[3], dr[2], dr[1]][frame] : '#3b1162';
+  const runeYs = [pbot - 12, pbot - 28, pbot - 44, pbot - 58];
+  runeYs.forEach((ry, i) => {
+    if (ry < ptop + 2) return;
+    ([[pl - 1, 1], [pr + 1, -1]] as const).forEach(([rx, dir]) => {
+      const on = active ? ((frame + i) % 3) !== 2 : false;
+      const col = on ? lit : dim;
+      P(g, rx, ry, col); P(g, rx + dir, ry, col);
+      P(g, rx, ry + 1, col); P(g, rx, ry - 1, on ? dim : '#3b1162');
+    });
+  });
+
+  // active: rising column of dithered drift light up the gateway
+  if (active) {
+    const H = [16, 26, 12][frame];
+    for (let k = 0; k < H; k++) {
+      const y = pbot - 6 - k, t = k / H;
+      const w = Math.max(1, Math.round((1 - t) * 4));
+      for (let x = -w; x <= w; x++) {
+        const ax = cx + x, core = Math.abs(x) <= 1;
+        if (y < ptop - 10) continue;
+        if (core) { if (G(g, ax, y) || y < ptop) P(g, ax, y, t < 0.3 ? dr[0] : dr[1]); }
+        else if ((ax + y + frame) % 2 === 0 && hash2(ax, y, 509) < (1 - t) * 0.8) P(g, ax, y, dr[2]);
+      }
+    }
+    const mr = mulberry(510 + frame);
+    for (let i = 0; i < 5; i++) {
+      const mx = cx + Math.round((mr() - 0.5) * 16);
+      const my = ptop + Math.round(mr() * (pbot - ptop)) - frame * 2;
+      if (my > ptop - 12) P(g, mx, my, mr() < 0.4 ? dr[0] : dr[1]);
+    }
+    for (let x = pl; x <= pr; x++) if ((x + frame) % 3 === 0) P(g, x, pbot + 1, dr[2]);
+  }
+
+  outline(g, RAMP.void);
+  return g;
+}
+
+/** the Waystation as a 4-frame building sheet (0 sealed, 1-3 active pulse) */
+export function makeWaystation(i: number): Grid {
+  return i === 0 ? drawWaystation(false, 0) : drawWaystation(true, i - 1);
+}
 
 // (exported for the headless smoke test; frame matters for shrine/den/obelisk)
 export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
@@ -2493,8 +2658,8 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'mine':      return drawMine();
     case 'huskden':   return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'obelisk':   return drawAshObelisk(frame % OBELISK_FRAMES);
-    // waystations + Phase C camps reuse existing art until the expansion is ported
-    case 'waystation': return drawAshObelisk(frame % OBELISK_FRAMES);
+    // the Waystation uses ported expansion art; camps still reuse existing art
+    case 'waystation': return makeWaystation(frame % WAYSTATION_FRAMES);
     case 'barrowcrypt': return drawAshObelisk(frame % OBELISK_FRAMES);
     case 'ashwarcamp': return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'drownedruins': return drawMirewifeHut();
@@ -4570,6 +4735,10 @@ export class SpriteCache {
     for (let f = 0; f < OBELISK_FRAMES; f++) {
       this.buildings.set(`obelisk-${f}`, gridToCanvas(makeBuildingSprite('obelisk', f)));
     }
+    // the Waystation monolith (expansion art): 0 sealed + 1-3 active rune-pulse
+    for (let f = 0; f < WAYSTATION_FRAMES; f++) {
+      this.buildings.set(`waystation-${f}`, gridToCanvas(makeWaystation(f)));
+    }
     for (const k of ['wisp', 'crow', 'emberling'] as PetSpriteKey[]) {
       this.pets.set(`${k}-0`, gridToCanvas(makePet(k, 0)));
       this.pets.set(`${k}-1`, gridToCanvas(makePet(k, 1)));
@@ -4685,8 +4854,10 @@ export class SpriteCache {
       key === 'huskden' || key === 'ashwarcamp' ? `huskden-${frame % HUSKDEN_FRAMES}` :
       key === 'drownedruins' ? 'mirehut' :
       key === 'outpost' ? 'furnisher' :
-      // waystations + barrow-crypt reuse the Ash Obelisk monolith art
-      key === 'obelisk' || key === 'waystation' || key === 'barrowcrypt'
+      // the Waystation always reads as an ACTIVE gateway (frames 1-3 pulse)
+      key === 'waystation' ? `waystation-${1 + (frame % 3)}` :
+      // barrow-crypt reuses the Ash Obelisk monolith art (placeholder)
+      key === 'obelisk' || key === 'barrowcrypt'
         ? `obelisk-${frame % OBELISK_FRAMES}` : key;
     const cv = this.buildings.get(fkey);
     if (!cv) return;
@@ -4871,12 +5042,13 @@ export class SpriteCache {
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
     const lookKey =
-      key === 'waystation' || key === 'barrowcrypt' ? 'obelisk' :
+      key === 'barrowcrypt' ? 'obelisk' :
       key === 'ashwarcamp' ? 'huskden' :
       key === 'drownedruins' ? 'mirehut' :
       key === 'outpost' ? 'furnisher' : key;
     const cv = this.buildings.get(
-      lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' ? `${lookKey}-0` : lookKey,
+      lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' || lookKey === 'waystation'
+        ? `${lookKey}-0` : lookKey,
     );
     return cv ? cv.height : 0;
   }
