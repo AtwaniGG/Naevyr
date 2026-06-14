@@ -1372,7 +1372,6 @@ function RightColumn() {
         height: "calc((100dvh - 2 * var(--hud-edge)) / var(--hud-scale))",
         transform: "scale(var(--hud-scale))",
         transformOrigin: "top right",
-        justifyContent: "space-between",
         gap: 10,
         pointerEvents: "none",
       }}
@@ -2776,7 +2775,7 @@ function ActivityPanel() {
       style={{
         flexGrow: 1,
         flexShrink: 1,
-        minHeight: 170,
+        minHeight: 220,
         display: "flex",
         flexDirection: "column",
       }}
