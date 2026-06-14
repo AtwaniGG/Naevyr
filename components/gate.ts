@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getGateWallet, setGateWallet, setGateProof, type GateProof } from "@/game/state/persistence";
+import { getGateWallet, getGateProof, setGateWallet, setGateProof, type GateProof } from "@/game/state/persistence";
 import { gateMessage } from "@/game/types";
 import { viewport } from "@/game/state/viewport";
 
@@ -25,7 +25,8 @@ export interface GateInfo {
   balance: number | null;
   ok: boolean;
   online: number;
-  /** warded doors hand the wallet a nonce to sign (gate > 0 + address only) */
+  /** the door hands any connected wallet a nonce to sign (ownership proof →
+   *  auto-link on join); a warded gate also enforces the balance */
   nonce?: string;
   /** verdict on a stored proof passed back via gateUrl(addr, proof) */
   proofOk?: boolean;
@@ -146,6 +147,15 @@ export function useGate() {
       setWallet(address);
       setBalance(g.balance);
       setGateWallet(address);
+      // sign an ownership proof ONCE at connect (even on an open gate) so the
+      // wallet auto-links on join — no separate in-game link step. Reuse a
+      // stored proof for this address if it's still valid.
+      if (g.nonce) {
+        const stored = getGateProof();
+        if (!stored || stored.address !== address) {
+          await signGateProof(address, g.nonce).catch(() => null);
+        }
+      }
       return g;
     } catch {
       return null;

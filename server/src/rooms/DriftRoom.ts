@@ -2164,18 +2164,23 @@ export class DriftRoom extends Room<DriftRoomState> {
     // its row can never bind a wallet or bleed into a Realm account.
     const guest = options?.guest === true;
     const gate = gateTokens();
+    const address = typeof options?.address === "string" ? options.address.trim() : "";
+    const nonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
+    const sig = typeof options?.gateSig === "string" ? options.gateSig : "";
     let gateAddress = "";
     if (gate > 0 && !guest) {
-      const address = typeof options?.address === "string" ? options.address.trim() : "";
-      const nonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
-      const sig = typeof options?.gateSig === "string" ? options.gateSig : "";
+      // gate locked: a valid ownership proof AND sufficient balance are REQUIRED
       if (!address || !nonce || !sig) return false;
       if (!verifyGateProof(address, nonce, sig)) return false;
       if ((await getTokenBalance(address)) < gate) return false;
-      // the gate proof IS a wallet-ownership signature (same ed25519 rail as the
-      // in-game link) — carry the proven address through so onJoin can auto-link it
+      gateAddress = address;
+    } else if (!guest && address && nonce && sig && verifyGateProof(address, nonce, sig)) {
+      // gate open: a wallet is optional, but if one is connected + proven at the
+      // door, auto-link it so the player never has to link again in-game
       gateAddress = address;
     }
+    // the gate proof IS a wallet-ownership signature (same ed25519 rail as the
+    // in-game link) — carry the proven address through so onJoin can auto-link it
     const row = await loadOrCreatePlayer(token);
     if (guest) return Object.assign(row, { guest: true });
     return gateAddress ? Object.assign(row, { gateAddress }) : row;
