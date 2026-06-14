@@ -1229,8 +1229,19 @@ function PassDock() {
               </div>
               <XPBar skill="Season XP" level={earned} value={xpInTier} max={1000} color="var(--drift-corrupt)" />
 
-              {/* premium unlock */}
-              {!bp.premium && (
+              {/* premium unlock — or the owned badge once it's been bought */}
+              {bp.premium ? (
+                <div
+                  style={{
+                    marginTop: 8, padding: "6px 10px", textAlign: "center",
+                    border: "1px solid var(--drift-gold)", background: "rgba(231, 200, 115, 0.10)",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    font: "700 11px/1 var(--font-ui)", color: "var(--drift-gold)", letterSpacing: "0.04em",
+                  }}
+                >
+                  <Icon name="pass" size={14} /> PREMIUM UNLOCKED
+                </div>
+              ) : (
                 <div style={{ marginTop: 8 }}>
                   {wallet && holder ? (
                     <Button size="sm" variant="gold" style={{ width: "100%" }}

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Naevyr authoritative game server (Colyseus)",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=.env.local src/index.ts",
     "start": "tsx src/index.ts"
   },
   "dependencies": {

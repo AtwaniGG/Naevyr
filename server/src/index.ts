@@ -34,11 +34,13 @@ async function handleGate(address: string | null, nonce: string | null, sig: str
     balance,
     ok: gate === 0 || (balance ?? 0) >= gate,
     online,
-    // ownership proof: a warded door hands the wallet a nonce to sign; a
-    // stored proof can be re-checked here so the landing knows whether the
-    // wallet must sign again (e.g. after a server restart rotates the secret)
-    ...(gate > 0 && address ? { nonce: issueGateNonce(address) } : {}),
-    ...(gate > 0 && address && nonce && sig
+    // ownership proof: any connected wallet gets a nonce to sign, even on an
+    // OPEN gate — signing once at the door auto-links the wallet on join (no
+    // separate in-game link). A warded gate additionally requires the balance.
+    // A stored proof can be re-checked here so the landing knows whether the
+    // wallet must sign again (e.g. after a server restart rotates the secret).
+    ...(address ? { nonce: issueGateNonce(address) } : {}),
+    ...(address && nonce && sig
       ? { proofOk: verifyGateProof(address, nonce, sig) }
       : {}),
   };
