@@ -6822,6 +6822,16 @@ export class SpriteCache {
     ctx.drawImage(cv, sx - 32 * scale, sy - 32 * scale, 64 * scale, 64 * scale);
   }
 
+  /** Blood-Moon aura ring (96×48, 3f), centered on a buffed mob's ground point */
+  drawBloodAura(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `aura-${frame % 3}`;
+    let cv = this.events.get(k);
+    if (!cv) { cv = gridToCanvas(drawBloodAura(frame % 3)); this.events.set(k, cv); }
+    ctx.drawImage(cv, sx - 48 * z, sy - 24 * z, 96 * z, 48 * z);
+  }
+
   /** an open-air keeper NPC (32×40, idle 2f), bottom-center anchored on its tile */
   drawKeeperNpc(ctx: CanvasRenderingContext2D, kind: KeeperKind, facing: IsoFacing, mirrored: boolean, frame: number, sx: number, sy: number, z: number) {
     if (!this.ready) return;

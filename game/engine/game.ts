@@ -4468,6 +4468,11 @@ export class Game {
       return;
     }
 
+    // Blood Moon: a corruption aura ring pulses under every (buffed) mob
+    if (this.bloodMoon) {
+      spriteCache.drawBloodAura(ctx, Math.floor(now / 220) % 3, s.x, s.y, z);
+    }
+
     // shadow
     ctx.fillStyle = "rgba(0,0,0,0.4)";
     ctx.beginPath();
