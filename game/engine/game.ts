@@ -139,7 +139,7 @@ export class Game {
   /** screen positions of visible corrupt tiles, refreshed each ground pass */
   private corruptGlows: { sx: number; sy: number }[] = [];
   /** transient mob-ability FX (ranged bolts, AoE shockwaves, summon flashes) */
-  private mobFx: { fx: string; x: number; y: number; tx: number; ty: number; r: number; t: number }[] = [];
+  private mobFx: { fx: string; x: number; y: number; tx: number; ty: number; r: number; t: number; kind?: string }[] = [];
 
   // ---- multiplayer (null = offline, local sim) ----
   private net: NetClient | null = null;
@@ -816,9 +816,13 @@ export class Game {
     net.onMessage<{ fx: string; x: number; y: number; tx?: number; ty?: number; r?: number }>(
       "mobFx",
       (m) => {
+        // resolve the firing mob's kind so a bolt reads as bog-spit vs drift-bolt
+        const src = this.combat.mobs.find(
+          (mb) => Math.max(Math.abs(mb.px - m.x), Math.abs(mb.py - m.y)) <= 1.2,
+        );
         this.mobFx.push({
           fx: m.fx, x: m.x, y: m.y, tx: m.tx ?? m.x, ty: m.ty ?? m.y, r: m.r ?? 1,
-          t: performance.now(),
+          t: performance.now(), kind: src?.kind,
         });
         if (this.mobFx.length > 60) this.mobFx.shift();
         if (m.fx === "shock") { this.shakeUntil = performance.now() + 180; this.shakeMag = 3; }
@@ -3845,33 +3849,32 @@ export class Game {
     if (!this.mobFx.length) return;
     const now = performance.now();
     const z = this.camera.zoom;
-    this.mobFx = this.mobFx.filter((f) => now - f.t < (f.fx === "bolt" ? 320 : 420));
+    this.mobFx = this.mobFx.filter((f) => now - f.t < (f.fx === "bolt" ? 520 : f.fx === "shock" ? 420 : 420));
     for (const f of this.mobFx) {
       const age = now - f.t;
       if (f.fx === "bolt") {
+        // a flying projectile: Bogwretch spits (3f travel → splat), others bolt
         const k = Math.min(1, age / 300);
         const gx = f.x + (f.tx - f.x) * k;
         const gy = f.y + (f.ty - f.y) * k;
         const s = this.tileScreen(gx, gy);
-        ctx.save();
-        ctx.globalAlpha = 1 - k * 0.4;
-        ctx.fillStyle = "#a855f7";
-        ctx.beginPath();
-        ctx.arc(s.x, s.y - 12 * z, 3.2 * z, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        const tf = Math.floor(age / 90);
+        if (f.kind === "bogwretch") {
+          if (k >= 1) {
+            const st = this.tileScreen(f.tx, f.ty);
+            spriteCache.drawSpit(ctx, Math.floor((age - 300) / 90), true, st.x, st.y - 8 * z, z);
+          } else {
+            spriteCache.drawSpit(ctx, tf, false, s.x, s.y - 12 * z, z);
+          }
+        } else if (k < 1) {
+          const so = this.tileScreen(f.x, f.y), stg = this.tileScreen(f.tx, f.ty);
+          const ang = Math.atan2(stg.y - so.y, stg.x - so.x);
+          spriteCache.drawBolt(ctx, tf, s.x, s.y - 12 * z, z, ang);
+        }
       } else if (f.fx === "shock") {
-        const k = Math.min(1, age / 400);
         const s = this.tileScreen(f.x, f.y);
-        ctx.save();
-        ctx.globalAlpha = 1 - k;
-        ctx.strokeStyle = "#ef7d3a";
-        ctx.lineWidth = 2.5 * z;
-        const rr = (8 + k * f.r * 26) * z;
-        ctx.beginPath();
-        ctx.ellipse(s.x, s.y, rr, rr * 0.5, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+        const fr = Math.min(3, Math.floor(age / 105));
+        spriteCache.drawShockwave(ctx, fr, s.x, s.y, z);
       } else {
         // summon flash
         const k = Math.min(1, age / 400);

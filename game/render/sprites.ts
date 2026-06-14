@@ -3376,6 +3376,80 @@ export function drawBloodSkySwatch(): Grid {
   return g;
 }
 
+// ── Frontier Expansion: mob projectiles + ability FX (ported from _gen/mobfx.js) ──
+// Frame-strip sprites (no facings): drawX(f) -> grid. Projectiles center-anchored.
+
+// bog_spit (12×12): a drift-tinted bile glob. `splat` 0 = travel frame `f`;
+// splat ≥ 1 = a spreading-puddle frame (the number is the dither seed; the
+// export's two splat frames use seeds 1 and 2).
+export function drawBogSpit(f: number, splat: number): Grid {
+  const g = makeGrid(12, 12);
+  const wa = RAMP.water, gr = RAMP.grass, dr = RAMP.drift;
+  if (!splat) {
+    const cx = 7, cy = 6;
+    ell(g, cx, cy, 3, 2.6, (x, y, d, dx, dy) => {
+      let c = wa[1]; if (d > 0.7) c = wa[3];
+      if (dx + dy < -0.3) c = (f % 2 ? gr[0] : wa[0]);
+      P(g, x, y, c);
+    });
+    P(g, cx, cy, dr[1]);
+    P(g, cx + (f === 1 ? 1 : -1), cy - 1, dr[0]);
+    const tr: [number, number][] = [[-4, 1], [-3, 0], [-5, 2]];
+    tr.forEach(([ox, oy], i) => { if (i <= f) P(g, cx + ox, cy + oy, i ? wa[3] : wa[2]); });
+    P(g, cx - 6, cy + 1, dr[3]);
+    outline(g, RAMP.void);
+  } else {
+    const cy = 9;
+    for (let x = 2; x <= 10; x++) { if (hash2(x, splat, 200) < 0.85) P(g, x, cy, wa[2]); if (hash2(x, splat, 201) < 0.5) P(g, x, cy + 1, wa[3]); }
+    P(g, 5, cy, dr[2]); P(g, 7, cy, dr[2]);
+    if (splat === 0) { P(g, 3, cy - 2, wa[1]); P(g, 9, cy - 2, wa[1]); P(g, 6, cy - 3, dr[1]); }
+    else { for (let x = 1; x <= 11; x++) if (hash2(x, 9, 202) < 0.4) P(g, x, cy + 1, wa[3]); }
+    outline(g, RAMP.void);
+  }
+  return g;
+}
+
+// drift_bolt (10×10, 3f): a bright corrupted dart pointing right (engine rotates)
+export function drawDriftBolt(f: number): Grid {
+  const g = makeGrid(10, 10);
+  const dr = RAMP.drift; const cx = 5, cy = 5;
+  for (let x = cx - 3; x <= cx + 3; x++) {
+    const t = (x - (cx - 3)) / 6;
+    const hh = Math.round(t * 2.2);
+    for (let y = cy - hh; y <= cy + hh; y++) {
+      let c = dr[2]; if (t > 0.6) c = dr[1]; if (t > 0.85) c = dr[0]; if (Math.abs(y - cy) >= hh && hh > 0) c = dr[3];
+      P(g, x, y, c);
+    }
+  }
+  P(g, cx + 3, cy, dr[0]);
+  const sp: [number, number][] = [[-4, 0], [-3, -1], [-3, 1], [-5, 0]];
+  sp.forEach(([ox, oy], i) => { if ((i + f) % 2 === 0) P(g, cx + ox, cy + oy, dr[3]); });
+  if (f === 1) { P(g, cx, cy - 3, dr[0]); P(g, cx + 1, cy + 3, dr[1]); }
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ash_shockwave (48×24, 4f): expanding ember ring on the ground plane (centered)
+export function drawAshShockwave(f: number): Grid {
+  const g = makeGrid(48, 24);
+  const em = RAMP.ember, gd = RAMP.gold, dt = RAMP.dirt;
+  const cx = 24, cy = 12;
+  const rx = [6, 14, 21, 23][f], ry = rx / 2;
+  for (let a = 0; a < 360; a += 4) {
+    const rad = a * Math.PI / 180;
+    const x = Math.round(cx + Math.cos(rad) * rx), y = Math.round(cy + Math.sin(rad) * ry);
+    if ((x + y + f) % 2 === 0) continue;
+    let c = f < 2 ? em[0] : em[1];
+    if (f >= 2 && hash2(x, y, 210) < 0.4) c = em[3];
+    P(g, x, y, c);
+    const ix = Math.round(cx + Math.cos(rad) * (rx - 1.5)), iy = Math.round(cy + Math.sin(rad) * (ry - 0.8));
+    if ((ix + iy) % 2 === 0) P(g, ix, iy, f === 0 ? gd[0] : em[2]);
+  }
+  if (f <= 1) for (let i = 0; i < 10; i++) { const t = hash2(i, f, 211) * Math.PI * 2, r = hash2(i, f, 212) * rx * 0.7; P(g, Math.round(cx + Math.cos(t) * r), Math.round(cy + Math.sin(t) * r * 0.5), hash2(i, f, 213) < 0.5 ? em[1] : dt[2]); }
+  if (f === 3) for (let x = cx - 3; x <= cx + 3; x++) P(g, x, cy, dt[3]);
+  return g;  // ground FX: no silhouette outline
+}
+
 // (exported for the headless smoke test; frame matters for shrine/den/obelisk)
 export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
   switch (key) {
@@ -6612,6 +6686,41 @@ export class SpriteCache {
     let cv = this.events.get(k);
     if (!cv) { cv = gridToCanvas(drawBloodMoon(frame % 2)); this.events.set(k, cv); }
     ctx.drawImage(cv, sx - 32 * scale, sy - 32 * scale, 64 * scale, 64 * scale);
+  }
+
+  /** Bogwretch spit glob (12×12), centered. travel frame `f` (splat=false) or a
+   *  spreading puddle (splat=true, `f` selects the seed 1/2) */
+  drawSpit(ctx: CanvasRenderingContext2D, f: number, splat: boolean, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = splat ? `spit-s${f % 2}` : `spit-t${f % 3}`;
+    let cv = this.events.get(k);
+    if (!cv) { cv = gridToCanvas(splat ? drawBogSpit(0, (f % 2) + 1) : drawBogSpit(f % 3, 0)); this.events.set(k, cv); }
+    ctx.drawImage(cv, sx - 6 * z, sy - 6 * z, 12 * z, 12 * z);
+  }
+
+  /** Drift Wisp bolt (10×10), centered + rotated toward `angle` (radians) */
+  drawBolt(ctx: CanvasRenderingContext2D, f: number, sx: number, sy: number, z: number, angle: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `bolt-${f % 3}`;
+    let cv = this.events.get(k);
+    if (!cv) { cv = gridToCanvas(drawDriftBolt(f % 3)); this.events.set(k, cv); }
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+    ctx.drawImage(cv, -5 * z, -5 * z, 10 * z, 10 * z);
+    ctx.restore();
+  }
+
+  /** Ash Brute slam shockwave (48×24, 4f), centered ground ring */
+  drawShockwave(ctx: CanvasRenderingContext2D, f: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    ctx.imageSmoothingEnabled = false;
+    const k = `shock-${f % 4}`;
+    let cv = this.events.get(k);
+    if (!cv) { cv = gridToCanvas(drawAshShockwave(f % 4)); this.events.set(k, cv); }
+    ctx.drawImage(cv, sx - 24 * z, sy - 12 * z, 48 * z, 24 * z);
   }
 
   /** town building, bottom-center anchored on its south tile (frame: shrine
