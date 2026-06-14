@@ -8,7 +8,9 @@ import { ResourceKind, ResourceNode, TileType } from "../types";
 export type BuildingKey =
   | "dyeworks" | "vault" | "wheel" | "lantern"
   | "furnisher" | "menagerie" | "shrine" | "pit" | "mine"
-  | "huskden" | "obelisk" | "mirehut" | "waystation";
+  | "huskden" | "obelisk" | "mirehut" | "waystation"
+  // Phase C wild camps (mini-dungeon sites in the frontier)
+  | "drownedruins" | "barrowcrypt" | "ashwarcamp";
 
 export interface TownBuilding {
   key: BuildingKey;
@@ -87,8 +89,12 @@ export const WILD_STRUCTURES: TownBuilding[] = [
   // the Ashen Flats (NW): the war quadrant
   wildAt("huskden", "The Husk Den",       0.20,  0.20),
   wildAt("obelisk", "The Ash Obelisk",    0.375, 0.125),
+  wildAt("ashwarcamp", "The Ashen Warcamp", 0.08, 0.30),
   // Hollowmere Reach (SW): the witch's marsh
   wildAt("mirehut", "The Mirewife's Hut", 0.125, 0.60),
+  // Phase C frontier camps in the emptier quadrants
+  wildAt("drownedruins", "The Drowned Ruins", 0.72, 0.12), // Palewater (NE)
+  wildAt("barrowcrypt", "The Barrow-Crypt",   0.84, 0.70), // Bonefields (SE)
 ];
 
 // ─── Waystations: the fast-travel network (Phase B) ──────────────────────────

@@ -36,6 +36,7 @@ import {
   spriteCache, hash2,
   TileType, BeastKind, BeastAnim, DoodadKind, EquipVisual, LookVisual,
   DyeKey, EyeKey, PRESTIGE_AURAS, PrestigeAuraKey,
+  beastSpriteFor, isBossKind,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
 import {
@@ -136,6 +137,8 @@ export class Game {
 
   /** screen positions of visible corrupt tiles, refreshed each ground pass */
   private corruptGlows: { sx: number; sy: number }[] = [];
+  /** transient mob-ability FX (ranged bolts, AoE shockwaves, summon flashes) */
+  private mobFx: { fx: string; x: number; y: number; tx: number; ty: number; r: number; t: number }[] = [];
 
   // ---- multiplayer (null = offline, local sim) ----
   private net: NetClient | null = null;
@@ -803,6 +806,19 @@ export class Game {
     net.onMessage<{ nodeId: number; totalMs: number }>("gatherStart", (m) => {
       this.gatherVis = { nodeId: m.nodeId, start: performance.now(), total: m.totalMs };
     });
+    // Phase C: transient combat FX from the new mob behaviors (ranged bolts,
+    // AoE shockwaves, summon flashes) — cosmetic; the damage rode mobHit
+    net.onMessage<{ fx: string; x: number; y: number; tx?: number; ty?: number; r?: number }>(
+      "mobFx",
+      (m) => {
+        this.mobFx.push({
+          fx: m.fx, x: m.x, y: m.y, tx: m.tx ?? m.x, ty: m.ty ?? m.y, r: m.r ?? 1,
+          t: performance.now(),
+        });
+        if (this.mobFx.length > 60) this.mobFx.shift();
+        if (m.fx === "shock") { this.shakeUntil = performance.now() + 180; this.shakeMag = 3; }
+      },
+    );
     net.onMessage<{ kind: string }>("relocate", (m) =>
       useGame.getState().pushLog(`A ${m.kind} re-forms somewhere in the Drift…`, "#7c6f93"),
     );
@@ -2362,7 +2378,7 @@ export class Game {
       players,
       mobs: this.combat.mobs
         .filter((m) => m.state !== "dead")
-        .map((m) => ({ x: m.px, y: m.py, boss: m.kind === "colossus" })),
+        .map((m) => ({ x: m.px, y: m.py, boss: isBossKind(m.kind) })),
       tomb: this.tomb ? { x: this.tomb.x, y: this.tomb.y } : null,
       claims: (() => {
         const out: { x: number; y: number; mine: boolean }[] = [];
@@ -3251,6 +3267,7 @@ export class Game {
     this.drawClaims(ctx);
     this.drawClickMarker(ctx);
     this.drawEntities(ctx);
+    this.drawMobFx(ctx);
     this.drawJuice(ctx);
     this.drawAtmosphere(ctx);
     this.drawAmbientFx(ctx);
@@ -3720,6 +3737,54 @@ export class Game {
     ctx.ellipse(s.x, s.y, r, r * 0.5, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** Phase C combat FX: ranged bolts streak to their target, AoE shockwaves
+   *  ring outward, summon flashes pop. All time-aged and self-pruning. */
+  private drawMobFx(ctx: CanvasRenderingContext2D) {
+    if (!this.mobFx.length) return;
+    const now = performance.now();
+    const z = this.camera.zoom;
+    this.mobFx = this.mobFx.filter((f) => now - f.t < (f.fx === "bolt" ? 320 : 420));
+    for (const f of this.mobFx) {
+      const age = now - f.t;
+      if (f.fx === "bolt") {
+        const k = Math.min(1, age / 300);
+        const gx = f.x + (f.tx - f.x) * k;
+        const gy = f.y + (f.ty - f.y) * k;
+        const s = this.tileScreen(gx, gy);
+        ctx.save();
+        ctx.globalAlpha = 1 - k * 0.4;
+        ctx.fillStyle = "#a855f7";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y - 12 * z, 3.2 * z, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (f.fx === "shock") {
+        const k = Math.min(1, age / 400);
+        const s = this.tileScreen(f.x, f.y);
+        ctx.save();
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = "#ef7d3a";
+        ctx.lineWidth = 2.5 * z;
+        const rr = (8 + k * f.r * 26) * z;
+        ctx.beginPath();
+        ctx.ellipse(s.x, s.y, rr, rr * 0.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // summon flash
+        const k = Math.min(1, age / 400);
+        const s = this.tileScreen(f.x, f.y);
+        ctx.save();
+        ctx.globalAlpha = 1 - k;
+        ctx.fillStyle = "#6f9f6f";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y - 10 * z, (4 + k * 10) * z, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
   }
 
   private drawEntities(ctx: CanvasRenderingContext2D) {
@@ -4226,7 +4291,7 @@ export class Game {
     const s = this.camera.worldToScreen(iso.x, iso.y);
     const z = this.camera.zoom;
     const now = performance.now();
-    const kind: BeastKind = mob.kind;
+    const kind: BeastKind = beastSpriteFor(mob.kind);
 
     // death animation (no shadow/bars — the beast is crumbling into motes)
     if (mob.state === "dead") {

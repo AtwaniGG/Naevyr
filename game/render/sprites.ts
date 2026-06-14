@@ -1008,6 +1008,22 @@ export function drawAvatarPortrait(kind: AvatarKind, f = 0, look?: AvatarLook): 
 export type BeastKind = 'husk' | 'stalker' | 'colossus' | 'raider';
 export type BeastAnim = 'idle' | 'move' | 'attack' | 'death';
 
+/** Phase C: the server's new species + mini-bosses are placeholder-rendered with
+ *  existing beast art until the expansion sprites are ported. Maps any server
+ *  mob `kind` string to a real BeastKind the cache can draw. */
+const BEAST_PLACEHOLDER: Record<string, BeastKind> = {
+  husk: 'husk', stalker: 'stalker', colossus: 'colossus', raider: 'raider',
+  bogwretch: 'stalker', wisp: 'stalker', wight: 'husk', bonehusk: 'husk', brute: 'colossus',
+  drownedking: 'colossus', barrowlord: 'colossus', ashwarlord: 'colossus',
+};
+export function beastSpriteFor(kind: string): BeastKind {
+  return BEAST_PLACEHOLDER[kind] ?? 'husk';
+}
+/** mini-bosses + the Colossus read as bosses (minimap marker, bigger HP bar) */
+export function isBossKind(kind: string): boolean {
+  return kind === 'colossus' || kind === 'drownedking' || kind === 'barrowlord' || kind === 'ashwarlord';
+}
+
 function ell(
   g: Grid, cx: number, cy: number, rx: number, ry: number,
   fn: (x: number, y: number, d: number, dx: number, dy: number) => void,
@@ -1396,7 +1412,8 @@ function drawRaider(facing: IsoFacing, anim: string, f: number): Grid {
 export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
   | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine'
-  | 'huskden' | 'obelisk' | 'mirehut' | 'waystation';
+  | 'huskden' | 'obelisk' | 'mirehut' | 'waystation'
+  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
 
@@ -2476,8 +2493,11 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'mine':      return drawMine();
     case 'huskden':   return drawHuskDen(frame % HUSKDEN_FRAMES);
     case 'obelisk':   return drawAshObelisk(frame % OBELISK_FRAMES);
-    // waystations reuse the obelisk monolith until the expansion art is ported
+    // waystations + Phase C camps reuse existing art until the expansion is ported
     case 'waystation': return drawAshObelisk(frame % OBELISK_FRAMES);
+    case 'barrowcrypt': return drawAshObelisk(frame % OBELISK_FRAMES);
+    case 'ashwarcamp': return drawHuskDen(frame % HUSKDEN_FRAMES);
+    case 'drownedruins': return drawMirewifeHut();
     case 'mirehut':   return drawMirewifeHut();
   }
 }
@@ -4658,11 +4678,14 @@ export class SpriteCache {
   ) {
     if (!this.ready) return;
     ctx.imageSmoothingEnabled = false;
+    // Phase C camps reuse existing structure art until the expansion is ported
     const fkey =
       key === 'shrine'  ? `shrine-${frame % SHRINE_FRAMES}` :
-      key === 'huskden' ? `huskden-${frame % HUSKDEN_FRAMES}` :
-      // waystations reuse the Ash Obelisk monolith art (rune-pulse frames)
-      key === 'obelisk' || key === 'waystation' ? `obelisk-${frame % OBELISK_FRAMES}` : key;
+      key === 'huskden' || key === 'ashwarcamp' ? `huskden-${frame % HUSKDEN_FRAMES}` :
+      key === 'drownedruins' ? 'mirehut' :
+      // waystations + barrow-crypt reuse the Ash Obelisk monolith art
+      key === 'obelisk' || key === 'waystation' || key === 'barrowcrypt'
+        ? `obelisk-${frame % OBELISK_FRAMES}` : key;
     const cv = this.buildings.get(fkey);
     if (!cv) return;
     // pit is flat ground decor; houses stand on the south edge of their tile
@@ -4845,7 +4868,10 @@ export class SpriteCache {
 
   /** sprite height of a building (for floating labels) */
   buildingHeight(key: BuildingSpriteKey): number {
-    const lookKey = key === 'waystation' ? 'obelisk' : key;
+    const lookKey =
+      key === 'waystation' || key === 'barrowcrypt' ? 'obelisk' :
+      key === 'ashwarcamp' ? 'huskden' :
+      key === 'drownedruins' ? 'mirehut' : key;
     const cv = this.buildings.get(
       lookKey === 'shrine' || lookKey === 'huskden' || lookKey === 'obelisk' ? `${lookKey}-0` : lookKey,
     );

@@ -42,7 +42,7 @@ import {
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt, BuildingKey } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
@@ -193,7 +193,63 @@ const ENGAGE_TIMEOUT_MS = 6000;   // no swings for this long → the beast loses
 const BOSS_PCTS = (process.env.BOSS_PCTS ?? "10,25,40,60,80")
   .split(",").map(Number).filter((n) => Number.isFinite(n));
 
-type MobKind = "husk" | "stalker" | "raider" | "colossus";
+type MobKind =
+  | "husk" | "stalker" | "raider" | "colossus"
+  // Phase C: the frontier menagerie + camp mini-bosses
+  | "bogwretch" | "wight" | "brute" | "wisp" | "bonehusk"
+  | "drownedking" | "barrowlord" | "ashwarlord";
+
+type MobArchetype = "melee" | "ranged" | "summoner" | "aoe";
+
+/** behavior + stat profile per species (server-authoritative). melee mobs use
+ *  the proven engage/retaliate loop; the rest layer an autonomous ability on
+ *  top, fired on a cooldown and clamped/capped server-side. `flying` mobs path
+ *  over water and obstacles. `boss` mobs are Colossus-scale shared kills. */
+interface MobSpec {
+  archetype: MobArchetype;
+  flying?: boolean;
+  /** ability/attack reach in tiles (ranged fire / aoe splash radius) */
+  range?: number;
+  /** aoe splash radius (tiles) around the mob when it strikes */
+  splash?: number;
+  /** ability cadence in ms (ranged fire, summon) */
+  abilityMs?: number;
+  /** summoner: max live adds it keeps around */
+  summonCap?: number;
+  hpMul?: number;
+  dmgMul?: number;
+  boss?: boolean;
+}
+const MOB_SPEC: Partial<Record<MobKind, MobSpec>> = {
+  bogwretch:  { archetype: "ranged", range: 5, abilityMs: 1900 },
+  wisp:       { archetype: "ranged", range: 5, abilityMs: 1700, flying: true, hpMul: 0.7 },
+  wight:      { archetype: "summoner", range: 6, abilityMs: 6500, summonCap: 3 },
+  brute:      { archetype: "aoe", splash: 2, hpMul: 1.6, dmgMul: 1.3 },
+  bonehusk:   { archetype: "melee", hpMul: 0.6 },
+  // camp mini-bosses (Colossus-scale; one signature behavior each)
+  drownedking:{ archetype: "aoe", splash: 2, boss: true },
+  barrowlord: { archetype: "summoner", range: 7, abilityMs: 5500, summonCap: 4, boss: true },
+  ashwarlord: { archetype: "aoe", splash: 3, boss: true, dmgMul: 1.2 },
+};
+
+/** a frontier camp: a guarding pack + a mini-boss, reseeding a while after the
+ *  last guardian falls (the Husk Den keeps its own bespoke path; these are the
+ *  Phase C additions). */
+interface CampSpec {
+  structure: BuildingKey;
+  pack: { kind: MobKind; count: number }[];
+  boss: MobKind;
+  level: number;
+  reseedMs: number;
+}
+const CAMPS: CampSpec[] = [
+  { structure: "ashwarcamp",  level: 5, reseedMs: DEN_RESEED_MS, boss: "ashwarlord",
+    pack: [{ kind: "brute", count: 2 }, { kind: "bogwretch", count: 2 }] },
+  { structure: "drownedruins", level: 4, reseedMs: DEN_RESEED_MS, boss: "drownedking",
+    pack: [{ kind: "bogwretch", count: 3 }, { kind: "wisp", count: 1 }] },
+  { structure: "barrowcrypt",  level: 6, reseedMs: DEN_RESEED_MS, boss: "barrowlord",
+    pack: [{ kind: "wight", count: 2 }] },
+];
 
 /** the Pit's duel ring is off-limits to wandering beasts — the arena is for the
  *  two fighters and the crowd, not stray husks blundering across the sand */
@@ -217,8 +273,10 @@ class ServerMob {
   /** true while actually stepping toward a wander target (drives the client
    *  walk anim; synced — guessing it from lerp residue made puppets flicker) */
   moving = false;
-  /** den elites stay dead until the den re-seeds */
+  /** den/camp elites stay dead until the camp re-seeds */
   persistDeath = false;
+  /** a summoner's conjured add: vanishes on death instead of respawning */
+  summoned = false;
   /** which event owns this mob (its deaths feed that event's quota) */
   eventTag: "ambush" | "night" | null = null;
   /** dead raiders/colossi leave the schema once their death anim has played */
@@ -231,6 +289,17 @@ class ServerMob {
   retaliateIn = MOB_ATTACK_MS;
   respawnIn = 0;
   speed = 1.4;
+  // Phase C behavior profile (from MOB_SPEC; melee/no-fly by default)
+  archetype: MobArchetype = "melee";
+  flying = false;
+  attackRange = 1;
+  splash = 0;
+  boss = false;
+  /** summoner: ids of the adds this mob currently keeps alive */
+  summonIds: number[] = [];
+  summonCap = 0;
+  abilityMs = 0;
+  abilityIn = 0;
   private tx: number;
   private ty: number;
   private idle = 0;
@@ -242,9 +311,21 @@ class ServerMob {
     this.py = this.ty = this.spawnY = gy;
     this.level = level;
     this.kind = kind ?? (level >= 3 ? "stalker" : "husk");
-    this.maxHp = this.hp = 14 + level * 4;
-    this.damage = 2 + level;
-    this.xp = 14 + level * 6;
+    const spec = MOB_SPEC[this.kind];
+    this.archetype = spec?.archetype ?? "melee";
+    this.flying = spec?.flying ?? false;
+    this.attackRange = spec?.range ?? 1;
+    this.splash = spec?.splash ?? 0;
+    this.boss = spec?.boss ?? false;
+    this.summonCap = spec?.summonCap ?? 0;
+    this.abilityMs = spec?.abilityMs ?? 0;
+    this.abilityIn = this.abilityMs;
+    const hpMul = spec?.hpMul ?? 1;
+    const dmgMul = spec?.dmgMul ?? 1;
+    const baseHp = this.boss ? 120 + level * 8 : 14 + level * 4;
+    this.maxHp = this.hp = Math.round(baseHp * hpMul);
+    this.damage = Math.round((2 + level) * dmgMul);
+    this.xp = this.boss ? 120 + level * 10 : 14 + level * 6;
   }
 
   get cell(): Cell {
@@ -254,8 +335,8 @@ class ServerMob {
   die() {
     this.state = "dead";
     this.engagedBy = null;
-    if (this.kind === "raider" || this.kind === "colossus") {
-      // event mobs stay slain; the corpse leaves once the death anim plays out
+    if (this.kind === "raider" || this.kind === "colossus" || this.summoned) {
+      // event mobs + conjured adds stay slain; the corpse leaves after the anim
       this.respawnIn = Number.POSITIVE_INFINITY;
       this.pruneAt = Date.now() + 2500;
     } else {
@@ -305,7 +386,9 @@ class ServerMob {
       const r = Math.random() * this.wanderRadius;
       const x = Math.round(this.spawnX + Math.cos(a) * r);
       const y = Math.round(this.spawnY + Math.sin(a) * r);
-      if (world.isWalkable(x, y) && !inPit(x, y)) {
+      // flyers drift over water and obstacles; everything else needs solid ground
+      const ok = this.flying ? world.inBounds(x, y) : world.isWalkable(x, y);
+      if (ok && !inPit(x, y)) {
         this.tx = x;
         this.ty = y;
         this.idle = 1 + Math.random() * 2;
@@ -477,6 +560,8 @@ export class DriftRoom extends Room<DriftRoomState> {
   private denIds: number[] = [];
   /** when the last den elite fell (0 = pack alive); reseeds after DEN_RESEED_MS */
   private denClearedAt = 0;
+  /** Phase C frontier camps: live guardian ids + clear time, keyed by structure */
+  private campState = new Map<string, { ids: number[]; clearedAt: number }>();
   /** corruption marks that still owe the realm a Colossus */
   private bossThresholds = [...BOSS_PCTS];
 
@@ -577,6 +662,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     // the shared beasts wake with the realm
     this.spawnAmbientMobs();
     this.spawnDenPack();
+    this.spawnCamps();
 
     // the Shrine's communal pot
     this.state.shrinePot = await loadShrinePot();
@@ -2061,9 +2147,17 @@ export class DriftRoom extends Room<DriftRoomState> {
       const loot = { gold: 0, shards: 0, hide: 0 };
       if (mob.kind === "raider") {
         loot.gold = 5 + ((Math.random() * 6) | 0);
+      } else if (mob.boss) {
+        // camp mini-bosses: a real haul (Colossus-class)
+        loot.gold = 40 + mob.level * 2;
+        loot.shards = 4 + ((Math.random() * 3) | 0);
+        loot.hide = 2;
       } else if (mob.kind === "colossus") {
         loot.gold = 50;
         loot.shards = 5;
+      } else if (mob.summoned) {
+        // conjured adds give little (so a summoner can't be farmed for shards)
+        loot.shards = Math.random() < 0.34 ? 1 : 0;
       } else {
         loot.shards = 1;
         loot.hide = Math.random() < 0.5 ? 1 : 0;
@@ -3000,7 +3094,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       const base = tier === 0 ? 1 : tier === 1 ? 3 : 4;
       const span = tier === 2 ? 4 : 3;
       const level = base + ((Math.random() * span) | 0);
-      this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level));
+      // the frontier breeds stranger things: a slice of the deep-ring beasts are
+      // the new species (ranged spitters, flyers, slammers), not plain husks
+      let kind: MobKind | undefined;
+      if (tier === 2 && Math.random() < 0.5) {
+        kind = (["bogwretch", "wisp", "brute"] as MobKind[])[(Math.random() * 3) | 0];
+      } else if (tier === 1 && Math.random() < 0.25) {
+        kind = "bogwretch";
+      }
+      this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level, kind));
       placed++;
     }
   }
@@ -3028,15 +3130,47 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
+  /** spawn (or re-seed) one frontier camp: its guarding pack + the mini-boss */
+  private spawnCamp(spec: CampSpec) {
+    const s = WILD_STRUCTURES.find((w) => w.key === spec.structure);
+    if (!s) return;
+    const st = this.campState.get(spec.structure) ?? { ids: [], clearedAt: 0 };
+    this.mobSims = this.mobSims.filter((m) => !st.ids.includes(m.id));
+    for (const id of st.ids) this.state.mobs.delete(String(id));
+    st.ids = [];
+    st.clearedAt = 0;
+    const place = (kind: MobKind, level: number, boss = false) => {
+      for (let g = 0; g < 80; g++) {
+        const dx = ((Math.random() * 9) | 0) - 4;
+        const dy = ((Math.random() * 9) | 0) - 4;
+        if (boss ? Math.max(Math.abs(dx), Math.abs(dy)) > 2 : Math.max(Math.abs(dx), Math.abs(dy)) < 2) continue;
+        const cx = s.x + dx, cy = s.y + dy;
+        if (!this.world.isWalkable(cx, cy) || inPit(cx, cy)) continue;
+        const m = new ServerMob(this.nextMobId++, cx, cy, level, kind);
+        m.persistDeath = true; // guardians stay slain until the camp re-seeds
+        this.mobSims.push(m);
+        st.ids.push(m.id);
+        return;
+      }
+    };
+    for (const p of spec.pack) for (let i = 0; i < p.count; i++) place(p.kind, spec.level);
+    place(spec.boss, spec.level + 1, true);
+    this.campState.set(spec.structure, st);
+  }
+
+  private spawnCamps() { for (const c of CAMPS) this.spawnCamp(c); }
+
   /** all shared beasts fall with the old realm; fresh ones rise with the new */
   private resetMobs() {
     this.mobSims = [];
     this.denIds = [];
     this.denClearedAt = 0;
+    this.campState.clear();
     this.bossThresholds = [...BOSS_PCTS];
     this.state.mobs.clear();
     this.spawnAmbientMobs();
     this.spawnDenPack();
+    this.spawnCamps();
   }
 
   /** raider pack for an event (caravan ambush / Long Night), around a point */
@@ -3120,6 +3254,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   private stepMobs(dt: number) {
     const now = Date.now();
     for (const mob of this.mobSims) {
+      if (mob.abilityIn > 0) mob.abilityIn -= dt * 1000;
       // engagement upkeep: the engager must stay adjacent and keep swinging
       if (mob.state === "engaged") {
         const sim = mob.engagedBy ? this.sims.get(mob.engagedBy) : null;
@@ -3136,13 +3271,25 @@ export class DriftRoom extends Room<DriftRoomState> {
             mob.retaliateIn += MOB_ATTACK_MS;
             // raw damage; the client applies its ward reduction (gear is
             // client-trusted until server equipment lands)
-            sim.client.send("mobHit", {
-              id: mob.id,
-              dmg: mob.damage + ((Math.random() * 3) | 0),
-            });
+            const dmg = mob.damage + ((Math.random() * 3) | 0);
+            if (mob.archetype === "aoe" && mob.splash > 0) {
+              // the slam catches everyone in the splash radius, not just the engager
+              let hit = false;
+              this.sims.forEach((other) => {
+                if (chebyshev(this.cellOf(other), mob.cell) <= mob.splash) {
+                  other.client.send("mobHit", { id: mob.id, dmg });
+                  hit = true;
+                }
+              });
+              if (hit) this.broadcast("mobFx", { fx: "shock", x: mob.px, y: mob.py, r: mob.splash });
+            } else {
+              sim.client.send("mobHit", { id: mob.id, dmg });
+            }
           }
         }
       }
+      // autonomous abilities (ranged fire, summoning) on top of the melee loop
+      this.mobAbility(mob);
       mob.update(dt, this.world);
     }
 
@@ -3153,6 +3300,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       );
       if (!alive && this.denClearedAt === 0) this.denClearedAt = now;
       if (!alive && now - this.denClearedAt > DEN_RESEED_MS) this.spawnDenPack();
+    }
+
+    // the frontier camps re-seed the same way once their guardians are cleared
+    for (const spec of CAMPS) {
+      const st = this.campState.get(spec.structure);
+      if (!st || !st.ids.length) continue;
+      const alive = this.mobSims.some((m) => st.ids.includes(m.id) && m.state !== "dead");
+      if (!alive && st.clearedAt === 0) st.clearedAt = now;
+      if (!alive && st.clearedAt && now - st.clearedAt > spec.reseedMs) this.spawnCamp(spec);
     }
 
     // fallen raiders/colossi leave the realm once their death anim has played
@@ -3571,6 +3727,45 @@ export class DriftRoom extends Room<DriftRoomState> {
       gridW: this.world.w,
       gridH: this.world.h,
     }).catch(() => {});
+  }
+
+  /** ranged fire + summoning: server-authoritative, clamped, fired on a cooldown.
+   *  Projectiles/shockwaves are transient broadcasts (mobFx), never schema. */
+  private mobAbility(mob: ServerMob) {
+    if (mob.state === "dead" || mob.abilityIn > 0) return;
+    if (mob.archetype === "ranged") {
+      let best: PlayerSim | null = null;
+      let bestD = mob.attackRange + 0.001;
+      this.sims.forEach((sim) => {
+        const d = Math.hypot(sim.px - mob.px, sim.py - mob.py);
+        if (d <= bestD) { bestD = d; best = sim; }
+      });
+      if (best) {
+        const target = best as PlayerSim;
+        mob.abilityIn = mob.abilityMs;
+        const dmg = mob.damage + ((Math.random() * 3) | 0);
+        target.client.send("mobHit", { id: mob.id, dmg });
+        this.broadcast("mobFx", { fx: "bolt", x: mob.px, y: mob.py, tx: target.px, ty: target.py });
+      }
+    } else if (mob.archetype === "summoner") {
+      let near = false;
+      this.sims.forEach((sim) => {
+        if (Math.hypot(sim.px - mob.px, sim.py - mob.py) <= mob.attackRange) near = true;
+      });
+      if (!near) return;
+      mob.summonIds = mob.summonIds.filter(
+        (id) => this.mobSims.some((m) => m.id === id && m.state !== "dead"),
+      );
+      if (mob.summonIds.length >= mob.summonCap) { mob.abilityIn = 1000; return; }
+      const cell = this.arrivalCell({ x: Math.round(mob.px), y: Math.round(mob.py), r: 0 });
+      if (!cell) { mob.abilityIn = 1000; return; }
+      const add = new ServerMob(this.nextMobId++, cell.x, cell.y, Math.max(1, mob.level - 2), "bonehusk");
+      add.summoned = true;
+      this.mobSims.push(add);
+      mob.summonIds.push(add.id);
+      mob.abilityIn = mob.abilityMs;
+      this.broadcast("mobFx", { fx: "summon", x: cell.x, y: cell.y });
+    }
   }
 
   /** the first walkable cell ringing a structure (waystation arrival point) */
