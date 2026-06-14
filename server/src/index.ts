@@ -100,7 +100,15 @@ async function main() {
     res.writeHead(404);
     res.end();
   });
-  const server = new Server({ transport: new WebSocketTransport({ server: http }) });
+  // Mobile wallets (Phantom's in-app browser, etc.) background the page — and
+  // throttle its WS timers — the moment the player switches over to sign a tx.
+  // The default ping (3s × 2 retries ≈ 6s) terminates them mid-signature, which
+  // dumped players to "wandering offline". Tolerate ~40s of silence so a sign +
+  // app-switch round-trip survives; genuine drops are caught by the client's
+  // auto-reconnect.
+  const server = new Server({
+    transport: new WebSocketTransport({ server: http, pingInterval: 8000, pingMaxRetries: 5 }),
+  });
   server.define("drift", DriftRoom);
   await server.listen(port);
   console.log(`Naevyr server listening on ws://localhost:${port}`);

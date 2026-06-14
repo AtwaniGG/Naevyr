@@ -106,6 +106,10 @@ export class Game {
   private tutorial: TutorialDirector | null = null;
   /** demo lane: join the shared world as a guest (no gate, economy locked) */
   private guest = false;
+  /** true while a reconnect loop is running (avoids stacking loops) + tags the
+   *  entry log so a recovered drop reads as "back", not a first arrival */
+  private reconnectInFlight = false;
+  private isReconnect = false;
 
   private raf = 0;
   private last = 0;
@@ -378,6 +382,22 @@ export class Game {
     );
     if (this.tutorial) this.tutorial.start();
     else void this.connect(); // the Threshold never joins the shared world
+
+    // mobile recovery: coming back to the tab (after switching to a wallet to
+    // sign) or regaining network kicks a reconnect if we'd fallen offline. Not
+    // for the Threshold (it never joins) or guests-vs-not — both reconnect.
+    if (!this.tutorial && typeof document !== "undefined") {
+      const wake = () => {
+        if (this.running && !this.net && !this.reconnectInFlight) void this.reconnectLoop();
+      };
+      const onVisible = () => { if (document.visibilityState === "visible") wake(); };
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("online", wake);
+      this.cleanupFns.push(() => {
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("online", wake);
+      });
+    }
   }
 
   // ---- Phase 5: Solana wallet link (devnet) -------------------------------------
@@ -673,8 +693,10 @@ export class Game {
 
   // ---- multiplayer ------------------------------------------------------------
 
-  /** Try to join the shared world; on failure the local sim keeps running. */
-  private async connect() {
+  /** Try to join the shared world; on failure the local sim keeps running.
+   *  Returns whether the join succeeded. `isReconnect` quiets the first-failure
+   *  log (the reconnect loop reports its own state) and re-frames the entry log. */
+  private async connect(isReconnect = false): Promise<boolean> {
     const url = process.env.NEXT_PUBLIC_GAME_SERVER ?? "ws://localhost:2567";
     // the gate proof (wallet + signed nonce from the door) rides along so
     // GATE_TOKENS servers can verify ownership, not just the claimed address.
@@ -687,13 +709,14 @@ export class Game {
       this.guest,
     );
     if (!net) {
-      useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
-      return;
+      if (!isReconnect) useGame.getState().pushLog("No shared world found. Wandering offline.", "#6f6781");
+      return false;
     }
     if (!this.running) {
       net.leave();
-      return;
+      return false;
     }
+    this.isReconnect = isReconnect;
     this.net = net;
     this.gatherVis = null;
     this.pendingNode = null;
@@ -1625,7 +1648,7 @@ export class Game {
       s.pushLog("The Drift deepens. A new season corrupts the land.", "#a855f7");
       this.applyNetTiles();
     });
-    net.onDrop(() => {
+    net.onDrop((code) => {
       if (this.net !== net || !this.running) return;
       this.net = null;
       this.remotes.clear();
@@ -1634,18 +1657,55 @@ export class Game {
       s.setPlayersOnline(1);
       s.setOnline(false);
       s.setClaimMode(false);
-      s.pushLog("Connection to the shared Drift lost. Wandering offline.", "#dc2626");
+      // code 1000 = a clean leave we (or the player) asked for — stay offline.
+      // anything else is an unexpected drop (mobile ping timeout, network blip):
+      // the player's progress lives server-side by token, so just rejoin.
+      if (code === 1000) {
+        s.pushLog("Connection to the shared Drift lost. Wandering offline.", "#dc2626");
+        return;
+      }
+      s.pushLog("Connection to the Drift wavered. Reconnecting…", "#e7c873");
+      void this.reconnectLoop();
     });
 
     store.setOnline(true);
     store.setGuest(this.guest);
-    if (this.guest) {
+    if (this.isReconnect) {
+      store.pushLog("Back in the shared Drift.", "#a855f7");
+    } else if (this.guest) {
       store.pushLog(
         "You wander as a guest. The Realm's markets, land, vault and chain stay locked.",
         "#a06bd0",
       );
     } else {
       store.pushLog("You step into the shared Drift.", "#a855f7");
+    }
+    return true;
+  }
+
+  /** an unexpected drop: rejoin with backoff. The server holds everything by
+   *  device token (position, gold, inventory, the gate-proven wallet, the pass),
+   *  so a fresh join restores the player; only a clean leave or engine teardown
+   *  stops the loop. */
+  private async reconnectLoop() {
+    if (this.reconnectInFlight) return;
+    this.reconnectInFlight = true;
+    const backoff = [1500, 3000, 5000, 8000, 12000, 15000];
+    try {
+      for (const delay of backoff) {
+        if (!this.running || this.net) return;
+        await new Promise((r) => setTimeout(r, delay));
+        if (!this.running || this.net) return;
+        if (await this.connect(true)) return; // connect() logs "Back in…"
+      }
+      if (this.running && !this.net) {
+        useGame.getState().pushLog(
+          "The shared Drift stays out of reach. Wandering offline — it'll reconnect when you return.",
+          "#dc2626",
+        );
+      }
+    } finally {
+      this.reconnectInFlight = false;
     }
   }
 

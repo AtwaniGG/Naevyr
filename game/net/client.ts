@@ -491,9 +491,12 @@ export class NetClient {
     this.room.onMessage(type, cb);
   }
 
-  onDrop(cb: () => void) {
-    this.room.onLeave(() => cb());
-    this.room.onError(() => cb());
+  /** the socket closed. `code` is the WS close code: 1000 = a clean, consented
+   *  leave (we called leave() / the player left) — do NOT reconnect; anything
+   *  else (ping timeout, network blip) is an unexpected drop worth retrying. */
+  onDrop(cb: (code: number) => void) {
+    this.room.onLeave((code: number) => cb(code));
+    this.room.onError(() => cb(4000)); // treat an error as an unexpected drop
   }
 
   leave() {
