@@ -181,7 +181,9 @@
 #nvr-road .meter .fill { height: 100%; width: 0%; background: repeating-linear-gradient(90deg, var(--pur2) 0 3px, var(--pur) 3px 6px); transition: width .15s linear; }
 
 /* ---------- HUD: hint ---------- */
-#nvr-road .hint { position: absolute; right: 26px; bottom: 24px; z-index: 20; font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+/* right:66 clears the global 40px sound toggle (fixed at right:16) so the hint
+   never sits under it */
+#nvr-road .hint { position: absolute; right: 66px; bottom: 24px; z-index: 20; font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 #nvr-road .hint .ar { color: var(--gold); animation: nvr-nudge 1.8s ease-in-out infinite; }
 @keyframes nvr-nudge { 0%, 100% { transform: translateX(0); opacity: .6; } 50% { transform: translateX(4px); opacity: 1; } }
 

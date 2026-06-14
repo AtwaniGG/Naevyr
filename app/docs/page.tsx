@@ -1009,19 +1009,19 @@ export default function DocsPage() {
             and the plan bends as wanderers walk it. You can walk this same road
             as a living trail at <Gold><a href="/roadmap" style={{ color: "inherit" }}>The Long Road</a></Gold>.
           </P>
-          <Sub>I · The Wider Realm (nearly here)</Sub>
-          <P>
-            The map breaks its bounds. A true frontier opens past the old edge,
-            and the Drift comes with it: new outposts and war camps, new beasts
-            and mini-bosses, Drift Rifts that tear the ground open, and the Blood
-            Moon that turns the night against you.
-          </P>
-          <Sub>II · The Drift Ledger (planned)</Sub>
+          <Sub>I · The Drift Ledger (nearly here)</Sub>
           <P>
             A season pass for those who keep walking. Four weeks to a season;
             marks earned by walking, gathering, fighting and surviving; tiers
             that pay cosmetics and coin; and a single relic struck at each
             season's end. Earned, never given.
+          </P>
+          <Sub>II · The Wider Realm (coming)</Sub>
+          <P>
+            The map breaks its bounds. A true frontier opens past the old edge,
+            and the Drift comes with it: new outposts and war camps, new beasts
+            and mini-bosses, Drift Rifts that tear the ground open, and the Blood
+            Moon that turns the night against you.
           </P>
           <Sub>III · Guild Wars (forming)</Sub>
           <P>

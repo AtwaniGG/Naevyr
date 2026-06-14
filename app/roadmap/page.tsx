@@ -24,18 +24,18 @@ type Mile = {
 
 const MILES: Mile[] = [
   {
-    n: "I", title: "The Wider Realm", status: "Nearly here", near: true,
-    tag: "Carved, and nearly walked.",
-    lede: "The map breaks its bounds. A true frontier opens past the old edge, and the Drift comes with it.",
-    items: ["New outposts and war camps", "New beasts, new mini-bosses", "Drift Rifts tear the ground open", "The Blood Moon turns the night against you"],
-    foot: "The door opens first.",
-  },
-  {
-    n: "II", title: "The Drift Ledger", status: "Planned",
+    n: "I", title: "The Drift Ledger", status: "Nearly here", near: true,
     tag: "A pass for those who keep walking.",
     lede: "Four weeks to a season. Marks are earned by walking, gathering, fighting, surviving.",
     items: ["Four-week seasons", "Tiers pay cosmetics and coin", "Each season strikes one relic"],
     foot: "Earned, never given.",
+  },
+  {
+    n: "II", title: "The Wider Realm", status: "Coming",
+    tag: "Carved, and nearly walked.",
+    lede: "The map breaks its bounds. A true frontier opens past the old edge, and the Drift comes with it.",
+    items: ["New outposts and war camps", "New beasts, new mini-bosses", "Drift Rifts tear the ground open", "The Blood Moon turns the night against you"],
+    foot: "The frontier opens.",
   },
   {
     n: "III", title: "Guild Wars", status: "Forming",
