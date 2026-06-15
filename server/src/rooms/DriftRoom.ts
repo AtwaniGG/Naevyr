@@ -2972,8 +2972,12 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** Bind the gate-proven wallet to this player's row without a second signature.
    *  The entry gate already verified an ed25519 proof of ownership over `address`
    *  (the same rail as the in-game link), so this is cryptographically equivalent
-   *  to linking. Respects a deliberate in-game link to a DIFFERENT wallet and the
-   *  global wallet-uniqueness rule (never hijacks a wallet another token owns). */
+   *  to linking. Respects a deliberate in-game link to a DIFFERENT wallet. Because
+   *  ownership is PROVEN, a wallet already bound to another device token (the same
+   *  human on a different browser — Phantom's in-app browser keeps its own
+   *  localStorage, hence a fresh device token) is MOVED to this character rather
+   *  than refused, so the player's holder status/balance/burns work wherever they
+   *  prove the wallet (one wallet = one holder; the old binding is cleared). */
   private async autoLinkGateWallet(sim: PlayerSim, gateAddress: string, currentWallet: string | null) {
     // already linked to a different wallet on purpose — leave it alone
     if (currentWallet && currentWallet !== gateAddress) {
@@ -2981,11 +2985,12 @@ export class DriftRoom extends Room<DriftRoomState> {
       return;
     }
     if (!currentWallet) {
-      // binding fresh: make sure no other wanderer already owns this wallet
+      // a wallet bound to ANOTHER token is the same proven owner on a different
+      // device → move it here (clear the old binding first to satisfy the unique
+      // constraint), rather than refusing and leaving them a non-holder
       const existing = await findPlayerByWallet(gateAddress).catch(() => null);
       if (existing && existing.token !== sim.token) {
-        sim.walletAddress = null; // never report a wallet another token owns
-        return;
+        await setWalletAddress(existing.token, null).catch(() => {});
       }
       await setWalletAddress(sim.token, gateAddress).catch(() => {});
     }
