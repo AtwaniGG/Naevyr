@@ -54,11 +54,11 @@ const MILES: Mile[] = [
     foot: "Tuned, while you sleep.",
   },
   {
-    n: "V", title: "The Long Road", status: "Always",
-    tag: "The door stays open.",
-    lede: "Nothing promised on a calendar. Each step lands only when hardened and proven.",
-    items: ["The plan bends as wanderers walk it", "Proven before it is promised", "The Drift takes you"],
-    foot: "The Drift takes you. The door stays open.",
+    n: "V", title: "The Realm Goes Live", status: "The horizon",
+    tag: "Beta ends. The realm stands.",
+    lede: "The veil of beta lifts. The realm opens in full, hardened by every step that came before it.",
+    items: ["Beta becomes the live realm", "Every system proven and standing", "The door open to all who come"],
+    foot: "Not beta. Live.",
   },
 ];
 
@@ -155,7 +155,7 @@ export default function RoadmapPage() {
 
       const ec = document.createElement("div");
       ec.className = "endcap"; ec.id = "endcap";
-      ec.innerHTML = `<div class="glyph">&#10070;</div><div class="t">the road dissolves</div>`;
+      ec.innerHTML = `<div class="glyph">&#10070;</div><div class="t">the realm goes live</div>`;
       track.appendChild(ec);
     }
 
