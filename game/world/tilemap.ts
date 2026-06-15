@@ -1,4 +1,4 @@
-import { Cell, ResourceKind, ResourceNode, TileType } from "../types";
+import { Cell, ResourceKind, ResourceNode, TileType, BOUNTY_REGIONS, BountyRegion } from "../types";
 
 // The world grid: tiles + resource nodes. Owns walkability used by pathfinding.
 
@@ -10,7 +10,7 @@ export type BuildingKey =
   | "furnisher" | "menagerie" | "shrine" | "pit" | "mine" | "stable"
   | "huskden" | "obelisk" | "mirehut" | "waystation"
   // Phase C wild camps (mini-dungeon sites in the frontier)
-  | "drownedruins" | "barrowcrypt" | "ashwarcamp"
+  | "drownedruins" | "barrowcrypt" | "ashwarcamp" | "mirelair"
   // Phase D the Frontier Outpost (second hub) keeper
   | "outpost";
 
@@ -97,6 +97,7 @@ export const WILD_STRUCTURES: TownBuilding[] = [
   wildAt("ashwarcamp", "The Ashen Warcamp", 0.08, 0.30),
   // Hollowmere Reach (SW): the witch's marsh
   wildAt("mirehut", "The Mirewife's Hut", 0.125, 0.60),
+  wildAt("mirelair", "The Sunken Lair",   0.10,  0.82), // SW corner boss lair (the drowned king)
   // Phase C frontier camps in the emptier quadrants
   wildAt("drownedruins", "The Drowned Ruins", 0.72, 0.12), // Palewater (NE)
   wildAt("barrowcrypt", "The Barrow-Crypt",   0.84, 0.70), // Bonefields (SE)
@@ -476,6 +477,7 @@ export function wildClutterZone(w: number, h: number, x: number, y: number): 0 |
     const d = Math.max(Math.abs(x - b.x), Math.abs(y - b.y));
     if (b.key === "huskden" && d <= 8) return 1;
     if (b.key === "mirehut" && d <= 8) return 2;
+    if (b.key === "mirelair" && d <= 8) return 2;
   }
   const m = mereCenter(w, h);
   if (Math.max(Math.abs(x - m.x), Math.abs(y - m.y)) <= 6) return 2;
@@ -534,7 +536,7 @@ export function buildRoadNetwork(w: number, h: number): Set<number> {
     [ashfall, wild("ashwarcamp")], [ashfall, wild("huskden")],      // NW branches
     [wild("huskden"), wild("obelisk")],
     [palewater, wild("drownedruins")],                              // NE branch
-    [hollowmere, wild("mirehut")],                                  // SW branch
+    [hollowmere, wild("mirehut")], [wild("mirehut"), wild("mirelair")], // SW branches
     [bonefield, wild("barrowcrypt")], [bonefield, outpost],         // SE branches
     [plaza, outpost],                                               // trunk road across the SE
   ];
@@ -698,4 +700,20 @@ export function nearRestStop(x: number, y: number, pad = 0): boolean {
     if (Math.hypot(x - r.x, y - r.y) <= REST_STOP_R + pad) return true;
   }
   return false;
+}
+
+// ─── Frontier bounty boards: one per waystation, posting that region's work ───
+// The board stands at the rest-stop center (shares the safe campfire); the kinds
+// REST_STOPS order matches BOUNTY_REGIONS order (NE/NW/SW/SE → the four quadrants).
+export interface BountyBoardSite { x: number; y: number; region: BountyRegion; name: string }
+export const BOUNTY_BOARDS: BountyBoardSite[] = REST_STOPS.map((r, i) => ({
+  x: r.x, y: r.y, region: BOUNTY_REGIONS[i], name: r.name,
+}));
+
+/** the bounty board whose center cell was clicked (within `pad`), else null */
+export function bountyBoardAt(x: number, y: number, pad = 0): BountyBoardSite | null {
+  for (const b of BOUNTY_BOARDS) {
+    if (Math.max(Math.abs(x - b.x), Math.abs(y - b.y)) <= pad) return b;
+  }
+  return null;
 }

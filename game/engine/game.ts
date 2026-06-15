@@ -22,8 +22,11 @@ import {
   RESOURCE_CAMPS,
   ResourceCampKind,
   nearRestStop,
+  BOUNTY_BOARDS,
+  bountyBoardAt,
+  WAYSTATIONS,
 } from "@/game/world/tilemap";
-import { Player } from "@/game/entities/player";
+import { Player, isoFacingFromDelta } from "@/game/entities/player";
 import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
 import { AmbientCritters, critterFrame } from "@/game/engine/critters";
 import { Drift } from "@/game/world/drift";
@@ -31,12 +34,16 @@ import { interiorFor, interiorNav, InteriorSpec } from "@/game/world/interior";
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import { startGathering, applyGatherLoot } from "@/game/systems/gathering";
+import { cookAllFish } from "@/game/systems/cooking";
 import { gatherSpeedMultiplier, damageReduction, weaponBonus } from "@/game/systems/crafting";
 import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
   walletLinkMessage, PRESTIGE_CATALOG, AvatarKind, SkillKey, SKILL_META,
-  effectiveMoveSpeed, MOUNT_COST,
+  effectiveMoveSpeed, MOUNT_COST, SWIFT_MOUNT_COST,
+  BountyContract, BountyRegion, bountyTemplate,
+  TRADER_RANGE, ITEM_META, ItemKey,
+  supplyContract,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -84,6 +91,10 @@ const MICRO_POIS: { x: number; y: number; kind: MicroPoiKey }[] = ([
   // a couple deep-meadow curios
   [0.55, 0.72, "standing_stones"], [0.30, 0.30, "hay_bales"],
 ] as [number, number, MicroPoiKey][]).map(([fx, fy, kind]) => ({ x: Math.round(MAP_W * fx), y: Math.round(MAP_H * fy), kind }));
+
+/** the micro-POI kinds you can salvage for gold + scrap (cooldown-gated) */
+const SALVAGE_KINDS = new Set<MicroPoiKey>(["wagon_wreck", "ruined_hut", "old_campfire"]);
+const SALVAGE_COOLDOWN_MS = 6 * 60_000;
 
 /** where each region's guild banner stands (decor only — no walkability
  *  change; cells chosen clear of every structure sprite) */
@@ -223,6 +234,20 @@ export class Game {
   private myClaimIds = new Set<number>();
   /** shop to open when we arrive at its door */
   private pendingShop: TownBuilding | null = null;
+  /** a bounty board we're walking toward; opens its panel on arrival */
+  private pendingBounty: BountyRegion | null = null;
+  /** the trader's last position (to derive its puppet facing) + walk frame clock */
+  private traderPrev: { x: number; y: number; facing: string; mirror: boolean } | null = null;
+  /** walking toward the trader to deal */
+  private pendingTrader = false;
+  /** wreck salvage: per-wreck cooldown, active dig bursts, a pending walk-to */
+  private salvageReadyAt = new Map<string, number>();
+  private salvageDigs: { x: number; y: number; t0: number }[] = [];
+  private pendingSalvage: { x: number; y: number } | null = null;
+  /** a resource-camp workstation we're walking toward (cook / field forge) */
+  private pendingCamp: { x: number; y: number; kind: ResourceCampKind } | null = null;
+  /** a claim upgrade prop we're walking toward (workbench → forge / stash → vault) */
+  private pendingClaimProp: { x: number; y: number; kind: string } | null = null;
   /** furnishing armed for placement (already paid; refunded on failure) */
   private propPlaceKind: PropKey | null = null;
   /** opponent sessionId while dueling */
@@ -258,6 +283,7 @@ export class Game {
     this.player.speedAt = (x, y) =>
       effectiveMoveSpeed({
         mounted: this.player.mounted,
+        swift: useGame.getState().swiftMount,
         onRoad: roadAt(this.world.w, this.world.h, x, y),
         corrupt: this.world.tile(x, y) === "corrupt",
       });
@@ -319,6 +345,13 @@ export class Game {
     this.cleanupFns.push(bus.on("spin", () => this.net?.sendSpin()));
     this.cleanupFns.push(bus.on("questClaim", (id) => this.net?.sendQuestClaim(id)));
     this.cleanupFns.push(bus.on("questReroll", () => this.net?.sendQuestReroll()));
+    this.cleanupFns.push(bus.on("bountyAccept", (b) => this.net?.sendAcceptBounty(b.region, b.tid)));
+    this.cleanupFns.push(bus.on("bountyClaim", (b) => this.net?.sendClaimBounty(b.region, b.tid)));
+    this.cleanupFns.push(bus.on("bountyAbandon", (b) => this.net?.sendAbandonBounty(b.region, b.tid)));
+    this.cleanupFns.push(bus.on("traderBuy", (m) => this.net?.sendTraderBuy(m.item)));
+    this.cleanupFns.push(bus.on("traderSell", (m) => this.net?.sendTraderSell(m.item, m.qty)));
+    this.cleanupFns.push(bus.on("deliverSupply", (m) => this.net?.sendDeliverSupply(m.id)));
+    this.cleanupFns.push(bus.on("quartermasterBuy", (m) => this.net?.sendQuartermasterBuy(m.item)));
     this.cleanupFns.push(bus.on("donate", (amt) => this.net?.sendDonate(amt)));
     this.cleanupFns.push(
       bus.on("placeProp", (kind) => {
@@ -361,6 +394,7 @@ export class Game {
       bus.on("itemDelta", (d) => this.net?.sendItemDelta(d.item, d.qty, d.reason)),
     );
     this.cleanupFns.push(bus.on("buyMount", () => this.buyMount()));
+    this.cleanupFns.push(bus.on("buySwiftMount", () => this.buySwiftMount()));
     this.cleanupFns.push(bus.on("mountToggle", (on) => this.setMounted(on)));
     this.cleanupFns.push(bus.on("cook", (c) => this.net?.sendCook(c.qty)));
     this.cleanupFns.push(bus.on("sell", (s) => this.net?.sendSell(s.item, s.qty)));
@@ -370,6 +404,7 @@ export class Game {
     this.cleanupFns.push(bus.on("auraBurn", (key) => this.startBurn("aura", { key })));
     this.cleanupFns.push(bus.on("obeliskBurn", () => this.startBurn("obelisk")));
     this.cleanupFns.push(bus.on("waystationTravel", (to) => this.startBurn("waystation", { x: to })));
+    this.cleanupFns.push(bus.on("waystationGoldTravel", (to) => this.net?.sendWaystationGoldTravel(to)));
     this.cleanupFns.push(bus.on("reinforceBurn", () => this.startBurn("reinforce")));
     this.cleanupFns.push(
       bus.on("prestigeBurn", (key) => {
@@ -808,6 +843,55 @@ export class Game {
         if (leveledTo) store.pushLog(`${SKILL_META[m.xp.skill].label} is now level ${leveledTo}!`, "#e7c873");
       },
     );
+    // ---- frontier bounties: server pushes the board + confirms turn-ins ----
+    net.onMessage<{ epoch: number; bounties: BountyContract[]; offers: { region: BountyRegion; tids: string[] }[] }>(
+      "bountySync",
+      (m) => useGame.getState().setBounties(m.epoch, m.bounties, m.offers),
+    );
+    net.onMessage<{ tid: string; region: string; gold: number; shards: number }>(
+      "bountyClaimed",
+      (m) => {
+        const store = useGame.getState();
+        // gold + shards already arrived via goldSync/invSync; just the flavor.
+        play("coin");
+        const t = bountyTemplate(m.tid);
+        const extra = m.shards > 0 ? `, +${m.shards} driftshard${m.shards > 1 ? "s" : ""}` : "";
+        store.pushLog(`Bounty paid: ${t ? t.noun : "contract"}. +${m.gold}g${extra}`, "#e7c873");
+      },
+    );
+    // ---- Frontier Outpost: reputation sync + supply-delivery confirmation ----
+    net.onMessage<{ rep: number }>("repSync", (m) => useGame.getState().setOutpostRep(m.rep));
+    net.onMessage<{ id: string; gold: number; rep: number }>("supplyDelivered", (m) => {
+      const store = useGame.getState();
+      play("coin");
+      const c = supplyContract(m.id);
+      store.pushLog(`Supplies delivered${c ? `: ${c.qty} ${ITEM_META[c.item].label}` : ""}. +${m.gold}g, +${m.rep} standing.`, "#e7c873");
+    });
+    // gold fast-travel: the server already moved us (the local player snaps on the
+    // big position delta); just confirm the leap + close the panel
+    net.onMessage<{ to: number; gold: number }>("traveled", (m) => {
+      const store = useGame.getState();
+      play("ui");
+      store.setOpenShop(null);
+      store.pushLog(`The Drift Roads carry you to ${WAYSTATIONS[m.to]?.label ?? "a distant waygate"}. -${m.gold}g.`, "#d8b4fe");
+    });
+    // a relic surfaced from a boss/elite — own it client-side so the relic market can list it
+    net.onMessage<{ key: string }>("relicDropped", (m) => {
+      const store = useGame.getState();
+      play("coin");
+      store.grantCosmetic("aura", m.key);
+      const label = PRESTIGE_CATALOG[m.key]?.label ?? "a relic";
+      store.pushLog(`A Drift-touched relic surfaces: ${label}! Sell it at the Relic stall for DRIFTS.`, "#e7c873");
+    });
+    // daily login streak: the living-economy retention reward
+    net.onMessage<{ streak: number; reward: number }>("streakSync", (m) => {
+      const store = useGame.getState();
+      store.setLoginStreak(m.streak);
+      if (m.reward > 0) {
+        play("coin");
+        store.pushLog(`Day ${m.streak} of your streak. The realm rewards your return: +${m.reward}g.`, "#e7c873");
+      }
+    });
 
     // ---- shared mobs: the server retaliates and confirms kills ----
     net.onMessage<{ id: number; dmg: number }>("mobHit", (m) => {
@@ -821,7 +905,7 @@ export class Game {
     });
     net.onMessage<{
       id: number; kind: string; level: number; xp?: number;
-      gold?: number; shards?: number; hide?: number;
+      gold?: number; shards?: number; hide?: number; rare?: boolean;
     }>("mobKill", (m) => {
       const store = useGame.getState();
       store.questEvent({ type: "kill" });
@@ -834,6 +918,8 @@ export class Game {
         store.pushLog("THE COLOSSUS CRUMBLES. Loot: 5 Drift Shards + 50g.", "#e7c873");
       } else if (m.kind === "raider") {
         store.pushLog(`The raider falls. You loot ${m.gold}g from the body.`, "#e7c873");
+      } else if (m.rare) {
+        store.pushLog(`A rare frontier elite falls! +${m.gold ?? 0}g + ${m.shards ?? 0} Drift Shards.`, "#e7c873");
       } else {
         store.pushLog(
           `The Drift Beast dissolves. Loot: Drift Shard${m.hide ? " + Beast Hide" : ""}.`,
@@ -1223,6 +1309,7 @@ export class Game {
       founder?: boolean;
       prestige?: string[];
       ownsMount?: boolean;
+      ownsSwiftMount?: boolean;
     }>("profile", (m) => {
       const store = useGame.getState();
       const sworn = takeDoorName(); // the door outranks the stored snapshot
@@ -1245,6 +1332,7 @@ export class Game {
       store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
       // the Stable steed: server-authoritative ownership (dismissed on join)
       store.setOwnsMount(m.ownsMount === true);
+      store.setSwiftMount(m.ownsSwiftMount === true);
       if (!m.ownsMount) { store.setMounted(false); this.player.mounted = false; }
       if (m.founder) {
         // idempotent: the server flag re-grants on every device
@@ -1271,12 +1359,17 @@ export class Game {
     net.requestProfile();
 
     // the Stable: gold debited + ownership set server-side (gold arrives via goldSync)
-    net.onMessage<{ ok: boolean; owns?: boolean; reason?: string }>("mountResult", (m) => {
+    net.onMessage<{ ok: boolean; owns?: boolean; swift?: boolean; reason?: string }>("mountResult", (m) => {
       const store = useGame.getState();
       if (m.ok) {
         store.setOwnsMount(true);
         play("coin");
-        store.pushLog("The Stablemaster hands you the reins. A steed is yours.", "#e7c873");
+        if (m.swift) {
+          store.setSwiftMount(true);
+          store.pushLog("Your steed is swift now. The roads will blur.", "#e7c873");
+        } else {
+          store.pushLog("The Stablemaster hands you the reins. A steed is yours.", "#e7c873");
+        }
       } else {
         store.pushLog(m.reason ?? "The Stablemaster turns you away.", "#dc2626");
       }
@@ -2154,6 +2247,25 @@ export class Game {
     const building = buildingAt(cell.x, cell.y);
     if (building && this.handleBuildingClick(building)) return;
 
+    // a frontier bounty board at a waystation (open if close, else walk to it)
+    const board = bountyBoardAt(cell.x, cell.y, 1);
+    if (board && this.handleBountyClick(board)) return;
+
+    // the Roaming Trader (a server entity; only present in the shared world)
+    if (this.handleTraderClick(cell)) return;
+
+    // a salvageable frontier wreck (client-local, capped delta rail)
+    const wreck = this.salvageWreckAt(cell);
+    if (wreck && this.handleSalvageClick(wreck)) return;
+
+    // a resource-camp workstation (field cook / forge)
+    const camp = this.campStationAt(cell);
+    if (camp && this.handleCampClick(camp)) return;
+
+    // a claim upgrade prop (workbench → forge, stash → vault); online only
+    const prop = this.net?.propAt(cell.x, cell.y);
+    if (prop && (prop.kind === "claim_workbench" || prop.kind === "claim_stash") && this.handleClaimPropClick(prop)) return;
+
     // a lost tombstone in the Drowned Field gives up its gold when close
     if (this.tryReclaimLostTomb(cell)) return;
 
@@ -2251,6 +2363,167 @@ export class Game {
       if (path) this.player.setPath(path);
     }
     return true;
+  }
+
+  /** click on a frontier bounty board: open its panel if close, else walk to it */
+  private handleBountyClick(board: { x: number; y: number; region: BountyRegion }): boolean {
+    const dist = Math.max(Math.abs(this.player.cell.x - board.x), Math.abs(this.player.cell.y - board.y));
+    if (dist <= 2) {
+      this.openBountyBoard(board.region);
+      return true;
+    }
+    const adj = adjacentWalkable(this.world, this.player.cell, { x: board.x, y: board.y });
+    if (!adj) return true;
+    this.pendingBounty = board.region;
+    this.pendingNode = null;
+    this.pendingMob = null;
+    this.pendingShop = null;
+    if (this.net) this.net.sendMove(adj.x, adj.y);
+    else {
+      const path = findPath(this.world, this.player.cell, adj);
+      if (path) this.player.setPath(path);
+    }
+    return true;
+  }
+
+  private openBountyBoard(region: BountyRegion) {
+    this.pendingBounty = null;
+    useGame.getState().setOpenBounty(region);
+    play("ui");
+    useGame.getState().pushLog(`You read the bounty board at ${region}.`, "#a99fb8");
+  }
+
+  /** click on the Roaming Trader: open its panel if close, else walk over.
+   *  Returns false if the click wasn't on the trader (normal handling resumes). */
+  private handleTraderClick(cell: Cell): boolean {
+    const tr = this.net?.trader;
+    if (!tr || !tr.active || tr.moving || tr.stop < 0) return false;
+    const tc = { x: Math.round(tr.x), y: Math.round(tr.y) };
+    if (Math.max(Math.abs(cell.x - tc.x), Math.abs(cell.y - tc.y)) > 1) return false;
+    if (Math.hypot(this.player.px - tr.x, this.player.py - tr.y) <= TRADER_RANGE + 1) {
+      this.openTraderPanel();
+      return true;
+    }
+    const adj = adjacentWalkable(this.world, this.player.cell, tc);
+    if (!adj) return true;
+    this.pendingTrader = true;
+    this.pendingNode = null;
+    this.pendingMob = null;
+    this.pendingShop = null;
+    this.pendingBounty = null;
+    this.net?.sendMove(adj.x, adj.y);
+    return true;
+  }
+
+  private openTraderPanel() {
+    this.pendingTrader = false;
+    useGame.getState().setOpenTrader(true);
+    play("ui");
+    useGame.getState().pushLog("The Roaming Trader spreads their wares.", "#a99fb8");
+  }
+
+  /** the salvageable wreck on/adjacent to `cell`, if any */
+  private salvageWreckAt(cell: Cell): { x: number; y: number } | null {
+    if (this.tutorial) return null;
+    for (const poi of MICRO_POIS) {
+      if (!SALVAGE_KINDS.has(poi.kind)) continue;
+      if (Math.max(Math.abs(cell.x - poi.x), Math.abs(cell.y - poi.y)) <= 1) return { x: poi.x, y: poi.y };
+    }
+    return null;
+  }
+
+  /** click a wreck: dig it if adjacent, else walk over and dig on arrival */
+  private handleSalvageClick(wreck: { x: number; y: number }): boolean {
+    const dist = Math.max(Math.abs(this.player.cell.x - wreck.x), Math.abs(this.player.cell.y - wreck.y));
+    if (dist <= 1) { this.digSalvage(wreck); return true; }
+    const adj = adjacentWalkable(this.world, this.player.cell, wreck);
+    if (!adj) return true;
+    this.pendingSalvage = wreck;
+    this.pendingNode = null; this.pendingMob = null; this.pendingShop = null;
+    this.pendingBounty = null; this.pendingTrader = false;
+    if (this.net) this.net.sendMove(adj.x, adj.y);
+    else { const path = findPath(this.world, this.player.cell, adj); if (path) this.player.setPath(path); }
+    return true;
+  }
+
+  /** roll a wreck's scrap (gold + mats), capped via the salvage delta rail */
+  private digSalvage(wreck: { x: number; y: number }) {
+    const key = `${wreck.x},${wreck.y}`;
+    const now = performance.now();
+    if ((this.salvageReadyAt.get(key) ?? 0) > now) {
+      useGame.getState().pushLog("Picked clean. Give the wreck time to settle.", "#a99fb8");
+      return;
+    }
+    this.salvageReadyAt.set(key, now + SALVAGE_COOLDOWN_MS);
+    this.salvageDigs.push({ x: wreck.x, y: wreck.y, t0: now });
+    const st = useGame.getState();
+    const gold = 20 + Math.floor(Math.random() * 41); // 20-60
+    st.addGold(gold, "salvage");
+    play("coin");
+    const mats: string[] = [];
+    const grant = (item: ItemKey, p: number) => { if (Math.random() < p) { st.addItem(item, 1, "salvage"); mats.push(ITEM_META[item].label); } };
+    grant("wood", 0.4); grant("stone", 0.4); grant("hide", 0.3); grant("driftshard", 0.22);
+    const tail = mats.length ? ` + ${mats.join(", ")}` : "";
+    st.pushLog(`You pick through the wreck. +${gold}g${tail}.`, "#e7c873");
+  }
+
+  /** the resource-camp workstation on/adjacent to `cell`, if any */
+  private campStationAt(cell: Cell): { x: number; y: number; kind: ResourceCampKind } | null {
+    if (this.tutorial) return null;
+    for (const c of RESOURCE_CAMPS) {
+      if (Math.max(Math.abs(cell.x - c.x), Math.abs(cell.y - c.y)) <= 1) return { x: c.x, y: c.y, kind: c.kind };
+    }
+    return null;
+  }
+
+  /** click a camp station: use it if adjacent, else walk over and use on arrival */
+  private handleCampClick(camp: { x: number; y: number; kind: ResourceCampKind }): boolean {
+    const dist = Math.max(Math.abs(this.player.cell.x - camp.x), Math.abs(this.player.cell.y - camp.y));
+    if (dist <= 1) { this.useCampStation(camp.kind); return true; }
+    const adj = adjacentWalkable(this.world, this.player.cell, { x: camp.x, y: camp.y });
+    if (!adj) return true;
+    this.pendingCamp = camp;
+    this.pendingNode = null; this.pendingMob = null; this.pendingShop = null;
+    this.pendingBounty = null; this.pendingTrader = false; this.pendingSalvage = null;
+    if (this.net) this.net.sendMove(adj.x, adj.y);
+    else { const path = findPath(this.world, this.player.cell, adj); if (path) this.player.setPath(path); }
+    return true;
+  }
+
+  /** the field workstation: cookfire cooks your catch, anvil/tannery open the Forge */
+  private useCampStation(kind: ResourceCampKind) {
+    this.pendingCamp = null;
+    play("ui");
+    const st = useGame.getState();
+    if (kind === "fishing") {
+      cookAllFish(); // cooks your catch over the embers (logs its own result)
+    } else {
+      st.setOpenDock("forge");
+      st.pushLog("You set to work at the camp's tools.", "#a99fb8");
+    }
+  }
+
+  /** click a claim upgrade prop: use it if adjacent, else walk over */
+  private handleClaimPropClick(prop: { x: number; y: number; kind: string }): boolean {
+    const cell = { x: Math.round(prop.x), y: Math.round(prop.y) };
+    const dist = Math.max(Math.abs(this.player.cell.x - cell.x), Math.abs(this.player.cell.y - cell.y));
+    if (dist <= 1) { this.useClaimProp(prop.kind); return true; }
+    const adj = adjacentWalkable(this.world, this.player.cell, cell);
+    if (!adj) return true;
+    this.pendingClaimProp = { x: cell.x, y: cell.y, kind: prop.kind };
+    this.pendingNode = null; this.pendingMob = null; this.pendingShop = null;
+    this.pendingBounty = null; this.pendingTrader = false; this.pendingSalvage = null; this.pendingCamp = null;
+    this.net?.sendMove(adj.x, adj.y);
+    return true;
+  }
+
+  /** a claim's workbench opens the Forge; its stash opens the Vault (field access) */
+  private useClaimProp(kind: string) {
+    this.pendingClaimProp = null;
+    play("ui");
+    const st = useGame.getState();
+    if (kind === "claim_workbench") { st.setOpenDock("forge"); st.pushLog("You work at your claim's bench.", "#a99fb8"); }
+    else if (kind === "claim_stash") { st.setOpenShop("vault"); st.pushLog("You open your claim's stash.", "#a99fb8"); }
   }
 
   /** Online: clicks become server intents. Mobs are still local (Phase 3). */
@@ -2395,6 +2668,64 @@ export class Game {
       } else if (this.player.action === "idle") {
         this.pendingShop = null; // couldn't get there
       }
+    }
+
+    // arrival -> open the bounty board we were walking toward
+    if (
+      this.pendingBounty &&
+      this.player.action !== "walk" &&
+      this.player.path.length === 0
+    ) {
+      const region = this.pendingBounty;
+      const board = BOUNTY_BOARDS.find((b) => b.region === region);
+      if (board && Math.max(Math.abs(this.player.cell.x - board.x), Math.abs(this.player.cell.y - board.y)) <= 2) {
+        this.openBountyBoard(region);
+      } else if (this.player.action === "idle") {
+        this.pendingBounty = null; // couldn't get there
+      }
+    }
+
+    // arrival -> open the trader's wares (it may have wandered off by now)
+    if (this.pendingTrader && this.player.action !== "walk" && this.player.path.length === 0) {
+      const tr = this.net?.trader;
+      if (tr && tr.active && !tr.moving && Math.hypot(this.player.px - tr.x, this.player.py - tr.y) <= TRADER_RANGE + 1) {
+        this.openTraderPanel();
+      } else if (this.player.action === "idle") {
+        this.pendingTrader = false;
+      }
+    }
+
+    // keep the store's trader proximity in sync (drives the panel's deal buttons)
+    if (this.net) {
+      const tr = this.net.trader;
+      const parked = !!tr && tr.active && !tr.moving && tr.stop >= 0;
+      const near = parked && Math.hypot(this.player.px - tr!.x, this.player.py - tr!.y) <= TRADER_RANGE + 1;
+      const st = useGame.getState();
+      st.setTraderInfo(parked ? tr!.stop : -1, near);
+      if (st.openTrader && !near) st.setOpenTrader(false); // walked away / trader left
+    }
+
+    // arrival -> dig the wreck we walked to; prune finished dig bursts
+    if (this.pendingSalvage && this.player.action !== "walk" && this.player.path.length === 0) {
+      const w = this.pendingSalvage;
+      this.pendingSalvage = null;
+      if (Math.max(Math.abs(this.player.cell.x - w.x), Math.abs(this.player.cell.y - w.y)) <= 1) this.digSalvage(w);
+    }
+    if (this.salvageDigs.length) {
+      const nowD = performance.now();
+      this.salvageDigs = this.salvageDigs.filter((d) => nowD - d.t0 < 420);
+    }
+    // arrival -> use the camp workstation we walked to
+    if (this.pendingCamp && this.player.action !== "walk" && this.player.path.length === 0) {
+      const c = this.pendingCamp;
+      this.pendingCamp = null;
+      if (Math.max(Math.abs(this.player.cell.x - c.x), Math.abs(this.player.cell.y - c.y)) <= 1) this.useCampStation(c.kind);
+    }
+    // arrival -> use the claim upgrade prop we walked to
+    if (this.pendingClaimProp && this.player.action !== "walk" && this.player.path.length === 0) {
+      const cp = this.pendingClaimProp;
+      this.pendingClaimProp = null;
+      if (Math.max(Math.abs(this.player.cell.x - cp.x), Math.abs(this.player.cell.y - cp.y)) <= 1) this.useClaimProp(cp.kind);
     }
 
     // arrival -> begin combat
@@ -2892,6 +3223,20 @@ export class Game {
     st.setOwnsMount(true);
     play("coin");
     st.pushLog("The Stablemaster hands you the reins. A steed is yours.", "#e7c873");
+  }
+
+  /** buy the Swift Steed upgrade (requires a steed). Online → server; offline → local. */
+  private buySwiftMount() {
+    const st = useGame.getState();
+    if (!st.ownsMount || st.swiftMount) return;
+    if (this.net) { this.net.sendBuySwiftMount(); return; }
+    if (!st.spendGold(SWIFT_MOUNT_COST)) {
+      st.pushLog("Not enough gold to shoe her for speed.", "#dc2626");
+      return;
+    }
+    st.setSwiftMount(true);
+    play("coin");
+    st.pushLog("Your steed is swift now. The roads will blur.", "#e7c873");
   }
 
   /** summon / dismiss the steed (drives the road/mount speed bonus + render) */
@@ -4157,7 +4502,7 @@ export class Game {
             b.key === "shrine"  ? Math.floor(performance.now() / 250) % 3 :
             b.key === "huskden" ? Math.floor(performance.now() / 500) % 2 :
             b.key === "obelisk" || b.key === "waystation" ? Math.floor(performance.now() / 250) % 3 :
-            b.key === "drownedruins" || b.key === "barrowcrypt" || b.key === "ashwarcamp"
+            b.key === "drownedruins" || b.key === "barrowcrypt" || b.key === "ashwarcamp" || b.key === "mirelair"
               ? Math.floor(performance.now() / 500) % 2 : 0;
           // east-side houses mirror so their features lean toward town center
           const mirror =
@@ -4191,9 +4536,12 @@ export class Game {
       // rest stops: a lean-to + supply heap flanking the campfire. The fire is
       // the centerpiece (safe zone + buff), so it's drawn LAST = on top, never
       // occluded by the flanking props.
+      const boardF = Math.floor(now2 / 400) % 2; // bounty parchments flutter
       for (const r of REST_STOPS) {
         draws.push({ depth: r.x + r.y, fn: () => {
           const s = this.tileScreen(r.x, r.y);
+          // the bounty board stands north of the fire (drawn first = behind it)
+          spriteCache.drawWayside(ctx, "bounty_board", boardF, s.x - 2 * z, s.y - 24 * z, z);
           spriteCache.drawWayside(ctx, "lean_to", 0, s.x - 38 * z, s.y - 5 * z, z);
           spriteCache.drawWayside(ctx, "supply_crates", 0, s.x + 34 * z, s.y - 3 * z, z);
           spriteCache.drawWayside(ctx, "campfire", flameF, s.x, s.y, z);
@@ -4205,12 +4553,28 @@ export class Game {
         quarry: ["stone_cart", "cut_blocks"],
         fishing: ["pier", "net_rack"],
       };
+      const CAMP_STATION: Record<ResourceCampKind, WaysideKey> = {
+        logging: "camp_tannery", quarry: "camp_anvil", fishing: "camp_cookfire",
+      };
       for (const c of RESOURCE_CAMPS) {
         const [main, side] = CAMP_PROPS[c.kind];
+        const station = CAMP_STATION[c.kind];
         draws.push({ depth: c.x + c.y, fn: () => {
           const s = this.tileScreen(c.x, c.y);
-          spriteCache.drawWayside(ctx, main, main === "pier" ? lapF : 0, s.x - 8 * z, s.y, z);
-          spriteCache.drawWayside(ctx, side, 0, s.x + 20 * z, s.y - 2 * z, z);
+          spriteCache.drawWayside(ctx, main, main === "pier" ? lapF : 0, s.x - 30 * z, s.y + 2 * z, z);
+          spriteCache.drawWayside(ctx, side, 0, s.x + 28 * z, s.y, z);
+          // the workstation is the centerpiece (interactive: cook / forge)
+          const sf = Math.floor(now2 / 250) % (station === "camp_cookfire" ? 3 : 2);
+          spriteCache.drawWayside(ctx, station, sf, s.x, s.y, z);
+        }});
+      }
+      // the Frontier Outpost garrison decor: a contract post + trade counter
+      const op = ALL_STRUCTURES.find((b) => b.key === "outpost");
+      if (op) {
+        draws.push({ depth: op.x + op.y + op.r - 0.2, fn: () => {
+          const s = this.tileScreen(op.x, op.y + op.r);
+          spriteCache.drawWayside(ctx, "supply_post", 0, s.x - 64 * z, s.y + 4 * z, z);
+          spriteCache.drawWayside(ctx, "quartermaster_stall", 0, s.x + 58 * z, s.y + 2 * z, z);
         }});
       }
       // scenic ruin landmarks (kinds map 1:1 to the DS ruin sprites)
@@ -4223,9 +4587,21 @@ export class Game {
       // scattered micro-POI landmarks (decor; skip any that clip a structure)
       for (const poi of MICRO_POIS) {
         if (buildingAt(poi.x, poi.y)) continue;
+        const salvageable = SALVAGE_KINDS.has(poi.kind);
         draws.push({ depth: poi.x + poi.y, fn: () => {
           const s = this.tileScreen(poi.x, poi.y);
           spriteCache.drawMicroPoi(ctx, poi.kind, lapF, s.x, s.y, z);
+          // a drift-gold glint marks a wreck that's ready to search again
+          if (salvageable && (this.salvageReadyAt.get(`${poi.x},${poi.y}`) ?? 0) <= now2) {
+            spriteCache.drawSalvageGlint(ctx, Math.floor(now2 / 250) % 2, s.x, s.y - 14 * z, z);
+          }
+        }});
+      }
+      // active salvage dig bursts
+      for (const dig of this.salvageDigs) {
+        draws.push({ depth: dig.x + dig.y + 0.5, fn: () => {
+          const s = this.tileScreen(dig.x, dig.y);
+          spriteCache.drawDigPuff(ctx, Math.min(2, Math.floor((now2 - dig.t0) / 130)), s.x, s.y - 4 * z, z);
         }});
       }
       // ambient wildlife (depth-sorted with entities so it walks among the world)
@@ -4262,6 +4638,37 @@ export class Game {
           ctx.font = `${7 * z}px ui-sans-serif`;
           ctx.fillStyle = cv.phase === "ambushed" ? "rgba(220,38,38,0.85)" : "rgba(216,207,224,0.5)";
           ctx.fillText(cv.phase === "ambushed" ? "AMBUSHED" : "Caravan", s.x, s.y - 52 * z);
+          ctx.textAlign = "left";
+        },
+      });
+    }
+
+    // the Roaming Trader (server-synced moving vendor; shared world only)
+    const trader = this.net?.trader;
+    if (trader && trader.active) {
+      const prev = this.traderPrev;
+      let facing = prev?.facing ?? "s", mirror = prev?.mirror ?? false;
+      if (prev) {
+        const fr = isoFacingFromDelta(trader.x - prev.x, trader.y - prev.y);
+        if (fr) { facing = fr.f; mirror = fr.m; }
+      }
+      this.traderPrev = { x: trader.x, y: trader.y, facing, mirror };
+      const tx = trader.x, ty = trader.y, moving = trader.moving;
+      draws.push({
+        depth: tx + ty,
+        fn: () => {
+          const s = this.tileScreen(tx, ty);
+          const z = this.camera.zoom;
+          const anim = moving ? "walk" : "idle";
+          const frame = Math.floor(performance.now() / (moving ? 110 : 500)) % (moving ? 6 : 2);
+          const muleFacing = facing === "ne" ? "n" : facing; // the mule lacks an 'ne' frame
+          const muleF = Math.floor(performance.now() / 130) % 4;
+          spriteCache.drawPackMule(ctx, muleFacing, muleF, s.x - 17 * z, s.y - 3 * z, z, mirror);
+          spriteCache.drawTrader(ctx, facing, anim, frame, s.x, s.y, z, mirror);
+          ctx.textAlign = "center";
+          ctx.font = `${7 * z}px ui-sans-serif`;
+          ctx.fillStyle = "rgba(216,207,224,0.6)";
+          ctx.fillText("Roaming Trader", s.x, s.y - 44 * z);
           ctx.textAlign = "left";
         },
       });

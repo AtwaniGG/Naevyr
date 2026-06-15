@@ -34,6 +34,25 @@ import {
   SkillKey,
   seasonName,
   MOUNT_COST,
+  BOUNTY_REGIONS,
+  BountyRegion,
+  bountyTemplate,
+  bountyLabel,
+  rollBountyOffers,
+  bountyEpoch,
+  MAX_ACTIVE_BOUNTIES,
+  rollTraderStock,
+  traderBuyback,
+  rollSupplyContracts,
+  supplyContract,
+  outpostTier,
+  outpostTierName,
+  OUTPOST_TIERS,
+  QUARTERMASTER_STOCK,
+  ENCHANT_MAX,
+  enchantCost,
+  WAYSTATION_GOLD,
+  SWIFT_MOUNT_COST,
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
@@ -152,6 +171,8 @@ function ResponsiveHud() {
       <TutorialBanner />
       <KeeperDialogue />
       <ShopModal />
+      <BountyBoardModal />
+      <TraderPanel />
       <DuelOverlay />
       <ChallengePrompt />
       <WheelOverlay />
@@ -234,6 +255,8 @@ function MobileHud() {
       <Trap label="TutorialBanner"><TutorialBanner /></Trap>
       <Trap label="KeeperDialogue"><KeeperDialogue /></Trap>
       <Trap label="ShopModal"><ShopModal /></Trap>
+      <Trap label="BountyBoardModal"><BountyBoardModal /></Trap>
+      <Trap label="TraderPanel"><TraderPanel /></Trap>
       <Trap label="DuelOverlay"><DuelOverlay /></Trap>
       <Trap label="ChallengePrompt"><ChallengePrompt /></Trap>
       <Trap label="WheelOverlay"><WheelOverlay /></Trap>
@@ -396,6 +419,188 @@ function ShopModal() {
         {openShop === "shrine" && <ShrinePanel />}
         {openShop === "pit" && <PitPanel />}
         {openShop === "waystation" && <WaystationPanel />}
+      </Panel>
+    </div>
+  );
+}
+
+function BountyBoardModal() {
+  const region = useGame((s) => s.openBounty);
+  const setOpenBounty = useGame((s) => s.setOpenBounty);
+  const bounties = useGame((s) => s.bounties);
+  const acceptBounty = useGame((s) => s.acceptBounty);
+  const claimBounty = useGame((s) => s.claimBounty);
+  const abandonBounty = useGame((s) => s.abandonBounty);
+  const online = useGame((s) => s.online);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenBounty(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setOpenBounty]);
+  if (!region) return null;
+  const offers = rollBountyOffers(region as BountyRegion, bountyEpoch());
+  const mine = bounties.filter((b) => b.region === region);
+  const activeCount = bounties.length;
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%) scale(var(--hud-scale))", zIndex: 30 }}
+    >
+      <Panel
+        kicker={`Frontier · ${region}`}
+        title="Bounty Board"
+        accessory={<Button size="sm" variant="ghost" onClick={() => setOpenBounty(null)}>✕</Button>}
+        style={{ width: 340, maxHeight: "70vh", overflowY: "auto" }}
+      >
+        {!online && (
+          <p className="drift-label" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8 }}>
+            The frontier postmaster keeps no ledger while you wander offline. Connect to the realm to take work.
+          </p>
+        )}
+        <div className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 6 }}>
+          Posted work · {activeCount}/{MAX_ACTIVE_BOUNTIES} taken
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {offers.map((tid) => {
+            const t = bountyTemplate(tid);
+            if (!t) return null;
+            const taken = mine.some((b) => b.tid === tid);
+            const full = activeCount >= MAX_ACTIVE_BOUNTIES;
+            return (
+              <div key={tid} className="drift-well" style={{ padding: "7px 9px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ flex: 1, font: "400 12px/1.3 var(--font-ui)", color: "var(--text-secondary)" }}>
+                    {bountyLabel(tid)}
+                  </span>
+                  <span className="drift-num" style={{ fontSize: 10, color: "var(--drift-gold)" }}>
+                    +{t.gold}g{t.shards > 0 ? ` · +${t.shards}◇` : ""}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 5 }}>
+                  {taken ? (
+                    <span className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)" }}>Taken</span>
+                  ) : (
+                    <Button size="sm" variant="primary" disabled={!online || full}
+                      onClick={() => acceptBounty(region as BountyRegion, tid)}>
+                      {full ? "Hands full" : "Take"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {mine.length > 0 && (
+          <>
+            <div className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)", margin: "12px 0 6px" }}>
+              Your contracts here
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {mine.map((b) => {
+                const t = bountyTemplate(b.tid);
+                if (!t) return null;
+                const done = b.progress >= t.target;
+                const pct = Math.min(100, (b.progress / t.target) * 100);
+                return (
+                  <div key={b.tid}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ flex: 1, font: "400 12px/1.3 var(--font-ui)", color: "var(--text-secondary)" }}>
+                        {bountyLabel(b.tid)}
+                      </span>
+                      <span className="drift-num" style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                        {b.progress}/{t.target}
+                      </span>
+                    </div>
+                    <div className="drift-well" style={{ position: "relative", height: 6, marginTop: 5, overflow: "hidden" }}>
+                      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`, background: "var(--grad-xp)", transition: "width var(--dur-slow) steps(8)" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
+                      {done ? (
+                        <Button size="sm" variant="gold" onClick={() => claimBounty(region as BountyRegion, b.tid)}>Turn in</Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => abandonBounty(region as BountyRegion, b.tid)}>Abandon</Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+function TraderPanel() {
+  const open = useGame((s) => s.openTrader);
+  const setOpen = useGame((s) => s.setOpenTrader);
+  const stop = useGame((s) => s.traderStop);
+  const near = useGame((s) => s.traderNear);
+  const gold = useGame((s) => s.gold);
+  const inventory = useGame((s) => s.inventory);
+  const buy = useGame((s) => s.traderBuy);
+  const sell = useGame((s) => s.traderSell);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setOpen]);
+  if (!open) return null;
+  const stock = stop >= 0 ? rollTraderStock(bountyEpoch(), stop) : [];
+  const sellable = INVENTORY_ORDER.filter((it) => traderBuyback(it) > 0 && (inventory[it] ?? 0) > 0);
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%) scale(var(--hud-scale))", zIndex: 30 }}
+    >
+      <Panel
+        kicker="Frontier"
+        title="The Roaming Trader"
+        accessory={<Button size="sm" variant="ghost" onClick={() => setOpen(false)}>✕</Button>}
+        style={{ width: 340, maxHeight: "70vh", overflowY: "auto" }}
+      >
+        {!near && (
+          <p className="drift-label" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8 }}>
+            The trader has moved on. Catch them at a waystation to deal.
+          </p>
+        )}
+        <div className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 6 }}>Wares · pay in gold</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {stock.map((s) => {
+            const meta = ITEM_META[s.item];
+            const afford = gold >= s.price;
+            return shopRow(
+              meta.label,
+              `${meta.icon} buy one`,
+              <Button size="sm" variant={afford ? "gold" : "ghost"} disabled={!near || !afford} onClick={() => buy(s.item)}>
+                {s.price}g
+              </Button>,
+              undefined, `buy-${s.item}`,
+            );
+          })}
+        </div>
+        <div className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)", margin: "12px 0 6px" }}>
+          Buyback · {Math.round((traderBuyback("driftshard") / Math.max(1, ITEM_META.driftshard.sellValue) - 1) * 100)}% over the town rate
+        </div>
+        {sellable.length === 0 ? (
+          <p className="drift-label" style={{ fontSize: 10, color: "var(--text-muted)" }}>Nothing in your satchel the trader wants.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {sellable.map((it) => {
+              const n = inventory[it] ?? 0;
+              const each = traderBuyback(it);
+              return shopRow(
+                ITEM_META[it].label,
+                `${n} carried · ${each}g each`,
+                <Button size="sm" variant="primary" disabled={!near} onClick={() => sell(it, n)}>
+                  Sell ×{n}
+                </Button>,
+                undefined, `sell-${it}`,
+              );
+            })}
+          </div>
+        )}
       </Panel>
     </div>
   );
@@ -944,21 +1149,80 @@ function KeeperDialogue() {
         onClick: () => { bus.emit("mountToggle", true); respond("Ride hard. The Drift waits for none."); close(); },
       });
     }
+    // the Swift Steed upgrade (once you own a steed)
+    if (s.ownsMount && !s.swiftMount) {
+      opts.push({
+        label: "Swift Steed", sub: "shoe her for speed · faster on every road",
+        right: `${SWIFT_MOUNT_COST.toLocaleString()}g`,
+        onClick: () => {
+          if (s.gold < SWIFT_MOUNT_COST) return respond("Swiftness costs coin. Come back richer.");
+          bus.emit("buySwiftMount", true);
+          respond("Best shoes in the realm. She'll outrun the Drift now.");
+        },
+      });
+    } else if (s.swiftMount) {
+      opts.push({ label: "Swift Steed", sub: "the fastest in the realm", right: "owned", onClick: () => respond("No faster steed walks these roads.") });
+    }
   } else if (openShop === "outpost") {
+    const rep = s.outpostRep;
+    const tier = outpostTier(rep);
+    const nextTier = OUTPOST_TIERS[tier + 1];
     opts.push({
-      label: "The frontier report", sub: "what stirs out here",
+      label: "Your standing", sub: `${outpostTierName(rep)} · ${Math.round(rep)} rep`,
+      right: nextTier ? `${Math.round(nextTier.rep - rep)} to ${nextTier.name}` : "max",
       onClick: () => respond(
-        "Camps in the deep wilds, caravans bound for the gates, the Drift at every back. The strongbox and the bottle are yours if you've coin.",
+        nextTier
+          ? `You stand a ${outpostTierName(rep)} with the garrison. Keep the supplies coming and the wares open up.`
+          : "A Veteran of the frontier. The garrison's full stock is yours.",
       ),
     });
-    opts.push({
-      label: "Frontier rations", sub: "+gather speed, 10 min", right: "60g",
-      onClick: () => {
-        if (!s.spendGold(60, "shop")) return respond("Sixty, and the satchel's yours.");
-        s.applyBuff("gather", 10 * 60_000);
-        respond("Travel light, work fast. The wall won't hold itself.");
-      },
-    });
+    // supply contracts — deliver goods for gold + reputation
+    if (menu === "supply") {
+      for (const id of rollSupplyContracts(bountyEpoch())) {
+        const c = supplyContract(id)!;
+        const have = s.inventory[c.item] ?? 0;
+        const enough = have >= c.qty;
+        opts.push({
+          label: `Deliver ${c.qty} ${ITEM_META[c.item].label}`,
+          sub: `+${c.gold}g · +${c.rep} standing · have ${have}/${c.qty}`,
+          right: enough ? "Deliver" : "short",
+          onClick: () => {
+            if (!s.online) return respond("The Quartermaster keeps no tally while you wander offline.");
+            if (!enough) return respond(`Bring me ${c.qty} and we'll talk.`);
+            s.deliverSupply(id);
+            respond("Logged. The frontier thanks you.");
+          },
+        });
+      }
+      opts.push(back());
+    } else if (menu === "wares") {
+      for (const w of QUARTERMASTER_STOCK) {
+        const locked = tier < w.tier;
+        opts.push({
+          label: locked ? `${ITEM_META[w.item].label} (locked)` : `Buy ${ITEM_META[w.item].label}`,
+          sub: locked ? `needs ${OUTPOST_TIERS[w.tier].name}` : `${ITEM_META[w.item].icon} one`,
+          right: `${w.price}g`,
+          onClick: () => {
+            if (locked) return respond(`Earn your ${OUTPOST_TIERS[w.tier].name} standing first.`);
+            if (!s.online) return respond("Naught to sell while you wander offline.");
+            s.quartermasterBuy(w.item);
+            respond("Fair trade. Mind the road.");
+          },
+        });
+      }
+      opts.push(back());
+    } else {
+      opts.push({ label: "Supply contracts", sub: "deliver goods for coin + standing", onClick: () => { setMenu("supply"); setSay(null); } });
+      opts.push({ label: "Quartermaster's wares", sub: "rep opens the good stock", onClick: () => { setMenu("wares"); setSay(null); } });
+      opts.push({
+        label: "Frontier rations", sub: "+gather speed, 10 min", right: "60g",
+        onClick: () => {
+          if (!s.spendGold(60, "shop")) return respond("Sixty, and the satchel's yours.");
+          s.applyBuff("gather", 10 * 60_000);
+          respond("Travel light, work fast. The wall won't hold itself.");
+        },
+      });
+    }
   }
   // the mine overseer has nothing to sell; just the word and the work
 
@@ -1084,36 +1348,33 @@ function WaystationPanel() {
     bus.emit("waystationTravel", to);
     s.setOpenShop(null);
   };
+  const travelGold = (to: number) => {
+    if (s.gold < WAYSTATION_GOLD) return;
+    bus.emit("waystationGoldTravel", to);
+    s.setOpenShop(null);
+  };
   const canBurn = !!s.wallet && s.holder;
   return (
     <>
       <div style={{ font: "400 11px/1.5 var(--font-ui)", color: "var(--text-secondary)", marginBottom: 8 }}>
-        The Drift Roads bind the old waygates. Burn DRIFTS to step the leyline and
-        wake at another station, anywhere in the realm.
+        The Drift Roads bind the old waygates. Pay gold to walk the roads, or burn
+        DRIFTS to step the leyline instantly. Either way you wake at a distant station.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {WAYSTATIONS.map((w, i) => (
-          <Button
-            key={i}
-            size="sm"
-            variant="ghost"
-            disabled={!canBurn}
-            onClick={() => travel(i)}
-            style={{ justifyContent: "space-between", display: "flex", width: "100%" }}
-            title={canBurn
-              ? `Burn ${BURN_COSTS.waystation.toLocaleString()} DRIFTS to leap to ${w.label}`
-              : "Fast-travel costs a DRIFTS burn — link a holder wallet."}
-          >
-            <span>{w.label}</span>
-            <span>{burnAmt(BURN_COSTS.waystation)} <DriftsMark /></span>
-          </Button>
+          <div key={i} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px" }}>
+            <span style={{ flex: 1, font: "400 11px/1.2 var(--font-ui)", color: "var(--text-secondary)" }}>{w.label}</span>
+            <Button size="sm" variant={s.gold >= WAYSTATION_GOLD ? "gold" : "ghost"} disabled={s.gold < WAYSTATION_GOLD}
+              onClick={() => travelGold(i)} title={`Walk the Drift Roads to ${w.label} for ${WAYSTATION_GOLD}g`}>
+              {WAYSTATION_GOLD}g
+            </Button>
+            <Button size="sm" variant="ghost" disabled={!canBurn} onClick={() => travel(i)}
+              title={canBurn ? `Burn ${BURN_COSTS.waystation.toLocaleString()} DRIFTS to leap instantly` : "The DRIFTS leyline needs a holder wallet."}>
+              {burnAmt(BURN_COSTS.waystation)} <DriftsMark />
+            </Button>
+          </div>
         ))}
       </div>
-      {!canBurn && (
-        <div style={{ font: "400 9.5px/1.4 var(--font-ui)", color: "var(--text-muted)", marginTop: 8 }}>
-          The leyline answers only to those who carry DRIFTS. Link a wallet that holds them.
-        </div>
-      )}
     </>
   );
 }
@@ -2893,6 +3154,8 @@ function ForgeDock() {
   const inventory = useGame((s) => s.inventory);
   const skills = useGame((s) => s.skills);
   const equipment = useGame((s) => s.equipment);
+  const gold = useGame((s) => s.gold);
+  const enchant = useGame((s) => s.enchant);
   // subscribing keeps canCraft() fresh as materials/levels change
   void inventory;
   void skills;
@@ -2939,6 +3202,33 @@ function ForgeDock() {
                 );
               })}
             </div>
+
+            {/* enchant: reinforce equipped gear at the rune-anvil (gold sink) */}
+            {(["weapon", "tool", "ward"] as EquipSlot[]).some((sl) => equipment[sl]) && (
+              <>
+                <div className="drift-label" style={{ fontSize: 9, color: "var(--text-muted)", margin: "0 0 5px" }}>Reinforce at the rune-anvil</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                  {(["weapon", "tool", "ward"] as EquipSlot[]).map((slot) => {
+                    const item = equipment[slot];
+                    if (!item) return null;
+                    const ench = item.ench ?? 0;
+                    const maxed = ench >= ENCHANT_MAX;
+                    const cost = enchantCost(ench);
+                    return (
+                      <div key={slot} className="drift-well" style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px" }}>
+                        <Icon name={RECIPE_ICON[item.id] ?? "sword"} size={14} />
+                        <span style={{ flex: 1, font: "400 11px/1.2 var(--font-ui)", color: "var(--text-secondary)" }}>
+                          {item.label} <span className="drift-num" style={{ color: "var(--drift-gold)" }}>{item.flavor}</span>{ench > 0 ? ` ·+${ench}` : ""}
+                        </span>
+                        <Button size="sm" variant={maxed ? "ghost" : "gold"} disabled={maxed || gold < cost} onClick={() => enchant(slot)}>
+                          {maxed ? "Max" : `${cost}g`}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {/* recipes */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto", paddingRight: 2 }}>

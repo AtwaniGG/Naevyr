@@ -83,10 +83,25 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS quests jsonb
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS bounties jsonb
+  `);
+  await db.execute(sql`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS guild_id real
   `);
   await db.execute(sql`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS owns_mount boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS outpost_rep real NOT NULL DEFAULT 0
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS owns_swift_mount boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS last_login_day real
+  `);
+  await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS login_streak real NOT NULL DEFAULT 0
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS guilds (
@@ -343,6 +358,21 @@ export async function setMount(token: string, owns: boolean) {
   await db.update(players).set({ ownsMount: owns }).where(eq(players.token, token));
 }
 
+/** persist the Swift Steed upgrade */
+export async function setSwiftMount(token: string, owns: boolean) {
+  await db.update(players).set({ ownsSwiftMount: owns }).where(eq(players.token, token));
+}
+
+/** persist the daily login streak (the day seen + the running count) */
+export async function setLoginStreak(token: string, day: number, streak: number) {
+  await db.update(players).set({ lastLoginDay: day, loginStreak: streak }).where(eq(players.token, token));
+}
+
+/** persist Frontier Outpost reputation */
+export async function setOutpostRep(token: string, rep: number) {
+  await db.update(players).set({ outpostRep: rep }).where(eq(players.token, token));
+}
+
 // ---- guilds --------------------------------------------------------------------
 
 export async function loadGuilds(): Promise<GuildRow[]> {
@@ -505,6 +535,14 @@ export async function setQuests(
   await db.update(players).set({ quests }).where(eq(players.token, token));
 }
 
+/** write-through persist of the accepted frontier bounty contracts */
+export async function setBounties(
+  token: string,
+  bounties: { tid: string; region: string; progress: number }[],
+) {
+  await db.update(players).set({ bounties }).where(eq(players.token, token));
+}
+
 // ---- the Shrine ------------------------------------------------------------------
 
 export async function loadShrinePot(): Promise<number> {
@@ -572,15 +610,17 @@ export async function deletePropsForClaim(claimId: number) {
 // ---- the leaderboards --------------------------------------------------------------
 
 export interface BoardRow { name: string; value: number }
-export interface Leaderboards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[] }
+export interface Leaderboards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[]; streak: BoardRow[] }
 
-/** landing-page boards: gold from the ledgers, kills/levels from snapshots */
+/** landing-page boards: gold from the ledgers, kills/levels from snapshots,
+ *  streak from the daily-login column (the living-economy retention board) */
 export async function leaderboards(limit = 10): Promise<Leaderboards> {
   const rows = await db
     .select({
       name: players.name,
       gold: players.gold,
       bank: players.bankGold,
+      streak: players.loginStreak,
       snapshot: players.snapshot,
     })
     .from(players);
@@ -596,6 +636,7 @@ export async function leaderboards(limit = 10): Promise<Leaderboards> {
       value: Object.values(snap(r).skills ?? {}).reduce(
         (n, s) => n + Math.max(0, Math.round(Number(s?.level ?? 0))), 0),
     }))),
+    streak: top(rows.map((r) => ({ name: r.name, value: Math.round(r.streak ?? 0) }))),
   };
 }
 

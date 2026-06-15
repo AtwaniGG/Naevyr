@@ -122,6 +122,17 @@ export class CaravanState extends Schema {
   @type("number") waveNeed = 0;
 }
 
+/** the Roaming Trader: a moving frontier vendor that walks the waystations */
+export class TraderState extends Schema {
+  @type("boolean") active = false;
+  @type("number") x = 0;
+  @type("number") y = 0;
+  /** actually walking (drives the puppet's walk anim) */
+  @type("boolean") moving = false;
+  /** waystation index it's parked at, -1 while walking (drives the shelf roll) */
+  @type("number") stop = -1;
+}
+
 export class DriftRoomState extends Schema {
   @type("number") w = 0;
   @type("number") h = 0;
@@ -135,6 +146,7 @@ export class DriftRoomState extends Schema {
   @type({ map: GuildState }) guilds = new MapSchema<GuildState>();
   @type({ map: RelicState }) relics = new MapSchema<RelicState>();
   @type(CaravanState) caravan = new CaravanState();
+  @type(TraderState) trader = new TraderState();
   // THE LONG NIGHT: realm-wide assault on the Waystation at terminal corruption
   @type("boolean") nightActive = false;
   @type("number") nightEndsIn = 0; // seconds

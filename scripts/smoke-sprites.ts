@@ -121,7 +121,7 @@ for (const key of BIOME_TILE_KEYS as BiomeTileKey[]) {
 // the connective pack (DS port): steed, roads, wayside, ruins
 import {
   drawSteed, STEED_FACINGS, drawRoad, ROAD_PIECES, roadDirsFromMask,
-  WAYSIDE_SPECS, WaysideKey, RUIN_SPECS, RuinKey,
+  WAYSIDE_SPECS, WaysideKey, RUIN_SPECS, RuinKey, drawTrader, drawPackMule,
 } from "../game/render/sprites";
 // the Stable steed: 5 facings × idle 2f / walk 6f, 56×48
 for (const fc of STEED_FACINGS) {
@@ -168,6 +168,18 @@ for (const k of Object.keys(WAYSIDE_SPECS) as WaysideKey[]) {
 if (JSON.stringify(WAYSIDE_SPECS.campfire.fn(0).d) === JSON.stringify(WAYSIDE_SPECS.campfire.fn(1).d)) {
   failures++; console.error("FAIL campfire: flame frames 0 and 1 identical");
 }
+// the Roaming Trader (wanderer rig) + pack mule
+for (const fc of ["s", "se", "e", "ne", "n"] as IsoFacing[])
+  for (const [anim, n] of [["idle", 2], ["walk", 6]] as [BeastAnim, number][])
+    for (let f = 0; f < n; f++) {
+      try { const g = drawTrader(fc, anim as never, f); frames++; if (g.w !== 32 || g.h !== 40) { failures++; console.error(`FAIL trader ${fc}-${anim}#${f}: ${g.w}×${g.h}`); } }
+      catch (e) { failures++; console.error(`THROW trader ${fc}-${anim}#${f}:`, e); }
+    }
+for (const fc of ["s", "se", "e", "n"] as const)
+  for (let f = 0; f < 4; f++) {
+    try { const g = drawPackMule(fc, f); frames++; if (g.w !== 28 || g.h !== 28) { failures++; console.error(`FAIL mule ${fc}#${f}: ${g.w}×${g.h}`); } }
+    catch (e) { failures++; console.error(`THROW mule ${fc}#${f}:`, e); }
+  }
 // ruin landmarks: every key × frame
 for (const k of Object.keys(RUIN_SPECS) as RuinKey[]) {
   const spec = RUIN_SPECS[k];

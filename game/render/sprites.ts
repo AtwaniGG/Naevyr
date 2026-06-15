@@ -15,7 +15,7 @@ export type AnimName  = 'idle' | 'walk' | 'swing';
 
 // ─── Palette (exact mirror of DS RAMP) ────────────────────────────────────────
 
-const RAMP = {
+export const RAMP = {
   grass: ['#7fae5e', '#4d7c4d', '#356037', '#20402a'],
   dirt:  ['#7a6048', '#50402e', '#36291c', '#241a11'],
   stone: ['#4a4360', '#322b46', '#211c30', '#14101e'],
@@ -2505,7 +2505,7 @@ export type BuildingSpriteKey =
   | 'dyeworks' | 'vault' | 'wheel' | 'lantern'
   | 'furnisher' | 'menagerie' | 'shrine' | 'pit' | 'mine' | 'stable'
   | 'huskden' | 'obelisk' | 'mirehut' | 'waystation'
-  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp' | 'outpost'
+  | 'drownedruins' | 'barrowcrypt' | 'ashwarcamp' | 'mirelair' | 'outpost'
   | 'palisade_gate' | 'watchtower';
 
 const rnd2 = (x: number, y: number, s = 0) => hash2(x, y, s);
@@ -4499,6 +4499,7 @@ export function makeBuildingSprite(key: BuildingSpriteKey, frame = 0): Grid {
     case 'barrowcrypt': return makeBarrowCrypt(frame);
     case 'ashwarcamp': return makeAshenWarcamp(frame);
     case 'drownedruins': return makeDrownedRuins(frame);
+    case 'mirelair':    return makeDrownedRuins(frame); // SW lair reuses the sunken-ruin art
     // the Frontier Outpost now renders on its real trade house; the gate +
     // watchtower flank it as decor
     case 'outpost':   return drawTradingPost();
@@ -5207,12 +5208,455 @@ export function drawFishBasket(): Grid {
   return g;
 }
 
+// ─── Frontier interaction set — DS port (_gen/frontierboards.js) ──────────────
+// Wood-and-parchment frontier signage, byte-exact ports of the _interaction_pkg
+// exports. bounty_board (cluster A) is wired into the waysides; supply_post +
+// quartermaster_stall + garrison_banner serve the Outpost (cluster D).
+export function drawBountyBoard(f: number): Grid {
+  const g = makeGrid(40, 56);
+  const dt = RAMP.dirt, bn = RAMP.bone, dr = RAMP.drift, st = RAMP.stone;
+  const cx = 20, baseY = 55;
+  // ground scuff
+  for (let x = cx - 9; x <= cx + 9; x++) if ((x + baseY) % 2 === 0 && hash2(x, 0, 950) < 0.45) P(g, x, baseY, RAMP.ash);
+  // two posts
+  for (const px of [7, 30]) {
+    for (let y = 13; y <= baseY; y++) { let c = dt[1]; if (y % 5 === 0) c = dt[3]; P(g, px, y, dt[2]); P(g, px + 1, y, c); P(g, px + 2, y, dt[3]); }
+    P(g, px, 12, dt[3]); P(g, px + 1, 12, dt[2]); P(g, px + 2, 12, dt[3]);
+  }
+  // board planks
+  for (let y = 15; y <= 40; y++) for (let x = 5; x <= 35; x++) {
+    let c = dt[1];
+    if (x % 7 === 0) c = dt[3];                 // plank seams
+    if (y === 15 || y === 40) c = dt[3];        // frame top/bottom
+    if (x <= 6) c = dt[0]; if (x >= 34) c = dt[2];
+    if (hash2(x, y, 951) < 0.05) c = dt[3];     // wear/knots
+    if (hash2(x, y, 952) < 0.03) c = dr[3];     // drift stain
+    P(g, x, y, c);
+  }
+  for (let x = 5; x <= 35; x++) { P(g, x, 18, dt[3]); P(g, x, 37, dt[3]); }   // battens
+  P(g, cx, 14, dt[3]);                                                         // crown spar
+  // carved skull motif at the crown
+  const sx = cx, sy = 7;
+  for (let yy = 0; yy <= 5; yy++) for (let xx = -3; xx <= 3; xx++) { if (Math.abs(xx) === 3 && (yy === 0 || yy >= 4)) continue; P(g, sx + xx, sy + yy, bn[2]); }
+  P(g, sx - 1, sy + 2, RAMP.void); P(g, sx + 1, sy + 2, RAMP.void);
+  P(g, sx, sy + 4, RAMP.void);
+  for (let xx = -2; xx <= 2; xx++) if (xx % 2 === 0) P(g, sx + xx, sy + 5, bn[3]);
+  // nailed bounty slips — one flutters on f1
+  const slips = [[8, 20, 9, 11], [22, 19, 9, 12], [13, 28, 12, 9]];
+  slips.forEach((s, i) => {
+    const [bx, by, bw, bh] = s;
+    const lift = (f === 1 && i === 1) ? 1 : 0;
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+      let c = bn[0]; if (x === 0 || x === bw - 1 || y === 0 || y === bh - 1) c = bn[2];
+      const curl = (x > bw - 3) ? lift : 0;
+      P(g, bx + x, by + y - curl, c);
+    }
+    for (let ty = 2; ty < bh - 1; ty += 2) for (let tx = 2; tx < bw - 2; tx++) if (hash2(tx, ty, 960 + i) < 0.7) P(g, bx + tx, by + ty, bn[3]);
+    P(g, bx + (bw >> 1), by, st[3]);            // nail
+  });
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawSupplyPost(): Grid {
+  const g = makeGrid(56, 56);
+  const dt = RAMP.dirt, bn = RAMP.bone, em = RAMP.ember, st = RAMP.stone;
+  const baseY = 55;
+  function crate(x0: number, y0: number, s: number) {
+    for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
+      let c = dt[1]; if (i === 0 || i === s - 1 || j === 0 || j === s - 1) c = dt[3];
+      if (i === j || i === s - 1 - j) c = dt[2];
+      if (hash2(x0 + i, y0 + j, 970) < 0.05) c = dt[2];
+      P(g, x0 + i, y0 + j, c);
+    }
+  }
+  crate(4, baseY - 15, 16);
+  crate(6, baseY - 28, 12);
+  crate(21, baseY - 12, 12);
+  // a sack on top
+  for (let j = 0; j < 7; j++) { const w = 7 - Math.abs(j - 3); for (let i = -w; i <= w; i++) P(g, 12 + i, baseY - 29 - j, i < 0 ? bn[2] : bn[3]); }
+  P(g, 12, baseY - 36, bn[1]);
+  // tally board post (right)
+  const px = 44;
+  for (let y = 6; y <= baseY; y++) { P(g, px, y, dt[2]); P(g, px + 1, y, dt[1]); P(g, px + 2, y, dt[3]); }
+  for (let y = 10; y <= 35; y++) for (let x = 31; x <= px + 2; x++) {
+    let c = dt[1]; if (y === 10 || y === 35) c = dt[3]; if (x <= 32) c = dt[0];
+    if (hash2(x, y, 971) < 0.05) c = dt[3];
+    P(g, x, y, c);
+  }
+  for (let x = 31; x <= px + 2; x++) P(g, x, 22, dt[3]);   // mid batten
+  function tally(tx: number, ty: number) {
+    for (let k = 0; k < 4; k++) for (let yy = 0; yy < 5; yy++) P(g, tx + k * 2, ty + yy, bn[0]);
+    for (let k = 0; k < 5; k++) P(g, tx - 1 + k * 2, ty + 4 - k, bn[0]);
+  }
+  tally(34, 13); tally(34, 25);
+  P(g, 34, 31, bn[0]); P(g, 36, 31, bn[0]); P(g, 38, 31, bn[0]);
+  // lantern bracket + hanging lantern at the post crown
+  for (let x = px - 6; x <= px; x++) P(g, x, 7, st[3]);
+  P(g, px - 6, 8, st[3]);
+  const lx = px - 6, ly = 10;
+  for (let j = 0; j < 6; j++) for (let i = -2; i <= 2; i++) { let c = st[2]; if (i === 0 && j > 0 && j < 5) c = em[1]; if (Math.abs(i) === 2) c = st[3]; P(g, lx + i, ly + j, c); }
+  P(g, lx, ly + 2, em[0]);
+  for (let yy = -2; yy <= 4; yy++) for (let xx = -3; xx <= 3; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 2 && d < 5 && (xx + yy) % 2 === 0) P(g, lx + xx, ly + 2 + yy, em[2]); }
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawQuartermasterStall(): Grid {
+  const g = makeGrid(64, 48);
+  const dt = RAMP.dirt, bl = RAMP.blood, gd = RAMP.gold, st = RAMP.stone, bn = RAMP.bone;
+  const baseY = 47;
+  for (const px of [6, 30, 56]) for (let y = 10; y <= baseY; y++) { P(g, px, y, dt[2]); P(g, px + 1, y, dt[3]); }
+  function crate(x0: number, y0: number, s: number) { for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) { let c = dt[1]; if (i === 0 || i === s - 1 || j === 0 || j === s - 1) c = dt[3]; if (i === j || i === s - 1 - j) c = dt[2]; P(g, x0 + i, y0 + j, c); } }
+  crate(10, baseY - 18, 11);
+  crate(40, baseY - 16, 12);
+  // a barrel
+  for (let y = 0; y < 13; y++) { const w = 5 - (y === 0 || y === 12 ? 1 : 0); for (let i = -w; i <= w; i++) { let c = dt[1]; if (i <= -w + 1) c = dt[0]; if (i >= w - 1) c = dt[2]; if (y % 5 === 0) c = dt[3]; P(g, 26 + i, baseY - 13 + y, c); } }
+  // canvas canopy (striped), slanting down to the front
+  for (let x = 4; x <= 58; x++) {
+    const yy = 9 + Math.round((x - 4) * 0.06);
+    for (let k = 0; k < 5; k++) { let c = ((x % 6) < 3) ? bn[1] : bl[2]; if (k === 0) c = bn[2]; if (k === 4) c = dt[3]; P(g, x, yy + k, c); }
+  }
+  for (let x = 4; x <= 58; x++) { const yy = 9 + Math.round((x - 4) * 0.06) + 5; if ((x % 4) < 2) P(g, x, yy, bn[2]); }   // scalloped fringe
+  // timber counter
+  for (let x = 4; x <= 58; x++) { P(g, x, baseY - 7, dt[1]); P(g, x, baseY - 6, dt[2]); P(g, x, baseY - 5, dt[3]); }
+  for (let x = 4; x <= 58; x++) for (let y = baseY - 4; y <= baseY; y++) P(g, x, y, ((x % 8) < 1) ? dt[3] : dt[2]);
+  // coin stack on the counter
+  for (let k = 0; k < 5; k++) { P(g, 13, baseY - 8 - k, gd[1]); P(g, 14, baseY - 8 - k, gd[2]); } P(g, 13, baseY - 13, gd[0]);
+  // small trade scale
+  for (let i = -3; i <= 3; i++) P(g, 46 + i, baseY - 12, st[2]);
+  P(g, 46, baseY - 11, st[3]); P(g, 46, baseY - 10, st[3]); P(g, 46, baseY - 9, st[3]); P(g, 46, baseY - 8, st[3]);
+  for (let i = -1; i <= 1; i++) { P(g, 43 + i, baseY - 10, st[3]); P(g, 49 + i, baseY - 10, st[3]); }
+  outline(g, RAMP.void);
+  return g;
+}
+// state 'raised': sway 3f @3fps · state 'lowered': furled, dim (rep not yet earned)
+export function drawGarrisonBanner(state: string, f: number): Grid {
+  const g = makeGrid(24, 72);
+  const st = RAMP.stone, bn = RAMP.bone, dr = RAMP.drift, bl = RAMP.blood;
+  const baseY = 71, px = 11;
+  // spear pole
+  for (let y = 4; y <= baseY; y++) { P(g, px, y, st[1]); P(g, px + 1, y, st[2]); }
+  P(g, px, 0, st[0]); P(g, px, 1, st[0]);
+  for (let yy = 2; yy <= 3; yy++) for (let xx = -1; xx <= 2; xx++) P(g, px + xx, yy, st[1]);
+  P(g, px - 1, 4, st[2]); P(g, px + 2, 4, st[2]);
+  if (state === 'lowered') {
+    const fb = RAMP.stone;            // muted grey cloth — unlit / unearned
+    for (let y = 9; y <= 41; y++) {
+      const w = Math.max(1, 2 + Math.round(Math.sin(y * 0.22) * 1.2));
+      for (let x = px + 2; x <= px + 2 + w; x++) { let c = fb[2]; if (x === px + 2) c = fb[1]; if (x >= px + 2 + w) c = fb[3]; if ((x + y) % 5 === 0) c = fb[3]; P(g, x, y, c); }
+    }
+    for (const ty of [15, 29]) for (let x = px; x <= px + 5; x++) P(g, x, ty, bn[3]);   // lashings
+    P(g, px + 4, 22, st[3]);          // a faint, unlit sigil ghost
+    outline(g, RAMP.void);
+    return g;
+  }
+  // raised banner: billows by frame
+  const sway = [0, 1, 2][f], bx0 = px + 2, by0 = 8, bw = 9, bh = 42;
+  for (let y = 0; y < bh; y++) {
+    const billow = Math.round(Math.sin(y * 0.25 + f * 0.8) * (1 + (y / bh) * sway));
+    const edge = bw - 1 - ((y > bh - 12 && hash2(y, 0, 980) < 0.4) ? 2 : 0);   // tattered fly edge
+    for (let x = 0; x <= edge; x++) {
+      if (y > bh - 9 && hash2(x, y, 981) < 0.28) continue;                      // ragged hem
+      let c = bl[2]; if (x <= 1) c = bl[3]; if (x >= edge - 1) c = bl[1];
+      if ((x + y) % 7 === 0) c = bl[3];
+      P(g, bx0 + x + billow, by0 + y, c);
+    }
+  }
+  for (let x = 0; x < bw; x++) P(g, bx0 + x, by0, bn[3]);   // top binding
+  const ex = bx0 + 4, ey = by0 + 17;
+  P(g, ex, ey, dr[0]); P(g, ex - 1, ey, dr[2]); P(g, ex + 1, ey, dr[2]); P(g, ex, ey - 1, dr[2]); P(g, ex, ey + 1, dr[2]);
+  P(g, ex - 2, ey, dr[3]); P(g, ex + 2, ey, dr[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+
+// ─── The Roaming Trader — DS port (_gen/merchant.js) ──────────────────────────
+// Wanderer-rig actor (reuses avatarRig/avatarFeet): 32×40, 5 facings, idle 2f /
+// walk 6f, one ramp-swap `cloth` channel. Plus the pack_mule companion.
+export const TRADER_CLOTH_RAMPS = ['dirt', 'stone', 'grass', 'blood', 'drift'] as const;
+export type TraderCloth = (typeof TRADER_CLOTH_RAMPS)[number];
+function bodyTrader(g: Grid, R: AvatarRig, anim: AnimName, f: number, cloth: readonly string[]) {
+  const { cx, off, dir, top, shoulderY, hemSway, back, showFace } = R;
+  const lt = RAMP.dirt, bn = RAMP.bone, st = RAMP.stone, em = RAMP.ember;
+  function pack() {
+    const bx = cx + off + (back ? 0 : (dir === 0 ? 0 : -1));
+    for (let y = top - 6; y <= shoulderY + 6; y++) { P(g, bx - 5, y, lt[3]); P(g, bx + 5, y, lt[3]); }   // frame rails
+    for (let y = top - 6; y <= shoulderY + 5; y++) for (let x = bx - 4; x <= bx + 4; x++) {
+      let c = cloth[1]; if (x <= bx - 3) c = cloth[0]; if (x >= bx + 3) c = cloth[2];
+      if ((x + y) % 4 === 0) c = cloth[2]; if (hash2(x, y, 1101) < 0.05) c = cloth[3];
+      P(g, x, y, c);
+    }
+    fillRect(g, bx - 4, top - 3, 3, 3, st[2]); P(g, bx - 4, top - 4, st[3]);     // strapped pot
+    fillRect(g, bx + 2, shoulderY - 1, 3, 3, lt[1]);                            // a bundle
+    for (let x = bx - 5; x <= bx + 5; x++) { P(g, x, top - 7, bn[3]); P(g, x, top - 6, bn[2]); }   // bedroll across top
+    for (let yy = top - 5; yy <= shoulderY; yy += 3) for (let x = bx - 5; x <= bx + 5; x++) if (x % 3 === 0) P(g, x, yy, RAMP.void);   // lashing
+  }
+  function lantern() {
+    const lsw = (anim === 'walk') ? [0, 1, 1, 0, -1, -1][f] : (f === 1 ? 1 : 0);
+    const lx = cx + off + 6 + lsw, ly = shoulderY + 7;
+    P(g, lx, ly - 2, st[3]);
+    for (let j = 0; j < 5; j++) for (let i = -1; i <= 1; i++) { let c = st[2]; if (i === 0 && j > 0 && j < 4) c = em[1]; if (Math.abs(i) === 1) c = st[3]; P(g, lx + i, ly + j, c); }
+    P(g, lx, ly + 2, em[0]);
+  }
+  if (!back) pack();
+  // coat / cloak
+  for (let y = shoulderY; y <= 36; y++) {
+    const t = (y - shoulderY) / (36 - shoulderY);
+    const hw = Math.round(3.4 + t * 2.2);
+    const cxx = cx + Math.round(off * 0.5) + (y > 31 ? Math.round(hemSway * 0.6) : 0);
+    for (let x = cxx - hw; x <= cxx + hw; x++) { let c = cloth[1]; if (x <= cxx - hw + 1) c = cloth[0]; if (x >= cxx + hw - 1) c = cloth[2]; if (hash2(x, y, 1100) < 0.05) c = cloth[3]; P(g, x, y, c); }
+  }
+  // hood
+  for (let y = top; y <= shoulderY + 1; y++) { const hy = (y - top) / (shoulderY + 1 - top); const hw = Math.round(2 + Math.sin(Math.min(1, hy * 1.25) * Math.PI * 0.55) * 3); const hcx = cx + off; for (let x = hcx - hw; x <= hcx + hw; x++) { let c = cloth[1]; if (x === hcx - hw) c = cloth[0]; if (x >= hcx + hw - 1) c = cloth[2]; if (y === top) c = cloth[0]; P(g, x, y, c); } }
+  P(g, cx + off + (dir >= 1 ? 1 : 0), top - 1, cloth[1]);
+  // shadowed face + a glint of eye
+  if (showFace) {
+    const fcx = cx + off + (dir === 2 ? 1 : 0), ey = top + 5;
+    for (let y = top + 4; y <= top + 7; y++) for (let x = fcx - 2; x <= fcx + 2; x++) P(g, x, y, RAMP.void);
+    P(g, fcx + (dir === 2 ? 1 : -1), ey, bn[0]); if (dir !== 2) P(g, fcx + 1, ey, bn[1]);
+  }
+  // forward arm + walking staff (front/side)
+  if (!back) {
+    const ax = cx + off - 5; for (let y = shoulderY + 1; y <= 28; y++) P(g, ax, y, cloth[2]);
+    const sx = cx + off - 6; for (let y = top + 2; y <= 37; y++) P(g, sx, y, lt[2]); P(g, sx, top + 1, lt[3]);
+    P(g, sx - 1, top + 2, bn[2]); P(g, sx + 1, top + 2, bn[2]);    // bundle tied at the staff head
+    P(g, sx, top + 3, bn[1]);
+  }
+  if (back) pack();
+  lantern();
+}
+export function drawTrader(facing: IsoFacing, anim: AnimName, f: number, cloth: readonly string[] = RAMP.dirt): Grid {
+  const g = makeGrid(32, 40);
+  const R = avatarRig(facing, anim, f);
+  bodyTrader(g, R, anim, f, cloth);
+  avatarFeet(g, R, RAMP.dirt, 0);
+  outline(g, RAMP.void);
+  return g;
+}
+const MULE_FACINGS = ['s', 'se', 'e', 'n'] as const;
+export function drawPackMule(facing: 's' | 'se' | 'e' | 'n', f: number): Grid {
+  const g = makeGrid(28, 28);
+  const dt = RAMP.dirt, bn = RAMP.bone, st = RAMP.stone, cl = RAMP.dirt;
+  const dir = { s: 0, se: 1, e: 2, n: 3 }[facing];
+  const profile = dir === 2, diagonal = dir === 1, back = dir === 3;
+  const cx = 14, baseY = 27, bodyY = baseY - 12;
+  const ph = [0, 1, 0, -1][f % 4];
+  function leg(lx: number) { for (let k = 0; k < 7; k++) P(g, lx, baseY - k, k > 4 ? dt[1] : dt[2]); P(g, lx, baseY, RAMP.void); }
+  if (profile || diagonal) { leg(cx - 6 + ph); leg(cx - 3); leg(cx + 3 - ph); leg(cx + 6); }
+  else { leg(cx - 5); leg(cx - 2); leg(cx + 2); leg(cx + 5); }
+  // barrel body
+  for (let y = 0; y < 8; y++) for (let x = -8; x <= 8; x++) { if ((x / 8) ** 2 + ((y - 3) / 4) ** 2 > 1) continue; let c = dt[2]; if (x <= -6) c = dt[1]; if (x >= 6) c = dt[3]; if (hash2(x, y, 1200) < 0.05) c = dt[3]; P(g, cx + x, bodyY + y, c); }
+  // head / neck toward facing
+  if (!back) {
+    const hd = profile ? cx + 9 : (diagonal ? cx + 7 : cx);
+    const hy = (profile || diagonal) ? bodyY + 1 : bodyY - 2;
+    for (let y = 0; y < 6; y++) for (let x = -2; x <= 2; x++) { let c = dt[2]; if (x <= -2) c = dt[1]; if (x >= 2) c = dt[3]; P(g, hd + x, hy + y, c); }
+    P(g, hd - 1, hy - 2, dt[1]); P(g, hd - 1, hy - 3, dt[2]); P(g, hd + 1, hy - 2, dt[1]); P(g, hd + 1, hy - 3, dt[2]);   // long ears
+    P(g, hd, hy + 6, bn[3]);                                                                                            // muzzle
+    if (profile) P(g, hd + 1, hy + 2, RAMP.void); else { P(g, hd - 1, hy + 2, RAMP.void); P(g, hd + 1, hy + 2, RAMP.void); }
+  } else { P(g, cx, bodyY + 1, dt[3]); P(g, cx, bodyY + 2, dt[2]); P(g, cx, bodyY + 3, dt[3]); }   // tail
+  // side panniers
+  if (profile || diagonal) { fillRect(g, cx + 2, bodyY + 2, 5, 5, cl[2]); P(g, cx + 2, bodyY + 2, cl[3]); fillRect(g, cx - 7, bodyY + 3, 4, 4, cl[1]); }
+  // top bundle heap + lashing
+  for (let y = 0; y < 5; y++) { const w = 6 - y; for (let x = -w; x <= w; x++) { let c = cl[1]; if (x <= -w + 1) c = cl[0]; if (x >= w - 1) c = cl[2]; if ((x + 2 * y) % 4 === 0) c = cl[3]; P(g, cx + x, bodyY - 1 - y, c); } }
+  fillRect(g, cx - 2, bodyY - 6, 4, 3, st[2]); P(g, cx - 2, bodyY - 6, st[3]);   // strapped pot
+  for (let x = -8; x <= 8; x++) if (x % 4 === 0) P(g, cx + x, bodyY + 3, RAMP.void);
+  outline(g, RAMP.void);
+  return g;
+}
+// ─── Campcraft + claimworks — DS port (_gen/campcraft.js, _gen/claimworks.js) ─
+// Field workstations + salvage FX (camp crafting / wreck salvage) and the claim
+// upgrade props (Forge enchant + claim upgrades). Byte-exact ports.
+function campLine(g: Grid, x0: number, y0: number, x1: number, y1: number, c: string) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let k = 0; k <= n; k++) P(g, Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), c);
+}
+export function drawCampTannery(f: number): Grid {
+  const g = makeGrid(40, 48);
+  const dt = RAMP.dirt, bn = RAMP.bone;
+  const baseY = 47, sway = f === 1 ? 1 : 0;
+  for (const px of [5, 33]) { for (let y = 8; y <= baseY; y++) { P(g, px, y, dt[2]); P(g, px + 1, y, dt[3]); } }
+  for (let x = 4; x <= 35; x++) { P(g, x, 8, dt[3]); P(g, x, 9, dt[2]); }
+  function hide(x0: number, w: number, h: number, tone: readonly string[]) {
+    for (let y = 0; y < h; y++) {
+      const ww = Math.round(w * (0.6 + 0.4 * Math.sin((y / h) * Math.PI)));
+      const s = y > h - 7 ? sway : 0;
+      for (let x = -ww; x <= ww; x++) { let c = tone[2]; if (x <= -ww + 1) c = tone[1]; if (x >= ww - 1) c = tone[3]; if (hash2(x0 + x, y, 990) < 0.06) c = tone[3]; P(g, x0 + x + s, 10 + y, c); }
+    }
+    for (const dx of [-2, 0, 2]) P(g, x0 + dx, 9, bn[1]);
+  }
+  hide(11, 4, 26, bn);
+  hide(21, 5, 30, dt);
+  hide(30, 3, 20, bn);
+  for (let x = 8; x <= 31; x++) P(g, x, baseY - 2, dt[3]);
+  P(g, 8, baseY - 1, dt[3]); P(g, 31, baseY - 1, dt[3]);
+  P(g, 18, baseY - 3, bn[1]); P(g, 19, baseY - 4, bn[2]); P(g, 20, baseY - 3, bn[1]);
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawCampAnvil(f: number): Grid {
+  const g = makeGrid(36, 40);
+  const st = RAMP.stone, dt = RAMP.dirt, em = RAMP.ember;
+  const baseY = 39, hot = f === 1;
+  for (let y = 0; y < 8; y++) { const w = 8 - Math.floor(y / 2); for (let x = -w; x <= w; x++) { let c = st[2]; if (x <= -w + 1) c = st[1]; if (x >= w - 1) c = st[3]; P(g, 10 + x, baseY - y, c); } }
+  for (let x = -5; x <= 5; x++) for (let yy = 0; yy < 3; yy++) { if (hash2(x, yy, 1001) < 0.6) { let c = hot ? em[0] : em[2]; if (hash2(x, yy, 1002) < 0.4) c = hot ? em[1] : em[3]; P(g, 10 + x, baseY - 6 + yy, c); } }
+  for (let yy = -4; yy <= 0; yy++) for (let xx = -4; xx <= 4; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 2 && d < 5 && (xx + yy) % 2 === 0) P(g, 10 + xx, baseY - 8 + yy, hot ? em[1] : em[2]); }
+  if (hot) { P(g, 8, baseY - 11, em[2]); P(g, 12, baseY - 12, em[1]); }
+  for (let y = 0; y < 7; y++) for (let x = -4; x <= 4; x++) { let c = dt[2]; if (x <= -3) c = dt[1]; if (x >= 3) c = dt[3]; P(g, 26 + x, baseY - y, c); }
+  const ay = baseY - 7;
+  for (let x = -6; x <= 4; x++) P(g, 26 + x, ay - 3, st[1]);
+  for (let x = -5; x <= 3; x++) P(g, 26 + x, ay - 2, st[2]);
+  for (let x = -2; x <= 1; x++) P(g, 26 + x, ay - 1, st[2]);
+  for (let x = -3; x <= 2; x++) P(g, 26 + x, ay, st[3]);
+  P(g, 19, ay - 3, st[2]); P(g, 18, ay - 2, st[3]);
+  P(g, 24, ay - 4, dt[2]); P(g, 23, ay - 5, dt[1]);
+  fillRect(g, 21, ay - 6, 3, 2, st[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawCampCookfire(f: number): Grid {
+  const g = makeGrid(36, 40);
+  const st = RAMP.stone, em = RAMP.ember, gd = RAMP.gold, dt = RAMP.dirt;
+  const baseY = 39, cx = 18, ay = baseY - 23;
+  for (let x = -9; x <= 9; x++) if (Math.abs(x) > 5 && hash2(x, 0, 1010) < 0.85) { P(g, cx + x, baseY, st[2]); P(g, cx + x, baseY - 1, st[3]); }
+  for (let x = -5; x <= 5; x++) P(g, cx + x, baseY - 1, dt[3]);
+  P(g, cx - 4, baseY - 2, dt[2]); P(g, cx + 4, baseY - 2, dt[2]);
+  const flh = [6, 8, 7][f];
+  for (let k = 0; k < flh; k++) {
+    const w = Math.max(0, Math.round((1 - k / flh) * 4));
+    const wob = Math.round(Math.sin(k * 0.9 + f * 1.3) * 1.2);
+    for (let i = -w; i <= w; i++) { let c = em[1]; if (k < flh * 0.4) c = em[0]; if (i === 0 && k < flh * 0.7) c = gd[0]; if (k > flh * 0.7) c = em[2]; P(g, cx + i + wob, baseY - 2 - k, c); }
+  }
+  P(g, cx + 2 + f, baseY - flh - 1, em[2]); P(g, cx - 1, baseY - flh - 2, gd[0]);
+  campLine(g, cx - 9, baseY - 1, cx, ay, st[2]);
+  campLine(g, cx + 9, baseY - 1, cx, ay, st[3]);
+  campLine(g, cx, baseY - 3, cx, ay, st[2]);
+  P(g, cx, ay - 1, st[3]);
+  const cy = baseY - 15;
+  for (let y = 0; y < 8; y++) { const w = (y < 2) ? 5 : (y > 6 ? 3 : 6 - Math.floor(y / 4)); for (let x = -w; x <= w; x++) { let c = st[2]; if (x <= -w + 1) c = st[1]; if (x >= w - 1) c = st[3]; if (y === 0) c = st[3]; P(g, cx + x, cy + y, c); } }
+  for (let x = -5; x <= 5; x++) P(g, cx + x, cy - 1, st[3]);
+  campLine(g, cx, ay, cx, cy - 1, st[3]);
+  P(g, cx - 1, cy, gd[1]); P(g, cx + 2, cy, gd[2]);
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawSalvageGlint(f: number): Grid {
+  const g = makeGrid(16, 16);
+  const gd = RAMP.gold, dr = RAMP.drift;
+  const cx = 8, cy = 9, big = f === 0, r = big ? 3 : 2;
+  for (let k = -r; k <= r; k++) { P(g, cx + k, cy, k === 0 ? gd[0] : gd[1]); P(g, cx, cy + k, k === 0 ? gd[0] : gd[1]); }
+  P(g, cx, cy, gd[0]);
+  if (big) { P(g, cx + 1, cy, gd[0]); P(g, cx, cy - 1, gd[0]); P(g, cx - r - 1, cy, gd[3]); P(g, cx + r + 1, cy, gd[3]); P(g, cx, cy - r - 1, gd[3]); }
+  P(g, cx - 1, cy - 1, dr[1]); P(g, cx + 1, cy + 1, dr[1]);
+  return g; // ADDITIVE — no outline
+}
+export function drawDigPuff(f: number): Grid {
+  const g = makeGrid(24, 20);
+  const bn = RAMP.bone, dt = RAMP.dirt;
+  const cx = 12, by = 18, r = [3, 7, 10][f];
+  for (let a = 0; a < 16; a++) {
+    const ang = (a / 16) * Math.PI;
+    const rr = r * (0.55 + 0.45 * hash2(a, f, 1030));
+    const x = Math.round(cx + Math.cos(ang) * rr * 1.2);
+    const y = Math.round(by - Math.sin(ang) * rr);
+    if (hash2(a, f, 1031) < 0.25 + 0.18 * f) continue;
+    const c = f === 0 ? dt[1] : (f === 1 ? bn[2] : bn[3]);
+    P(g, x, y, c);
+    if (f === 0) P(g, x, y + 1, dt[2]);
+  }
+  if (f < 2) { P(g, cx - 2, by - 2, dt[2]); P(g, cx + 3, by - 3, dt[3]); }
+  return g; // ADDITIVE — no outline
+}
+export function drawClaimStash(): Grid {
+  const g = makeGrid(32, 28);
+  const dt = RAMP.dirt, st = RAMP.stone, gd = RAMP.gold;
+  const cx = 16, x0 = 4, x1 = 27, topY = 11, botY = 26;
+  for (let y = 4; y <= topY; y++) { const t = (y - 4) / (topY - 4); const hw = Math.round(9 + t * 2); for (let x = cx - hw; x <= cx + hw; x++) { let c = dt[1]; if (x <= cx - hw + 1) c = dt[0]; if (x >= cx + hw - 1) c = dt[2]; P(g, x, y, c); } }
+  for (let y = topY + 1; y <= botY; y++) for (let x = x0; x <= x1; x++) { let c = dt[2]; if (x <= x0 + 1) c = dt[1]; if (x >= x1 - 1) c = dt[3]; if (hash2(x, y, 1300) < 0.05) c = dt[3]; P(g, x, y, c); }
+  for (const bxp of [9, 16, 23]) for (let y = 4; y <= botY; y++) {
+    if (y < topY) { const hw = Math.round(9 + ((y - 4) / (topY - 4)) * 2); if (Math.abs(bxp - cx) > hw) continue; }
+    P(g, bxp, y, st[2]); P(g, bxp + 1, y, st[3]);
+  }
+  for (let x = x0; x <= x1; x++) { P(g, x, topY, st[3]); P(g, x, topY + 1, st[2]); }
+  fillRect(g, cx - 2, topY - 1, 5, 5, gd[2]); P(g, cx - 2, topY - 1, gd[1]); P(g, cx, topY + 1, RAMP.void); P(g, cx, topY + 2, gd[0]);
+  ([[x0 + 1, topY + 2], [x1 - 1, topY + 2], [x0 + 1, botY - 1], [x1 - 1, botY - 1]] as const).forEach(([rx, ry]) => P(g, rx, ry, st[1]));
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawClaimWorkbench(): Grid {
+  const g = makeGrid(36, 28);
+  const dt = RAMP.dirt, st = RAMP.stone, bn = RAMP.bone;
+  const baseY = 27;
+  for (const lx of [5, 30]) { for (let y = 16; y <= baseY; y++) { P(g, lx, y, dt[3]); P(g, lx + 1, y, dt[2]); } }
+  for (let x = 5; x <= 31; x++) P(g, x, 22, dt[3]);
+  for (let d = 0; d <= 4; d++) for (let x = 3; x <= 33; x++) P(g, x + d, 12 - Math.floor(d / 2), d === 0 ? dt[1] : (d >= 3 ? dt[3] : dt[2]));
+  for (let x = 3; x <= 33; x++) { P(g, x, 15, dt[3]); P(g, x, 16, dt[3]); }
+  fillRect(g, 29, 9, 4, 4, st[2]); P(g, 29, 9, st[1]); P(g, 33, 10, st[3]); P(g, 31, 13, st[3]); P(g, 31, 8, st[3]);
+  P(g, 9, 11, dt[2]); P(g, 8, 11, dt[1]); fillRect(g, 6, 9, 3, 2, st[3]);
+  P(g, 14, 11, st[2]); P(g, 15, 11, st[1]); P(g, 16, 11, bn[2]);
+  P(g, 18, 11, st[2]); P(g, 19, 11, bn[2]);
+  for (let k = 0; k < 7; k++) { P(g, 22 + k, 11 - k, st[2]); P(g, 22 + k, 12 - k, bn[3]); }
+  for (let i = 0; i < 8; i++) { const ox = 6 + Math.floor(hash2(i, 1, 1400) * 26); P(g, ox, 14, dt[1]); if (hash2(i, 2, 1400) < 0.4) P(g, ox + 1, 14, dt[2]); }
+  for (let i = 0; i < 5; i++) { const ox = 8 + Math.floor(hash2(i, 3, 1400) * 22); P(g, ox, baseY, dt[1]); }
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawClaimWard(f: number): Grid {
+  const g = makeGrid(24, 44);
+  const st = RAMP.stone, dr = RAMP.drift, bn = RAMP.bone;
+  const cx = 12, baseY = 43, bright = f === 1;
+  for (let y = 14; y <= baseY; y++) { const t = (y - 14) / (baseY - 14); const hw = Math.round(3 + t * 2); for (let x = cx - hw; x <= cx + hw; x++) { let c = st[2]; if (x <= cx - hw + 1) c = st[1]; if (x >= cx + hw - 1) c = st[3]; P(g, x, y, c); } }
+  for (let x = cx - 6; x <= cx + 6; x++) { P(g, x, baseY, st[3]); P(g, x, baseY - 1, st[2]); }
+  ([[0, 20], [-2, 26], [2, 30], [0, 36]] as const).forEach(([rx, ry]) => { const c = bright ? dr[0] : dr[2]; P(g, cx + rx, ry, c); P(g, cx + rx - 1, ry, dr[3]); P(g, cx + rx + 1, ry, dr[3]); P(g, cx + rx, ry + 1, dr[3]); });
+  for (let x = cx - 5; x <= cx + 5; x++) P(g, x, 13, st[3]);
+  for (let x = cx - 4; x <= cx + 4; x++) P(g, x, 14, st[2]);
+  for (let x = cx - 3; x <= cx + 3; x++) P(g, x, 12, st[1]);
+  const flh = bright ? 7 : 5;
+  for (let k = 0; k < flh; k++) { const w = Math.max(0, Math.round((1 - k / flh) * 3)); const wob = Math.round(Math.sin(k * 0.9 + f) * 1); for (let i = -w; i <= w; i++) { let c = dr[1]; if (k < flh * 0.4) c = dr[0]; if (i === 0 && k < flh * 0.7) c = bn[0]; if (k > flh * 0.7) c = dr[2]; P(g, cx + i + wob, 11 - k, c); } }
+  P(g, cx + 2, 11 - flh - 1, bright ? dr[0] : dr[2]); P(g, cx - 1, 11 - flh - 2, dr[1]);
+  for (let yy = -3; yy <= 3; yy++) for (let xx = -5; xx <= 5; xx++) { const d = Math.abs(xx) + Math.abs(yy); if (d > 3 && d < (bright ? 7 : 6) && (xx + yy) % 2 === 0) P(g, cx + xx, 8 + yy, dr[3]); }
+  outline(g, RAMP.void);
+  return g;
+}
+export function drawRuneAnvil(f: number): Grid {
+  const g = makeGrid(32, 40);
+  const st = RAMP.stone, dr = RAMP.drift, dt = RAMP.dirt;
+  const cx = 16, baseY = 39, bright = f === 1;
+  for (let y = 0; y < 9; y++) for (let x = -5; x <= 5; x++) { let c = dt[2]; if (x <= -4) c = dt[1]; if (x >= 4) c = dt[3]; if (y === 0) c = dt[3]; P(g, cx + x, baseY - y, c); }
+  const ay = baseY - 9;
+  for (let x = -7; x <= 5; x++) P(g, cx + x, ay - 4, st[1]);
+  for (let x = -6; x <= 4; x++) P(g, cx + x, ay - 3, st[2]);
+  for (let x = -2; x <= 2; x++) { P(g, cx + x, ay - 2, st[2]); P(g, cx + x, ay - 1, st[3]); }
+  for (let x = -4; x <= 3; x++) P(g, cx + x, ay, st[3]);
+  P(g, cx - 8, ay - 4, st[2]); P(g, cx - 9, ay - 3, st[3]);
+  P(g, cx - 1, ay - 2, bright ? dr[0] : dr[2]); P(g, cx + 1, ay - 2, bright ? dr[1] : dr[3]);
+  const glyphs = [[-9, -8], [9, -9], [0, -13], [-6, -12], [7, -12]];
+  glyphs.forEach(([gx, gy], i) => {
+    const on = bright ? (i % 2 === 0) : (i % 2 === 1);
+    const c = on ? dr[0] : dr[3];
+    const yy = ay + gy - (bright ? 1 : 0);
+    P(g, cx + gx, yy, c);
+    if (on) { P(g, cx + gx - 1, yy, dr[2]); P(g, cx + gx + 1, yy, dr[2]); P(g, cx + gx, yy - 1, dr[2]); }
+  });
+  for (let a = 0; a < 16; a++) { const ang = (a / 16) * Math.PI * 2; const rx = Math.round(cx + Math.cos(ang) * 9); const ry = Math.round(ay - 7 + Math.sin(ang) * 5); if ((a + f) % 3 === 0) P(g, rx, ry, dr[3]); }
+  P(g, cx + 3, ay - 5, dt[2]); P(g, cx + 4, ay - 6, dt[1]); fillRect(g, cx + 4, ay - 8, 3, 2, st[3]);
+  outline(g, RAMP.void);
+  return g;
+}
+
 export type WaysideKey =
   | 'campfire' | 'lean_to' | 'bedroll' | 'supply_crates' | 'cook_pot'
   | 'log_pile' | 'sawbuck' | 'axe_stump'
   | 'stone_cart' | 'cut_blocks' | 'pick_stump'
-  | 'pier' | 'net_rack' | 'fish_basket';
+  | 'pier' | 'net_rack' | 'fish_basket'
+  | 'bounty_board' | 'supply_post' | 'quartermaster_stall'
+  | 'camp_tannery' | 'camp_anvil' | 'camp_cookfire';
 export const WAYSIDE_SPECS: Record<WaysideKey, { cell: [number, number]; frames: number; fn: (f: number) => Grid }> = {
+  bounty_board:        { cell: [40, 56], frames: 2, fn: (f) => drawBountyBoard(f) },
+  supply_post:         { cell: [56, 56], frames: 1, fn: () => drawSupplyPost() },
+  quartermaster_stall: { cell: [64, 48], frames: 1, fn: () => drawQuartermasterStall() },
+  camp_tannery:        { cell: [40, 48], frames: 2, fn: (f) => drawCampTannery(f) },
+  camp_anvil:          { cell: [36, 40], frames: 2, fn: (f) => drawCampAnvil(f) },
+  camp_cookfire:       { cell: [36, 40], frames: 3, fn: (f) => drawCampCookfire(f) },
   campfire:      { cell: [64, 64], frames: 3, fn: (f) => drawCampfire(f) },
   lean_to:       { cell: [80, 72], frames: 1, fn: () => drawLeanTo() },
   bedroll:       { cell: [48, 24], frames: 1, fn: () => drawBedroll() },
@@ -8430,6 +8874,9 @@ export class SpriteCache {
   private pets = new Map<string, OffscreenCanvas>();   // `${kind}-${frame}`
   private mounts = new Map<string, OffscreenCanvas>(); // steed `${facing}-${anim}-${frame}`
   private critters = new Map<string, OffscreenCanvas>(); // `${kind}-${facing}-${anim}-${frame}`
+  private trader = new Map<string, OffscreenCanvas>();    // `t-${facing}-${anim}-${f}` / `m-${facing}-${f}`
+  private salvageFx = new Map<string, OffscreenCanvas>(); // glint-${f} / puff-${f} (additive)
+  private claimProps = new Map<string, OffscreenCanvas>(); // stash / workbench / ward-${f} / rune-${f}
   private micropoi = new Map<string, OffscreenCanvas>(); // `${key}-${frame}`
   private biomeTiles = new Map<string, OffscreenCanvas>(); // `${key}`
   private roads = new Map<string, OffscreenCanvas>();  // `${mask}` 0-15 (+ `broken`), lazy
@@ -8494,6 +8941,18 @@ export class SpriteCache {
         for (let f = 0; f < n; f++) this.critters.set(`${kind}-${fc}-${anim}-${f}`, gridToCanvas(makeCritter(kind, fc, anim, f)));
       }
     }
+    // the Roaming Trader (wanderer-rig actor) + the pack mule companion
+    for (const fc of ['s', 'se', 'e', 'ne', 'n'] as IsoFacing[])
+      for (const [anim, n] of [['idle', 2], ['walk', 6]] as [AnimName, number][])
+        for (let f = 0; f < n; f++) this.trader.set(`t-${fc}-${anim}-${f}`, gridToCanvas(drawTrader(fc, anim, f)));
+    for (const fc of ['s', 'se', 'e', 'n'] as const)
+      for (let f = 0; f < 4; f++) this.trader.set(`m-${fc}-${f}`, gridToCanvas(drawPackMule(fc, f)));
+    // salvage FX (additive) + claim upgrade props
+    for (let f = 0; f < 2; f++) this.salvageFx.set(`glint-${f}`, gridToCanvas(drawSalvageGlint(f)));
+    for (let f = 0; f < 3; f++) this.salvageFx.set(`puff-${f}`, gridToCanvas(drawDigPuff(f)));
+    this.claimProps.set('stash', gridToCanvas(drawClaimStash()));
+    this.claimProps.set('workbench', gridToCanvas(drawClaimWorkbench()));
+    for (let f = 0; f < 2; f++) { this.claimProps.set(`ward-${f}`, gridToCanvas(drawClaimWard(f))); this.claimProps.set(`rune-${f}`, gridToCanvas(drawRuneAnvil(f))); }
     // micro-POIs (DS landmarks)
     for (const key of MICROPOI_KEYS) {
       const spec = MICROPOI_SPECS[key];
@@ -8538,6 +8997,7 @@ export class SpriteCache {
     // the frontier camps (expansion art): 2-frame idle each
     for (let f = 0; f < CAMP_FRAMES; f++) {
       this.buildings.set(`drownedruins-${f}`, gridToCanvas(makeDrownedRuins(f)));
+      this.buildings.set(`mirelair-${f}`, gridToCanvas(makeDrownedRuins(f)));
       this.buildings.set(`barrowcrypt-${f}`, gridToCanvas(makeBarrowCrypt(f)));
       this.buildings.set(`ashwarcamp-${f}`, gridToCanvas(makeAshenWarcamp(f)));
     }
@@ -8770,7 +9230,7 @@ export class SpriteCache {
       // the Waystation always reads as an ACTIVE gateway (frames 1-3 pulse)
       key === 'waystation' ? `waystation-${1 + (frame % 3)}` :
       // Phase C camps now render on ported expansion art (2-frame idle)
-      key === 'drownedruins' || key === 'barrowcrypt' || key === 'ashwarcamp'
+      key === 'drownedruins' || key === 'barrowcrypt' || key === 'ashwarcamp' || key === 'mirelair'
         ? `${key}-${frame % CAMP_FRAMES}` :
       key;
     const cv = this.buildings.get(fkey);
@@ -9003,6 +9463,73 @@ export class SpriteCache {
     if (spec.additive) ctx.restore();
   }
 
+  /** the Roaming Trader puppet (wanderer-rig, 32×40, bottom-center anchored).
+   *  `mirror` flips for the w/sw/nw facings (only s/se/e/ne/n are cached). */
+  drawTrader(ctx: CanvasRenderingContext2D, facing: string, anim: string, frame: number, sx: number, sy: number, z: number, mirror = false) {
+    if (!this.ready) return;
+    const cv = this.trader.get(`t-${facing}-${anim}-${frame}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
+    if (mirror) {
+      ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1);
+      ctx.drawImage(cv, -(32 - 16) * z, sy - 39 * z, 32 * z, 40 * z);
+      ctx.restore();
+    } else {
+      ctx.drawImage(cv, sx - 16 * z, sy - 39 * z, 32 * z, 40 * z);
+    }
+  }
+
+  /** the trader's pack mule (28×28, 4 facings + mirror) */
+  drawPackMule(ctx: CanvasRenderingContext2D, facing: string, frame: number, sx: number, sy: number, z: number, mirror = false) {
+    if (!this.ready) return;
+    const cv = this.trader.get(`m-${facing}-${frame}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
+    if (mirror) {
+      ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1);
+      ctx.drawImage(cv, -(28 - 14) * z, sy - 27 * z, 28 * z, 28 * z);
+      ctx.restore();
+    } else {
+      ctx.drawImage(cv, sx - 14 * z, sy - 27 * z, 28 * z, 28 * z);
+    }
+  }
+
+  /** a drift-gold twinkle marking a searchable wreck (additive, anchor 8,12) */
+  drawSalvageGlint(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    const cv = this.salvageFx.get(`glint-${frame % 2}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(cv, sx - 8 * z, sy - 12 * z, 16 * z, 16 * z);
+    ctx.restore();
+  }
+
+  /** one-shot dust burst on a salvage dig (additive, anchor 12,18) */
+  drawDigPuff(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    const cv = this.salvageFx.get(`puff-${Math.min(2, frame)}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(cv, sx - 12 * z, sy - 18 * z, 24 * z, 20 * z);
+    ctx.restore();
+  }
+
+  /** a claim upgrade prop (stash/workbench/ward/rune), bottom-center anchored */
+  drawClaimProp(ctx: CanvasRenderingContext2D, key: 'stash' | 'workbench' | 'ward' | 'rune', frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    const dims: Record<string, [number, number, number, number]> = {
+      stash: [32, 28, 16, 27], workbench: [36, 28, 18, 27], ward: [24, 44, 12, 43], rune: [32, 40, 16, 39],
+    };
+    const animated = key === 'ward' || key === 'rune';
+    const cv = this.claimProps.get(animated ? `${key}-${frame % 2}` : key);
+    if (!cv) return;
+    const [w, h, ax, ay] = dims[key];
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, sx - ax * z, sy - ay * z, w * z, h * z);
+  }
+
   /** a region biome ground tile (replaces the base tile; diamond-center anchored) */
   drawBiomeTile(ctx: CanvasRenderingContext2D, key: BiomeTileKey, sx: number, sy: number, z: number) {
     if (!this.ready) return;
@@ -9085,6 +9612,10 @@ export class SpriteCache {
   /** claim furniture, bottom-center anchored */
   drawProp(ctx: CanvasRenderingContext2D, kind: string, frame: number, sx: number, sy: number, z: number) {
     if (!this.ready) return;
+    // claim upgrade props use the larger claimworks art
+    if (kind === "claim_stash") return this.drawClaimProp(ctx, "stash", frame, sx, sy, z);
+    if (kind === "claim_workbench") return this.drawClaimProp(ctx, "workbench", frame, sx, sy, z);
+    if (kind === "claim_ward") return this.drawClaimProp(ctx, "ward", frame, sx, sy, z);
     ctx.imageSmoothingEnabled = false;
     const cv = this.props.get(`${kind}-${frame % 2}`);
     if (cv) ctx.drawImage(cv, sx - 10 * z, sy - 25 * z, 20 * z, 26 * z);

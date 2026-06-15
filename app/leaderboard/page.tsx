@@ -7,12 +7,13 @@ import { httpBase } from "@/components/gate";
 // The Gilded: realm-wide standings straight from the server's ledgers.
 
 interface BoardRow { name: string; value: number }
-interface Boards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[] }
+interface Boards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[]; streak: BoardRow[] }
 
 const CATS: { key: keyof Boards; label: string; unit: string; blurb: string }[] = [
-  { key: "gold", label: "Gold", unit: "g", blurb: "Total holdings, purse and vault together." },
+  { key: "gold", label: "Wealth", unit: "g", blurb: "Total holdings, purse and vault together." },
   { key: "kills", label: "Kills", unit: "", blurb: "Lifetime Drift Beasts felled." },
   { key: "levels", label: "Total Level", unit: "", blurb: "Woodcutting + Mining + Fishing + Combat." },
+  { key: "streak", label: "Streak", unit: " days", blurb: "Longest unbroken daily-login streak." },
 ];
 
 export default function LeaderboardPage() {

@@ -41,6 +41,8 @@ export const players = pgTable("players", {
   inv: jsonb("inv"),
   /** Phase 6: authoritative daily quest board { day, list:[{id,progress,claimed}] } */
   quests: jsonb("quests"),
+  /** accepted frontier bounty contracts [{tid,region,progress}] (server-owned) */
+  bounties: jsonb("bounties").$type<{ tid: string; region: string; progress: number }[]>(),
   /** burned DRIFTS during the beta window — one-time Founder cosmetics */
   founder: boolean("founder").notNull().default(false),
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative
@@ -52,6 +54,13 @@ export const players = pgTable("players", {
   guildId: real("guild_id"),
   /** owns a gold-bought steed from the Stable (the free travel layer) */
   ownsMount: boolean("owns_mount").notNull().default(false),
+  /** owns the Swift Steed upgrade (a faster mount) */
+  ownsSwiftMount: boolean("owns_swift_mount").notNull().default(false),
+  /** Frontier Outpost standing: earned by delivering supply contracts */
+  outpostRep: real("outpost_rep").notNull().default(0),
+  /** daily login streak: the last UTC day index seen + the running streak */
+  lastLoginDay: real("last_login_day"),
+  loginStreak: real("login_streak").notNull().default(0),
 
   // where the wanderer last stood
   lastX: real("last_x"),
