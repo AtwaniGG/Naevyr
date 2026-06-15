@@ -2198,7 +2198,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     return gateAddress ? Object.assign(row, { gateAddress }) : row;
   }
 
-  onJoin(client: Client) {
+  onJoin(
+    client: Client,
+    options?: { address?: string; gateNonce?: string; gateSig?: string; guest?: boolean },
+  ) {
     const row = client.auth as PlayerRow;
 
     // wake where you last stood, if that ground still carries you
@@ -2270,8 +2273,19 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.syncBattlePass(sim);
 
     // a player who cleared the entry gate already proved wallet ownership at the
-    // door — bind it now so they're a linked holder without signing again
-    const gateAddress = (row as PlayerRow & { gateAddress?: string }).gateAddress;
+    // door — bind it now so they're a linked holder without signing again.
+    // Re-derive the proven wallet from the JOIN OPTIONS rather than client.auth:
+    // a real Colyseus deployment does not preserve the extra gateAddress prop we
+    // stash on the onAuth return (it survives in-process locally, which is why
+    // verify-gate passed, but the seat reservation drops it in prod). The proof
+    // re-verifies cheaply and is the same ed25519 rail onAuth used.
+    const oAddr = typeof options?.address === "string" ? options.address.trim() : "";
+    const oNonce = typeof options?.gateNonce === "string" ? options.gateNonce : "";
+    const oSig = typeof options?.gateSig === "string" ? options.gateSig : "";
+    const gateAddress =
+      (row as PlayerRow & { gateAddress?: string }).gateAddress ||
+      (!sim.guest && oAddr && oNonce && oSig && verifyGateProof(oAddr, oNonce, oSig) ? oAddr : "");
+    console.log(`[walletdbg] onJoin authGate=${(row as any).gateAddress?.slice(0,6) ?? "(none)"} optAddr=${oAddr.slice(0,6) || "(none)"} → gateAddress=${gateAddress.slice(0,6) || "(none)"}`);
     if (gateAddress) {
       // reflect the proven wallet on the sim SYNCHRONOUSLY so the client's
       // getProfile (which races the async DB write below) never reads a stale
