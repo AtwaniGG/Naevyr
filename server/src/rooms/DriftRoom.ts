@@ -1666,7 +1666,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       const tokenBalance = walletAddress
         ? await getTokenBalance(walletAddress)
         : 0;
-      console.log(`[walletdbg] getProfile sim.wallet=${sim.walletAddress?.slice(0,6) ?? "(null)"} row.wallet=${row.walletAddress?.slice(0,6) ?? "(null)"} → walletAddress=${walletAddress?.slice(0,6) ?? "(null)"} balance=${tokenBalance} holder=${tokenBalance >= 1}`);
       sim.tokenBalance = tokenBalance; // holder-tier perks track the wallet
       client.send("profile", {
         snapshot: sim.profileSnapshot,
@@ -2190,7 +2189,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       // door, auto-link it so the player never has to link again in-game
       gateAddress = address;
     }
-    console.log(`[walletdbg] onAuth guest=${guest} gate=${gate} addr=${address.slice(0,6)} hasNonce=${!!nonce} hasSig=${!!sig} verified=${address && nonce && sig ? verifyGateProof(address, nonce, sig) : "n/a"} → gateAddress=${gateAddress.slice(0,6) || "(none)"}`);
     // the gate proof IS a wallet-ownership signature (same ed25519 rail as the
     // in-game link) — carry the proven address through so onJoin can auto-link it
     const row = await loadOrCreatePlayer(token);
@@ -2285,7 +2283,6 @@ export class DriftRoom extends Room<DriftRoomState> {
     const gateAddress =
       (row as PlayerRow & { gateAddress?: string }).gateAddress ||
       (!sim.guest && oAddr && oNonce && oSig && verifyGateProof(oAddr, oNonce, oSig) ? oAddr : "");
-    console.log(`[walletdbg] onJoin authGate=${(row as any).gateAddress?.slice(0,6) ?? "(none)"} optAddr=${oAddr.slice(0,6) || "(none)"} → gateAddress=${gateAddress.slice(0,6) || "(none)"}`);
     if (gateAddress) {
       // reflect the proven wallet on the sim SYNCHRONOUSLY so the client's
       // getProfile (which races the async DB write below) never reads a stale
@@ -2996,7 +2993,6 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
     sim.walletAddress = gateAddress;
     const tokenBalance = await getTokenBalance(gateAddress);
-    console.log(`[walletdbg] autoLink gateAddress=${gateAddress.slice(0,6)} balance=${tokenBalance} holder=${tokenBalance >= 1}`);
     sim.tokenBalance = tokenBalance; // holder-tier perks follow the link
     sim.client.send("walletResult", {
       ok: true,

@@ -14,7 +14,7 @@ Encoder.BUFFER_SIZE = 64 * 1024;
 // the DB write) + mobile WS ping tolerance (8s x 5) — force Railway to rebuild
 // from main (client-only commits get skipped; this server work MUST ship)
 // BUILD: bump on any server change that MUST reach prod; curl /version to confirm
-const BUILD = "2026-06-15-gate-wallet-transfer";
+const BUILD = "2026-06-15-season-start-now";
 
 const port = Number(process.env.PORT ?? 2567);
 

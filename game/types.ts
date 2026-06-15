@@ -600,8 +600,9 @@ export function seasonName(season: number): string {
 /** real-world season clock — deterministic, no DB row (like rollDailyQuestIds).
  *  Env overrides let the verify suite compress a "season" to seconds. */
 export const BP_EPOCH_MS = Number(
-  (typeof process !== "undefined" && process.env?.BATTLEPASS_EPOCH_MS) || Date.UTC(2026, 5, 8),
-); // launch anchor (2026-06-08, Mon) → Season 1 = Ashfall; boundaries on the period grid
+  (typeof process !== "undefined" && process.env?.BATTLEPASS_EPOCH_MS) || Date.UTC(2026, 5, 15),
+); // season anchor (2026-06-15, Mon) → Season 1 = Ashfall runs a full 4 weeks from
+// here; boundaries stay on the Monday-midnight period grid
 export const BP_PERIOD_MS = Number(
   (typeof process !== "undefined" && process.env?.BATTLEPASS_PERIOD_MS) || 28 * 86_400_000,
 ); // 4 weeks
