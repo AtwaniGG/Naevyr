@@ -55,7 +55,7 @@ export async function getTokenBalance(wallet: string, fresh = false): Promise<nu
       conn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
         mint: new PublicKey(MINT),
       }),
-      3500,
+      8000, // mainnet reads can exceed 3.5s; a tight deadline returned a false 0
     );
     let bal = 0;
     for (const acc of res.value) {

@@ -13,6 +13,8 @@ Encoder.BUFFER_SIZE = 64 * 1024;
 // deploy marker: gate auto-link is sim-authoritative (getProfile no longer races
 // the DB write) + mobile WS ping tolerance (8s x 5) — force Railway to rebuild
 // from main (client-only commits get skipped; this server work MUST ship)
+// BUILD: bump on any server change that MUST reach prod; curl /version to confirm
+const BUILD = "2026-06-15-wallet-balance-profile";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -96,6 +98,14 @@ async function main() {
           res.writeHead(500);
           res.end();
         });
+      return;
+    }
+    // a deploy-verification handle: curl /version to confirm WHICH server build
+    // is live (Railway has silently skipped rebuilds before). Bump BUILD on a
+    // change that must reach prod.
+    if (url.pathname === "/version") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ build: BUILD }));
       return;
     }
     res.writeHead(404);
