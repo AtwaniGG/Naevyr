@@ -16,6 +16,8 @@ type Mile = {
   title: string;
   status: string;
   near?: boolean;
+  /** shipped + live — lit gold like a near milestone, marked walked */
+  done?: boolean;
   tag: string;
   lede: string;
   items: string[];
@@ -24,14 +26,14 @@ type Mile = {
 
 const MILES: Mile[] = [
   {
-    n: "I", title: "The Drift Ledger", status: "Nearly here", near: true,
+    n: "I", title: "The Drift Ledger", status: "Walked. It's live.", done: true,
     tag: "A pass for those who keep walking.",
-    lede: "Four weeks to a season. Marks are earned by walking, gathering, fighting, surviving.",
+    lede: "Four weeks to a season. Marks are earned by walking, gathering, fighting, surviving. The first season runs now.",
     items: ["Four-week seasons", "Tiers pay cosmetics and coin", "Each season strikes one relic"],
     foot: "Earned, never given.",
   },
   {
-    n: "II", title: "The Wider Realm", status: "Coming",
+    n: "II", title: "The Wider Realm", status: "Nearly here", near: true,
     tag: "Carved, and nearly walked.",
     lede: "The map breaks its bounds. A true frontier opens past the old edge, and the Drift comes with it.",
     items: ["New outposts and war camps", "New beasts, new mini-bosses", "Drift Rifts tear the ground open", "The Blood Moon turns the night against you"],
@@ -98,11 +100,11 @@ export default function RoadmapPage() {
 
     function obelisk(i: number) {
       const c = clarity(i);
-      const near = MILES[i].near;
-      const runeFill = near ? "var(--gold)" : "var(--pur)";
-      const glow = near ? "rgba(231,200,115,.55)" : "rgba(168,85,247,.4)";
+      const bright = MILES[i].near || MILES[i].done; // shipped + imminent both glow gold
+      const runeFill = bright ? "var(--gold)" : "var(--pur)";
+      const glow = bright ? "rgba(231,200,115,.55)" : "rgba(168,85,247,.4)";
       return `
-      <svg class="ob" width="76" height="132" viewBox="0 0 76 132" style="opacity:${c}; filter:drop-shadow(0 0 ${near ? 14 : 8}px ${glow});" aria-hidden="true">
+      <svg class="ob" width="76" height="132" viewBox="0 0 76 132" style="opacity:${MILES[i].done ? 1 : c}; filter:drop-shadow(0 0 ${bright ? 14 : 8}px ${glow});" aria-hidden="true">
         <polygon points="30,18 46,18 50,108 26,108" fill="#160f24" stroke="#060409" stroke-width="2"/>
         <polygon points="30,18 38,18 36,108 26,108" fill="rgba(124,58,237,0.16)"/>
         <polygon points="33,4 43,4 46,18 30,18" fill="#1c1330" stroke="#060409" stroke-width="2"/>
@@ -117,7 +119,7 @@ export default function RoadmapPage() {
       nodes = [];
       MILES.forEach((m, i) => {
         const el = document.createElement("button");
-        el.className = "way" + (m.near ? " near" : "");
+        el.className = "way" + (m.near ? " near" : "") + (m.done ? " done" : "");
         el.setAttribute("data-i", String(i));
         el.setAttribute("aria-label", `${m.title}. Status: ${m.status}. Click to reveal.`);
         el.innerHTML = `
