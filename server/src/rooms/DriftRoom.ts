@@ -37,12 +37,12 @@ import {
 } from "../solana";
 import { verifyGateProof } from "../gate";
 import {
-  tryInsertBurn, setFounder, setPrestige, setWheelPity,
+  tryInsertBurn, setFounder, setPrestige, setWheelPity, setMount,
   loadGuilds, insertGuild, setGuildRegion, setPlayerGuild, guildMemberCounts,
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt, BuildingKey } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt, BuildingKey, roadAt, nearRestStop, AMBUSH_ZONES } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
@@ -53,6 +53,7 @@ import {
   DRIFT_WHEEL, DRIFT_WHEEL_PITY, WHEEL_TITLE, DriftWheelSeg, GOLD_WHEEL,
   GUILD, EXCHANGE, RELIC_MARKET, DUEL_DRIFTS,
   QUEST_POOL, rollDailyQuestIds, type QuestEvent,
+  effectiveMoveSpeed, MOUNT_COST,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
 import {
@@ -481,6 +482,10 @@ interface PlayerSim {
   wheelPity: number;
   /** guild membership (null = guildless) */
   guildId: number | null;
+  /** a gold-bought steed from the Stable (write-through to players.owns_mount) */
+  ownsMount: boolean;
+  /** whether the steed is currently summoned (synced; drives the speed bonus) */
+  mounted: boolean;
   /** Phase 6: authoritative daily quest board (write-through to players.quests) */
   quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] };
   lastSpinAt?: number;
@@ -718,6 +723,37 @@ export class DriftRoom extends Room<DriftRoomState> {
         sim.path = path;
         sim.action = path.length ? "walk" : "idle";
       }
+    });
+
+    // ---- the Stable: a gold-bought steed (the free travel layer, no DRIFTS) ----
+    this.onMessage("buyMount", (client) => {
+      if (this.guestBlocked(client, "buyMount")) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "buyMount", 4, 5000)) return;
+      if (sim.ownsMount) {
+        client.send("mountResult", { ok: false, reason: "You already keep a steed." });
+        return;
+      }
+      if (!this.debit(sim, MOUNT_COST)) {
+        client.send("mountResult", { ok: false, reason: "The Stablemaster wants more coin." });
+        return;
+      }
+      sim.ownsMount = true;
+      void setMount(sim.token, true).catch(() => {});
+      client.send("mountResult", { ok: true, owns: true });
+    });
+
+    // summon / dismiss the steed (no cost; drives the speed bonus + render)
+    this.onMessage("mount", (client, msg: { on?: boolean }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "mount", 10, 5000)) return;
+      if (!sim.ownsMount) {
+        sim.mounted = false;
+        return;
+      }
+      sim.mounted = !!msg?.on;
     });
 
     this.onMessage(
@@ -1802,6 +1838,7 @@ export class DriftRoom extends Room<DriftRoomState> {
         mint: tokenMint() || null,
         founder: row.founder,
         prestige: [...sim.prestige], // server-authoritative Drift-touched ownership
+        ownsMount: sim.ownsMount, // the gold-bought Stable steed
       });
     });
 
@@ -2327,6 +2364,8 @@ export class DriftRoom extends Room<DriftRoomState> {
       prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
       wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
       guildId: row.guildId != null ? Math.round(row.guildId) : null,
+      ownsMount: row.ownsMount === true,
+      mounted: false,
       quests: sanitizeQuests(row.quests),
     };
     this.sims.set(client.sessionId, sim);
@@ -2412,6 +2451,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       ps.x = sim.px;
       ps.y = sim.py;
       ps.action = sim.action;
+      ps.mounted = sim.mounted;
       ps.tx = sim.gatherNode ? sim.gatherNode.gx : -1;
       ps.ty = sim.gatherNode ? sim.gatherNode.gy : -1;
     }
@@ -2423,7 +2463,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       const dx = next.x - sim.px;
       const dy = next.y - sim.py;
       const dist = Math.hypot(dx, dy);
-      const step = PLAYER_SPEED * dt;
+      // roads + a mount speed travel; the Drift severs the road bonus on corrupt
+      // ground. Shared helper so the client's prediction matches exactly.
+      const fx = Math.round(sim.px), fy = Math.round(sim.py);
+      const step = effectiveMoveSpeed({
+        base: PLAYER_SPEED,
+        mounted: sim.mounted,
+        onRoad: roadAt(this.world.w, this.world.h, fx, fy),
+        corrupt: this.world.tile(fx, fy) === "corrupt",
+      }) * dt;
       if (dist <= step) {
         sim.px = next.x;
         sim.py = next.y;
@@ -3195,10 +3243,20 @@ export class DriftRoom extends Room<DriftRoomState> {
     let placed = 0;
     let guard = 0;
     while (placed < target && guard++ < target * 80) {
-      const x = (Math.random() * this.world.w) | 0;
-      const y = (Math.random() * this.world.h) | 0;
+      // a slice of the spawns cluster on the ambush zones (the roads carry
+      // teeth); the rest scatter across the realm
+      let x: number, y: number;
+      if (AMBUSH_ZONES.length && Math.random() < 0.35) {
+        const z = AMBUSH_ZONES[(Math.random() * AMBUSH_ZONES.length) | 0];
+        x = z.x - 4 + ((Math.random() * 9) | 0);
+        y = z.y - 4 + ((Math.random() * 9) | 0);
+      } else {
+        x = (Math.random() * this.world.w) | 0;
+        y = (Math.random() * this.world.h) | 0;
+      }
       if (!this.world.isWalkable(x, y)) continue;
       if (Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) < 6) continue;
+      if (nearRestStop(x, y)) continue; // rest stops are safe ground
       if (inPit(x, y)) continue; // don't seed a beast in the duel ring
       // danger gradient: beasts grow stronger toward the frontier ring
       const tier = frontierTier(this.world.w, this.world.h, x, y);

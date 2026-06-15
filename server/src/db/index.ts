@@ -86,6 +86,9 @@ export async function initDb(): Promise<Db> {
     ALTER TABLE players ADD COLUMN IF NOT EXISTS guild_id real
   `);
   await db.execute(sql`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS owns_mount boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS guilds (
       id serial PRIMARY KEY,
       name text NOT NULL UNIQUE,
@@ -333,6 +336,11 @@ export async function setPrestige(token: string, owned: string[]) {
 /** persist the Drift Wheel pity counter */
 export async function setWheelPity(token: string, pity: number) {
   await db.update(players).set({ wheelPity: pity }).where(eq(players.token, token));
+}
+
+/** persist steed ownership (the gold-bought Stable mount) */
+export async function setMount(token: string, owns: boolean) {
+  await db.update(players).set({ ownsMount: owns }).where(eq(players.token, token));
 }
 
 // ---- guilds --------------------------------------------------------------------

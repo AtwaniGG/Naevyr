@@ -31,6 +31,8 @@ export class PlayerState extends Schema {
   @type("string") guildTag = "";
   /** demo lane: a guest wanderer (no wallet, economy locked) — server-set */
   @type("boolean") guest = false;
+  /** riding a gold-bought steed (drives the road/mount speed bonus + render) */
+  @type("boolean") mounted = false;
 }
 
 /** a guild + its territory banner (the recurring social DRIFTS sink) */

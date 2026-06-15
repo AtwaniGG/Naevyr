@@ -22,6 +22,7 @@ export interface NetPlayer {
   avB: string;
   guildTag: string;
   guest: boolean;
+  mounted: boolean;
 }
 
 export interface NetProp {
@@ -292,6 +293,16 @@ export class NetClient {
 
   sendBank(delta: number) {
     this.safeSend("bank", { delta });
+  }
+
+  /** buy the gold steed from the Stable (server debits + persists ownership) */
+  sendBuyMount() {
+    this.safeSend("buyMount", undefined);
+  }
+
+  /** summon / dismiss the steed (server sets the synced `mounted` flag) */
+  sendMount(on: boolean) {
+    this.safeSend("mount", { on });
   }
 
   sendSpin(burnSig?: string) {

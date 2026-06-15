@@ -15,9 +15,17 @@ import {
   regionAt as sharedRegionAt,
   wildClutterZone,
   frontierTier,
+  roadAt,
+  groveAt,
+  REST_STOPS,
+  LANDMARKS,
+  RESOURCE_CAMPS,
+  ResourceCampKind,
+  nearRestStop,
 } from "@/game/world/tilemap";
 import { Player } from "@/game/entities/player";
 import { TutorialDirector, buildThreshold, THRESHOLD } from "@/game/engine/tutorial";
+import { AmbientCritters, critterFrame } from "@/game/engine/critters";
 import { Drift } from "@/game/world/drift";
 import { interiorFor, interiorNav, InteriorSpec } from "@/game/world/interior";
 import { KEEPER_TALK, pickLine } from "@/game/world/keeperTalk";
@@ -28,6 +36,7 @@ import {
   Cell, ResourceKind, ResourceNode, codeToTile,
   CLAIM_COST, CLAIM_MAX, AURA_CATALOG, PropKey, AuraKey,
   walletLinkMessage, PRESTIGE_CATALOG, AvatarKind, SkillKey, SKILL_META,
+  effectiveMoveSpeed, MOUNT_COST,
 } from "@/game/types";
 import { useGame } from "@/game/state/store";
 import { CombatManager } from "@/game/systems/combat";
@@ -38,6 +47,8 @@ import {
   TileType, BeastKind, BeastAnim, DoodadKind, EquipVisual, LookVisual,
   DyeKey, EyeKey, PRESTIGE_AURAS, PrestigeAuraKey,
   beastSpriteFor, isBossKind, BLOOD_SKY_STOPS, type IsoFacing,
+  steedSaddle, STEED_ANCHOR, type SteedFacing, type WaysideKey,
+  type MicroPoiKey, type BiomeTileKey,
 } from "@/game/render/sprites";
 import { currentTitle } from "@/game/state/store";
 import {
@@ -54,6 +65,25 @@ import { viewport } from "@/game/state/viewport";
 import { tileToCode, BURN_COSTS } from "@/game/types";
 import { initAudio, play } from "@/game/audio/sound";
 import { Transaction } from "@solana/web3.js";
+
+/** scattered micro-POI landmarks (decor only; placed by map fraction so they
+ *  ride outward with the map size, region-appropriate). Drawn depth-sorted. */
+const MICRO_POIS: { x: number; y: number; kind: MicroPoiKey }[] = ([
+  // meadow / heartland (town edges)
+  [0.55, 0.35, "well"], [0.64, 0.38, "hay_bales"], [0.38, 0.55, "scarecrow"],
+  [0.58, 0.57, "signpost"], [0.45, 0.38, "fence"], [0.62, 0.46, "old_campfire"],
+  // Palewater (NE, water)
+  [0.68, 0.25, "fishing_spot"], [0.78, 0.30, "well"], [0.72, 0.38, "signpost"], [0.60, 0.20, "bridge"],
+  // Ashen Flats (NW, war/ash)
+  [0.30, 0.38, "wagon_wreck"], [0.25, 0.15, "ruined_hut"], [0.38, 0.30, "signpost"], [0.13, 0.38, "standing_stones"],
+  // Hollowmere (SW, marsh)
+  [0.22, 0.78, "fishing_spot"], [0.30, 0.66, "ruined_hut"], [0.37, 0.58, "fence"], [0.15, 0.66, "well"],
+  // Bonefields (SE, death)
+  [0.66, 0.60, "grave_row"], [0.80, 0.63, "grave_row"], [0.70, 0.80, "ruined_hut"],
+  [0.83, 0.58, "standing_stones"], [0.75, 0.68, "well"], [0.63, 0.73, "wagon_wreck"], [0.68, 0.66, "signpost"],
+  // a couple deep-meadow curios
+  [0.55, 0.72, "standing_stones"], [0.30, 0.30, "hay_bales"],
+] as [number, number, MicroPoiKey][]).map(([fx, fy, kind]) => ({ x: Math.round(MAP_W * fx), y: Math.round(MAP_H * fy), kind }));
 
 /** where each region's guild banner stands (decor only — no walkability
  *  change; cells chosen clear of every structure sprite) */
@@ -160,6 +190,10 @@ export class Game {
   private lastLevels: number[] | null = null;
 
   // ---- world events + living-world bits ----
+  /** ambient wildlife (cosmetic, client-side) — wanders near the player */
+  private critters = new AmbientCritters();
+  /** next time a rest-stop campfire can grant its breather buff (cooldown) */
+  private restBuffAt = 0;
   /** corruption thresholds that wake a Colossus (consumed in order) */
   private bossThresholds = [10, 25, 40, 60, 80];
   private driftfallFx: { gx: number; gy: number; t0: number } | null = null;
@@ -219,6 +253,14 @@ export class Game {
       this.world = new World(MAP_W, MAP_H);
       this.player = new Player(TOWN_CENTER.x, TOWN_CENTER.y);
     }
+    // the shared speed channel: roads + a mount speed travel, computed the same
+    // way the server's stepSim does (so local prediction never rubber-bands).
+    this.player.speedAt = (x, y) =>
+      effectiveMoveSpeed({
+        mounted: this.player.mounted,
+        onRoad: roadAt(this.world.w, this.world.h, x, y),
+        corrupt: this.world.tile(x, y) === "corrupt",
+      });
     const iso = gridToIso(this.player.px, this.player.py);
     this.camera.snapTo(iso.x, iso.y);
     // phones start zoomed-in so tiles/mobs are finger-sized tap targets
@@ -318,6 +360,8 @@ export class Game {
     this.cleanupFns.push(
       bus.on("itemDelta", (d) => this.net?.sendItemDelta(d.item, d.qty, d.reason)),
     );
+    this.cleanupFns.push(bus.on("buyMount", () => this.buyMount()));
+    this.cleanupFns.push(bus.on("mountToggle", (on) => this.setMounted(on)));
     this.cleanupFns.push(bus.on("cook", (c) => this.net?.sendCook(c.qty)));
     this.cleanupFns.push(bus.on("sell", (s) => this.net?.sendSell(s.item, s.qty)));
     this.cleanupFns.push(bus.on("craft", (c) => this.net?.sendCraft(c.id)));
@@ -1178,6 +1222,7 @@ export class Game {
       holder?: boolean;
       founder?: boolean;
       prestige?: string[];
+      ownsMount?: boolean;
     }>("profile", (m) => {
       const store = useGame.getState();
       const sworn = takeDoorName(); // the door outranks the stored snapshot
@@ -1198,6 +1243,9 @@ export class Game {
       if (typeof m.banked === "number") store.setBanked(m.banked);
       store.setWallet(m.wallet ?? null);
       store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
+      // the Stable steed: server-authoritative ownership (dismissed on join)
+      store.setOwnsMount(m.ownsMount === true);
+      if (!m.ownsMount) { store.setMounted(false); this.player.mounted = false; }
       if (m.founder) {
         // idempotent: the server flag re-grants on every device
         store.grantCosmetic("title", "Founder");
@@ -1221,6 +1269,18 @@ export class Game {
       }
     });
     net.requestProfile();
+
+    // the Stable: gold debited + ownership set server-side (gold arrives via goldSync)
+    net.onMessage<{ ok: boolean; owns?: boolean; reason?: string }>("mountResult", (m) => {
+      const store = useGame.getState();
+      if (m.ok) {
+        store.setOwnsMount(true);
+        play("coin");
+        store.pushLog("The Stablemaster hands you the reins. A steed is yours.", "#e7c873");
+      } else {
+        store.pushLog(m.reason ?? "The Stablemaster turns you away.", "#dc2626");
+      }
+    });
 
     // ---- marketplace ----
     net.onMessage<{ ok: boolean; id?: number; reason?: string; item?: string; qty?: number }>(
@@ -1973,6 +2033,11 @@ export class Game {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key >= "1" && e.key <= "6") useGame.getState().setHotbar(parseInt(e.key, 10));
+      // M: summon / dismiss the steed (anywhere, once you own one)
+      if (e.key === "m" || e.key === "M") {
+        const st = useGame.getState();
+        if (st.ownsMount && !this.interior && !this.tutorial) this.setMounted(!st.mounted);
+      }
     };
     const onResize = () => this.resize();
 
@@ -2049,6 +2114,22 @@ export class Game {
           this.handleInteriorClick({ x: v.x, y: v.y });
           return true;
         },
+        // capture helpers (offline only for tp — online position is server-owned)
+        tp: (gx: number, gy: number) => {
+          if (this.net || this.interior) return false;
+          this.player.px = gx; this.player.py = gy;
+          this.player.setPath([]); this.player.action = "idle";
+          const iso = gridToIso(gx, gy);
+          this.camera.snapTo(iso.x, iso.y);
+          return true;
+        },
+        mount: (on: boolean) => bus.emit("mountToggle", !!on),
+        mounted: () => useGame.getState().mounted,
+        ownsMount: () => useGame.getState().ownsMount,
+        buyMount: () => bus.emit("buyMount", true),
+        zoom: (z: number) => this.camera.setZoom(z),
+        face: (dx: number, dy: number) => this.player.updateIsoFacing(dx, dy),
+        critters: () => this.critters.list.map((c) => ({ k: c.kind, x: Math.round(c.px), y: Math.round(c.py) })),
       };
     }
   }
@@ -2264,6 +2345,23 @@ export class Game {
     }
     this.combat.update(dt, this.world, this.player);
     this.tutorial?.update();
+
+    // ambient wildlife wanders near the wanderer (cosmetic, client-side)
+    if (!this.tutorial) {
+      this.critters.update(dt, performance.now(), this.player.px, this.player.py, this.world);
+    }
+
+    // rest stops: a short breather buff by the fire, cooldown-gated (no cost)
+    if (!this.tutorial) {
+      const p = this.player.cell;
+      const now3 = performance.now();
+      if (now3 > this.restBuffAt && nearRestStop(p.x, p.y)) {
+        this.restBuffAt = now3 + 300_000; // 5 min cooldown
+        useGame.getState().applyBuff("gather", 120_000);
+        useGame.getState().pushLog("You rest by the fire. The work will come easier.", "#e7c873");
+        play("ui");
+      }
+    }
 
     // arrival -> begin gather (offline only; the server runs gathers online)
     if (
@@ -2522,6 +2620,11 @@ export class Game {
       // the server is authoritative for guest status: mirror its flag so the
       // HUD restrictions can never drift from what the server actually enforces
       if (useGame.getState().guest !== self.guest) useGame.getState().setGuest(self.guest);
+      // the steed: the server owns the mounted flag (speed prediction reads it)
+      if (this.player.mounted !== self.mounted) {
+        this.player.mounted = self.mounted;
+        useGame.getState().setMounted(self.mounted);
+      }
       const dx = self.x - this.player.px;
       const dy = self.y - this.player.py;
       // a big jump is a server teleport (waystation, respawn, realm reset) — snap
@@ -2620,6 +2723,7 @@ export class Game {
       r.avB = p.avB ?? "";
       r.guildTag = p.guildTag ?? "";
       r.guest = !!p.guest;
+      r.mounted = !!p.mounted;
       const dx = p.x - r.px;
       const dy = p.y - r.py;
       r.px += dx * k;
@@ -2775,6 +2879,31 @@ export class Game {
   private static readonly VEIN_CHARGES = 2;
   private static readonly VEIN_REGROW_MS = 240_000;
 
+  /** buy the Stable steed. Online → server debits + persists (mountResult sets
+   *  ownership). Offline → spend local gold, grant ownership locally. */
+  private buyMount() {
+    const st = useGame.getState();
+    if (st.ownsMount) return;
+    if (this.net) { this.net.sendBuyMount(); return; }
+    if (!st.spendGold(MOUNT_COST)) {
+      st.pushLog("Not enough gold for a steed.", "#dc2626");
+      return;
+    }
+    st.setOwnsMount(true);
+    play("coin");
+    st.pushLog("The Stablemaster hands you the reins. A steed is yours.", "#e7c873");
+  }
+
+  /** summon / dismiss the steed (drives the road/mount speed bonus + render) */
+  private setMounted(on: boolean) {
+    const st = useGame.getState();
+    const want = on && st.ownsMount && !this.interior && !this.tutorial;
+    if (this.net) this.net.sendMount(want);
+    // optimistic local prediction; online reconciles from the synced flag
+    this.player.mounted = want;
+    st.setMounted(want);
+  }
+
   private enterInterior(key: BuildingKey) {
     if (key === "huskden") {
       this.denInteract();
@@ -2787,6 +2916,7 @@ export class Game {
       play("ui");
       return;
     }
+    if (this.player.mounted) this.setMounted(false); // no riding indoors
     this.combat.disengage(this.player);
     this.pendingNode = null;
     this.pendingMob = null;
@@ -3506,6 +3636,17 @@ export class Game {
       ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH);
     }
 
+    // region atmosphere: a faint biome haze under the wanderer (bog fog in the
+    // marsh, ash haze in the Flats, cold mist over the Bonefields)
+    if (!this.tutorial) {
+      const region = sharedRegionAt(this.world.w, this.world.h, this.player.cell.x, this.player.cell.y);
+      const haze =
+        region === "Hollowmere Reach" ? "rgba(38,58,48,0.13)" :
+        region === "The Ashen Flats" ? "rgba(44,34,28,0.12)" :
+        region === "The Bonefields" ? "rgba(28,32,46,0.11)" : null;
+      if (haze) { ctx.fillStyle = haze; ctx.fillRect(0, 0, this.camera.viewW, this.camera.viewH); }
+    }
+
     // region / event banner — fades in, holds, fades out (~3s)
     if (this.banner && now - this.banner.t0 < 3000) {
       const t = (now - this.banner.t0) / 3000;
@@ -3577,6 +3718,23 @@ export class Game {
       } else {
         ctx.fillStyle = "rgba(216,207,224,0.22)";
         ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    // region fireflies / spores: bog-glow in the marsh always, golden fireflies
+    // in the meadow + Palewater at night — pulsing motes that read as life
+    if (!this.tutorial) {
+      const region = sharedRegionAt(this.world.w, this.world.h, this.player.cell.x, this.player.cell.y);
+      const marsh = region === "Hollowmere Reach";
+      const nightF = 0.5 - 0.5 * Math.cos(((performance.now() / 480_000) % 1) * Math.PI * 2);
+      const meadow = (region === "Wanderer's Rest" || region === "Palewater") && nightF > 0.45;
+      if (marsh || meadow) {
+        for (let i = 0; i < 11; i++) {
+          const fx = (i * 131 + t * 8 * (i % 2 ? 1 : -1)) % W;
+          const fy = (i * 71 + Math.sin(t * 0.8 + i) * 30 + t * 4) % H;
+          const a = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.2 + i));
+          ctx.fillStyle = marsh ? `rgba(150,224,120,${a})` : `rgba(247,224,120,${a})`;
+          ctx.fillRect(W - fx, fy, 2, 2);
+        }
       }
     }
     ctx.restore();
@@ -3651,14 +3809,48 @@ export class Game {
           t === 'water' &&
           [nw, nn, se, ss].some((n) => n !== null && n !== 'water');
 
-        spriteCache.drawTile(ctx, t, s.x, s.y, z, frame, {
-          variant: (hash2(x, y, 5) * 3) | 0,
-          edge,
-          blendInto,
-          shore,
-        });
+        // region biome tile accents: a hash fraction of each region's ground
+        // gets a flavoured variant (the rest stays normal so the grass↔dirt
+        // dither blends still read).
+        let biomeTile: BiomeTileKey | null = null;
+        if (!this.tutorial && (t === 'grass' || t === 'dirt' || t === 'stone') && hash2(x, y, 41) < 0.5) {
+          const rg = sharedRegionAt(this.world.w, this.world.h, x, y);
+          if (t === 'grass' && (rg === "Wanderer's Rest" || rg === "Palewater")) biomeTile = 'meadow_flower';
+          else if (rg === "The Ashen Flats" && t === 'dirt') biomeTile = 'ash_dirt';
+          else if (rg === "The Ashen Flats" && t === 'stone') biomeTile = 'highland_stone';
+          else if (rg === "Hollowmere Reach" && t === 'dirt') biomeTile = 'marsh_mud';
+        }
+        if (biomeTile) {
+          spriteCache.drawBiomeTile(ctx, biomeTile, s.x, s.y, z);
+        } else {
+          spriteCache.drawTile(ctx, t, s.x, s.y, z, frame, {
+            variant: (hash2(x, y, 5) * 3) | 0,
+            edge,
+            blendInto,
+            shore,
+          });
+        }
 
         if (t === 'corrupt') this.corruptGlows.push({ sx: s.x, sy: s.y });
+
+        // the King's Roads: a packed-earth band over the base ground (placeholder
+        // until the DS road auto-tile set lands). The Drift severs it on corrupt
+        // ground, matching the speed bonus in effectiveMoveSpeed.
+        const onRoad = !this.tutorial && t !== 'water' && t !== 'corrupt' &&
+          roadAt(this.world.w, this.world.h, x, y);
+        if (onRoad) {
+          // 4-neighbour road bitmask (ne1/se2/sw4/nw8); a corrupt neighbour
+          // severs the visual link, matching the speed bonus. NE=(x,y-1)…
+          const W = this.world;
+          const conn = (nx: number, ny: number) =>
+            W.inBounds(nx, ny) && W.tile(nx, ny) !== 'corrupt' && roadAt(W.w, W.h, nx, ny);
+          let mask = 0;
+          if (conn(x, y - 1)) mask |= 1;
+          if (conn(x + 1, y)) mask |= 2;
+          if (conn(x, y + 1)) mask |= 4;
+          if (conn(x - 1, y)) mask |= 8;
+          spriteCache.drawRoadTile(ctx, mask, s.x, s.y, z);
+        }
 
         // the deadly outer ring grows its own ashen clutter (frontier pack)
         const frontier = !this.tutorial && frontierTier(this.world.w, this.world.h, x, y) === 2;
@@ -3666,7 +3858,7 @@ export class Game {
         // frontier ash/corruption ground accents: sparse, drawn UNDER entities
         // (right after the tile) so the outer ring reads as scorched ground
         if (
-          frontier && (t === 'grass' || t === 'dirt' || t === 'stone') &&
+          frontier && !onRoad && (t === 'grass' || t === 'dirt' || t === 'stone') &&
           !this.world.getNode(x, y) && !buildingAt(x, y) && hash2(x, y, 97) < 0.06
         ) {
           spriteCache.drawGroundAccent(ctx, (hash2(x, y, 98) * 2) | 0, s.x, s.y, z);
@@ -3683,33 +3875,67 @@ export class Game {
         // the Threshold grows NO decorative clutter: the only tree/rock/pool
         // on screen must be the real lesson nodes (the den's clutter zone
         // would otherwise blanket this tiny map with fake dead trees)
-        if (!this.tutorial && t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
+        if (!this.tutorial && !onRoad && t !== 'water' && !this.world.getNode(x, y) && !buildingAt(x, y)) {
           const h = hash2(x, y, 91);
+          const land = t === 'grass' || t === 'dirt' || t === 'stone';
+          const region = sharedRegionAt(this.world.w, this.world.h, x, y);
+          const corruptAdj = [nw, nn, se, ss].includes('corrupt');
           let kind: DoodadKind | null = null;
+          // groves: dense clustered woods (leafy in the green regions, dead in
+          // the Flats / Bonefields / frontier) — walk-through decorative trees
+          if ((t === 'grass' || t === 'dirt') && groveAt(this.world.w, this.world.h, x, y)) {
+            const dead = region === "The Ashen Flats" || region === "The Bonefields" || frontier;
+            doodads.push({
+              kind: dead ? 'dead_tree' : 'grove_tree',
+              v: (hash2(x, y, 92) * 2) | 0,
+              sx: s.x + (hash2(x, y, 93) - 0.5) * 10 * z,
+              sy: s.y + (hash2(x, y, 94) - 0.5) * 5 * z,
+            });
+            kind = null; // the tree IS this cell's doodad
+          } else
+          // ─── region biomes: dense, region-flavoured ground cover ───
           if (t === 'corrupt') {
-            if (h < 0.10) kind = 'crystal';
-          } else if ([nw, nn, se, ss].includes('corrupt') && h < 0.08) {
+            if (h < 0.12) kind = 'crystal';
+          } else if (corruptAdj && h < 0.08) {
             kind = 'crystal'; // corruption seeps ahead of itself
-          } else if (nearDen) {
-            if (h < 0.05) kind = 'bone_spike';
-            else if (h < 0.075) kind = 'dead_tree';
-            else if (h < 0.09) kind = 'bones';
-          } else if (nearMire && (t === 'grass' || t === 'dirt')) {
-            if (h < 0.11) kind = 'reed_clump';
-            else if (h < 0.125) kind = 'dead_tree';
-          } else if (frontier && (t === 'grass' || t === 'dirt' || t === 'stone')) {
-            if (h < 0.025) kind = 'drift_crystal';
-            else if (h < 0.05) kind = 'scorched_stump';
-            else if (h < 0.075) kind = 'ash_dune';
-          } else if (t === 'grass') {
-            if (h < 0.05) kind = 'tuft';
-            else if (h < 0.062) kind = 'pebbles';
-            else if (h < 0.07) kind = 'bones';
+          } else if (nearDen && land) {                 // the Husk Den war ground
+            if (h < 0.07) kind = 'bone_spike'; else if (h < 0.12) kind = 'dead_tree';
+            else if (h < 0.17) kind = 'bones'; else if (h < 0.24) kind = 'charred_bone';
+            else if (h < 0.38) kind = 'ash_tuft';
+          } else if (nearMire && (t === 'grass' || t === 'dirt')) {   // the marsh edge
+            if (h < 0.12) kind = 'cattail'; else if (h < 0.19) kind = 'reed_clump';
+            else if (h < 0.26) kind = 'toadstool'; else if (h < 0.33) kind = 'mud';
+            else if (h < 0.50) kind = 'tallgrass';
+          } else if (frontier && land) {                // the deadly outer ring
+            if (h < 0.04) kind = 'drift_crystal'; else if (h < 0.08) kind = 'scorched_stump';
+            else if (h < 0.12) kind = 'ash_dune'; else if (h < 0.20) kind = 'ash_tuft';
+            else if (h < 0.27) kind = 'war_debris';
+          } else if (region === "The Ashen Flats" && land) {          // ash + war
+            if (h < 0.06) kind = 'dead_shrub'; else if (h < 0.11) kind = 'boulder';
+            else if (h < 0.16) kind = 'war_debris'; else if (h < 0.26) kind = 'ash_tuft';
+            else if (h < 0.36) kind = 'rubble'; else if (h < 0.44) kind = 'charred_bone';
+          } else if (region === "The Bonefields" && (t === 'grass' || t === 'dirt')) {  // death
+            if (h < 0.05) kind = 'grave_nub'; else if (h < 0.10) kind = 'skull';
+            else if (h < 0.15) kind = 'dead_shrub'; else if (h < 0.21) kind = 'dead_tree';
+            else if (h < 0.29) kind = 'bones'; else if (h < 0.44) kind = 'tallgrass';
+          } else if (region === "Palewater" && (t === 'grass' || t === 'dirt')) {  // bright + flowery
+            if (h < 0.06) kind = 'bush'; else if (h < 0.13) kind = 'wildflower';
+            else if (h < 0.19) kind = 'daisies'; else if (h < 0.26) kind = 'fern';
+            else if (h < 0.46) kind = 'tallgrass'; else if (h < 0.58) kind = 'clover';
+          } else if (region === "Hollowmere Reach" && (t === 'grass' || t === 'dirt')) {  // marsh
+            if (h < 0.06) kind = 'cattail'; else if (h < 0.12) kind = 'toadstool';
+            else if (h < 0.19) kind = 'fern'; else if (h < 0.26) kind = 'bush';
+            else if (h < 0.33) kind = 'mud'; else if (h < 0.50) kind = 'tallgrass';
+          } else if (t === 'grass') {                   // heartland meadow (+ default)
+            if (h < 0.05) kind = 'bush'; else if (h < 0.10) kind = 'fern';
+            else if (h < 0.16) kind = 'wildflower'; else if (h < 0.22) kind = 'daisies';
+            else if (h < 0.29) kind = 'meadow_mushroom'; else if (h < 0.46) kind = 'tallgrass';
+            else if (h < 0.58) kind = 'clover';
           } else if (t === 'dirt') {
-            if (h < 0.05) kind = 'pebbles';
-            else if (h < 0.062) kind = 'masonry';
+            if (h < 0.06) kind = 'pebbles'; else if (h < 0.11) kind = 'masonry';
+            else if (h < 0.20) kind = 'tallgrass'; else if (h < 0.28) kind = 'clover';
           } else if (t === 'stone') {
-            if (h < 0.06) kind = 'masonry';
+            if (h < 0.10) kind = 'rubble'; else if (h < 0.20) kind = 'boulder';
           }
           if (kind) {
             doodads.push({
@@ -3719,15 +3945,30 @@ export class Game {
               sy: s.y + (hash2(x, y, 94) - 0.5) * 6 * z,
             });
           }
+          // a second light cover layer (flowers/clover) in the calm meadow regions
+          if (t === 'grass' && !nearDen && !nearMire && !frontier && !corruptAdj &&
+            (region === "Wanderer's Rest" || region === "Palewater")) {
+            const h2 = hash2(x, y, 71);
+            let k2: DoodadKind | null = null;
+            if (h2 < 0.09) k2 = 'clover'; else if (h2 < 0.14) k2 = 'daisies';
+            if (k2 && k2 !== kind) {
+              doodads.push({
+                kind: k2,
+                v: (hash2(x, y, 72) * 2) | 0,
+                sx: s.x + (hash2(x, y, 73) - 0.5) * 22 * z,
+                sy: s.y + (hash2(x, y, 74) - 0.5) * 9 * z,
+              });
+            }
+          }
         }
-        // bog bubbles swell on the mire's water (2-frame, slow and staggered)
-        if (t === 'water' && nearMire && hash2(x, y, 95) < 0.2) {
-          doodads.push({
-            kind: 'mire_bubble',
-            v: (Math.floor(now / 700) + ((hash2(x, y, 96) * 2) | 0)) % 2,
-            sx: s.x + (hash2(x, y, 93) - 0.5) * 14 * z,
-            sy: s.y + (hash2(x, y, 94) - 0.5) * 6 * z,
-          });
+        // water decor: bog bubbles + lily pads on the mire, lily pads on Palewater
+        if (t === 'water') {
+          const region = sharedRegionAt(this.world.w, this.world.h, x, y);
+          if (nearMire && hash2(x, y, 95) < 0.22) {
+            doodads.push({ kind: 'mire_bubble', v: (Math.floor(now / 700) + ((hash2(x, y, 96) * 2) | 0)) % 2, sx: s.x + (hash2(x, y, 93) - 0.5) * 14 * z, sy: s.y + (hash2(x, y, 94) - 0.5) * 6 * z });
+          } else if ((nearMire || region === "Palewater") && hash2(x, y, 99) < 0.18) {
+            doodads.push({ kind: 'lilypad', v: (hash2(x, y, 92) * 2) | 0, sx: s.x + (hash2(x, y, 93) - 0.5) * 12 * z, sy: s.y + (hash2(x, y, 94) - 0.5) * 5 * z });
+          }
         }
 
         // hover highlight (drawn over the tile, using diamond path)
@@ -3938,6 +4179,64 @@ export class Game {
           }
         },
       });
+    }
+    // wayside content between the landmarks (placeholders; the DS wayside/ruins
+    // art swaps in here later). All decoration except the rest-stop safe zone
+    // (server) + the rest-stop buff (client, in update()).
+    if (!this.tutorial) {
+      const now2 = performance.now();
+      const z = this.camera.zoom;
+      const flameF = Math.floor(now2 / 250) % 3; // campfire 3f @4fps
+      const lapF = Math.floor(now2 / 500) % 2;    // pier + waystone/monolith 2f @2fps
+      // rest stops: a lean-to + supply heap flanking the campfire. The fire is
+      // the centerpiece (safe zone + buff), so it's drawn LAST = on top, never
+      // occluded by the flanking props.
+      for (const r of REST_STOPS) {
+        draws.push({ depth: r.x + r.y, fn: () => {
+          const s = this.tileScreen(r.x, r.y);
+          spriteCache.drawWayside(ctx, "lean_to", 0, s.x - 38 * z, s.y - 5 * z, z);
+          spriteCache.drawWayside(ctx, "supply_crates", 0, s.x + 34 * z, s.y - 3 * z, z);
+          spriteCache.drawWayside(ctx, "campfire", flameF, s.x, s.y, z);
+        }});
+      }
+      // resource camps: a signature prop pair per kind
+      const CAMP_PROPS: Record<ResourceCampKind, [WaysideKey, WaysideKey]> = {
+        logging: ["log_pile", "sawbuck"],
+        quarry: ["stone_cart", "cut_blocks"],
+        fishing: ["pier", "net_rack"],
+      };
+      for (const c of RESOURCE_CAMPS) {
+        const [main, side] = CAMP_PROPS[c.kind];
+        draws.push({ depth: c.x + c.y, fn: () => {
+          const s = this.tileScreen(c.x, c.y);
+          spriteCache.drawWayside(ctx, main, main === "pier" ? lapF : 0, s.x - 8 * z, s.y, z);
+          spriteCache.drawWayside(ctx, side, 0, s.x + 20 * z, s.y - 2 * z, z);
+        }});
+      }
+      // scenic ruin landmarks (kinds map 1:1 to the DS ruin sprites)
+      for (const m of LANDMARKS) {
+        draws.push({ depth: m.x + m.y, fn: () => {
+          const s = this.tileScreen(m.x, m.y);
+          spriteCache.drawRuin(ctx, m.kind, lapF, s.x, s.y, z);
+        }});
+      }
+      // scattered micro-POI landmarks (decor; skip any that clip a structure)
+      for (const poi of MICRO_POIS) {
+        if (buildingAt(poi.x, poi.y)) continue;
+        draws.push({ depth: poi.x + poi.y, fn: () => {
+          const s = this.tileScreen(poi.x, poi.y);
+          spriteCache.drawMicroPoi(ctx, poi.kind, lapF, s.x, s.y, z);
+        }});
+      }
+      // ambient wildlife (depth-sorted with entities so it walks among the world)
+      for (const c of this.critters.list) {
+        const cr = c;
+        draws.push({ depth: cr.px + cr.py, fn: () => {
+          const s = this.tileScreen(cr.px, cr.py);
+          const a = critterFrame(cr, now2);
+          spriteCache.drawCritter(ctx, cr.kind, a.facing, a.anim, a.frame, s.x, s.y, z, a.mirror);
+        }});
+      }
     }
     // the caravan wagon (server-synced; only exists in the shared world)
     const caravan = this.net?.caravan;
@@ -4384,7 +4683,21 @@ export class Game {
       if (p.guest) name = `${name} · guest`;
     }
 
-    spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, s.x, s.y, z, equip, look);
+    // the steed (DS frontier_steed): drawn under the rider, who is seated at the
+    // per-frame saddle anchor so the bob lines up with the steed's gait.
+    let charX = s.x, charY = s.y;
+    if (p.mounted) {
+      const steedAnim = anim === 'walk' ? 'walk' : 'idle';
+      const steedFrame = steedAnim === 'walk' ? frame % 6 : frame % 2;
+      const fc = p.isoFacing as SteedFacing;
+      spriteCache.drawSteed(ctx, fc, p.isoMirror, steedAnim, steedFrame, s.x, s.y, z);
+      const sad = steedSaddle(fc, steedAnim, steedFrame);
+      const [ax, ay] = STEED_ANCHOR;
+      charX = p.isoMirror ? s.x - (sad.x - ax) * z : s.x + (sad.x - ax) * z;
+      charY = s.y + (sad.y - ay) * z;
+    }
+
+    spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, charX, charY, z, equip, look);
 
     // aura: prestige keys draw the baked DS sprite; legacy keys orbit motes
     const auraKey = (isSelf ? state.cosmetics.aura : p.aura) as AuraKey | "";

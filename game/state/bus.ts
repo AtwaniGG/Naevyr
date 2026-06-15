@@ -91,6 +91,10 @@ type Events = {
   sell: { item: string; qty: number };
   /** forge a recipe (server debits the materials from the ledger) */
   craft: { id: string };
+  /** buy a steed from the Stable (gold, never DRIFTS; server debits + persists) */
+  buyMount: boolean;
+  /** summon (true) or dismiss (false) the steed */
+  mountToggle: boolean;
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

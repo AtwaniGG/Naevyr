@@ -50,6 +50,8 @@ export const players = pgTable("players", {
   wheelPity: real("wheel_pity").notNull().default(0),
   /** guild membership (null = guildless) */
   guildId: real("guild_id"),
+  /** owns a gold-bought steed from the Stable (the free travel layer) */
+  ownsMount: boolean("owns_mount").notNull().default(false),
 
   // where the wanderer last stood
   lastX: real("last_x"),

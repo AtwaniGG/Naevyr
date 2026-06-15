@@ -17,6 +17,35 @@ export const codeToTile = (c: number): TileType => TILE_CODES[c] ?? "grass";
 export const CLAIM_COST = 250;
 export const CLAIM_MAX = 3;
 
+// ─── Movement speed ──────────────────────────────────────────────────────────
+// Base walk speed (tiles/sec). Shared so the authoritative server stepSim and
+// the client's local prediction compute the SAME effective speed — any drift
+// between the two shows up as rubber-banding.
+export const PLAYER_BASE_SPEED = 3.2;
+// The King's-Road network (game/world/tilemap.ts roadAt) speeds travel along the
+// intended routes; a gold-bought mount stacks on top. Combined mul is capped so
+// the 20Hz sim never steps more than a fraction of a tile (no cell-skipping).
+export const MOVE_ROAD_MUL = 1.4;
+export const MOVE_MOUNT_MUL = 1.5;
+export const MOVE_SPEED_CAP = 2.0;
+/** a gold-bought steed from the Stable — never DRIFTS (a one-time gold sink) */
+export const MOUNT_COST = 3000;
+
+/** The one effective-speed channel both sides compute identically. The road
+ *  bonus is severed on corrupt ground (the Drift breaks the roads). */
+export function effectiveMoveSpeed(opts: {
+  base?: number;
+  mounted?: boolean;
+  onRoad?: boolean;
+  corrupt?: boolean;
+}): number {
+  const base = opts.base ?? PLAYER_BASE_SPEED;
+  let mul = 1;
+  if (opts.mounted) mul *= MOVE_MOUNT_MUL;
+  if (opts.onRoad && !opts.corrupt) mul *= MOVE_ROAD_MUL;
+  return base * Math.min(mul, MOVE_SPEED_CAP);
+}
+
 // ─── the Waystation catalogs ───────────────────────────────────────────────────
 
 export type AuraKey =

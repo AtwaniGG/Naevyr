@@ -108,6 +108,18 @@ export const KEEPER_TALK: Record<string, KeeperLines> = {
       "Pick's sharp? Then what are you waiting for.",
     ],
   },
+  stable: {
+    enter: ["Mind the straw. And the teeth.", "A walker. The road's kinder on four legs."],
+    idle: [
+      "Bred for the Drift, these ones. They don't spook easy.",
+      "A steed eats coin and ash and still wants more.",
+      "Roads are faster. A steed faster still.",
+    ],
+    greet: [
+      "Tired of walking the whole realm? I keep steeds. Coin only.",
+      "Four legs beat two on the long roads. What'll it be?",
+    ],
+  },
 };
 
 // wild structures

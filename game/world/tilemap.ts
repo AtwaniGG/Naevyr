@@ -1,4 +1,4 @@
-import { ResourceKind, ResourceNode, TileType } from "../types";
+import { Cell, ResourceKind, ResourceNode, TileType } from "../types";
 
 // The world grid: tiles + resource nodes. Owns walkability used by pathfinding.
 
@@ -7,7 +7,7 @@ import { ResourceKind, ResourceNode, TileType } from "../types";
 
 export type BuildingKey =
   | "dyeworks" | "vault" | "wheel" | "lantern"
-  | "furnisher" | "menagerie" | "shrine" | "pit" | "mine"
+  | "furnisher" | "menagerie" | "shrine" | "pit" | "mine" | "stable"
   | "huskden" | "obelisk" | "mirehut" | "waystation"
   // Phase C wild camps (mini-dungeon sites in the frontier)
   | "drownedruins" | "barrowcrypt" | "ashwarcamp"
@@ -68,6 +68,9 @@ const TOWN_LAYOUT: TownBuilding[] = [
   { key: "wheel",     label: "Wheel of the Drift",       x: 13, y: 29, r: 1 },
   { key: "pit",       label: "The Pit",                  x: 20, y: 32, r: 2, walkable: true },
   { key: "mine",      label: "The Mine",                 x: 31, y: 29, r: 1 },
+  // the Stable: a gold-bought steed for the open road. Sits in the travel
+  // district by the Waystation hub (authored ≈20,20-centric → live (45,50)).
+  { key: "stable",    label: "The Stable",               x: 25, y: 30, r: 1 },
 ];
 export const TOWN_BUILDINGS: TownBuilding[] = TOWN_LAYOUT.map(place2);
 
@@ -326,6 +329,24 @@ export class World {
       if (this.tile(x, y) === "grass") this.setTile(x, y, "dirt");
     }
 
+    // region terrain accents: each quadrant reads distinct at the tile level.
+    // The Ashen Flats turn rocky-highland + ash-scorched; the marsh + Bonefields
+    // go muddy/dry. The heartland + Palewater stay green (flowers carry them).
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        if (this.tile(x, y) !== "grass") continue;
+        const region = regionAt(this.w, this.h, x, y);
+        const r = rng();
+        if (region === "The Ashen Flats") {
+          if (r < 0.10) this.setTile(x, y, "stone"); // rocky highland
+          else if (r < 0.30) this.setTile(x, y, "dirt"); // ash-scorched ground
+        } else if (region === "Hollowmere Reach") {
+          if (r < 0.16) this.setTile(x, y, "dirt"); // boggy marsh ground
+        } else if (region === "The Bonefields") {
+          if (r < 0.12) this.setTile(x, y, "dirt"); // dry grave dirt
+        }
+      }
+
     // a dirt apron under each waystation: the obelisk-style monolith art clips
     // its own south ground pad, so it needs dirt-toned tiles beneath it.
     for (const w of WAYSTATIONS) {
@@ -354,14 +375,15 @@ export class World {
         if (nearWater && !this.adjacentToWater(x, y)) continue;
         // keep the town clear of nodes (buffer included: sprites overhang)
         if (nearBuilding(x, y)) continue;
+        if (roadAt(this.w, this.h, x, y)) continue; // never block a road
         if (Math.hypot(x - TOWN_CENTER.x, y - TOWN_CENTER.y) < TOWN_NODE_FREE_RADIUS) continue;
         this.addNode(kind, x, y);
         placed++;
       }
     };
-    place("tree", Math.max(8, Math.round(area / 73)));
-    place("rock", Math.max(6, Math.round(area / 114)));
-    place("fish", Math.max(4, Math.round(area / 200)), true);
+    place("tree", Math.max(8, Math.round(area / 58)));   // denser woods (groves)
+    place("rock", Math.max(6, Math.round(area / 100)));
+    place("fish", Math.max(4, Math.round(area / 180)), true);
     // the Hollowmere is the realm's best fishing: extra schools on its banks
     const mereTarget = Math.max(4, Math.round(area / 400));
     let mereFish = 0;
@@ -371,9 +393,28 @@ export class World {
       const y = mereCy - 5 + ((rng() * 11) | 0);
       if (!this.inBounds(x, y) || this.tile(x, y) === "water") continue;
       if (this.nodeAt.has(this.idx(x, y)) || nearBuilding(x, y)) continue;
+      if (roadAt(this.w, this.h, x, y)) continue; // never block a road
       if (!this.adjacentToWater(x, y)) continue;
       this.addNode("fish", x, y);
       mereFish++;
+    }
+
+    // resource camps: a bonus cluster worth a detour, seeded around each camp
+    // center (logging→trees, quarry→rocks, fishing→fish on the bank)
+    for (const camp of RESOURCE_CAMPS) {
+      const kind: ResourceKind =
+        camp.kind === "logging" ? "tree" : camp.kind === "quarry" ? "rock" : "fish";
+      let placed = 0, tries = 0;
+      while (placed < 5 && tries++ < 200) {
+        const x = camp.x - 3 + ((rng() * 7) | 0);
+        const y = camp.y - 3 + ((rng() * 7) | 0);
+        if (!this.inBounds(x, y) || this.tile(x, y) === "water") continue;
+        if (this.nodeAt.has(this.idx(x, y)) || nearBuilding(x, y)) continue;
+        if (roadAt(this.w, this.h, x, y)) continue;
+        if (kind === "fish" && !this.adjacentToWater(x, y)) continue;
+        this.addNode(kind, x, y);
+        placed++;
+      }
     }
   }
 
@@ -439,4 +480,222 @@ export function wildClutterZone(w: number, h: number, x: number, y: number): 0 |
   const m = mereCenter(w, h);
   if (Math.max(Math.abs(x - m.x), Math.abs(y - m.y)) <= 6) return 2;
   return 0;
+}
+
+// ─── The King's Roads: the free travel network ───────────────────────────────
+// A deterministic road graph carved by A* between the town, its waystation hub,
+// each frontier waygate, and the wild landmarks. It depends ONLY on (w,h) + the
+// static structure layout (never on resource nodes), so the client and server
+// compute an identical Set with zero sync. Walking a road cell speeds travel
+// (effectiveMoveSpeed); the Drift severs the bonus on corrupt ground.
+
+/** terrain-only walkability for road carving: water + building footprints block;
+ *  resource nodes are ignored so the road set never depends on node RNG. */
+function roadCarveWalkable(w: number, h: number, x: number, y: number): boolean {
+  if (x < 0 || y < 0 || x >= w || y >= h) return false;
+  const pool = poolCenter(w, h);
+  const mere = mereCenter(w, h);
+  if (Math.hypot(x - pool.x, y - pool.y) < 3.2) return false; // the two pools
+  if (Math.hypot(x - mere.x, y - mere.y) < 2.8) return false;
+  const b = buildingAt(x, y);
+  if (b && !b.walkable) return false;
+  return true;
+}
+
+/** nearest road-walkable cell to a (possibly blocked) structure center, so the
+ *  road runs up to the doorstep rather than into the footprint. */
+function nearestCarveCell(w: number, h: number, cx: number, cy: number): Cell | null {
+  for (let r = 0; r <= 6; r++) {
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        if (roadCarveWalkable(w, h, cx + dx, cy + dy)) return { x: cx + dx, y: cy + dy };
+      }
+  }
+  return null;
+}
+
+let roadCache: { w: number; h: number; set: Set<number> } | null = null;
+
+/** the road-cell set for a given map size (memoised; pure in (w,h)) */
+export function buildRoadNetwork(w: number, h: number): Set<number> {
+  if (roadCache && roadCache.w === w && roadCache.h === h) return roadCache.set;
+  const set = new Set<number>();
+  const wild = (k: BuildingKey): Cell => {
+    const b = WILD_STRUCTURES.find((s) => s.key === k);
+    return b ? { x: b.x, y: b.y } : { x: Math.floor(w / 2), y: Math.floor(h / 2) };
+  };
+  const [hub, palewater, ashfall, hollowmere, bonefield] = WAYSTATIONS;
+  const outpost = OUTPOST_BUILDINGS[0];
+  const plaza: Cell = { x: TOWN_CENTER.x, y: TOWN_CENTER.y };
+  const edges: [Cell, Cell][] = [
+    [plaza, hub],                                                   // town → waystation hub
+    [hub, palewater], [hub, ashfall], [hub, hollowmere], [hub, bonefield], // four spokes
+    [ashfall, wild("ashwarcamp")], [ashfall, wild("huskden")],      // NW branches
+    [wild("huskden"), wild("obelisk")],
+    [palewater, wild("drownedruins")],                              // NE branch
+    [hollowmere, wild("mirehut")],                                  // SW branch
+    [bonefield, wild("barrowcrypt")], [bonefield, outpost],         // SE branches
+    [plaza, outpost],                                               // trunk road across the SE
+  ];
+  const walk = (x: number, y: number) => roadCarveWalkable(w, h, x, y);
+  for (const [a, b] of edges) {
+    const sa = nearestCarveCell(w, h, a.x, a.y);
+    const sb = nearestCarveCell(w, h, b.x, b.y);
+    if (!sa || !sb) continue;
+    // cardinal-only carve with a turn penalty: roads run in long straight runs
+    // with deliberate bends (clean iso roads), and consecutive cells are always
+    // cardinal neighbours so the auto-tile pieces connect them.
+    const path = carveRoad(w, sa, sb, walk);
+    if (!path) continue;
+    for (const c of [sa, ...path]) set.add(c.y * w + c.x);
+  }
+  roadCache = { w, h, set };
+  return set;
+}
+
+// 4-direction grid moves (each = a screen diagonal); index = direction id
+const ROAD_MOVES = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+/** Carve a road with a 4-dir A* that PENALISES turns, so roads prefer long
+ *  straight runs and bend deliberately — instead of the staircase a plain
+ *  octile A* produces on the iso grid. State = (cell, arrival-direction). */
+function carveRoad(
+  w: number, start: Cell, goal: Cell,
+  walk: (x: number, y: number) => boolean, turnCost = 3,
+): Cell[] | null {
+  if (!walk(goal.x, goal.y)) return null;
+  if (start.x === goal.x && start.y === goal.y) return [];
+  const sid = (idx: number, dir: number) => idx * 5 + dir; // dir 0-3 = move, 4 = start
+  const g = new Map<number, number>();
+  const came = new Map<number, number>();
+  const open: { s: number; f: number }[] = [];
+  const push = (s: number, f: number) => {
+    open.push({ s, f }); let i = open.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (open[p].f <= open[i].f) break; [open[p], open[i]] = [open[i], open[p]]; i = p; }
+  };
+  const pop = () => {
+    const top = open[0]; const last = open.pop()!;
+    if (open.length) {
+      open[0] = last; let i = 0;
+      for (;;) { const l = 2 * i + 1, r = 2 * i + 2; let m = i; if (l < open.length && open[l].f < open[m].f) m = l; if (r < open.length && open[r].f < open[m].f) m = r; if (m === i) break; [open[m], open[i]] = [open[i], open[m]]; i = m; }
+    }
+    return top;
+  };
+  const hMan = (x: number, y: number) => Math.abs(x - goal.x) + Math.abs(y - goal.y);
+  const s0 = sid(start.y * w + start.x, 4);
+  g.set(s0, 0); push(s0, hMan(start.x, start.y));
+  while (open.length) {
+    const cur = pop().s;
+    const cidx = Math.floor(cur / 5), cdir = cur % 5;
+    const cx = cidx % w, cy = (cidx / w) | 0;
+    if (cx === goal.x && cy === goal.y) {
+      const path: Cell[] = [];
+      let s: number | undefined = cur;
+      while (s !== undefined && s !== s0) { const ix = Math.floor(s / 5); path.push({ x: ix % w, y: (ix / w) | 0 }); s = came.get(s); }
+      return path.reverse();
+    }
+    const cg = g.get(cur)!;
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + ROAD_MOVES[d][0], ny = cy + ROAD_MOVES[d][1];
+      if (!walk(nx, ny)) continue;
+      const step = 1 + (cdir !== 4 && cdir !== d ? turnCost : 0);
+      const ns = sid(ny * w + nx, d);
+      const t = cg + step;
+      if (t < (g.get(ns) ?? Infinity)) {
+        g.set(ns, t); came.set(ns, cur);
+        push(ns, t + hMan(nx, ny));
+      }
+    }
+  }
+  return null;
+}
+
+/** is this cell part of the road network? */
+export function roadAt(w: number, h: number, x: number, y: number): boolean {
+  return buildRoadNetwork(w, h).has(y * w + x);
+}
+
+// ─── Groves: clustered woods (decorative trees fill the open stretches) ──────
+let groveCache: { w: number; h: number; set: Set<number> } | null = null;
+/** deterministic clustered grove cells (pure in w,h; client renders trees here) */
+export function buildGroves(w: number, h: number): Set<number> {
+  if (groveCache && groveCache.w === w && groveCache.h === h) return groveCache.set;
+  const set = new Set<number>();
+  const rng = mulberry32(909);
+  const N = Math.round((w * h) / 430); // ~15 groves on 80×80
+  for (let i = 0; i < N; i++) {
+    const cx = (rng() * w) | 0, cy = (rng() * h) | 0, r = 3 + ((rng() * 3) | 0);
+    if (Math.hypot(cx - TOWN_CENTER.x, cy - TOWN_CENTER.y) < 13) continue; // keep the town airy
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        if (rng() < 0.5) set.add(y * w + x);
+      }
+  }
+  groveCache = { w, h, set };
+  return set;
+}
+/** is this cell inside a decorative grove? */
+export function groveAt(w: number, h: number, x: number, y: number): boolean {
+  return buildGroves(w, h).has(y * w + x);
+}
+
+// ─── Wayside content: what fills the road between the landmarks ───────────────
+// Authored points placed along the spokes (fractions ride outward with the map).
+// Rest stops are safe campfires; landmarks are scenic lore markers; resource
+// camps seed bonus node clusters; ambush zones bias the ambient mob spawns.
+export interface WaysidePoint { x: number; y: number; name: string }
+const frac = (fx: number, fy: number, name: string): WaysidePoint => ({
+  x: Math.round(MAP_W * fx), y: Math.round(MAP_H * fy), name,
+});
+
+/** safe campfire hadsteads at the spoke midpoints (no ambient spawns within R) */
+export const REST_STOPS: WaysidePoint[] = [
+  frac(0.66, 0.35, "Palewater Rest"),  // NE spoke
+  frac(0.31, 0.35, "Ashfall Rest"),    // NW spoke
+  frac(0.37, 0.66, "Mirewatch Rest"),  // SW spoke
+  frac(0.69, 0.66, "Bonefield Rest"),  // SE spoke
+];
+export const REST_STOP_R = 3;
+
+/** scenic lore markers (decoration only; some named on the minimap). Kinds map
+ *  1:1 to the DS ruin sprites (waystone/broken_arch/fallen_statue/
+ *  battlefield_bones/drift_monolith). */
+export type LandmarkKind = "waystone" | "broken_arch" | "fallen_statue" | "battlefield_bones" | "drift_monolith";
+export interface Landmark { x: number; y: number; kind: LandmarkKind; name: string }
+export const LANDMARKS: Landmark[] = [
+  { ...frac(0.56, 0.26, "The Leaning Waystone"), kind: "waystone" },
+  { ...frac(0.30, 0.46, "The Broken Arch"), kind: "broken_arch" },
+  { ...frac(0.46, 0.62, "The Sunken Monolith"), kind: "drift_monolith" },
+  { ...frac(0.70, 0.40, "The Fallen King"), kind: "fallen_statue" }, // clear of the quarry camp
+
+  { ...frac(0.24, 0.58, "Fallow Battleground"), kind: "battlefield_bones" },
+];
+
+/** node clusters worth stopping for, seeded in World.generate */
+export type ResourceCampKind = "logging" | "quarry" | "fishing";
+export interface ResourceCamp { x: number; y: number; kind: ResourceCampKind; name: string }
+export const RESOURCE_CAMPS: ResourceCamp[] = [
+  { ...frac(0.35, 0.28, "Old Logging Camp"), kind: "logging" },
+  { ...frac(0.62, 0.50, "The Roadside Quarry"), kind: "quarry" },
+  { ...frac(0.66, 0.27, "Palewater Dock"), kind: "fishing" },
+];
+
+/** borderland stretches where the road carries teeth (ambient-spawn bias) */
+export const AMBUSH_ZONES: WaysidePoint[] = [
+  frac(0.60, 0.30, "Palewater road"),
+  frac(0.26, 0.32, "Ashfall road"),
+  frac(0.34, 0.60, "Mire road"),
+  frac(0.62, 0.62, "Bonefield road"),
+];
+
+/** within the safe radius of a rest stop? (server suppresses spawns here) */
+export function nearRestStop(x: number, y: number, pad = 0): boolean {
+  for (const r of REST_STOPS) {
+    if (Math.hypot(x - r.x, y - r.y) <= REST_STOP_R + pad) return true;
+  }
+  return false;
 }

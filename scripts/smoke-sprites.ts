@@ -43,7 +43,7 @@ import { makeBuildingSprite, BuildingSpriteKey, SHRINE_FRAMES } from "../game/re
 const CELLS: Record<BuildingSpriteKey, [number, number]> = {
   dyeworks: [144, 152], vault: [144, 152], wheel: [144, 152], lantern: [144, 152],
   furnisher: [144, 152], menagerie: [144, 152], shrine: [112, 128], pit: [240, 120],
-  mine: [144, 120],
+  mine: [144, 120], stable: [144, 152],
   huskden: [120, 88], obelisk: [64, 112], mirehut: [120, 116],
 };
 for (const key of Object.keys(CELLS) as BuildingSpriteKey[]) {
@@ -79,6 +79,108 @@ for (let f = 0; f < 2; f++) {
 }
 if (JSON.stringify(makeWagon(0).d) === JSON.stringify(makeWagon(1).d)) {
   failures++; console.error("FAIL wagon: frames 0 and 1 are identical");
+}
+
+// biome ground cover (Fill the Realm placeholders): every kind × 2 variants
+import { makeBiomeDoodad, BIOME_DOODAD_KEYS } from "../game/render/sprites";
+for (const k of BIOME_DOODAD_KEYS) {
+  for (let v = 0; v < 2; v++) {
+    try {
+      const g = makeBiomeDoodad(k, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (g.w < 8 || g.h < 6) { failures++; console.error(`FAIL biome ${k}#${v}: grid ${g.w}×${g.h}`); }
+      else if (px < 6) { failures++; console.error(`FAIL biome ${k}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW biome ${k}#${v}:`, e); }
+  }
+}
+
+// Fill-the-Realm critters / micro-POIs / biome tiles (DS port)
+import {
+  makeCritter, CRITTER_SPECS, CritterKind, makeMicroPoi, MICROPOI_KEYS, MicroPoiKey,
+  makeBiomeTile, BIOME_TILE_KEYS, BiomeTileKey,
+} from "../game/render/sprites";
+for (const kind of Object.keys(CRITTER_SPECS) as CritterKind[]) {
+  const spec = CRITTER_SPECS[kind];
+  for (const fc of spec.facings) for (const [anim, n] of spec.anims) for (let f = 0; f < n; f++) {
+    try { const g = makeCritter(kind, fc, anim, f); frames++; if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL critter ${kind}/${fc}/${anim}#${f}: ${g.w}×${g.h}`); } else if (g.d.filter(Boolean).length < 6) { failures++; console.error(`FAIL critter ${kind}/${fc}/${anim}#${f}: sparse`); } }
+    catch (e) { failures++; console.error(`THROW critter ${kind}/${fc}/${anim}#${f}:`, e); }
+  }
+}
+for (const key of MICROPOI_KEYS as MicroPoiKey[]) {
+  for (let f = 0; f < 2; f++) {
+    try { const g = makeMicroPoi(key, f); frames++; if (g.d.filter(Boolean).length < 40) { failures++; console.error(`FAIL micropoi ${key}#${f}: sparse`); } }
+    catch (e) { failures++; console.error(`THROW micropoi ${key}#${f}:`, e); }
+  }
+}
+for (const key of BIOME_TILE_KEYS as BiomeTileKey[]) {
+  try { const g = makeBiomeTile(key); frames++; if (g.w !== 64 || g.h !== 36 || g.d.filter(Boolean).length < 500) { failures++; console.error(`FAIL biometile ${key}: ${g.w}×${g.h}`); } }
+  catch (e) { failures++; console.error(`THROW biometile ${key}:`, e); }
+}
+
+// the connective pack (DS port): steed, roads, wayside, ruins
+import {
+  drawSteed, STEED_FACINGS, drawRoad, ROAD_PIECES, roadDirsFromMask,
+  WAYSIDE_SPECS, WaysideKey, RUIN_SPECS, RuinKey,
+} from "../game/render/sprites";
+// the Stable steed: 5 facings × idle 2f / walk 6f, 56×48
+for (const fc of STEED_FACINGS) {
+  for (const [anim, n] of [["idle", 2], ["walk", 6]] as const) {
+    for (let f = 0; f < n; f++) {
+      try {
+        const g = drawSteed("frontier_steed", fc, anim, f);
+        const px = g.d.filter(Boolean).length;
+        frames++;
+        if (g.w !== 56 || g.h !== 48) { failures++; console.error(`FAIL steed ${fc}-${anim}#${f}: grid ${g.w}×${g.h}`); }
+        else if (px < 150) { failures++; console.error(`FAIL steed ${fc}-${anim}#${f}: only ${px} pixels`); }
+      } catch (e) { failures++; console.error(`THROW steed ${fc}-${anim}#${f}:`, e); }
+    }
+  }
+}
+if (JSON.stringify(drawSteed("frontier_steed", "e", "walk", 0).d) === JSON.stringify(drawSteed("frontier_steed", "e", "walk", 3).d)) {
+  failures++; console.error("FAIL steed: walk gait frames 0 and 3 identical");
+}
+// roads: every canonical piece + broken, 64×36, no outline; all 16 masks generate
+for (const name of Object.keys(ROAD_PIECES)) {
+  try {
+    const g = drawRoad(ROAD_PIECES[name], false);
+    frames++;
+    if (g.w !== 64 || g.h !== 36) { failures++; console.error(`FAIL road ${name}: grid ${g.w}×${g.h}`); }
+    else if (name !== "isolated" && g.d.filter(Boolean).length < 60) { failures++; console.error(`FAIL road ${name}: too sparse`); }
+  } catch (e) { failures++; console.error(`THROW road ${name}:`, e); }
+}
+for (let mask = 0; mask < 16; mask++) {
+  try { drawRoad(roadDirsFromMask(mask), false); frames++; }
+  catch (e) { failures++; console.error(`THROW road mask ${mask}:`, e); }
+}
+try { drawRoad(ROAD_PIECES.straight, true); frames++; } catch (e) { failures++; console.error("THROW road_broken:", e); }
+// wayside decor: every key × frame at its declared cell
+for (const k of Object.keys(WAYSIDE_SPECS) as WaysideKey[]) {
+  const spec = WAYSIDE_SPECS[k];
+  for (let f = 0; f < spec.frames; f++) {
+    try {
+      const g = spec.fn(f); frames++;
+      if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL wayside ${k}#${f}: grid ${g.w}×${g.h}`); }
+      else if (g.d.filter(Boolean).length < 60) { failures++; console.error(`FAIL wayside ${k}#${f}: too sparse`); }
+    } catch (e) { failures++; console.error(`THROW wayside ${k}#${f}:`, e); }
+  }
+}
+if (JSON.stringify(WAYSIDE_SPECS.campfire.fn(0).d) === JSON.stringify(WAYSIDE_SPECS.campfire.fn(1).d)) {
+  failures++; console.error("FAIL campfire: flame frames 0 and 1 identical");
+}
+// ruin landmarks: every key × frame
+for (const k of Object.keys(RUIN_SPECS) as RuinKey[]) {
+  const spec = RUIN_SPECS[k];
+  for (let f = 0; f < spec.frames; f++) {
+    try {
+      const g = spec.fn(f); frames++;
+      if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL ruin ${k}#${f}: grid ${g.w}×${g.h}`); }
+      else if (g.d.filter(Boolean).length < 80) { failures++; console.error(`FAIL ruin ${k}#${f}: too sparse`); }
+    } catch (e) { failures++; console.error(`THROW ruin ${k}#${f}:`, e); }
+  }
+}
+if (JSON.stringify(RUIN_SPECS.drift_monolith.fn(0).d) === JSON.stringify(RUIN_SPECS.drift_monolith.fn(1).d)) {
+  failures++; console.error("FAIL drift_monolith: shimmer frames identical");
 }
 
 // shrine frames must actually differ (the flame flickers)

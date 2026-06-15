@@ -33,13 +33,14 @@ import {
   SKILL_META,
   SkillKey,
   seasonName,
+  MOUNT_COST,
 } from "@/game/types";
 import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { SpeakerGlyph } from "@/components/BgMusic";
 import { bus } from "@/game/state/bus";
-import { WAYSTATIONS } from "@/game/world/tilemap";
+import { WAYSTATIONS, buildRoadNetwork, REST_STOPS } from "@/game/world/tilemap";
 import { useViewport } from "@/game/state/viewport";
 import { Component, type ReactNode } from "react";
 import WheelOverlay from "@/components/Hud/WheelOverlay";
@@ -121,9 +122,9 @@ export default function Hud() {
   // Read once on mount so SSR and first client render agree.
   const [demo, setDemo] = useState(false);
   useEffect(() => {
-    if (typeof location !== "undefined" && new URLSearchParams(location.search).has("demo")) {
-      setDemo(true);
-    }
+    // ?hud forces the HUD on even under ?demo (capture WITH the HUD, e.g. tests)
+    const q = typeof location !== "undefined" ? new URLSearchParams(location.search) : null;
+    if (q?.has("demo") && !q.has("hud")) setDemo(true);
   }, []);
   // ?demo hides the HUD for clean canvas capture, but the Wheel overlay IS the
   // scene when a spin rolls and the Duel overlay (HP bars + pot) IS the scene in
@@ -431,6 +432,7 @@ const KEEPERS: Record<string, { name: string; swatch: string; leave: string }> =
   furnisher: { name: "Carver Hesk",        swatch: "#4d7c4d", leave: "Another time" },
   menagerie: { name: "Keeper Vey",         swatch: "#2c5775", leave: "Just looking" },
   mine:      { name: "Overseer Dunn",      swatch: "#4a4360", leave: "To work" },
+  stable:    { name: "Hostler Pell",       swatch: "#7a6048", leave: "On foot, then" },
   outpost:   { name: "Quartermaster Rell", swatch: "#8a6a3a", leave: "Back to the wall" },
   mirehut:   { name: "The Mirewife",       swatch: "#4d7c4d", leave: "Wade out" },
   obelisk:   { name: "The Ash Obelisk",    swatch: "#a855f7", leave: "Step back" },
@@ -920,6 +922,28 @@ function KeeperDialogue() {
         respond("WORK, LITTLE WANDERER. THE ASH WATCHES.");
       },
     });
+  } else if (openShop === "stable") {
+    if (!s.ownsMount) {
+      opts.push({
+        label: "Buy a steed", sub: "yours for good · faster on the roads",
+        right: `${MOUNT_COST.toLocaleString()}g`,
+        onClick: () => {
+          if (s.gold < MOUNT_COST) return respond("Come back with coin. Steeds aren't cheap.");
+          bus.emit("buyMount", true);
+          respond("A fine pick. Mind the reins, and the roads.");
+        },
+      });
+    } else if (s.mounted) {
+      opts.push({
+        label: "Stable the steed", sub: "travel on foot",
+        onClick: () => { bus.emit("mountToggle", false); respond("She'll be here when the road calls again."); },
+      });
+    } else {
+      opts.push({
+        label: "Saddle up", sub: "ride out",
+        onClick: () => { bus.emit("mountToggle", true); respond("Ride hard. The Drift waits for none."); close(); },
+      });
+    }
   } else if (openShop === "outpost") {
     opts.push({
       label: "The frontier report", sub: "what stirs out here",
@@ -2785,6 +2809,16 @@ function MinimapPanel() {
         ctx.fillRect(x * px, y * px, px + 0.5, px + 0.5);
       }
     }
+    // the King's Roads (static, derived from the map size) — a faint earth hint
+    const roads = buildRoadNetwork(snap.w, snap.h);
+    ctx.fillStyle = "rgba(146,120,92,0.5)";
+    for (const cell of roads) {
+      const rx = cell % snap.w, ry = (cell / snap.w) | 0;
+      ctx.fillRect(rx * px, ry * px, px + 0.5, px + 0.5);
+    }
+    // rest-stop campfires (safe waypoints along the roads)
+    ctx.fillStyle = "#f59e0b";
+    for (const r of REST_STOPS) ctx.fillRect(r.x * px - 1.5, r.y * px - 1.5, 3, 3);
     ctx.fillStyle = "#e7c873";
     for (const n of snap.nodes) ctx.fillRect(n.x * px - 1, n.y * px - 1, 2, 2);
     for (const m of snap.mobs) {

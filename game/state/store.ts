@@ -228,6 +228,11 @@ interface GameState {
   tokenBalance: number;
   /** token gate: holds >= 1 whole token */
   holder: boolean;
+  /** owns a gold-bought steed from the Stable (server-authoritative online,
+   *  SaveData cache offline) */
+  ownsMount: boolean;
+  /** the steed is currently summoned (drives the road/mount speed bonus) */
+  mounted: boolean;
   /** THE LONG NIGHT: live defense status (null when no night) */
   night: { kills: number; need: number; endsIn: number } | null;
   /** DRIFT RIFT: live incursion status (null when no rift) */
@@ -306,6 +311,8 @@ interface GameState {
   spendGold: (amount: number, reason?: GoldReason) => boolean;
   /** adopt the server ledger's authoritative balance (no forwarding) */
   setGold: (amount: number) => void;
+  setOwnsMount: (owns: boolean) => void;
+  setMounted: (on: boolean) => void;
   questEvent: (e: QuestEvent) => void;
   claimQuest: (id: string) => void;
   sellItem: (item: ItemKey, qty: number, goldEach: number) => void;
@@ -400,6 +407,8 @@ export const useGame = create<GameState>((set, get) => ({
   wallet: null,
   tokenBalance: 0,
   holder: false,
+  ownsMount: false,
+  mounted: false,
   night: null,
   rift: null,
   bloodMoon: false,
@@ -512,6 +521,8 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   setGold: (amount) => set({ gold: Math.max(0, amount) }),
+  setOwnsMount: (owns) => set({ ownsMount: owns }),
+  setMounted: (on) => set({ mounted: on }),
 
   setQuests: (list) =>
     set({

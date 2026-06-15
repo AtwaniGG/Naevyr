@@ -30,7 +30,13 @@ export class Player {
   px: number;
   py: number;
   path: Cell[] = [];
-  speed = 3.2; // tiles per second
+  speed = 3.2; // tiles per second (base; effective speed comes from speedAt)
+  /** whether a steed is summoned (drives the road/mount speed channel) */
+  mounted = false;
+  /** effective walk speed (tiles/sec) at the cell underfoot — injected by the
+   *  engine so the client's local prediction matches the authoritative server
+   *  (roads + mount). Null → fall back to the base `speed`. */
+  speedAt: ((x: number, y: number) => number) | null = null;
   action: PlayerAction = "idle";
   facing = 1; // 1 = right-ish, -1 = left-ish (legacy, kept for mob rendering)
   // iso facing for the wanderer sprite
@@ -118,7 +124,8 @@ export class Player {
       const dx = next.x - this.px;
       const dy = next.y - this.py;
       const dist = Math.hypot(dx, dy);
-      const step = this.speed * dt;
+      const fx = Math.round(this.px), fy = Math.round(this.py);
+      const step = (this.speedAt ? this.speedAt(fx, fy) : this.speed) * dt;
       if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
       this.updateIsoFacing(dx, dy);
       if (dist <= step) {
