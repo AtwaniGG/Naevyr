@@ -10,8 +10,9 @@ import { issueGateNonce, verifyGateProof } from "./gate";
 
 // initial full state (1600-tile map + nodes + players) outgrows the 8KB default
 Encoder.BUFFER_SIZE = 64 * 1024;
-// deploy marker: battle-pass server (passSync/buyPass/claimPassTier) + onAuth
-// auto-link — force Railway to rebuild from main (client-only commits get skipped)
+// deploy marker: gate auto-link is sim-authoritative (getProfile no longer races
+// the DB write) + mobile WS ping tolerance (8s x 5) — force Railway to rebuild
+// from main (client-only commits get skipped; this server work MUST ship)
 
 const port = Number(process.env.PORT ?? 2567);
 

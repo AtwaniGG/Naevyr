@@ -404,8 +404,10 @@ export class Game {
   // Browser wallet (Phantom/Solflare/Backpack) signs a server nonce; the server
   // verifies and binds wallet ↔ guest token. No chain calls yet — just identity.
 
-  /** wallet provider + address held between nonce request and signature */
-  private pendingWallet: { provider: WalletProvider; address: string } | null = null;
+  /** an in-game wallet link is awaiting its server nonce (then we connect+sign
+   *  back-to-back). A flag, not a stored provider — a mobile wallet can re-inject
+   *  window.solana across the sign app-switch, staling any held reference. */
+  private linkPending = false;
 
   /** the injected browser wallet, if any */
   private detectWallet(): WalletProvider | undefined {
@@ -418,16 +420,16 @@ export class Game {
     );
   }
 
-  private async startWalletLink() {
+  private startWalletLink() {
     const store = useGame.getState();
     if (!this.net) {
       store.pushLog("Wallets link in the shared world. Start the server first.", "#6f6781");
       return;
     }
     const provider = this.detectWallet();
-    if (!provider?.connect || !provider.signMessage) {
-      // mobile browsers have no injected wallet → bounce into Phantom's in-app
-      // browser, where window.solana exists and the link can be signed
+    if (!provider?.signMessage) {
+      // no injected wallet (a plain mobile browser) → bounce into the wallet's
+      // in-app browser, where window.solana exists and signing works
       if (viewport.isTouch && typeof window !== "undefined") {
         const url = encodeURIComponent(window.location.href);
         window.location.href = `https://phantom.app/ul/browse/${url}?ref=${encodeURIComponent(window.location.origin)}`;
@@ -436,34 +438,46 @@ export class Game {
       store.pushLog("No Solana wallet found. Install Phantom, then retry.", "#6f6781");
       return;
     }
-    try {
-      const resp = await provider.connect();
-      const address =
-        resp?.publicKey?.toString?.() ?? provider.publicKey?.toString?.() ?? "";
-      if (!address) {
-        store.pushLog("The wallet gave no address. Strange winds.", "#6f6781");
-        return;
-      }
-      this.pendingWallet = { provider, address };
-      this.net.requestWalletNonce();
-    } catch {
-      store.pushLog("The wallet declined. No link was made.", "#6f6781");
-    }
+    // ask the server for a fresh nonce FIRST, then connect + sign back-to-back
+    // when it lands. The old flow connected, THEN waited a round-trip, THEN
+    // signed — and a mobile wallet's app-switch in that gap staled the popup,
+    // which surfaced as "signing declined" even after the player approved.
+    this.linkPending = true;
+    this.net.requestWalletNonce();
   }
 
   private async signWalletNonce(nonce: string) {
     const store = useGame.getState();
-    const pending = this.pendingWallet;
-    this.pendingWallet = null;
-    if (!pending || !this.net) return;
+    if (!this.linkPending) return;
+    this.linkPending = false;
+    // re-detect at sign time (a mobile wallet may re-inject window.solana across
+    // the app-switch; a reference captured earlier would throw)
+    const provider = this.detectWallet();
+    if (!provider?.signMessage) {
+      store.pushLog("The wallet slipped away before signing. Try again.", "#6f6781");
+      return;
+    }
     try {
-      const message = new TextEncoder().encode(
-        walletLinkMessage(pending.address, nonce),
-      );
-      const result = await pending.provider.signMessage!(message, "utf8");
+      // make sure the wallet is connected (idempotent if it already is), then
+      // read the address it will actually sign with
+      let address = provider.publicKey?.toString?.() ?? "";
+      if (!address && provider.connect) {
+        const resp = await provider.connect();
+        address = resp?.publicKey?.toString?.() ?? provider.publicKey?.toString?.() ?? "";
+      }
+      if (!address) {
+        store.pushLog("The wallet gave no address. Try again.", "#6f6781");
+        return;
+      }
+      const message = new TextEncoder().encode(walletLinkMessage(address, nonce));
+      const result = await provider.signMessage(message, "utf8");
       const sig: Uint8Array = result.signature ?? (result as unknown as Uint8Array);
       const hex = Array.from(sig, (b) => b.toString(16).padStart(2, "0")).join("");
-      this.net.sendLinkWallet(pending.address, hex);
+      if (!this.net) {
+        store.pushLog("The link signed, but the connection wavered. Try again.", "#6f6781");
+        return;
+      }
+      this.net.sendLinkWallet(address, hex);
     } catch {
       store.pushLog("Signing was declined. No link was made.", "#6f6781");
     }
@@ -1175,8 +1189,15 @@ export class Game {
       store.setMyClaims(this.myClaimIds.size);
       this.myListingIds = new Set(m.myListings ?? []);
       if (typeof m.banked === "number") store.setBanked(m.banked);
-      store.setWallet(m.wallet ?? null);
-      store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
+      // A wallet proven at the door is ours even if this profile hasn't caught up
+      // (a server still committing the auto-link — or running older code — can
+      // report wallet:null and balance 0). Never let that wipe a gate-proven
+      // wallet or downgrade a holder the link already confirmed.
+      const knownWallet = m.wallet ?? (this.guest ? null : getGateWallet());
+      store.setWallet(knownWallet);
+      if (m.wallet || !knownWallet) {
+        store.setTokenStatus(m.tokenBalance ?? 0, m.holder ?? false);
+      }
       if (m.founder) {
         // idempotent: the server flag re-grants on every device
         store.grantCosmetic("title", "Founder");
