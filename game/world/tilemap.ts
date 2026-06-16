@@ -382,8 +382,8 @@ export class World {
         placed++;
       }
     };
-    place("tree", Math.max(8, Math.round(area / 58)));   // denser woods (groves)
-    place("rock", Math.max(6, Math.round(area / 100)));
+    place("tree", Math.max(8, Math.round(area / 200)));  // sparse woods (matches main's density)
+    place("rock", Math.max(6, Math.round(area / 320)));
     place("fish", Math.max(4, Math.round(area / 180)), true);
     // the Hollowmere is the realm's best fishing: extra schools on its banks
     const mereTarget = Math.max(4, Math.round(area / 400));

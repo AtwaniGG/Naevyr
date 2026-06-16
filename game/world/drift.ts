@@ -14,7 +14,7 @@ export class Drift {
   private rng = mulberry32(0xc0ffee);
   private seasonTimer = 0;
   readonly seasonLengthMs: number; // a "season" tick (server: SEASON_MS env)
-  readonly regrowDelayMs = 8_000;
+  readonly regrowDelayMs = 2_500; // fast respawn: a cut/mined node relocates ~2.5s later
 
   constructor(seasonLengthMs = 900_000) { // 15 min per season (production pace)
     this.seasonLengthMs = seasonLengthMs;
