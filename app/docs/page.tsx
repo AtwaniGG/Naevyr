@@ -22,6 +22,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "drift", group: "The World", title: "The Drift & Seasons" },
   { id: "waystation", group: "The World", title: "The Waystation" },
   { id: "wilds", group: "The World", title: "The Wild Quadrants" },
+  { id: "frontier", group: "The World", title: "The Frontier" },
   { id: "gathering", group: "Core Systems", title: "Gathering & Skills" },
   { id: "forge", group: "Core Systems", title: "The Forge & Equipment" },
   { id: "combat", group: "Core Systems", title: "Combat & Beasts" },
@@ -30,6 +31,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "market", group: "Core Systems", title: "The Market" },
   { id: "caravans", group: "Core Systems", title: "Caravans" },
   { id: "guilds", group: "Core Systems", title: "Guilds & Territory" },
+  { id: "streaks", group: "Core Systems", title: "Streaks & Boards" },
   { id: "events", group: "Core Systems", title: "World Events" },
   { id: "token", group: "DRIFTS", title: "DRIFTS & Burn Rites" },
   { id: "driftwheel", group: "DRIFTS", title: "The Drift Wheel & Relics" },
@@ -378,6 +380,50 @@ export default function DocsPage() {
             besieges them like anywhere else.
           </P>
 
+          <H id="frontier">The Frontier</H>
+          <P>
+            Past the old edge the map opens into a true frontier: four{" "}
+            <Gold>waystations</Gold> on the spokes out of town and a{" "}
+            <Gold>Frontier Outpost</Gold> deep in the southeast. There is work out
+            there for those who walk it.
+          </P>
+          <P>
+            <Gold>Bounty boards.</Gold> Each waystation posts that region's
+            contracts. Take up to three, cull beasts or gather in the named region,
+            and turn them in for gold and drift shards. The boards re-post on their
+            own clock. <Gold>The Roaming Trader,</Gold> a hooded peddler with a pack
+            mule, walks the roads between waystations: catch them parked to buy a
+            rotating stock with gold, or sell loot back at a premium over the town
+            vendor.
+          </P>
+          <P>
+            <Gold>Salvage.</Gold> Wagon wrecks, ruined huts, and old campfires give
+            up gold and scrap to whoever searches them, then pick clean for a few
+            minutes. <Gold>Camp craft:</Gold> the roadside resource camps carry field
+            tools, a cook-fire to cook your catch on the spot, an anvil and a tannery
+            that open the Forge so you can work far from town.
+          </P>
+          <P>
+            <Gold>The Outpost & standing.</Gold> The Quartermaster takes supply
+            contracts, paying gold and <Gold>reputation</Gold> for delivered goods.
+            Standing climbs Drifter, Recruit, Regular, Veteran, and each rank opens
+            more of the quartermaster's wares.
+          </P>
+          <P>
+            <Gold>Fast-travel.</Gold> Step up to any waystation and walk the Drift
+            Roads to another for <Gold>60g</Gold>, or burn DRIFTS to step the leyline
+            instantly. The <Gold>Stable</Gold> sells a steed for 3,000g, and a{" "}
+            <Gold>Swift Steed</Gold> shoeing for 4,000g more is the fastest thing on
+            the roads.
+          </P>
+          <P>
+            <Gold>The Sunken Lair.</Gold> By the lake in the deep southwest, a drowned
+            king and its pack hold a sunken ruin. Camp bosses and the{" "}
+            <Gold>rare elites</Gold> that breed in the deep frontier pay a richer
+            haul, and sometimes a Drift cache of gold and shards spills from the
+            corpse.
+          </P>
+
           <H id="gathering">Gathering & Skills</H>
           <P>
             Trees give driftwood, rocks give pale stone, pools give hollowfish.
@@ -396,6 +442,12 @@ export default function DocsPage() {
             satchel and validated by the realm. Gear auto-equips when it beats
             what you wear, renders on your wanderer, and follows you
             everywhere.
+          </P>
+          <P>
+            <Gold>Reinforce.</Gold> At the rune-anvil, an equipped piece can be
+            reinforced with gold: each reinforcement adds a point of power, up to
+            five, for an escalating cost. A veteran's gold sink, and the way to
+            outgrow the recipes.
           </P>
 
           <H id="combat">Combat & Beasts</H>
@@ -433,6 +485,13 @@ export default function DocsPage() {
             {burnAmt(BURN_COSTS.reinforce)} DRIFTS mends your weakest claim's
             warding by 25 points, never past 100. It buys time, not immunity;
             the Drift always comes back, and the warding always needs feeding.
+          </P>
+          <P>
+            <Gold>Claim upgrades.</Gold> The Furnisher sells working props for your
+            ground: a <Gold>Storage Stash</Gold> that opens your vault from the field,
+            a <Gold>Workbench</Gold> that opens the Forge, and a <Gold>Drift-Ward</Gold>{" "}
+            that halves the season's erosion while it stands. Place them on your claim,
+            then use them where you live.
           </P>
 
           <H id="market">The Market</H>
@@ -481,6 +540,21 @@ export default function DocsPage() {
             like every perk in the realm). An active guild burns about{" "}
             <Gold>5,000 DRIFTS a day</Gold> keeping its ground: territory is
             the realm's structural, recurring sink.
+          </P>
+
+          <H id="streaks">Streaks & Boards</H>
+          <P>
+            The realm rewards return. Each new day you log in continues your{" "}
+            <Gold>login streak</Gold> and pays an escalating, capped reward in gold;
+            miss a day and it resets. Milestones earn <Gold>titles</Gold> for good,
+            Beast-tested through Centurion, Gilded through Magnate, Provider,
+            Deathblow and more, each yours to wear once the bar is crossed.
+          </P>
+          <P>
+            <Gold>The boards.</Gold> The Leaderboard keeps a public reckoning:{" "}
+            <Gold>Wealth</Gold> (purse and vault together), <Gold>Kills</Gold>,{" "}
+            <Gold>Total Level</Gold>, and the longest <Gold>Streak</Gold>. The realm
+            sees who walks it hardest.
           </P>
 
           <H id="events">World Events</H>

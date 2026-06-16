@@ -16,6 +16,8 @@ type Mile = {
   title: string;
   status: string;
   near?: boolean;
+  /** walked: shipped + live (renders gold with a check) */
+  done?: boolean;
   tag: string;
   lede: string;
   items: string[];
@@ -24,35 +26,35 @@ type Mile = {
 
 const MILES: Mile[] = [
   {
-    n: "I", title: "The Drift Ledger", status: "Nearly here", near: true,
+    n: "I", title: "The Drift Ledger", status: "Walked. It's live.", done: true,
     tag: "A pass for those who keep walking.",
-    lede: "Four weeks to a season. Marks are earned by walking, gathering, fighting, surviving.",
+    lede: "Four weeks to a season. Marks earned by walking, gathering, fighting, surviving. The first season runs now.",
     items: ["Four-week seasons", "Tiers pay cosmetics and coin", "Each season strikes one relic"],
     foot: "Earned, never given.",
   },
   {
-    n: "II", title: "The Wider Realm", status: "Coming",
-    tag: "Carved, and nearly walked.",
-    lede: "The map breaks its bounds. A true frontier opens past the old edge, and the Drift comes with it.",
-    items: ["New outposts and war camps", "New beasts, new mini-bosses", "Drift Rifts tear the ground open", "The Blood Moon turns the night against you"],
-    foot: "The frontier opens.",
+    n: "II", title: "The Wider Realm", status: "Walked. It stands.", done: true,
+    tag: "The frontier is carved and open.",
+    lede: "The map broke its bounds. A true frontier opened past the old edge, and the Drift came with it. Now there is work out there: boards to read, a peddler on the roads, wrecks to pick, a lair by the lake.",
+    items: ["Outposts, war camps, and the Sunken Lair", "Bounty boards, the Roaming Trader, wreck salvage, camp craft", "Waystation fast-travel and the Swift Steed", "Drift Rifts, the Blood Moon, rare frontier elites"],
+    foot: "The frontier opened.",
   },
   {
-    n: "III", title: "Guild Wars", status: "Forming",
+    n: "III", title: "Guild Wars", status: "Walked. Banners fly.", done: true,
     tag: "Banners clash over the wild quadrants.",
-    lede: "Rival claims over open ground. Hold the quadrant, or bleed for it.",
-    items: ["Contest the wild quadrants", "Upkeep bleeds the war-chest", "Perks worth fighting for"],
+    lede: "Rival claims over open ground. Hold the quadrant, or bleed for it. The Outpost keeps its own ledger of standing now too.",
+    items: ["Contest the wild quadrants", "Upkeep bleeds the war-chest", "Outpost reputation, rank by rank", "Perks worth fighting for"],
     foot: "Ground is held, not owned.",
   },
   {
-    n: "IV", title: "The Living Economy", status: "Tuning",
+    n: "IV", title: "The Living Economy", status: "Standing, and tuned.", done: true,
     tag: "The coin must keep flowing.",
-    lede: "The Exchange opens. Sinks and burn rites tuned by hand as the realm fills.",
-    items: ["Rates and limits shift", "Sinks and burn rites", "New ways to spend DRIFTS"],
+    lede: "The Exchange stands. New sinks and earns by the dozen, the gold-to-DRIFTS loop tuned by hand, and the realm keeps a public reckoning of its richest and most faithful.",
+    items: ["The Exchange, the Forge enchant, claim upgrades", "Daily streaks and earned titles", "Wealth and streak leaderboards", "Sinks and earns tuned, while you sleep"],
     foot: "Tuned, while you sleep.",
   },
   {
-    n: "V", title: "The Realm Goes Live", status: "The horizon",
+    n: "V", title: "The Realm Goes Live", status: "The horizon", near: true,
     tag: "Beta ends. The realm stands.",
     lede: "The veil of beta lifts. The realm opens in full, hardened by every step that came before it.",
     items: ["Beta becomes the live realm", "Every system proven and standing", "The door open to all who come"],
@@ -98,7 +100,7 @@ export default function RoadmapPage() {
 
     function obelisk(i: number) {
       const c = clarity(i);
-      const near = MILES[i].near;
+      const near = MILES[i].near || MILES[i].done;
       const runeFill = near ? "var(--gold)" : "var(--pur)";
       const glow = near ? "rgba(231,200,115,.55)" : "rgba(168,85,247,.4)";
       return `
@@ -117,7 +119,7 @@ export default function RoadmapPage() {
       nodes = [];
       MILES.forEach((m, i) => {
         const el = document.createElement("button");
-        el.className = "way" + (m.near ? " near" : "");
+        el.className = "way" + (m.near ? " near" : "") + (m.done ? " done" : "");
         el.setAttribute("data-i", String(i));
         el.setAttribute("aria-label", `${m.title}. Status: ${m.status}. Click to reveal.`);
         el.innerHTML = `
