@@ -1,0 +1,223 @@
+/* ============================================================
+   NAEVYR · THE LONG ROAD  (interactive roadmap)
+   Ported from the design-system artifact
+   (public/assets/naevyr-roadmap/Naevyr Roadmap.html).
+   Every selector is scoped under #nvr-road so the generic class
+   names (.way/.card/.rail/.brand...) cannot leak into the rest
+   of the site. Font families map onto next/font CSS variables.
+   ============================================================ */
+
+#nvr-road {
+  --void: #0a0810;
+  --void2: #0d0a16;
+  --pur: #a855f7;
+  --pur2: #7c3aed;
+  --pur-fill: rgba(124, 58, 237, 0.05);
+  --pur-fill2: rgba(124, 58, 237, 0.1);
+  --pur-bd: rgba(124, 58, 237, 0.18);
+  --pur-bd2: rgba(124, 58, 237, 0.34);
+  --gold: #e7c873;
+  --gold-dim: rgba(231, 200, 115, 0.5);
+  --t1: #d8cfe0;
+  --t2: #a99fb8;
+  --muted: #6f6781;
+
+  --pixel: var(--font-silkscreen), 'Silkscreen', monospace;
+  --black: var(--font-jacquard), 'Jacquard 12', serif;
+  --mono: var(--font-space-mono), 'Space Mono', monospace;
+
+  /* app shell (was #app / body) */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 12% 50%, #120d1f 0%, var(--void) 60%);
+  color: var(--t1);
+  font-family: var(--mono);
+  -webkit-font-smoothing: none;
+  text-rendering: geometricPrecision;
+}
+
+#nvr-road * { box-sizing: border-box; margin: 0; padding: 0; }
+#nvr-road img, #nvr-road svg, #nvr-road canvas { image-rendering: pixelated; }
+
+/* ---------- atmosphere layers (fixed, screen-space) ---------- */
+#nvr-road #ridges { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+#nvr-road #ridges svg { position: absolute; bottom: 0; left: 0; width: 200%; height: 62%; display: block; }
+#nvr-road .ridge-far { opacity: .5; }
+#nvr-road .ridge-near { opacity: .8; }
+
+#nvr-road #particles { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+
+#nvr-road #fog {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+  background:
+    linear-gradient(90deg, rgba(124, 58, 237, 0) 30%, rgba(124, 58, 237, 0.06) 70%, rgba(124, 58, 237, 0.16) 100%),
+    radial-gradient(140% 120% at 100% 50%, rgba(124, 58, 237, 0.22) 0%, rgba(124, 58, 237, 0) 55%);
+  transition: opacity .25s linear;
+}
+/* hard-edged dither veil that thickens to the right (no blur) */
+#nvr-road #dither {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+  background-image: radial-gradient(rgba(124, 58, 237, 0.5) 1px, transparent 1px);
+  background-size: 4px 4px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
+  transition: opacity .25s linear;
+}
+
+/* ---------- scroller ---------- */
+#nvr-road .trail {
+  position: absolute; inset: 0; z-index: 2;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  cursor: grab;
+  scrollbar-width: none;
+}
+#nvr-road .trail::-webkit-scrollbar { display: none; }
+#nvr-road .trail.dragging { cursor: grabbing; scroll-snap-type: none; }
+#nvr-road .track { position: relative; height: 100%; }
+
+#nvr-road #line { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+#nvr-road .line-flow { stroke-dasharray: 2 10; animation: nvr-flow 2.4s linear infinite; }
+@keyframes nvr-flow { to { stroke-dashoffset: -120; } }
+
+/* ---------- wanderer (you are here) ---------- */
+#nvr-road .wanderer { position: absolute; transform: translate(-50%, -50%); pointer-events: none; z-index: 5; text-align: center; }
+#nvr-road .wanderer .pip {
+  width: 13px; height: 13px; margin: 0 auto 9px; background: var(--gold);
+  box-shadow: 0 0 0 3px rgba(231, 200, 115, 0.18), 0 0 18px 4px rgba(231, 200, 115, 0.45);
+  animation: nvr-beat 2.6s ease-in-out infinite;
+}
+#nvr-road .wanderer .pip::after { content: ""; position: absolute; inset: -9px; border: 1px solid var(--gold-dim); animation: nvr-ripple 2.6s ease-out infinite; }
+#nvr-road .wanderer .lab { font-family: var(--pixel); font-size: 9px; letter-spacing: 1px; color: var(--gold); text-shadow: 0 0 8px rgba(231, 200, 115, .5); white-space: nowrap; }
+#nvr-road .wanderer .sub { font-size: 10px; color: var(--t2); margin-top: 3px; white-space: nowrap; }
+@keyframes nvr-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
+@keyframes nvr-ripple { 0% { transform: scale(.6); opacity: .8; } 100% { transform: scale(1.9); opacity: 0; } }
+
+/* ---------- waystation node ---------- */
+#nvr-road .way {
+  position: absolute; transform: translate(-50%, -50%); z-index: 6;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: none; border: 0; color: inherit; cursor: pointer; padding: 6px;
+  font-family: inherit; outline: none; width: 230px;
+}
+#nvr-road .way .fogblob {
+  position: absolute; left: 50%; top: 38px; width: 180px; height: 180px; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, transparent 60%); pointer-events: none; opacity: 0;
+}
+#nvr-road .way .stone { position: relative; transition: transform .3s cubic-bezier(.2, .8, .2, 1), filter .3s; }
+#nvr-road .way .meta { text-align: center; transition: transform .3s; }
+#nvr-road .way .num { font-family: var(--pixel); font-size: 10px; letter-spacing: 2px; color: var(--muted); display: block; }
+#nvr-road .way .status {
+  display: inline-block; font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 4px 8px 3px; margin: 7px 0 6px; border: 1px solid var(--pur-bd2); color: var(--pur);
+  background: var(--pur-fill2);
+}
+#nvr-road .way.near .status { color: var(--gold); border-color: var(--gold-dim); background: rgba(231, 200, 115, 0.06); }
+#nvr-road .way .title { font-family: var(--pixel); font-size: 15px; line-height: 1.35; letter-spacing: .5px; color: var(--t1); text-transform: uppercase; max-width: 210px; }
+#nvr-road .way .tag { font-size: 11px; color: var(--t2); margin-top: 7px; font-style: italic; max-width: 210px; }
+
+#nvr-road .way:hover .stone, #nvr-road .way:focus-visible .stone, #nvr-road .way.active .stone { transform: translateY(-7px); }
+#nvr-road .way:hover .fogblob, #nvr-road .way.active .fogblob { opacity: 1; }
+#nvr-road .way:focus-visible .title { color: var(--gold); }
+
+/* ---------- detail card ---------- */
+#nvr-road .card {
+  position: absolute; left: 50%; width: 312px; transform: translateX(-50%) translateY(8px);
+  background: linear-gradient(180deg, rgba(18, 13, 28, 0.96), rgba(10, 8, 16, 0.98));
+  border: 1px solid var(--pur-bd2); padding: 20px 20px 18px; text-align: left;
+  opacity: 0; visibility: hidden; pointer-events: none; z-index: 9;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 22px 50px -18px rgba(0, 0, 0, .9), 0 0 34px -6px rgba(124, 58, 237, .35);
+  transition: opacity .28s ease, transform .28s cubic-bezier(.2, .8, .2, 1);
+}
+#nvr-road .card.below { top: calc(100% + 4px); }
+#nvr-road .card.above { bottom: calc(100% + 4px); transform: translateX(-50%) translateY(-8px); }
+#nvr-road .way.open .card { opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+#nvr-road .card::before { /* pixel seam at top */
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: repeating-linear-gradient(90deg, var(--pur2) 0 4px, transparent 4px 8px);
+}
+#nvr-road .way.near .card::before { background: repeating-linear-gradient(90deg, var(--gold) 0 4px, transparent 4px 8px); }
+#nvr-road .card .c-status { font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; color: var(--pur); text-transform: uppercase; }
+#nvr-road .way.near .card .c-status { color: var(--gold); }
+#nvr-road .card .c-title { font-family: var(--pixel); font-size: 14px; color: var(--t1); text-transform: uppercase; margin: 6px 0 10px; letter-spacing: .5px; }
+#nvr-road .card .c-lede { font-size: 12.5px; line-height: 1.6; color: var(--t2); margin-bottom: 14px; }
+#nvr-road .card ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+#nvr-road .card li { font-size: 12px; line-height: 1.45; color: var(--t1); padding-left: 18px; position: relative; }
+#nvr-road .card li::before { content: ""; position: absolute; left: 0; top: 5px; width: 6px; height: 6px; background: var(--pur); transform: rotate(45deg); }
+#nvr-road .way.near .card li::before { background: var(--gold); }
+#nvr-road .card .c-foot { margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--pur-bd); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+#nvr-road .card .c-close { font-family: var(--pixel); font-size: 8px; letter-spacing: 1px; color: var(--muted); border: 1px solid var(--pur-bd); padding: 5px 7px 4px; background: none; cursor: pointer; }
+#nvr-road .card .c-close:hover { color: var(--t1); border-color: var(--pur-bd2); }
+
+/* ---------- HUD: top bar ---------- */
+#nvr-road .hud { position: absolute; left: 0; right: 0; z-index: 20; pointer-events: none; }
+#nvr-road .hud > * { pointer-events: auto; }
+#nvr-road .topbar {
+  top: 0; display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; gap: 18px;
+  background: linear-gradient(180deg, rgba(10, 8, 16, .85), transparent);
+}
+#nvr-road .brand { display: flex; align-items: baseline; gap: 12px; text-decoration: none; }
+#nvr-road .brand .mark { font-family: var(--pixel); font-weight: 700; font-size: 22px; line-height: 1; color: var(--t1); letter-spacing: 3px; text-shadow: 0 0 14px rgba(124, 58, 237, .25); transition: color .2s; }
+#nvr-road .brand .mark b { color: var(--gold); font-weight: 700; text-shadow: 0 0 12px rgba(231, 200, 115, .4); }
+#nvr-road .brand .sub { font-family: var(--pixel); font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+#nvr-road .brand:hover .mark { color: var(--gold); }
+
+#nvr-road .rail { display: flex; align-items: center; gap: 2px; }
+#nvr-road .rail .seg { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; background: none; border: 0; padding: 4px 2px; font-family: inherit; }
+#nvr-road .rail .seg .dot { width: 9px; height: 9px; background: #241b35; border: 1px solid var(--pur-bd2); transform: rotate(45deg); transition: .25s; }
+#nvr-road .rail .seg .rl { font-family: var(--pixel); font-size: 8px; letter-spacing: 1px; color: var(--muted); transition: .25s; }
+#nvr-road .rail .seg:hover .dot { border-color: var(--pur); }
+#nvr-road .rail .seg:hover .rl { color: var(--t2); }
+#nvr-road .rail .seg.on .dot { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 10px 1px rgba(231, 200, 115, .5); }
+#nvr-road .rail .seg.on .rl { color: var(--gold); }
+#nvr-road .rail .bar { width: 30px; height: 1px; background: var(--pur-bd2); }
+
+/* ---------- HUD: drift meter ---------- */
+#nvr-road .meter { position: absolute; left: 26px; bottom: 24px; z-index: 20; }
+#nvr-road .meter .lab { display: flex; justify-content: space-between; font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; width: 180px; }
+#nvr-road .meter .lab .pct { color: var(--pur); }
+#nvr-road .meter .track2 { width: 180px; height: 8px; border: 1px solid var(--pur-bd2); padding: 1px; background: var(--void2); }
+#nvr-road .meter .fill { height: 100%; width: 0%; background: repeating-linear-gradient(90deg, var(--pur2) 0 3px, var(--pur) 3px 6px); transition: width .15s linear; }
+
+/* ---------- HUD: hint ---------- */
+#nvr-road .hint { position: absolute; right: 26px; bottom: 24px; z-index: 20; font-family: var(--pixel); font-size: 8px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+#nvr-road .hint .ar { color: var(--gold); animation: nvr-nudge 1.8s ease-in-out infinite; }
+@keyframes nvr-nudge { 0%, 100% { transform: translateX(0); opacity: .6; } 50% { transform: translateX(4px); opacity: 1; } }
+
+/* ---------- end marker (the Drift swallows the road) ---------- */
+#nvr-road .endcap { position: absolute; transform: translate(-50%, -50%); z-index: 5; text-align: center; pointer-events: none; }
+#nvr-road .endcap .glyph { font-family: var(--black); font-size: 40px; color: var(--pur2); opacity: .55; line-height: 1; filter: drop-shadow(0 0 14px rgba(124, 58, 237, .5)); }
+#nvr-road .endcap .t { font-family: var(--pixel); font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 10px; }
+
+/* ---------- mobile (is-mobile on the #nvr-road root) ---------- */
+#nvr-road.is-mobile .trail { overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; -webkit-overflow-scrolling: touch; }
+/* narrower than the wind amplitude so wound nodes/cards never clip the edges */
+#nvr-road.is-mobile .way { width: min(80vw, 340px); }
+#nvr-road.is-mobile .card {
+  position: static; transform: none; width: 100%; opacity: 1; visibility: visible; pointer-events: auto;
+  max-height: 0; padding-top: 0; padding-bottom: 0; border-color: transparent; overflow: hidden;
+  transition: max-height .35s ease, padding .35s ease, border-color .35s; box-shadow: none;
+}
+#nvr-road.is-mobile .way.open .card { max-height: 420px; padding-top: 18px; padding-bottom: 16px; border-color: var(--pur-bd2); margin-top: 14px; transform: none; }
+#nvr-road.is-mobile .card.above { bottom: auto; }
+/* dodge the notch / home bar (insets are exposed via viewportFit:cover) */
+#nvr-road.is-mobile .topbar { padding: calc(16px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 16px calc(18px + env(safe-area-inset-left)); }
+#nvr-road.is-mobile .brand .mark { font-size: 17px; letter-spacing: 2px; }
+#nvr-road.is-mobile .rail { display: none; }
+#nvr-road.is-mobile .hint { display: none; }
+#nvr-road.is-mobile .meter { left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); }
+#nvr-road.is-mobile .wanderer .sub { display: none; }
+
+@media (max-width: 760px) {
+  #nvr-road .way .title { font-size: 14px; }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  #nvr-road .line-flow { animation: none; }
+  #nvr-road .wanderer .pip { animation: none; }
+  #nvr-road .wanderer .pip::after { animation: none; opacity: .4; }
+  #nvr-road .hint .ar { animation: none; }
+  #nvr-road * { scroll-behavior: auto !important; }
+}
