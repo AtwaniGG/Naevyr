@@ -15,7 +15,7 @@ export class Drift {
   private seasonTimer = 0;
   readonly seasonLengthMs: number; // a "season" tick (server: SEASON_MS env)
   readonly spreadChance: number;   // per-neighbour corruption odds each season
-  readonly regrowDelayMs = 8_000;
+  readonly regrowDelayMs = 2_500; // fast respawn: a cut/mined node relocates ~2.5s later
 
   constructor(seasonLengthMs = 900_000, spreadChance = 0.25) { // 15 min per season (production pace)
     this.seasonLengthMs = seasonLengthMs;
