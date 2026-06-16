@@ -1,0 +1,29 @@
+{
+  "image": "outpost/watchtower.svg",
+  "cell": {
+    "w": 80,
+    "h": 152
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "2x2",
+  "anchor": {
+    "x": 40,
+    "y": 151
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "watchtower": {
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 152,
+      "anchor": {
+        "x": 40,
+        "y": 151
+      }
+    }
+  }
+}

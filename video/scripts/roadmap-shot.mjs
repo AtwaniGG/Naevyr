@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const b=await chromium.launch();
+const ctx=await b.newContext({viewport:{width:1500,height:950},deviceScaleFactor:1.5});
+const p=await ctx.newPage(); p.on("pageerror",e=>console.log("PE:",e.message));
+await p.goto("http://localhost:3000/roadmap",{waitUntil:"domcontentloaded"});
+await p.waitForTimeout(3500);
+await p.screenshot({path:"/tmp/roadmap.png"});
+const txt=await p.evaluate(()=>document.body.innerText);
+console.log("HAS 'Walked':", txt.includes("Walked"), "| HAS 'Drift Ledger':", txt.includes("Drift Ledger"), "| HAS 'Nearly here':", txt.includes("Nearly here"));
+await b.close(); console.log("shot");

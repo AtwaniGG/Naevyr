@@ -23,7 +23,9 @@ for (const kind of Object.keys(BEAST_SPECS) as BeastKind[]) {
           if (g.w !== spec.w || g.h !== spec.h) {
             failures++;
             console.error(`FAIL ${kind}/${facing}/${sheetAnim}#${f}: grid ${g.w}×${g.h}, expected ${spec.w}×${spec.h}`);
-          } else if (pixels < 20) {
+          } else if (pixels < (kind === "wisp" && sheetAnim === "death" ? 8 : 20)) {
+            // the Drift Wisp's final death frame is a deliberately sparse mote
+            // scatter (byte-exact vs the authored export); exempt it from the floor
             failures++;
             console.error(`FAIL ${kind}/${facing}/${sheetAnim}#${f}: only ${pixels} pixels`);
           }
@@ -41,7 +43,7 @@ import { makeBuildingSprite, BuildingSpriteKey, SHRINE_FRAMES } from "../game/re
 const CELLS: Record<BuildingSpriteKey, [number, number]> = {
   dyeworks: [144, 152], vault: [144, 152], wheel: [144, 152], lantern: [144, 152],
   furnisher: [144, 152], menagerie: [144, 152], shrine: [112, 128], pit: [240, 120],
-  mine: [144, 120],
+  mine: [144, 120], stable: [144, 152],
   huskden: [120, 88], obelisk: [64, 112], mirehut: [120, 116],
 };
 for (const key of Object.keys(CELLS) as BuildingSpriteKey[]) {
@@ -79,6 +81,120 @@ if (JSON.stringify(makeWagon(0).d) === JSON.stringify(makeWagon(1).d)) {
   failures++; console.error("FAIL wagon: frames 0 and 1 are identical");
 }
 
+// biome ground cover (Fill the Realm placeholders): every kind × 2 variants
+import { makeBiomeDoodad, BIOME_DOODAD_KEYS } from "../game/render/sprites";
+for (const k of BIOME_DOODAD_KEYS) {
+  for (let v = 0; v < 2; v++) {
+    try {
+      const g = makeBiomeDoodad(k, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (g.w < 8 || g.h < 6) { failures++; console.error(`FAIL biome ${k}#${v}: grid ${g.w}×${g.h}`); }
+      else if (px < 6) { failures++; console.error(`FAIL biome ${k}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW biome ${k}#${v}:`, e); }
+  }
+}
+
+// Fill-the-Realm critters / micro-POIs / biome tiles (DS port)
+import {
+  makeCritter, CRITTER_SPECS, CritterKind, makeMicroPoi, MICROPOI_KEYS, MicroPoiKey,
+  makeBiomeTile, BIOME_TILE_KEYS, BiomeTileKey,
+} from "../game/render/sprites";
+for (const kind of Object.keys(CRITTER_SPECS) as CritterKind[]) {
+  const spec = CRITTER_SPECS[kind];
+  for (const fc of spec.facings) for (const [anim, n] of spec.anims) for (let f = 0; f < n; f++) {
+    try { const g = makeCritter(kind, fc, anim, f); frames++; if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL critter ${kind}/${fc}/${anim}#${f}: ${g.w}×${g.h}`); } else if (g.d.filter(Boolean).length < 6) { failures++; console.error(`FAIL critter ${kind}/${fc}/${anim}#${f}: sparse`); } }
+    catch (e) { failures++; console.error(`THROW critter ${kind}/${fc}/${anim}#${f}:`, e); }
+  }
+}
+for (const key of MICROPOI_KEYS as MicroPoiKey[]) {
+  for (let f = 0; f < 2; f++) {
+    try { const g = makeMicroPoi(key, f); frames++; if (g.d.filter(Boolean).length < 40) { failures++; console.error(`FAIL micropoi ${key}#${f}: sparse`); } }
+    catch (e) { failures++; console.error(`THROW micropoi ${key}#${f}:`, e); }
+  }
+}
+for (const key of BIOME_TILE_KEYS as BiomeTileKey[]) {
+  try { const g = makeBiomeTile(key); frames++; if (g.w !== 64 || g.h !== 36 || g.d.filter(Boolean).length < 500) { failures++; console.error(`FAIL biometile ${key}: ${g.w}×${g.h}`); } }
+  catch (e) { failures++; console.error(`THROW biometile ${key}:`, e); }
+}
+
+// the connective pack (DS port): steed, roads, wayside, ruins
+import {
+  drawSteed, STEED_FACINGS, drawRoad, ROAD_PIECES, roadDirsFromMask,
+  WAYSIDE_SPECS, WaysideKey, RUIN_SPECS, RuinKey, drawTrader, drawPackMule,
+} from "../game/render/sprites";
+// the Stable steed: 5 facings × idle 2f / walk 6f, 56×48
+for (const fc of STEED_FACINGS) {
+  for (const [anim, n] of [["idle", 2], ["walk", 6]] as const) {
+    for (let f = 0; f < n; f++) {
+      try {
+        const g = drawSteed("frontier_steed", fc, anim, f);
+        const px = g.d.filter(Boolean).length;
+        frames++;
+        if (g.w !== 56 || g.h !== 48) { failures++; console.error(`FAIL steed ${fc}-${anim}#${f}: grid ${g.w}×${g.h}`); }
+        else if (px < 150) { failures++; console.error(`FAIL steed ${fc}-${anim}#${f}: only ${px} pixels`); }
+      } catch (e) { failures++; console.error(`THROW steed ${fc}-${anim}#${f}:`, e); }
+    }
+  }
+}
+if (JSON.stringify(drawSteed("frontier_steed", "e", "walk", 0).d) === JSON.stringify(drawSteed("frontier_steed", "e", "walk", 3).d)) {
+  failures++; console.error("FAIL steed: walk gait frames 0 and 3 identical");
+}
+// roads: every canonical piece + broken, 64×36, no outline; all 16 masks generate
+for (const name of Object.keys(ROAD_PIECES)) {
+  try {
+    const g = drawRoad(ROAD_PIECES[name], false);
+    frames++;
+    if (g.w !== 64 || g.h !== 36) { failures++; console.error(`FAIL road ${name}: grid ${g.w}×${g.h}`); }
+    else if (name !== "isolated" && g.d.filter(Boolean).length < 60) { failures++; console.error(`FAIL road ${name}: too sparse`); }
+  } catch (e) { failures++; console.error(`THROW road ${name}:`, e); }
+}
+for (let mask = 0; mask < 16; mask++) {
+  try { drawRoad(roadDirsFromMask(mask), false); frames++; }
+  catch (e) { failures++; console.error(`THROW road mask ${mask}:`, e); }
+}
+try { drawRoad(ROAD_PIECES.straight, true); frames++; } catch (e) { failures++; console.error("THROW road_broken:", e); }
+// wayside decor: every key × frame at its declared cell
+for (const k of Object.keys(WAYSIDE_SPECS) as WaysideKey[]) {
+  const spec = WAYSIDE_SPECS[k];
+  for (let f = 0; f < spec.frames; f++) {
+    try {
+      const g = spec.fn(f); frames++;
+      if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL wayside ${k}#${f}: grid ${g.w}×${g.h}`); }
+      else if (g.d.filter(Boolean).length < 60) { failures++; console.error(`FAIL wayside ${k}#${f}: too sparse`); }
+    } catch (e) { failures++; console.error(`THROW wayside ${k}#${f}:`, e); }
+  }
+}
+if (JSON.stringify(WAYSIDE_SPECS.campfire.fn(0).d) === JSON.stringify(WAYSIDE_SPECS.campfire.fn(1).d)) {
+  failures++; console.error("FAIL campfire: flame frames 0 and 1 identical");
+}
+// the Roaming Trader (wanderer rig) + pack mule
+for (const fc of ["s", "se", "e", "ne", "n"] as IsoFacing[])
+  for (const [anim, n] of [["idle", 2], ["walk", 6]] as [BeastAnim, number][])
+    for (let f = 0; f < n; f++) {
+      try { const g = drawTrader(fc, anim as never, f); frames++; if (g.w !== 32 || g.h !== 40) { failures++; console.error(`FAIL trader ${fc}-${anim}#${f}: ${g.w}×${g.h}`); } }
+      catch (e) { failures++; console.error(`THROW trader ${fc}-${anim}#${f}:`, e); }
+    }
+for (const fc of ["s", "se", "e", "n"] as const)
+  for (let f = 0; f < 4; f++) {
+    try { const g = drawPackMule(fc, f); frames++; if (g.w !== 28 || g.h !== 28) { failures++; console.error(`FAIL mule ${fc}#${f}: ${g.w}×${g.h}`); } }
+    catch (e) { failures++; console.error(`THROW mule ${fc}#${f}:`, e); }
+  }
+// ruin landmarks: every key × frame
+for (const k of Object.keys(RUIN_SPECS) as RuinKey[]) {
+  const spec = RUIN_SPECS[k];
+  for (let f = 0; f < spec.frames; f++) {
+    try {
+      const g = spec.fn(f); frames++;
+      if (g.w !== spec.cell[0] || g.h !== spec.cell[1]) { failures++; console.error(`FAIL ruin ${k}#${f}: grid ${g.w}×${g.h}`); }
+      else if (g.d.filter(Boolean).length < 80) { failures++; console.error(`FAIL ruin ${k}#${f}: too sparse`); }
+    } catch (e) { failures++; console.error(`THROW ruin ${k}#${f}:`, e); }
+  }
+}
+if (JSON.stringify(RUIN_SPECS.drift_monolith.fn(0).d) === JSON.stringify(RUIN_SPECS.drift_monolith.fn(1).d)) {
+  failures++; console.error("FAIL drift_monolith: shimmer frames identical");
+}
+
 // shrine frames must actually differ (the flame flickers)
 {
   const a = JSON.stringify(makeBuildingSprite("shrine", 0).d);
@@ -91,7 +207,7 @@ import {
   makeInteriorFloor, makeFixture, makeWallSegment,
   FixtureSpriteKind, InteriorFloorStyle, WallSide, WallMatKind, WallVariant,
 } from "../game/render/sprites";
-for (const style of ["wood", "stone", "cave"] as InteriorFloorStyle[]) {
+for (const style of ["wood", "stone", "cave", "crypt"] as InteriorFloorStyle[]) {
   for (let v = 1; v <= 3; v++) {
     try {
       const g = makeInteriorFloor(style, v);
@@ -119,6 +235,8 @@ const FIXTURES: [FixtureSpriteKind, number][] = [
   ["counter", 1], ["vat", 1], ["shelf", 1], ["table", 1], ["barrel", 1],
   ["cage", 1], ["anvil", 1], ["rug", 1], ["wheelDisc", 1],
   ["goldVein", 2], ["goldVeinEmpty", 1], ["hearth", 3], ["oreCart", 1],
+  // crypt pack (Barrow-Crypt): brazier flickers 2f
+  ["sarcophagus", 1], ["rubblePile", 1], ["standingBrazier", 2], ["brokenPillar", 1], ["bonePile", 1],
 ];
 for (const [kind, nFrames] of FIXTURES) {
   for (let f = 0; f < nFrames; f++) {
@@ -138,6 +256,7 @@ import {
 } from "../game/render/sprites";
 import {
   makeWildDoodad, drawLostTombstone, drawWallTimberCharms, WildDoodadKey,
+  makeFrontierDoodad, drawAshGround, FrontierDoodadKey, ASH_GROUND_VARIANTS,
 } from "../game/render/sprites";
 const WALL2_COMBOS: [WallSide, WallMatKind, WallVariant][] = [
   ["nw", "timber", "plain"], ["ne", "timber", "plain"], ["nw", "timber", "window"], ["ne", "timber", "banner"],
@@ -159,6 +278,27 @@ for (const mat of ["timber", "block", "cave"] as WallMatKind[]) {
     frames++;
     if (g.w !== 16 || g.h !== 72) { failures++; console.error(`FAIL wall2 corner ${mat}`); }
   } catch (e) { failures++; console.error(`THROW wall2 corner ${mat}:`, e); }
+}
+
+// frontier pack (frontier.js port): standing doodads + ash ground accents
+for (const k of ["drift_crystal", "ash_dune", "scorched_stump"] as FrontierDoodadKey[]) {
+  for (const v of [0, 1]) {
+    try {
+      const g = makeFrontierDoodad(k, v);
+      const px = g.d.filter(Boolean).length;
+      frames++;
+      if (px < 20) { failures++; console.error(`FAIL frontier doodad ${k}#${v}: only ${px} pixels`); }
+    } catch (e) { failures++; console.error(`THROW frontier doodad ${k}#${v}:`, e); }
+  }
+}
+for (let v = 0; v < ASH_GROUND_VARIANTS; v++) {
+  try {
+    const g = drawAshGround(v);
+    const px = g.d.filter(Boolean).length;
+    frames++;
+    if (g.w !== 64 || g.h !== 36) { failures++; console.error(`FAIL ash_ground#${v}: grid ${g.w}×${g.h}`); }
+    else if (px < 100) { failures++; console.error(`FAIL ash_ground#${v}: only ${px} pixels`); }
+  } catch (e) { failures++; console.error(`THROW ash_ground#${v}:`, e); }
 }
 
 // wilds pack (DS wilds.js port): structures animate, doodads + extras generate

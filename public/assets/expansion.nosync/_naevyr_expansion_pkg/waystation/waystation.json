@@ -1,0 +1,88 @@
+{
+  "image": "waystation/waystation.svg",
+  "cell": {
+    "w": 64,
+    "h": 112
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 32,
+    "y": 111
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "waystation_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    },
+    "waystation_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    },
+    "waystation_02": {
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    },
+    "waystation_03": {
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 112,
+      "anchor": {
+        "x": 32,
+        "y": 111
+      }
+    }
+  },
+  "states": {
+    "sealed": {
+      "frames": [
+        "waystation_00"
+      ],
+      "fps": 1,
+      "loop": false
+    },
+    "active": {
+      "frames": [
+        "waystation_01",
+        "waystation_02",
+        "waystation_03"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  },
+  "animations": {
+    "rune_pulse": {
+      "frames": [
+        "waystation_01",
+        "waystation_02",
+        "waystation_03"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

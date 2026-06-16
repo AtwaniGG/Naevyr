@@ -68,7 +68,7 @@ function hash2(x: number, y: number, s: number): number {
 }
 
 /** drifting violet motes, thicker when `density` rises */
-const Motes: React.FC<{ count?: number; seed?: number; drift?: number }> = ({
+export const Motes: React.FC<{ count?: number; seed?: number; drift?: number }> = ({
   count = 40,
   seed = 1,
   drift = 1,
@@ -106,7 +106,7 @@ const Motes: React.FC<{ count?: number; seed?: number; drift?: number }> = ({
 };
 
 /** laconic title line that fades up from the dark */
-const Line: React.FC<{
+export const Line: React.FC<{
   at: number;          // frame (within scene) it begins
   children: React.ReactNode;
   size?: number;
@@ -153,7 +153,7 @@ const Line: React.FC<{
 };
 
 /** per-scene fade shell (12f in / 12f out) on the void backdrop */
-const Scene: React.FC<{ children: React.ReactNode; noFadeIn?: boolean }> = ({
+export const Scene: React.FC<{ children: React.ReactNode; noFadeIn?: boolean }> = ({
   children,
   noFadeIn,
 }) => {
@@ -189,7 +189,9 @@ const ColdOpen: React.FC = () => (
 );
 
 // ── S2 · wordmark ────────────────────────────────────────────────────────────
-const Wordmark: React.FC = () => {
+export const Wordmark: React.FC<{ tagline?: string }> = ({
+  tagline = "A dark-fantasy MMO at the edge of the Drift.",
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const pop = spring({ frame, fps, config: { damping: 14, mass: 0.9 } });
@@ -217,7 +219,7 @@ const Wordmark: React.FC = () => {
         </div>
       </AbsoluteFill>
       <Line at={40} size={34} color={BONE_DIM} y="66%">
-        A dark-fantasy MMO at the edge of the Drift.
+        {tagline}
       </Line>
     </Scene>
   );
@@ -225,7 +227,7 @@ const Wordmark: React.FC = () => {
 
 // ── G* · real gameplay beats ─────────────────────────────────────────────────
 // Footage: public/gameplay/*.webm — the live game, captured via real clicks.
-const GameplayScene: React.FC<{
+export const GameplayScene: React.FC<{
   src: string;
   fromSec: number;
   caption: string;
@@ -455,7 +457,7 @@ const ExchangeScene: React.FC = () => {
 };
 
 // ── S6 · the gate ────────────────────────────────────────────────────────────
-const Gate: React.FC = () => {
+export const Gate: React.FC = () => {
   const frame = useCurrentFrame();
   const glow = 0.5 + 0.5 * Math.sin(frame / 8);
   return (
@@ -498,7 +500,9 @@ const Gate: React.FC = () => {
 };
 
 // ── S7 · end card ────────────────────────────────────────────────────────────
-const EndCard: React.FC = () => {
+export const EndCard: React.FC<{ sub?: string }> = ({
+  sub = "Naevyr · beta · DRIFTS is utility, not an investment",
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const pop = spring({ frame: frame - 14, fps, config: { damping: 13 } });
@@ -543,7 +547,7 @@ const EndCard: React.FC = () => {
           letterSpacing: "0.08em",
         }}
       >
-        Naevyr · beta · DRIFTS is utility, not an investment
+        {sub}
       </div>
     </Scene>
   );

@@ -1,0 +1,66 @@
+{
+  "image": "mobs/drift_wisp_shadow.svg",
+  "cell": {
+    "w": 16,
+    "h": 8
+  },
+  "anchor": {
+    "x": 8,
+    "y": 7
+  },
+  "note": "paired ground shadow for drift_wisp",
+  "frames": {
+    "bob_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 7
+      }
+    },
+    "bob_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 7
+      }
+    },
+    "bob_02": {
+      "x": 32,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 7
+      }
+    },
+    "bob_03": {
+      "x": 48,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 7
+      }
+    }
+  },
+  "animations": {
+    "bob": {
+      "frames": [
+        "bob_00",
+        "bob_01",
+        "bob_02",
+        "bob_03"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

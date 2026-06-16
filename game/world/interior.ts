@@ -9,7 +9,9 @@ import { BuildingKey } from "@/game/world/tilemap";
 export type FixtureKind =
   | "counter" | "vat" | "shelf" | "table" | "barrel"
   | "cage" | "anvil" | "rug" | "wheelDisc" | "hearth" | "oreCart" | "herbrack"
-  | "exchange" | "mirror";
+  | "exchange" | "mirror"
+  // crypt pack (the enterable Barrow-Crypt): bonePile is passable decor
+  | "sarcophagus" | "rubblePile" | "standingBrazier" | "brokenPillar" | "bonePile";
 
 export interface InteriorFixture {
   kind: FixtureKind;
@@ -26,7 +28,7 @@ export interface InteriorSpec {
   title: string;
   w: number;
   h: number;
-  floor: "wood" | "stone" | "cave";
+  floor: "wood" | "stone" | "cave" | "crypt";
   /** room accent (rug, trim, wall windows) */
   accent: string;
   /** south-edge exit */
@@ -48,6 +50,7 @@ export interface InteriorSpec {
 const SOLID_KINDS: FixtureKind[] = [
   "counter", "vat", "shelf", "table", "barrel", "cage", "anvil", "wheelDisc", "hearth", "oreCart", "herbrack",
   "exchange", "mirror",
+  "sarcophagus", "rubblePile", "standingBrazier", "brokenPillar", // bonePile is passable
 ];
 
 export const INTERIORS: Partial<Record<BuildingKey, InteriorSpec>> = {
@@ -156,6 +159,25 @@ INTERIORS.mirehut = {
     { kind: "hearth", x: 6, y: 3 },
     { kind: "rug", x: 4, y: 3 },
     { kind: "herbrack", x: 1, y: 3 }, // the Mirewife's drying rack (wilds pack)
+  ],
+};
+
+// THE BARROW-CRYPT: the Bonefields camp opens onto a mini-dungeon. No keeper,
+// no counter — the room IS the exploration: a sarcophagus tomb flanked by
+// braziers, snapped pillars, rubble and bone piles, on corrupted crypt
+// flagstone. Client-local scene like every interior (others see you at the
+// door; the camp's guardians wait in the open world).
+INTERIORS.barrowcrypt = {
+  key: "barrowcrypt", title: "The Barrow-Crypt", w: 11, h: 9,
+  floor: "crypt", accent: "#e7c873", cave: true,
+  door: { x: 5, y: 8 },
+  fixtures: [
+    { kind: "sarcophagus", x: 5, y: 1 },
+    { kind: "standingBrazier", x: 3, y: 1 }, { kind: "standingBrazier", x: 7, y: 1 },
+    { kind: "brokenPillar", x: 1, y: 2 }, { kind: "brokenPillar", x: 9, y: 2 },
+    { kind: "brokenPillar", x: 1, y: 6 }, { kind: "brokenPillar", x: 9, y: 6 },
+    { kind: "rubblePile", x: 2, y: 4 }, { kind: "rubblePile", x: 8, y: 5 },
+    { kind: "bonePile", x: 4, y: 4 }, { kind: "bonePile", x: 7, y: 3 },
   ],
 };
 

@@ -12,6 +12,18 @@ export interface KeeperLines {
 }
 
 export const KEEPER_TALK: Record<string, KeeperLines> = {
+  outpost: {
+    enter: ["Far from the Waystation, aren't you.", "The frontier keeps few. Welcome to the fewer."],
+    idle: [
+      "The roads out here forget their own names.",
+      "Caravans still come. Fewer leave.",
+      "Hold the line or hold a grave. Same wall.",
+    ],
+    greet: [
+      "Quartermaster. I count what the frontier leaves us. Speak.",
+      "You made it this far breathing. That's worth a word.",
+    ],
+  },
   dyeworks: {
     enter: ["Mind the vats. Some colors bite.", "Ah. A walking canvas."],
     idle: [
@@ -94,6 +106,18 @@ export const KEEPER_TALK: Record<string, KeeperLines> = {
     greet: [
       "The veins glitter deep. Swing till your arms ache.",
       "Pick's sharp? Then what are you waiting for.",
+    ],
+  },
+  stable: {
+    enter: ["Mind the straw. And the teeth.", "A walker. The road's kinder on four legs."],
+    idle: [
+      "Bred for the Drift, these ones. They don't spook easy.",
+      "A steed eats coin and ash and still wants more.",
+      "Roads are faster. A steed faster still.",
+    ],
+    greet: [
+      "Tired of walking the whole realm? I keep steeds. Coin only.",
+      "Four legs beat two on the long roads. What'll it be?",
     ],
   },
 };

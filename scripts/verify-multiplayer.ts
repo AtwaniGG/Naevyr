@@ -4,6 +4,7 @@
 // Run with the server up:  npx tsx scripts/verify-multiplayer.ts
 
 import { Client, Room } from "colyseus.js";
+import { MAP_W, MAP_H } from "@/game/world/tilemap";
 
 const URL = process.env.GAME_SERVER ?? "ws://localhost:2567";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -39,7 +40,10 @@ async function main() {
     b.state.players.size === 2,
     `size=${b.state.players.size}`,
   );
-  check("map synced (40×40)", a.state.w === 40 && a.state.tiles.length === 1600);
+  check(
+    `map synced (${MAP_W}×${MAP_H})`,
+    a.state.w === MAP_W && a.state.h === MAP_H && a.state.tiles.length === MAP_W * MAP_H,
+  );
   check("nodes synced", a.state.nodes.size > 0, `nodes=${a.state.nodes.size}`);
 
   // ---- movement: B moves, A should see it -------------------------------------

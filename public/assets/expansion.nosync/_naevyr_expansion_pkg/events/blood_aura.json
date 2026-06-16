@@ -1,0 +1,56 @@
+{
+  "image": "events/blood_aura.svg",
+  "cell": {
+    "w": 96,
+    "h": 48
+  },
+  "anchor": {
+    "x": 48,
+    "y": 24
+  },
+  "centered": true,
+  "note": "ground ring under buffed mobs during the Blood Moon",
+  "frames": {
+    "blood_aura_00": {
+      "x": 0,
+      "y": 0,
+      "w": 96,
+      "h": 48,
+      "anchor": [
+        48,
+        24
+      ]
+    },
+    "blood_aura_01": {
+      "x": 96,
+      "y": 0,
+      "w": 96,
+      "h": 48,
+      "anchor": [
+        48,
+        24
+      ]
+    },
+    "blood_aura_02": {
+      "x": 192,
+      "y": 0,
+      "w": 96,
+      "h": 48,
+      "anchor": [
+        48,
+        24
+      ]
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "blood_aura_00",
+        "blood_aura_01",
+        "blood_aura_02"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

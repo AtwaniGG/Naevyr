@@ -29,6 +29,9 @@ import {
   setQuests as persistQuests,
   setBattlePass as persistBattlePass,
   type BattlePassBlob,
+  setBounties as persistBounties,
+  setOutpostRep as persistOutpostRep,
+  setLoginStreak as persistLoginStreak,
   PlayerRow,
 } from "../db";
 import {
@@ -39,12 +42,12 @@ import {
 } from "../solana";
 import { verifyGateProof } from "../gate";
 import {
-  tryInsertBurn, setFounder, setPrestige, setWheelPity,
+  tryInsertBurn, setFounder, setPrestige, setWheelPity, setMount, setSwiftMount,
   loadGuilds, insertGuild, setGuildRegion, setPlayerGuild, guildMemberCounts,
   loadRelics, insertRelic, deleteRelic,
   exchangeToday, exchangeRecord, recordPayout, GuildRow,
 } from "../db";
-import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS } from "@/game/world/tilemap";
+import { World, buildingAt, townProtected, TOWN_CENTER, WILD_STRUCTURES, TOWN_BUILDINGS, MAP_W, MAP_H, frontierTier, WAYSTATIONS, waystationAt, BuildingKey, roadAt, nearRestStop, AMBUSH_ZONES, REST_STOPS, OUTPOST_BUILDINGS } from "@/game/world/tilemap";
 import { Drift } from "@/game/world/drift";
 import { findPath, adjacentWalkable } from "@/game/world/pathfinding";
 import {
@@ -57,6 +60,12 @@ import {
   QUEST_POOL, rollDailyQuestIds, type QuestEvent,
   BP_CHALLENGE_POOL, rollWeeklyChallenges, passSeasonNow, passWeekNow,
   passEndsIn, passTierForXp, passSeasonDef, BP_TIERS, type PassEvent,
+  effectiveMoveSpeed, MOUNT_COST, SWIFT_MOUNT_COST,
+  BOUNTY_REGIONS, BountyRegion, BountyContract, bountyTemplate, bountyMatch,
+  rollBountyOffers, bountyEpoch, sanitizeBounties, MAX_ACTIVE_BOUNTIES,
+  rollTraderStock, traderBuyback, TRADER_RANGE,
+  supplyContract, rollSupplyContracts, outpostTier, QUARTERMASTER_STOCK,
+  WAYSTATION_GOLD,
 } from "@/game/types";
 import { regionAt } from "@/game/world/tilemap";
 import {
@@ -101,7 +110,7 @@ const DYE_KEYS = ["stone", "ember", "moss", "blood", "gold", "bone", "water", "v
 const EYE_KEYS = ["drift", "ember", "blood", "gold", "water"];
 const AURA_KEYS = ["", "driftmote", "emberwake", "goldhalo", ...PRESTIGE_AURA_KEYS];
 const PET_KEYS = ["", "wisp", "crow", "emberling"];
-const PROP_KEYS = ["campfire", "banner", "driftlamp", "statue"];
+const PROP_KEYS = Object.keys(PROP_CATALOG); // includes the claim upgrade props
 
 // the Pit's arena ring: duels are sealed inside it (move clamp + client veil)
 const PIT = (() => {
@@ -133,6 +142,10 @@ const CARAVAN_GNAW_DPS = Number(process.env.CARAVAN_GNAW ?? 3); // hp/s while sw
 const CARAVAN_BASE_POOL = 120; // gold pool at 0% corruption; +3g per corruption point
 const CARAVAN_MIN_ROUTE = 18;  // tiles; gates closer than this don't count
 
+// ---- The Roaming Trader: a vendor that walks the waystation circuit ----------
+const TRADER_SPEED   = Number(process.env.TRADER_SPEED ?? 1.0);    // tiles/sec
+const TRADER_DWELL_S = Number(process.env.TRADER_DWELL_S ?? 120);  // park time per stop
+
 // ---- Phase 5: token burn costs -------------------------------------------------
 // Holders can pay these rites with on-chain burns instead of gold. The table
 // lives in types.ts (shared) so the HUD/codex display the same numbers we burn.
@@ -157,6 +170,17 @@ const LONG_NIGHT_PCT       = Number(process.env.LONG_NIGHT_PCT ?? 80);
 const LONG_NIGHT_MS        = Number(process.env.LONG_NIGHT_MS ?? 180_000);
 const LONG_NIGHT_BASE_KILLS = Number(process.env.LONG_NIGHT_KILLS ?? 15);
 const LONG_NIGHT_REWARD    = 250;  // gold per surviving defender
+// DRIFT RIFTS: repeatable timed frontier incursions (clear the wave for loot)
+const RIFT_PERIOD_MS  = Number(process.env.RIFT_PERIOD_S ?? 600) * 1000; // gap between rifts
+const RIFT_MS         = Number(process.env.RIFT_MS ?? 120_000);          // time to clear one
+const RIFT_BASE_KILLS = Number(process.env.RIFT_KILLS ?? 8);
+const RIFT_FIRST_MS   = Number(process.env.RIFT_FIRST_S ?? 240) * 1000;  // first rift delay
+const RIFT_REWARD     = 120;  // gold per defender on a cleared rift (+2 shards)
+// BLOOD MOON: a scheduled corrupted night that buffs the frontier mobs
+const BLOOD_MOON_PERIOD_MS = Number(process.env.BLOOD_MOON_PERIOD_S ?? 1200) * 1000;
+const BLOOD_MOON_MS        = Number(process.env.BLOOD_MOON_MS ?? 120_000);
+const BLOOD_MOON_FIRST_MS  = Number(process.env.BLOOD_MOON_FIRST_S ?? 900) * 1000;
+const BLOOD_MOON_DMG_MUL   = 1.4;
 const DUEL_MS              = Number(process.env.DUEL_MS ?? 90_000); // duel → draw timeout
 const RELIC_RESERVE_MS     = 90_000; // a relic listing is frozen this long once quoted
 const DAWN_TARGET_PCT      = 35;   // corruption left after a survived night
@@ -173,6 +197,7 @@ const GOLD_DELTA_CAPS: Record<string, { event: number; perMin: number }> = {
   vein:     { event: 25,  perMin: 350 },   // strike = 3 + lvl/2 + rand(3); 14-strike burst
   chest:    { event: 110, perMin: 120 },   // den war-chest 60-100, 15min reseed
   losttomb: { event: 90,  perMin: 100 },   // lost tombstones 30-80, one per 6-10min
+  salvage:  { event: 55,  perMin: 90 },    // wreck search 20-50, ~8min cooldown per wreck
   quest:    { event: 70,  perMin: 250 },   // daily rewards top out at 60
 };
 
@@ -182,6 +207,7 @@ const GOLD_DELTA_CAPS: Record<string, { event: number; perMin: number }> = {
 // ("mob" items left this table: shared-mob loot is server-granted.)
 const ITEM_DELTA_CAPS: Record<string, { event: number; perMin: number; items: string[] }> = {
   chest: { event: 2, perMin: 6, items: ["driftshard"] }, // den chest, 15min reseed
+  salvage: { event: 3, perMin: 10, items: ["driftshard", "hide", "wood", "stone"] }, // wreck scrap
 };
 // (rich-strike odds: holderPerks(balance).richStrikeP — the house still rolls)
 
@@ -189,7 +215,8 @@ const ITEM_DELTA_CAPS: Record<string, { event: number; perMin: number; items: st
 // Ambient Drift Beasts (husk/stalker) + the Husk Den elite pack live on the
 // server: same wander-and-retaliate behavior the client sim used, but hp,
 // deaths and loot are authoritative. Raiders/colossus stay per-client for now.
-const MOB_AMBIENT_COUNT = Number(process.env.MOB_COUNT ?? 8);
+// ambient beast count: env override, else scaled by map area (≈ 40×40 → 8).
+const MOB_COUNT_ENV = process.env.MOB_COUNT ? Number(process.env.MOB_COUNT) : null;
 const DEN_RESEED_MS = Number(process.env.DEN_RESEED_S ?? 900) * 1000;
 const DEN_PACK_SIZE = 5;
 const DEN_PACK_LEVEL = 5;
@@ -201,7 +228,66 @@ const ENGAGE_TIMEOUT_MS = 6000;   // no swings for this long → the beast loses
 const BOSS_PCTS = (process.env.BOSS_PCTS ?? "10,25,40,60,80")
   .split(",").map(Number).filter((n) => Number.isFinite(n));
 
-type MobKind = "husk" | "stalker" | "raider" | "colossus";
+type MobKind =
+  | "husk" | "stalker" | "raider" | "colossus"
+  // Phase C: the frontier menagerie + camp mini-bosses
+  | "bogwretch" | "wight" | "brute" | "wisp" | "bonehusk"
+  | "drownedking" | "barrowlord" | "ashwarlord";
+
+type MobArchetype = "melee" | "ranged" | "summoner" | "aoe";
+
+/** behavior + stat profile per species (server-authoritative). melee mobs use
+ *  the proven engage/retaliate loop; the rest layer an autonomous ability on
+ *  top, fired on a cooldown and clamped/capped server-side. `flying` mobs path
+ *  over water and obstacles. `boss` mobs are Colossus-scale shared kills. */
+interface MobSpec {
+  archetype: MobArchetype;
+  flying?: boolean;
+  /** ability/attack reach in tiles (ranged fire / aoe splash radius) */
+  range?: number;
+  /** aoe splash radius (tiles) around the mob when it strikes */
+  splash?: number;
+  /** ability cadence in ms (ranged fire, summon) */
+  abilityMs?: number;
+  /** summoner: max live adds it keeps around */
+  summonCap?: number;
+  hpMul?: number;
+  dmgMul?: number;
+  boss?: boolean;
+}
+const MOB_SPEC: Partial<Record<MobKind, MobSpec>> = {
+  bogwretch:  { archetype: "ranged", range: 5, abilityMs: 1900 },
+  wisp:       { archetype: "ranged", range: 5, abilityMs: 1700, flying: true, hpMul: 0.7 },
+  wight:      { archetype: "summoner", range: 6, abilityMs: 6500, summonCap: 3 },
+  brute:      { archetype: "aoe", splash: 2, hpMul: 1.6, dmgMul: 1.3 },
+  bonehusk:   { archetype: "melee", hpMul: 0.6 },
+  // camp mini-bosses (Colossus-scale; one signature behavior each)
+  drownedking:{ archetype: "aoe", splash: 2, boss: true },
+  barrowlord: { archetype: "summoner", range: 7, abilityMs: 5500, summonCap: 4, boss: true },
+  ashwarlord: { archetype: "aoe", splash: 3, boss: true, dmgMul: 1.2 },
+};
+
+/** a frontier camp: a guarding pack + a mini-boss, reseeding a while after the
+ *  last guardian falls (the Husk Den keeps its own bespoke path; these are the
+ *  Phase C additions). */
+interface CampSpec {
+  structure: BuildingKey;
+  pack: { kind: MobKind; count: number }[];
+  boss: MobKind;
+  level: number;
+  reseedMs: number;
+}
+const CAMPS: CampSpec[] = [
+  { structure: "ashwarcamp",  level: 5, reseedMs: DEN_RESEED_MS, boss: "ashwarlord",
+    pack: [{ kind: "brute", count: 2 }, { kind: "bogwretch", count: 2 }] },
+  { structure: "drownedruins", level: 4, reseedMs: DEN_RESEED_MS, boss: "drownedking",
+    pack: [{ kind: "bogwretch", count: 3 }, { kind: "wisp", count: 1 }] },
+  { structure: "barrowcrypt",  level: 6, reseedMs: DEN_RESEED_MS, boss: "barrowlord",
+    pack: [{ kind: "wight", count: 2 }] },
+  // the Sunken Lair fills the empty SW corner with its own drowned king
+  { structure: "mirelair",     level: 5, reseedMs: DEN_RESEED_MS, boss: "drownedking",
+    pack: [{ kind: "bogwretch", count: 4 }, { kind: "wisp", count: 1 }] },
+];
 
 /** the Pit's duel ring is off-limits to wandering beasts — the arena is for the
  *  two fighters and the crowd, not stray husks blundering across the sand */
@@ -225,10 +311,14 @@ class ServerMob {
   /** true while actually stepping toward a wander target (drives the client
    *  walk anim; synced — guessing it from lerp residue made puppets flicker) */
   moving = false;
-  /** den elites stay dead until the den re-seeds */
+  /** den/camp elites stay dead until the camp re-seeds */
   persistDeath = false;
+  /** a summoner's conjured add: vanishes on death instead of respawning */
+  summoned = false;
+  /** a rare deep-frontier elite: tougher, pays a richer (non-boss) haul */
+  rare = false;
   /** which event owns this mob (its deaths feed that event's quota) */
-  eventTag: "ambush" | "night" | null = null;
+  eventTag: "ambush" | "night" | "rift" | null = null;
   /** dead raiders/colossi leave the schema once their death anim has played */
   pruneAt = 0;
   /** combat XP the kill pays (client applies it from mobKill) */
@@ -239,6 +329,17 @@ class ServerMob {
   retaliateIn = MOB_ATTACK_MS;
   respawnIn = 0;
   speed = 1.4;
+  // Phase C behavior profile (from MOB_SPEC; melee/no-fly by default)
+  archetype: MobArchetype = "melee";
+  flying = false;
+  attackRange = 1;
+  splash = 0;
+  boss = false;
+  /** summoner: ids of the adds this mob currently keeps alive */
+  summonIds: number[] = [];
+  summonCap = 0;
+  abilityMs = 0;
+  abilityIn = 0;
   private tx: number;
   private ty: number;
   private idle = 0;
@@ -250,9 +351,21 @@ class ServerMob {
     this.py = this.ty = this.spawnY = gy;
     this.level = level;
     this.kind = kind ?? (level >= 3 ? "stalker" : "husk");
-    this.maxHp = this.hp = 14 + level * 4;
-    this.damage = 2 + level;
-    this.xp = 14 + level * 6;
+    const spec = MOB_SPEC[this.kind];
+    this.archetype = spec?.archetype ?? "melee";
+    this.flying = spec?.flying ?? false;
+    this.attackRange = spec?.range ?? 1;
+    this.splash = spec?.splash ?? 0;
+    this.boss = spec?.boss ?? false;
+    this.summonCap = spec?.summonCap ?? 0;
+    this.abilityMs = spec?.abilityMs ?? 0;
+    this.abilityIn = this.abilityMs;
+    const hpMul = spec?.hpMul ?? 1;
+    const dmgMul = spec?.dmgMul ?? 1;
+    const baseHp = this.boss ? 120 + level * 8 : 14 + level * 4;
+    this.maxHp = this.hp = Math.round(baseHp * hpMul);
+    this.damage = Math.round((2 + level) * dmgMul);
+    this.xp = this.boss ? 120 + level * 10 : 14 + level * 6;
   }
 
   get cell(): Cell {
@@ -262,8 +375,8 @@ class ServerMob {
   die() {
     this.state = "dead";
     this.engagedBy = null;
-    if (this.kind === "raider" || this.kind === "colossus") {
-      // event mobs stay slain; the corpse leaves once the death anim plays out
+    if (this.kind === "raider" || this.kind === "colossus" || this.summoned || this.eventTag) {
+      // event mobs + conjured adds stay slain; the corpse leaves after the anim
       this.respawnIn = Number.POSITIVE_INFINITY;
       this.pruneAt = Date.now() + 2500;
     } else {
@@ -313,7 +426,9 @@ class ServerMob {
       const r = Math.random() * this.wanderRadius;
       const x = Math.round(this.spawnX + Math.cos(a) * r);
       const y = Math.round(this.spawnY + Math.sin(a) * r);
-      if (world.isWalkable(x, y) && !inPit(x, y)) {
+      // flyers drift over water and obstacles; everything else needs solid ground
+      const ok = this.flying ? world.inBounds(x, y) : world.isWalkable(x, y);
+      if (ok && !inPit(x, y)) {
         this.tx = x;
         this.ty = y;
         this.idle = 1 + Math.random() * 2;
@@ -399,10 +514,20 @@ interface PlayerSim {
   wheelPity: number;
   /** guild membership (null = guildless) */
   guildId: number | null;
+  /** a gold-bought steed from the Stable (write-through to players.owns_mount) */
+  ownsMount: boolean;
+  /** the Swift Steed upgrade (write-through to players.owns_swift_mount) */
+  swiftMount: boolean;
+  /** whether the steed is currently summoned (synced; drives the speed bonus) */
+  mounted: boolean;
   /** Phase 6: authoritative daily quest board (write-through to players.quests) */
   quests: { day: number; list: { id: string; progress: number; claimed: boolean }[] };
   /** the seasonal battle pass (write-through to players.battlepass) */
   battlepass: BattlePassBlob;
+  /** accepted frontier bounty contracts (write-through to players.bounties) */
+  bounties: BountyContract[];
+  /** Frontier Outpost reputation (write-through to players.outpost_rep) */
+  outpostRep: number;
   lastSpinAt?: number;
   /** one-shot challenge for the wallet-link signature (Phase 5) */
   walletNonce?: string;
@@ -477,10 +602,19 @@ export class DriftRoom extends Room<DriftRoomState> {
   private caravanTotal = 0;
   private caravanThresholds: number[] = [];
   private caravanContrib = new Map<string, { name: string; kills: number; weight: number }>();
+  // roaming trader walk state (server-side only)
+  private traderPath: Cell[] = [];
+  private traderDwell = 0;
+  private traderTargetStop = 0;
 
   /** Long Night bookkeeping (server-side only) */
   private nightUntil = 0;
   private nightDone = false;
+  // Drift Rift + Blood Moon event clocks
+  private riftUntil = 0;
+  private nextRiftAt = Date.now() + RIFT_FIRST_MS;
+  private bloodMoonUntil = 0;
+  private nextBloodMoonAt = Date.now() + BLOOD_MOON_FIRST_MS;
 
   /** gold recorded into a tombstone at death, reclaimable once (token → g) */
   private tombGold = new Map<string, number>();
@@ -491,12 +625,14 @@ export class DriftRoom extends Room<DriftRoomState> {
   private denIds: number[] = [];
   /** when the last den elite fell (0 = pack alive); reseeds after DEN_RESEED_MS */
   private denClearedAt = 0;
+  /** Phase C frontier camps: live guardian ids + clear time, keyed by structure */
+  private campState = new Map<string, { ids: number[]; clearedAt: number }>();
   /** corruption marks that still owe the realm a Colossus */
   private bossThresholds = [...BOSS_PCTS];
 
   async onCreate() {
     this.setState(new DriftRoomState());
-    this.world = new World(40, 40);
+    this.world = new World(MAP_W, MAP_H);
     this.drift = new Drift(SEASON_MS, DRIFT_SPREAD);
 
     // persisted land claims
@@ -520,7 +656,16 @@ export class DriftRoom extends Room<DriftRoomState> {
         console.log("REALM_RESET=1 → started a fresh, un-corrupted realm");
       }
       const saved = process.env.REALM_RESET === "1" ? null : await loadRealm();
-      if (saved && saved.corrupt.length > 0) {
+      // a saved realm authored at a DIFFERENT grid size can't be replayed (the
+      // linear tile index depends on width): discard it and persist the fresh
+      // realm at the new size. This is the 40×40 → 80×80 migration path.
+      const sizeMatches = saved && saved.gridW === this.world.w && saved.gridH === this.world.h;
+      if (saved && !sizeMatches) {
+        console.log(
+          `realm grid changed ${saved.gridW}×${saved.gridH} → ${this.world.w}×${this.world.h}; starting a fresh realm`,
+        );
+        this.persistRealm();
+      } else if (saved && saved.corrupt.length > 0) {
         for (const i of saved.corrupt) {
           if (i >= 0 && i < this.world.tiles.length && this.world.tiles[i] !== "water") {
             this.world.tiles[i] = "corrupt";
@@ -578,10 +723,12 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     // first caravan rolls a little after boot
     this.state.caravan.departIn = CARAVAN_FIRST_S;
+    this.initTrader();
 
     // the shared beasts wake with the realm
     this.spawnAmbientMobs();
     this.spawnDenPack();
+    this.spawnCamps();
 
     // the Shrine's communal pot
     this.state.shrinePot = await loadShrinePot();
@@ -621,6 +768,51 @@ export class DriftRoom extends Room<DriftRoomState> {
         sim.path = path;
         sim.action = path.length ? "walk" : "idle";
       }
+    });
+
+    // ---- the Stable: a gold-bought steed (the free travel layer, no DRIFTS) ----
+    this.onMessage("buyMount", (client) => {
+      if (this.guestBlocked(client, "buyMount")) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "buyMount", 4, 5000)) return;
+      if (sim.ownsMount) {
+        client.send("mountResult", { ok: false, reason: "You already keep a steed." });
+        return;
+      }
+      if (!this.debit(sim, MOUNT_COST)) {
+        client.send("mountResult", { ok: false, reason: "The Stablemaster wants more coin." });
+        return;
+      }
+      sim.ownsMount = true;
+      void setMount(sim.token, true).catch(() => {});
+      client.send("mountResult", { ok: true, owns: true });
+    });
+
+    // the Swift Steed upgrade: a faster mount (requires owning a steed first)
+    this.onMessage("buySwiftMount", (client) => {
+      if (this.guestBlocked(client, "buySwiftMount")) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "buySwiftMount", 4, 5000)) return;
+      if (!sim.ownsMount) return client.send("mountResult", { ok: false, reason: "Buy a steed before you shoe it for speed." });
+      if (sim.swiftMount) return client.send("mountResult", { ok: false, reason: "Your steed is already swift." });
+      if (!this.debit(sim, SWIFT_MOUNT_COST)) return client.send("mountResult", { ok: false, reason: "The Stablemaster wants more coin." });
+      sim.swiftMount = true;
+      void setSwiftMount(sim.token, true).catch(() => {});
+      client.send("mountResult", { ok: true, owns: true, swift: true });
+    });
+
+    // summon / dismiss the steed (no cost; drives the speed bonus + render)
+    this.onMessage("mount", (client, msg: { on?: boolean }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "mount", 10, 5000)) return;
+      if (!sim.ownsMount) {
+        sim.mounted = false;
+        return;
+      }
+      sim.mounted = !!msg?.on;
     });
 
     this.onMessage(
@@ -1144,6 +1336,56 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("burnResult", err
         ? { ok: false, action: "obelisk", reason: err }
         : { ok: true, action: "obelisk" });
+    });
+
+    // the Drift Roads: a verified DRIFTS burn leaps you between waystations.
+    // departure-gated (you must stand at a waygate), server-authoritative move.
+    this.onMessage("waystationTravel", async (client, msg: { to?: number; burnSig?: string }) => {
+      if (this.guestBlocked(client, "waystationTravel")) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "waystationTravel", 4, 10_000)) return;
+      const fail = (reason: string) =>
+        client.send("burnResult", { ok: false, action: "waystation", reason });
+      // departure gate: you must be standing at a waystation to use the roads
+      const from = waystationAt(Math.round(sim.px), Math.round(sim.py));
+      if (from < 0) return fail("Stand at a waystation to walk the Drift Roads.");
+      const to = Number(msg?.to);
+      if (!Number.isInteger(to) || to < 0 || to >= WAYSTATIONS.length) return fail("No such waygate.");
+      if (to === from) return fail("You already stand at this waygate.");
+      const dest = this.arrivalCell(WAYSTATIONS[to]);
+      if (!dest) return fail("The far waygate is buried by the Drift. Try another.");
+      // pay the leyline (on-chain, replay-guarded) BEFORE the leap is granted
+      const err = await this.consumeBurn(sim, String(msg?.burnSig ?? ""), "waystation");
+      if (err) return fail(err);
+      sim.px = dest.x;
+      sim.py = dest.y;
+      sim.path = [];
+      sim.pendingNode = null;
+      this.cancelGather(sim);
+      sim.action = "idle";
+      client.send("burnResult", { ok: true, action: "waystation" });
+    });
+
+    // Cluster B: the gold fast-travel tier — same leap, paid in gold (no wallet)
+    this.onMessage("waystationGoldTravel", (client, msg: { to?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "waystationGoldTravel", 6, 4000)) return;
+      const from = waystationAt(Math.round(sim.px), Math.round(sim.py));
+      if (from < 0) return;
+      const to = Number(msg?.to);
+      if (!Number.isInteger(to) || to < 0 || to >= WAYSTATIONS.length || to === from) return;
+      const dest = this.arrivalCell(WAYSTATIONS[to]);
+      if (!dest) return;
+      if (!this.debit(sim, WAYSTATION_GOLD)) return; // purse too light → goldSync unchanged
+      sim.px = dest.x;
+      sim.py = dest.y;
+      sim.path = [];
+      sim.pendingNode = null;
+      this.cancelGather(sim);
+      sim.action = "idle";
+      client.send("traveled", { to, gold: WAYSTATION_GOLD });
     });
 
     // Phase 6: Drift-touched cosmetics — DRIFTS burns only, never gold. The
@@ -1683,6 +1925,8 @@ export class DriftRoom extends Room<DriftRoomState> {
         mint: tokenMint() || null,
         founder: row.founder,
         prestige: [...sim.prestige], // server-authoritative Drift-touched ownership
+        ownsMount: sim.ownsMount, // the gold-bought Stable steed
+        ownsSwiftMount: sim.swiftMount, // the Swift Steed upgrade
       });
     });
 
@@ -2005,6 +2249,113 @@ export class DriftRoom extends Room<DriftRoomState> {
       this.syncBattlePass(sim);
     });
 
+    // ---- accept a frontier bounty from a region board (max MAX_ACTIVE_BOUNTIES)
+    this.onMessage("acceptBounty", (client, msg: { region?: string; tid?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "acceptBounty", 12, 4000)) return;
+      const region = String(msg?.region ?? "") as BountyRegion;
+      const tid = String(msg?.tid ?? "");
+      if (!BOUNTY_REGIONS.includes(region) || !bountyTemplate(tid)) return;
+      // must be one of the three this board is actually posting this epoch
+      if (!rollBountyOffers(region, bountyEpoch()).includes(tid)) return;
+      if (sim.bounties.length >= MAX_ACTIVE_BOUNTIES) return;
+      if (sim.bounties.some((b) => b.tid === tid && b.region === region)) return; // dup
+      sim.bounties.push({ tid, region, progress: 0 });
+      void persistBounties(sim.token, sim.bounties).catch(() => {});
+      this.syncBounties(sim);
+    });
+
+    // ---- turn in a completed bounty: gold + bonus shards ride the ledgers
+    this.onMessage("claimBounty", (client, msg: { region?: string; tid?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "claimBounty", 12, 4000)) return;
+      const region = String(msg?.region ?? "");
+      const tid = String(msg?.tid ?? "");
+      const c = sim.bounties.find((b) => b.tid === tid && b.region === region);
+      if (!c) return;
+      const t = bountyTemplate(c.tid);
+      if (!t || c.progress < t.target) return; // unknown or not done → refused
+      sim.bounties = sim.bounties.filter((b) => b !== c);
+      this.credit(sim, t.gold); // gold ledger + goldSync
+      if (t.shards > 0) this.creditItem(sim, "driftshard", t.shards);
+      void persistBounties(sim.token, sim.bounties).catch(() => {});
+      client.send("bountyClaimed", { tid, region, gold: t.gold, shards: t.shards });
+      this.syncBounties(sim);
+    });
+
+    // ---- abandon an accepted bounty (frees a slot; no reward)
+    this.onMessage("abandonBounty", (client, msg: { region?: string; tid?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "abandonBounty", 12, 4000)) return;
+      const before = sim.bounties.length;
+      sim.bounties = sim.bounties.filter((b) => !(b.tid === msg?.tid && b.region === msg?.region));
+      if (sim.bounties.length !== before) {
+        void persistBounties(sim.token, sim.bounties).catch(() => {});
+        this.syncBounties(sim);
+      }
+    });
+
+    // ---- Roaming Trader: buy a stock item with gold (parked + adjacent only)
+    this.onMessage("traderBuy", (client, msg: { item?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "traderBuy", 16, 4000)) return;
+      if (!this.traderInReach(sim)) return;
+      const stock = rollTraderStock(bountyEpoch(), this.state.trader.stop);
+      const entry = stock.find((s) => s.item === msg?.item);
+      if (!entry) return;
+      if (!this.debit(sim, entry.price)) return; // purse too light → goldSync unchanged
+      this.creditItem(sim, entry.item, 1);
+    });
+
+    // ---- Roaming Trader: sell loot back at a premium over the town rate
+    this.onMessage("traderSell", (client, msg: { item?: string; qty?: number }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "traderSell", 16, 4000)) return;
+      if (!this.traderInReach(sim)) return;
+      const item = String(msg?.item ?? "") as ItemKey;
+      const each = traderBuyback(item);
+      if (each <= 0) return; // the trader won't buy that
+      const qty = Math.max(1, Math.min(999, Math.floor(msg?.qty ?? 0)));
+      if (!this.debitItems(sim, [[item, qty]])) return; // not enough in the ledger
+      this.credit(sim, each * qty);
+    });
+
+    // ---- Outpost: deliver a supply contract → gold + reputation
+    this.onMessage("deliverSupply", (client, msg: { id?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "deliverSupply", 12, 4000)) return;
+      if (!this.nearOutpost(sim)) return;
+      const id = String(msg?.id ?? "");
+      if (!rollSupplyContracts(bountyEpoch()).includes(id)) return; // not posted this epoch
+      const c = supplyContract(id);
+      if (!c) return;
+      if (!this.debitItems(sim, [[c.item, c.qty]])) return; // not enough to deliver
+      this.credit(sim, c.gold);
+      sim.outpostRep += c.rep;
+      void persistOutpostRep(sim.token, sim.outpostRep).catch(() => {});
+      client.send("repSync", { rep: sim.outpostRep });
+      client.send("supplyDelivered", { id, gold: c.gold, rep: c.rep });
+    });
+
+    // ---- Outpost: buy the Quartermaster's wares (rep-tier gated)
+    this.onMessage("quartermasterBuy", (client, msg: { item?: string }) => {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) return;
+      if (!this.allow(sim, "quartermasterBuy", 16, 4000)) return;
+      if (!this.nearOutpost(sim)) return;
+      const entry = QUARTERMASTER_STOCK.find((w) => w.item === msg?.item);
+      if (!entry) return;
+      if (outpostTier(sim.outpostRep) < entry.tier) return; // standing too low
+      if (!this.debit(sim, entry.price)) return;
+      this.creditItem(sim, entry.item, 1);
+    });
+
     // ---- Obelisk: rewrite the day's tasks for 75g (the burn path is obeliskBurn)
     this.onMessage("questReroll", (client) => {
       const sim = this.sims.get(client.sessionId);
@@ -2084,9 +2435,22 @@ export class DriftRoom extends Room<DriftRoomState> {
       const loot = { gold: 0, shards: 0, hide: 0 };
       if (mob.kind === "raider") {
         loot.gold = 5 + ((Math.random() * 6) | 0);
+      } else if (mob.boss) {
+        // camp mini-bosses: a real haul (Colossus-class)
+        loot.gold = 40 + mob.level * 2;
+        loot.shards = 4 + ((Math.random() * 3) | 0);
+        loot.hide = 2;
       } else if (mob.kind === "colossus") {
         loot.gold = 50;
         loot.shards = 5;
+      } else if (mob.summoned) {
+        // conjured adds give little (so a summoner can't be farmed for shards)
+        loot.shards = Math.random() < 0.34 ? 1 : 0;
+      } else if (mob.rare) {
+        // a rare frontier elite: a richer haul, between a beast and a boss
+        loot.gold = 15 + mob.level * 2;
+        loot.shards = 2 + ((Math.random() * 2) | 0);
+        loot.hide = 1;
       } else {
         loot.shards = 1;
         loot.hide = Math.random() < 0.5 ? 1 : 0;
@@ -2095,17 +2459,36 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (loot.shards) this.creditItem(sim, "driftshard", loot.shards);
       if (loot.hide) this.creditItem(sim, "hide", loot.hide);
       client.send("mobKill", {
-        id: mob.id, kind: mob.kind, level: mob.level, xp: mob.xp, ...loot,
+        id: mob.id, kind: mob.kind, level: mob.level, xp: mob.xp, rare: mob.rare, ...loot,
       });
+      // a rare extra cache from a camp boss / rare elite: gold + driftshards.
+      // NOT a prestige aura — those stay DRIFTS-burn-only, so bosses can't be
+      // farmed for sellable relics that would undercut the token sink.
+      const cacheChance = mob.boss ? 0.3 : mob.rare ? 0.07 : 0;
+      if (cacheChance > 0 && Math.random() < cacheChance) {
+        const cacheGold = mob.boss ? 30 : 10;
+        const cacheShards = mob.boss ? 3 : 1;
+        this.credit(sim, cacheGold);
+        this.creditItem(sim, "driftshard", cacheShards);
+        client.send("driftCache", { gold: cacheGold, shards: cacheShards });
+      }
       // any overworld mob death advances the kill quest (matches the current
       // client behavior where any mob death fired the kill event)
       this.advanceQuests(sim, { type: "kill" });
       this.advanceBattlePass(sim, { type: "kill" });
       if (mob.kind === "colossus") this.advanceBattlePass(sim, { type: "boss" });
+      // frontier bounties are region-scoped to where the killer stands
+      this.advanceBounties(
+        sim,
+        regionAt(this.world.w, this.world.h, Math.round(sim.px), Math.round(sim.py)),
+        { type: "kill" },
+      );
 
       // real deaths feed the event quotas (no more trusted kill intents)
       if (mob.eventTag === "night" && this.state.nightActive) {
         this.state.nightKills += 1;
+      } else if (mob.eventTag === "rift" && this.state.riftActive) {
+        this.state.riftKills += 1;
       } else if (mob.eventTag === "ambush") {
         const c = this.state.caravan;
         if (c.phase !== "ambushed") return;
@@ -2249,8 +2632,13 @@ export class DriftRoom extends Room<DriftRoomState> {
       prestige: new Set(Array.isArray(row.prestige) ? row.prestige : []),
       wheelPity: Math.max(0, Math.round(row.wheelPity ?? 0)),
       guildId: row.guildId != null ? Math.round(row.guildId) : null,
+      ownsMount: row.ownsMount === true,
+      swiftMount: row.ownsSwiftMount === true,
+      mounted: false,
       quests: sanitizeQuests(row.quests),
       battlepass: sanitizeBattlePass(row.battlepass),
+      bounties: sanitizeBounties(row.bounties),
+      outpostRep: Math.max(0, row.outpostRep ?? 0),
     };
     this.sims.set(client.sessionId, sim);
     if (row.gold == null && goldSeeded) void persistGold(row.token, gold).catch(() => {});
@@ -2269,6 +2657,30 @@ export class DriftRoom extends Room<DriftRoomState> {
 
     this.syncQuests(sim);
     this.syncBattlePass(sim);
+    this.syncBounties(sim);
+    sim.client.send("repSync", { rep: sim.outpostRep });
+
+    // daily login streak (the living-economy retention hook): a new UTC day
+    // continues the streak (or resets it), paying an escalating, capped reward
+    {
+      const today = Math.floor(Date.now() / 86_400_000);
+      const lastDay = row.lastLoginDay != null ? Math.round(row.lastLoginDay) : null;
+      let streak = Math.max(0, Math.round(row.loginStreak ?? 0));
+      let reward = 0;
+      if (lastDay !== today) {
+        streak = lastDay === today - 1 ? streak + 1 : 1;
+        void persistLoginStreak(sim.token, today, streak).catch(() => {});
+        // pay the reward ONLY once the gold ledger is seeded. Crediting an
+        // unseeded brand-new ledger would mark it seeded (credit() sets
+        // goldSeeded) and block the client's first-save gold seed — a truly
+        // new account records the streak now and earns the reward from day 2.
+        if (sim.goldSeeded) {
+          reward = Math.min(40 + streak * 15, 250); // day 1 = 55g … capped at 250g
+          this.credit(sim, reward); // gold ledger + goldSync
+        }
+      }
+      sim.client.send("streakSync", { streak, reward });
+    }
 
     // a player who cleared the entry gate already proved wallet ownership at the
     // door — bind it now so they're a linked holder without signing again.
@@ -2328,7 +2740,10 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.drift.update(this.world, dt);
     this.syncNodes();
     this.stepCaravan(dt);
+    this.stepTrader(dt);
     this.stepNight();
+    this.stepRift();
+    this.stepBloodMoon();
     this.stepMobs(dt);
 
     // duel timeouts → draw, both refunded client-side
@@ -2348,6 +2763,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       ps.x = sim.px;
       ps.y = sim.py;
       ps.action = sim.action;
+      ps.mounted = sim.mounted;
       ps.tx = sim.gatherNode ? sim.gatherNode.gx : -1;
       ps.ty = sim.gatherNode ? sim.gatherNode.gy : -1;
     }
@@ -2359,7 +2775,16 @@ export class DriftRoom extends Room<DriftRoomState> {
       const dx = next.x - sim.px;
       const dy = next.y - sim.py;
       const dist = Math.hypot(dx, dy);
-      const step = PLAYER_SPEED * dt;
+      // roads + a mount speed travel; the Drift severs the road bonus on corrupt
+      // ground. Shared helper so the client's prediction matches exactly.
+      const fx = Math.round(sim.px), fy = Math.round(sim.py);
+      const step = effectiveMoveSpeed({
+        base: PLAYER_SPEED,
+        mounted: sim.mounted,
+        swift: sim.swiftMount,
+        onRoad: roadAt(this.world.w, this.world.h, fx, fy),
+        corrupt: this.world.tile(fx, fy) === "corrupt",
+      }) * dt;
       if (dist <= step) {
         sim.px = next.x;
         sim.py = next.y;
@@ -2404,6 +2829,11 @@ export class DriftRoom extends Room<DriftRoomState> {
         this.creditItem(sim, RESOURCE_META[node.kind].item, qty);
         this.advanceQuests(sim, { type: "gather", item: RESOURCE_META[node.kind].item });
         this.advanceBattlePass(sim, { type: "gather", item: RESOURCE_META[node.kind].item });
+        this.advanceBounties(
+          sim,
+          regionAt(this.world.w, this.world.h, node.gx, node.gy),
+          { type: "gather", item: RESOURCE_META[node.kind].item },
+        );
         sim.client.send("loot", { kind: node.kind, qty, rich, depleted });
         if (depleted) {
           this.drift.depleteNode(this.world, node.gx, node.gy);
@@ -2682,6 +3112,93 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
+  /** a random walkable cell out in the frontier ring (rift/event anchor). Keeps
+   *  a margin from the map edge so an event pack has room to spawn around it. */
+  private frontierCell(): { x: number; y: number } | null {
+    const M = 6;
+    for (let i = 0; i < 300; i++) {
+      const x = M + ((Math.random() * (this.world.w - 2 * M)) | 0);
+      const y = M + ((Math.random() * (this.world.h - 2 * M)) | 0);
+      if (!this.world.isWalkable(x, y) || inPit(x, y)) continue;
+      if (frontierTier(this.world.w, this.world.h, x, y) < 2) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
+  // ---- Drift Rifts: repeatable timed frontier incursions ----------------------
+  private stepRift() {
+    const now = Date.now();
+    if (this.state.riftActive) {
+      const leftS = Math.max(0, Math.round((this.riftUntil - now) / 1000));
+      if (leftS !== this.state.riftEndsIn) this.state.riftEndsIn = leftS;
+      if (this.state.riftKills >= this.state.riftNeed) return this.sealRift(true);
+      if (leftS <= 0) this.sealRift(false);
+      return;
+    }
+    // open on the cadence — never on top of the Long Night, never with no one to fight
+    if (now >= this.nextRiftAt && this.sims.size > 0 && !this.state.nightActive) {
+      this.openRift();
+    }
+  }
+
+  private openRift() {
+    const cell = this.frontierCell() ?? { x: TOWN_CENTER.x, y: TOWN_CENTER.y };
+    const defenders = Math.max(1, this.sims.size);
+    this.state.riftActive = true;
+    this.state.riftKills = 0;
+    this.state.riftNeed = RIFT_BASE_KILLS + (defenders - 1) * 4;
+    this.state.riftX = cell.x;
+    this.state.riftY = cell.y;
+    this.riftUntil = Date.now() + RIFT_MS;
+    this.state.riftEndsIn = Math.round(RIFT_MS / 1000);
+    const level = 4 + Math.floor(this.corruptionPct() / 30);
+    const species: MobKind[] = ["bogwretch", "wisp", "brute", "wight"];
+    const k = species[(Math.random() * species.length) | 0];
+    this.spawnEventRaiders(cell.x, cell.y, this.state.riftNeed, level, "rift", k);
+    this.broadcast("rift", { x: cell.x, y: cell.y, need: this.state.riftNeed, durationMs: RIFT_MS });
+  }
+
+  private sealRift(cleared: boolean) {
+    this.state.riftActive = false;
+    this.clearEventMobs("rift");
+    this.nextRiftAt = Date.now() + RIFT_PERIOD_MS;
+    if (cleared) {
+      for (const sim of this.sims.values()) {
+        this.credit(sim, RIFT_REWARD);
+        this.creditItem(sim, "driftshard", 2);
+        sim.client.send("riftReward", { gold: RIFT_REWARD, shards: 2 });
+      }
+    }
+    this.broadcast("riftEnd", { cleared });
+  }
+
+  // ---- Blood Moon: a scheduled corrupted night that buffs the frontier --------
+  private stepBloodMoon() {
+    const now = Date.now();
+    if (this.state.bloodMoon) {
+      const leftS = Math.max(0, Math.round((this.bloodMoonUntil - now) / 1000));
+      if (leftS !== this.state.bloodMoonEndsIn) this.state.bloodMoonEndsIn = leftS;
+      if (leftS <= 0) {
+        this.state.bloodMoon = false;
+        this.nextBloodMoonAt = now + BLOOD_MOON_PERIOD_MS;
+        this.broadcast("bloodMoon", { active: false });
+      }
+      return;
+    }
+    if (now >= this.nextBloodMoonAt && this.sims.size > 0) {
+      this.state.bloodMoon = true;
+      this.bloodMoonUntil = now + BLOOD_MOON_MS;
+      this.state.bloodMoonEndsIn = Math.round(BLOOD_MOON_MS / 1000);
+      this.broadcast("bloodMoon", { active: true, durationMs: BLOOD_MOON_MS });
+    }
+  }
+
+  /** the Blood Moon makes the frontier bite harder (mob damage multiplier) */
+  private mobDmg(base: number): number {
+    return Math.round(base * (this.state.bloodMoon ? BLOOD_MOON_DMG_MUL : 1));
+  }
+
   /** dawn burns outward from the Waystation until the realm breathes again */
   private dawnCleanse() {
     const corrupt: { x: number; y: number; d: number }[] = [];
@@ -2711,6 +3228,10 @@ export class DriftRoom extends Room<DriftRoomState> {
   /** the Drift takes the realm: fresh world, season 1; banked/cosmetic/wallet persist */
   private async realmReset() {
     this.state.nightActive = false;
+    this.state.riftActive = false;
+    this.state.bloodMoon = false;
+    this.nextRiftAt = Date.now() + RIFT_FIRST_MS;
+    this.nextBloodMoonAt = Date.now() + BLOOD_MOON_FIRST_MS;
     // claims and their furnishings fall with the old realm
     for (const [key, cs] of [...this.state.claims.entries()]) {
       this.state.claims.delete(key);
@@ -2722,7 +3243,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.propOwner.clear();
 
     // a fresh realm under a fresh Drift
-    this.world = new World(40, 40);
+    this.world = new World(MAP_W, MAP_H);
     this.drift = new Drift(SEASON_MS, DRIFT_SPREAD);
     this.wireDrift();
     this.state.season = 1;
@@ -2742,6 +3263,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
     this.resetCaravan();
     this.resetMobs();
+    this.initTrader();
 
     // everyone wakes at the spawn of the new realm
     for (const sim of this.sims.values()) {
@@ -2842,6 +3364,36 @@ export class DriftRoom extends Room<DriftRoomState> {
     sim.quests = freshQuestBoard(day);
     void persistQuests(sim.token, sim.quests).catch(() => {});
     return true;
+  }
+
+  // ---- frontier bounties ------------------------------------------------------
+
+  /** push the player's accepted contracts + the four boards' current offers */
+  private syncBounties(sim: PlayerSim) {
+    const epoch = bountyEpoch();
+    sim.client.send("bountySync", {
+      epoch,
+      bounties: sim.bounties,
+      offers: BOUNTY_REGIONS.map((region) => ({ region, tids: rollBountyOffers(region, epoch) })),
+    });
+  }
+
+  /** region-scoped: a kill/gather in `region` advances any matching contract */
+  private advanceBounties(sim: PlayerSim, region: string, e: QuestEvent) {
+    let changed = false;
+    for (const c of sim.bounties) {
+      const t = bountyTemplate(c.tid);
+      if (!t || c.progress >= t.target) continue;
+      const inc = bountyMatch(c, region, e);
+      if (inc > 0) {
+        c.progress = Math.min(t.target, c.progress + inc);
+        changed = true;
+      }
+    }
+    if (changed) {
+      void persistBounties(sim.token, sim.bounties).catch(() => {});
+      this.syncBounties(sim);
+    }
   }
 
   /** feed a server-adjudicated event through the shared matchers; sync on change */
@@ -3155,16 +3707,45 @@ export class DriftRoom extends Room<DriftRoomState> {
   // ---- shared mobs ------------------------------------------------------------------
 
   private spawnAmbientMobs() {
+    const target =
+      MOB_COUNT_ENV ?? Math.max(8, Math.round((this.world.w * this.world.h) / 200));
     let placed = 0;
     let guard = 0;
-    while (placed < MOB_AMBIENT_COUNT && guard++ < 2000) {
-      const x = (Math.random() * this.world.w) | 0;
-      const y = (Math.random() * this.world.h) | 0;
+    while (placed < target && guard++ < target * 80) {
+      // a slice of the spawns cluster on the ambush zones (the roads carry
+      // teeth); the rest scatter across the realm
+      let x: number, y: number;
+      if (AMBUSH_ZONES.length && Math.random() < 0.35) {
+        const z = AMBUSH_ZONES[(Math.random() * AMBUSH_ZONES.length) | 0];
+        x = z.x - 4 + ((Math.random() * 9) | 0);
+        y = z.y - 4 + ((Math.random() * 9) | 0);
+      } else {
+        x = (Math.random() * this.world.w) | 0;
+        y = (Math.random() * this.world.h) | 0;
+      }
       if (!this.world.isWalkable(x, y)) continue;
       if (Math.max(Math.abs(x - TOWN_CENTER.x), Math.abs(y - TOWN_CENTER.y)) < 6) continue;
+      if (nearRestStop(x, y)) continue; // rest stops are safe ground
       if (inPit(x, y)) continue; // don't seed a beast in the duel ring
-      const level = 1 + ((Math.random() * 3) | 0);
-      this.mobSims.push(new ServerMob(this.nextMobId++, x, y, level));
+      // danger gradient: beasts grow stronger toward the frontier ring
+      const tier = frontierTier(this.world.w, this.world.h, x, y);
+      const base = tier === 0 ? 1 : tier === 1 ? 3 : 4;
+      const span = tier === 2 ? 4 : 3;
+      const level = base + ((Math.random() * span) | 0);
+      // the frontier breeds stranger things: a slice of the deep-ring beasts are
+      // the new species (ranged spitters, flyers, slammers), not plain husks
+      let kind: MobKind | undefined;
+      if (tier === 2 && Math.random() < 0.5) {
+        kind = (["bogwretch", "wisp", "brute"] as MobKind[])[(Math.random() * 3) | 0];
+      } else if (tier === 1 && Math.random() < 0.25) {
+        kind = "bogwretch";
+      }
+      // the deep frontier breeds rare elites: tougher, richer to fell
+      let mobLevel = level, rare = false;
+      if (tier === 2 && Math.random() < 0.12) { rare = true; mobLevel += 2; }
+      const m = new ServerMob(this.nextMobId++, x, y, mobLevel, kind);
+      m.rare = rare;
+      this.mobSims.push(m);
       placed++;
     }
   }
@@ -3192,15 +3773,47 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
+  /** spawn (or re-seed) one frontier camp: its guarding pack + the mini-boss */
+  private spawnCamp(spec: CampSpec) {
+    const s = WILD_STRUCTURES.find((w) => w.key === spec.structure);
+    if (!s) return;
+    const st = this.campState.get(spec.structure) ?? { ids: [], clearedAt: 0 };
+    this.mobSims = this.mobSims.filter((m) => !st.ids.includes(m.id));
+    for (const id of st.ids) this.state.mobs.delete(String(id));
+    st.ids = [];
+    st.clearedAt = 0;
+    const place = (kind: MobKind, level: number, boss = false) => {
+      for (let g = 0; g < 80; g++) {
+        const dx = ((Math.random() * 9) | 0) - 4;
+        const dy = ((Math.random() * 9) | 0) - 4;
+        if (boss ? Math.max(Math.abs(dx), Math.abs(dy)) > 2 : Math.max(Math.abs(dx), Math.abs(dy)) < 2) continue;
+        const cx = s.x + dx, cy = s.y + dy;
+        if (!this.world.isWalkable(cx, cy) || inPit(cx, cy)) continue;
+        const m = new ServerMob(this.nextMobId++, cx, cy, level, kind);
+        m.persistDeath = true; // guardians stay slain until the camp re-seeds
+        this.mobSims.push(m);
+        st.ids.push(m.id);
+        return;
+      }
+    };
+    for (const p of spec.pack) for (let i = 0; i < p.count; i++) place(p.kind, spec.level);
+    place(spec.boss, spec.level + 1, true);
+    this.campState.set(spec.structure, st);
+  }
+
+  private spawnCamps() { for (const c of CAMPS) this.spawnCamp(c); }
+
   /** all shared beasts fall with the old realm; fresh ones rise with the new */
   private resetMobs() {
     this.mobSims = [];
     this.denIds = [];
     this.denClearedAt = 0;
+    this.campState.clear();
     this.bossThresholds = [...BOSS_PCTS];
     this.state.mobs.clear();
     this.spawnAmbientMobs();
     this.spawnDenPack();
+    this.spawnCamps();
   }
 
   /** raider pack for an event (caravan ambush / Long Night), around a point */
@@ -3209,7 +3822,8 @@ export class DriftRoom extends Room<DriftRoomState> {
     y: number,
     count: number,
     level: number,
-    tag: "ambush" | "night",
+    tag: "ambush" | "night" | "rift",
+    kind: MobKind = "raider",
   ) {
     let placed = 0;
     let guard = 0;
@@ -3220,7 +3834,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const cx = x + dx;
       const cy = y + dy;
       if (!this.world.isWalkable(cx, cy)) continue;
-      const raider = new ServerMob(this.nextMobId++, cx, cy, level, "raider");
+      const raider = new ServerMob(this.nextMobId++, cx, cy, level, kind);
       raider.eventTag = tag;
       this.mobSims.push(raider);
       placed++;
@@ -3228,7 +3842,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   }
 
   /** an event ends: its surviving raiders crumble (clients see the death anim) */
-  private clearEventMobs(tag: "ambush" | "night") {
+  private clearEventMobs(tag: "ambush" | "night" | "rift") {
     for (const mob of this.mobSims) {
       if (mob.eventTag === tag && mob.state !== "dead") mob.die();
     }
@@ -3284,6 +3898,7 @@ export class DriftRoom extends Room<DriftRoomState> {
   private stepMobs(dt: number) {
     const now = Date.now();
     for (const mob of this.mobSims) {
+      if (mob.abilityIn > 0) mob.abilityIn -= dt * 1000;
       // engagement upkeep: the engager must stay adjacent and keep swinging
       if (mob.state === "engaged") {
         const sim = mob.engagedBy ? this.sims.get(mob.engagedBy) : null;
@@ -3299,14 +3914,26 @@ export class DriftRoom extends Room<DriftRoomState> {
           if (mob.retaliateIn <= 0) {
             mob.retaliateIn += MOB_ATTACK_MS;
             // raw damage; the client applies its ward reduction (gear is
-            // client-trusted until server equipment lands)
-            sim.client.send("mobHit", {
-              id: mob.id,
-              dmg: mob.damage + ((Math.random() * 3) | 0),
-            });
+            // client-trusted until server equipment lands). Blood Moon bites harder.
+            const dmg = this.mobDmg(mob.damage + ((Math.random() * 3) | 0));
+            if (mob.archetype === "aoe" && mob.splash > 0) {
+              // the slam catches everyone in the splash radius, not just the engager
+              let hit = false;
+              this.sims.forEach((other) => {
+                if (chebyshev(this.cellOf(other), mob.cell) <= mob.splash) {
+                  other.client.send("mobHit", { id: mob.id, dmg });
+                  hit = true;
+                }
+              });
+              if (hit) this.broadcast("mobFx", { fx: "shock", x: mob.px, y: mob.py, r: mob.splash });
+            } else {
+              sim.client.send("mobHit", { id: mob.id, dmg });
+            }
           }
         }
       }
+      // autonomous abilities (ranged fire, summoning) on top of the melee loop
+      this.mobAbility(mob);
       mob.update(dt, this.world);
     }
 
@@ -3317,6 +3944,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       );
       if (!alive && this.denClearedAt === 0) this.denClearedAt = now;
       if (!alive && now - this.denClearedAt > DEN_RESEED_MS) this.spawnDenPack();
+    }
+
+    // the frontier camps re-seed the same way once their guardians are cleared
+    for (const spec of CAMPS) {
+      const st = this.campState.get(spec.structure);
+      if (!st || !st.ids.length) continue;
+      const alive = this.mobSims.some((m) => st.ids.includes(m.id) && m.state !== "dead");
+      if (!alive && st.clearedAt === 0) st.clearedAt = now;
+      if (!alive && st.clearedAt && now - st.clearedAt > spec.reseedMs) this.spawnCamp(spec);
     }
 
     // fallen raiders/colossi leave the realm once their death anim has played
@@ -3443,6 +4079,81 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (path && path.length >= CARAVAN_MIN_ROUTE) return { cell, path };
     }
     return null;
+  }
+
+  // ---- The Roaming Trader -----------------------------------------------------
+
+  /** plant the trader at a random waystation, open for business */
+  private initTrader() {
+    const t = this.state.trader;
+    const stops = REST_STOPS;
+    this.traderPath = [];
+    if (!stops.length) { t.active = false; return; }
+    const i = (Math.random() * stops.length) | 0;
+    t.active = true; t.x = stops[i].x; t.y = stops[i].y; t.stop = i; t.moving = false;
+    this.traderTargetStop = i;
+    this.traderDwell = TRADER_DWELL_S;
+  }
+
+  private stepTrader(dt: number) {
+    const t = this.state.trader;
+    if (!t.active) return;
+    if (!t.moving) {
+      this.traderDwell -= dt;
+      if (this.traderDwell <= 0) this.departTrader();
+      return;
+    }
+    if (!this.traderPath.length) return void this.arriveTrader();
+    const next = this.traderPath[0];
+    const dx = next.x - t.x, dy = next.y - t.y;
+    const dist = Math.hypot(dx, dy);
+    const step = TRADER_SPEED * dt;
+    if (dist <= step) {
+      t.x = next.x; t.y = next.y;
+      this.traderPath.shift();
+      if (!this.traderPath.length) this.arriveTrader();
+    } else {
+      t.x += (dx / dist) * step;
+      t.y += (dy / dist) * step;
+    }
+  }
+
+  /** leave the current stop and walk to a DIFFERENT waystation */
+  private departTrader() {
+    const t = this.state.trader;
+    const stops = REST_STOPS;
+    if (stops.length < 2) { this.traderDwell = TRADER_DWELL_S; return; }
+    const next = (t.stop + 1 + ((Math.random() * (stops.length - 1)) | 0)) % stops.length;
+    const dest = stops[next];
+    const path = findPath(this.world, { x: Math.round(t.x), y: Math.round(t.y) }, { x: dest.x, y: dest.y });
+    if (!path || !path.length) { this.traderDwell = 20; return; } // can't route (corruption) — wait
+    this.traderPath = path;
+    this.traderTargetStop = next;
+    t.moving = true; t.stop = -1;
+  }
+
+  private arriveTrader() {
+    const t = this.state.trader;
+    t.moving = false;
+    t.stop = this.traderTargetStop;
+    const s = REST_STOPS[t.stop];
+    if (s) { t.x = s.x; t.y = s.y; }
+    this.traderPath = [];
+    this.traderDwell = TRADER_DWELL_S;
+  }
+
+  /** is `sim` standing at the Frontier Outpost (the Quartermaster's counter)? */
+  private nearOutpost(sim: PlayerSim): boolean {
+    const op = OUTPOST_BUILDINGS[0];
+    if (!op) return false;
+    return Math.hypot(sim.px - op.x, sim.py - op.y) <= op.r + 4;
+  }
+
+  /** is `sim` close enough to deal with the parked trader? */
+  private traderInReach(sim: PlayerSim): boolean {
+    const t = this.state.trader;
+    if (!t.active || t.moving || t.stop < 0) return false;
+    return Math.hypot(sim.px - t.x, sim.py - t.y) <= TRADER_RANGE + 1;
   }
 
   private startAmbush() {
@@ -3641,7 +4352,13 @@ export class DriftRoom extends Room<DriftRoomState> {
   private erodeClaims() {
     for (const [key, cs] of [...this.state.claims.entries()]) {
       const siege = this.claimBesieged(cs);
-      cs.integrity -= siege ? CLAIM_SIEGE_EROSION : CLAIM_EROSION;
+      // a Drift-Ward prop standing on the claim slows the erosion by half
+      const warded = [...this.state.props.values()].some(
+        (p) => p.kind === "claim_ward" && Math.abs(p.x - cs.x) <= 1 && Math.abs(p.y - cs.y) <= 1,
+      );
+      let loss = siege ? CLAIM_SIEGE_EROSION : CLAIM_EROSION;
+      if (warded) loss = Math.ceil(loss / 2);
+      cs.integrity -= loss;
       if (cs.integrity > 0) {
         void setClaimIntegrity(cs.id, cs.integrity).catch(() => {});
         continue;
@@ -3733,7 +4450,61 @@ export class DriftRoom extends Room<DriftRoomState> {
       season: this.state.season,
       driftPct: this.state.driftPct,
       corrupt,
+      gridW: this.world.w,
+      gridH: this.world.h,
     }).catch(() => {});
+  }
+
+  /** ranged fire + summoning: server-authoritative, clamped, fired on a cooldown.
+   *  Projectiles/shockwaves are transient broadcasts (mobFx), never schema. */
+  private mobAbility(mob: ServerMob) {
+    if (mob.state === "dead" || mob.abilityIn > 0) return;
+    if (mob.archetype === "ranged") {
+      let best: PlayerSim | null = null;
+      let bestD = mob.attackRange + 0.001;
+      this.sims.forEach((sim) => {
+        const d = Math.hypot(sim.px - mob.px, sim.py - mob.py);
+        if (d <= bestD) { bestD = d; best = sim; }
+      });
+      if (best) {
+        const target = best as PlayerSim;
+        mob.abilityIn = mob.abilityMs;
+        const dmg = this.mobDmg(mob.damage + ((Math.random() * 3) | 0));
+        target.client.send("mobHit", { id: mob.id, dmg });
+        this.broadcast("mobFx", { fx: "bolt", x: mob.px, y: mob.py, tx: target.px, ty: target.py });
+      }
+    } else if (mob.archetype === "summoner") {
+      let near = false;
+      this.sims.forEach((sim) => {
+        if (Math.hypot(sim.px - mob.px, sim.py - mob.py) <= mob.attackRange) near = true;
+      });
+      if (!near) return;
+      mob.summonIds = mob.summonIds.filter(
+        (id) => this.mobSims.some((m) => m.id === id && m.state !== "dead"),
+      );
+      if (mob.summonIds.length >= mob.summonCap) { mob.abilityIn = 1000; return; }
+      const cell = this.arrivalCell({ x: Math.round(mob.px), y: Math.round(mob.py), r: 0 });
+      if (!cell) { mob.abilityIn = 1000; return; }
+      const add = new ServerMob(this.nextMobId++, cell.x, cell.y, Math.max(1, mob.level - 2), "bonehusk");
+      add.summoned = true;
+      this.mobSims.push(add);
+      mob.summonIds.push(add.id);
+      mob.abilityIn = mob.abilityMs;
+      this.broadcast("mobFx", { fx: "summon", x: cell.x, y: cell.y });
+    }
+  }
+
+  /** the first walkable cell ringing a structure (waystation arrival point) */
+  private arrivalCell(b: { x: number; y: number; r: number }): { x: number; y: number } | null {
+    for (let ring = b.r + 1; ring <= b.r + 3; ring++) {
+      for (let dy = -ring; dy <= ring; dy++)
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const x = b.x + dx, y = b.y + dy;
+          if (this.world.isWalkable(x, y) && !inPit(x, y)) return { x, y };
+        }
+    }
+    return null;
   }
 
   // ---- misc --------------------------------------------------------------------

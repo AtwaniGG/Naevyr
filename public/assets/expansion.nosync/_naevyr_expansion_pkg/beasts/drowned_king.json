@@ -1,0 +1,1086 @@
+{
+  "image": "beasts/drowned_king.svg",
+  "cell": {
+    "w": 110,
+    "h": 110
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "class": "miniboss",
+  "camp": "Drowned Ruins",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "water-hi (#4a7fa0) then bone-hi",
+  "frames": {
+    "drowned_king-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-s_01": {
+      "x": 110,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_00": {
+      "x": 220,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_01": {
+      "x": 330,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_02": {
+      "x": 440,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_03": {
+      "x": 550,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_04": {
+      "x": 660,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-s_05": {
+      "x": 770,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-s_00": {
+      "x": 880,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-s_01": {
+      "x": 990,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-s_02": {
+      "x": 1100,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-s_03": {
+      "x": 1210,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-s_00": {
+      "x": 1320,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-s_01": {
+      "x": 1430,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-s_02": {
+      "x": 1540,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-s_03": {
+      "x": 1650,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-s_04": {
+      "x": 1760,
+      "y": 0,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-se_00": {
+      "x": 0,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-se_01": {
+      "x": 110,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_00": {
+      "x": 220,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_01": {
+      "x": 330,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_02": {
+      "x": 440,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_03": {
+      "x": 550,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_04": {
+      "x": 660,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-se_05": {
+      "x": 770,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-se_00": {
+      "x": 880,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-se_01": {
+      "x": 990,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-se_02": {
+      "x": 1100,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-se_03": {
+      "x": 1210,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-se_00": {
+      "x": 1320,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-se_01": {
+      "x": 1430,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-se_02": {
+      "x": 1540,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-se_03": {
+      "x": 1650,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-se_04": {
+      "x": 1760,
+      "y": 110,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-e_00": {
+      "x": 0,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-e_01": {
+      "x": 110,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_00": {
+      "x": 220,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_01": {
+      "x": 330,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_02": {
+      "x": 440,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_03": {
+      "x": 550,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_04": {
+      "x": 660,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-e_05": {
+      "x": 770,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-e_00": {
+      "x": 880,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-e_01": {
+      "x": 990,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-e_02": {
+      "x": 1100,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-e_03": {
+      "x": 1210,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-e_00": {
+      "x": 1320,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-e_01": {
+      "x": 1430,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-e_02": {
+      "x": 1540,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-e_03": {
+      "x": 1650,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-e_04": {
+      "x": 1760,
+      "y": 220,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-ne_00": {
+      "x": 0,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-ne_01": {
+      "x": 110,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_00": {
+      "x": 220,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_01": {
+      "x": 330,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_02": {
+      "x": 440,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_03": {
+      "x": 550,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_04": {
+      "x": 660,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-ne_05": {
+      "x": 770,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-ne_00": {
+      "x": 880,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-ne_01": {
+      "x": 990,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-ne_02": {
+      "x": 1100,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-ne_03": {
+      "x": 1210,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-ne_00": {
+      "x": 1320,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-ne_01": {
+      "x": 1430,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-ne_02": {
+      "x": 1540,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-ne_03": {
+      "x": 1650,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-ne_04": {
+      "x": 1760,
+      "y": 330,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-n_00": {
+      "x": 0,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-idle-n_01": {
+      "x": 110,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_00": {
+      "x": 220,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_01": {
+      "x": 330,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_02": {
+      "x": 440,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_03": {
+      "x": 550,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_04": {
+      "x": 660,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-walk-n_05": {
+      "x": 770,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-n_00": {
+      "x": 880,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-n_01": {
+      "x": 990,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-n_02": {
+      "x": 1100,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-attack-n_03": {
+      "x": 1210,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-n_00": {
+      "x": 1320,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-n_01": {
+      "x": 1430,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-n_02": {
+      "x": 1540,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-n_03": {
+      "x": 1650,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    },
+    "drowned_king-death-n_04": {
+      "x": 1760,
+      "y": 440,
+      "w": 110,
+      "h": 110,
+      "anchor": {
+        "x": 55,
+        "y": 109
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "drowned_king-idle-s_00",
+        "drowned_king-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "drowned_king-walk-s_00",
+        "drowned_king-walk-s_01",
+        "drowned_king-walk-s_02",
+        "drowned_king-walk-s_03",
+        "drowned_king-walk-s_04",
+        "drowned_king-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-s": {
+      "frames": [
+        "drowned_king-attack-s_00",
+        "drowned_king-attack-s_01",
+        "drowned_king-attack-s_02",
+        "drowned_king-attack-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "drowned_king-death-s_00",
+        "drowned_king-death-s_01",
+        "drowned_king-death-s_02",
+        "drowned_king-death-s_03",
+        "drowned_king-death-s_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "drowned_king-idle-se_00",
+        "drowned_king-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "drowned_king-walk-se_00",
+        "drowned_king-walk-se_01",
+        "drowned_king-walk-se_02",
+        "drowned_king-walk-se_03",
+        "drowned_king-walk-se_04",
+        "drowned_king-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-se": {
+      "frames": [
+        "drowned_king-attack-se_00",
+        "drowned_king-attack-se_01",
+        "drowned_king-attack-se_02",
+        "drowned_king-attack-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "drowned_king-death-se_00",
+        "drowned_king-death-se_01",
+        "drowned_king-death-se_02",
+        "drowned_king-death-se_03",
+        "drowned_king-death-se_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "drowned_king-idle-e_00",
+        "drowned_king-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "drowned_king-walk-e_00",
+        "drowned_king-walk-e_01",
+        "drowned_king-walk-e_02",
+        "drowned_king-walk-e_03",
+        "drowned_king-walk-e_04",
+        "drowned_king-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-e": {
+      "frames": [
+        "drowned_king-attack-e_00",
+        "drowned_king-attack-e_01",
+        "drowned_king-attack-e_02",
+        "drowned_king-attack-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "drowned_king-death-e_00",
+        "drowned_king-death-e_01",
+        "drowned_king-death-e_02",
+        "drowned_king-death-e_03",
+        "drowned_king-death-e_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "drowned_king-idle-ne_00",
+        "drowned_king-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "drowned_king-walk-ne_00",
+        "drowned_king-walk-ne_01",
+        "drowned_king-walk-ne_02",
+        "drowned_king-walk-ne_03",
+        "drowned_king-walk-ne_04",
+        "drowned_king-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-ne": {
+      "frames": [
+        "drowned_king-attack-ne_00",
+        "drowned_king-attack-ne_01",
+        "drowned_king-attack-ne_02",
+        "drowned_king-attack-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "drowned_king-death-ne_00",
+        "drowned_king-death-ne_01",
+        "drowned_king-death-ne_02",
+        "drowned_king-death-ne_03",
+        "drowned_king-death-ne_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "drowned_king-idle-n_00",
+        "drowned_king-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "drowned_king-walk-n_00",
+        "drowned_king-walk-n_01",
+        "drowned_king-walk-n_02",
+        "drowned_king-walk-n_03",
+        "drowned_king-walk-n_04",
+        "drowned_king-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-n": {
+      "frames": [
+        "drowned_king-attack-n_00",
+        "drowned_king-attack-n_01",
+        "drowned_king-attack-n_02",
+        "drowned_king-attack-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "drowned_king-death-n_00",
+        "drowned_king-death-n_01",
+        "drowned_king-death-n_02",
+        "drowned_king-death-n_03",
+        "drowned_king-death-n_04"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

@@ -10,9 +10,12 @@ import {
   QUEST_POOL,
   rollDailyQuestIds,
   SKILL_META,
+  ENCHANT_MAX,
+  enchantCost,
 } from "@/game/types";
 import { DyeKey, EyeKey } from "@/game/render/sprites";
 import { AuraKey, PetKey, DrinkKey, DRINK_CATALOG, GoldReason, ItemReason, AvatarKind, PassTier } from "@/game/types";
+import { BountyContract, BountyRegion, bountyTemplate } from "@/game/types";
 import { play } from "@/game/audio/sound";
 import { bus } from "@/game/state/bus";
 
@@ -172,6 +175,22 @@ export interface MarketListing {
 
 /** Earned title, best first. Derived — never stored.
  *  Drift-touched titles (burn-bought) outrank every earned one. */
+/** earned milestone titles: hit the bar and the title is yours for good
+ *  (added to ownedTitles, so it persists and is pickable in the You panel) */
+export interface Achievement { id: string; title: string; desc: string; met: (s: { kills: number; stats: LifetimeStats; skills: Record<SkillKey, SkillState> }) => boolean }
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: "beast_tested", title: "Beast-tested", desc: "Fell 10 Drift Beasts", met: (s) => s.kills >= 10 },
+  { id: "beastbane",    title: "Beastbane",    desc: "Fell 50 Drift Beasts", met: (s) => s.kills >= 50 },
+  { id: "centurion",    title: "Centurion",    desc: "Fell 100 Drift Beasts", met: (s) => s.kills >= 100 },
+  { id: "gilded",       title: "Gilded",       desc: "Earned 1,000 gold", met: (s) => s.stats.goldEarned >= 1000 },
+  { id: "magnate",      title: "Magnate",      desc: "Earned 10,000 gold", met: (s) => s.stats.goldEarned >= 10000 },
+  { id: "provider",     title: "Provider",     desc: "Gathered 500 resources", met: (s) => s.stats.gathered >= 500 },
+  { id: "deathblow",    title: "Deathblow",    desc: "Landed 50 critical strikes", met: (s) => s.stats.crits >= 50 },
+  { id: "flamekeeper",  title: "Flamekeeper",  desc: "Donated 500 to the Shrine", met: (s) => s.stats.donated >= 500 },
+  { id: "warbrand",     title: "Warbrand",     desc: "Reached Combat 10", met: (s) => s.skills.combat.level >= 10 },
+  { id: "realm_worn",   title: "Realm-worn",   desc: "Took a skill to level 20", met: (s) => Object.values(s.skills).some((k) => k.level >= 20) },
+];
+
 export function currentTitle(s: {
   skills: Record<SkillKey, SkillState>;
   kills: number;
@@ -227,6 +246,24 @@ interface GameState {
   listings: MarketListing[];
   /** which town building's panel is open (null = none) */
   openShop: string | null;
+  // ---- frontier bounties ----
+  /** accepted contracts (server-authoritative online; empty offline) */
+  bounties: BountyContract[];
+  /** each region board's current 3 offered template ids */
+  bountyOffers: { region: BountyRegion; tids: string[] }[];
+  /** which bounty board panel is open (region name, null = none) */
+  openBounty: BountyRegion | null;
+  // ---- the Roaming Trader ----
+  /** the trader's vendor panel is open */
+  openTrader: boolean;
+  /** the waystation index the trader is parked at (-1 = none/walking) */
+  traderStop: number;
+  /** the player is in dealing range of the parked trader */
+  traderNear: boolean;
+  /** Frontier Outpost reputation (server-authoritative; 0 offline) */
+  outpostRep: number;
+  /** daily login streak (server-authoritative; 0 offline) */
+  loginStreak: number;
   // ---- the Waystation ----
   ownedDyes: DyeKey[];
   ownedEyes: EyeKey[];
@@ -246,8 +283,19 @@ interface GameState {
   tokenBalance: number;
   /** token gate: holds >= 1 whole token */
   holder: boolean;
+  /** owns a gold-bought steed from the Stable (server-authoritative online,
+   *  SaveData cache offline) */
+  ownsMount: boolean;
+  /** owns the Swift Steed upgrade (faster mount) */
+  swiftMount: boolean;
+  /** the steed is currently summoned (drives the road/mount speed bonus) */
+  mounted: boolean;
   /** THE LONG NIGHT: live defense status (null when no night) */
   night: { kills: number; need: number; endsIn: number } | null;
+  /** DRIFT RIFT: live incursion status (null when no rift) */
+  rift: { kills: number; need: number; endsIn: number; x: number; y: number } | null;
+  /** BLOOD MOON: true while the corrupted night is up */
+  bloodMoon: boolean;
   /** which right-rail popout is open (one at a time) */
   openDock: "forge" | "market" | "you" | "trade" | "pass" | null;
   /** the Satchel panel: collapsed to a button when false (Activity grows) */
@@ -286,6 +334,22 @@ interface GameState {
   setMyClaims: (n: number) => void;
   setListings: (l: MarketListing[]) => void;
   setOpenShop: (k: string | null) => void;
+  // ---- frontier bounties ----
+  setBounties: (epoch: number, bounties: BountyContract[], offers: { region: BountyRegion; tids: string[] }[]) => void;
+  setOpenBounty: (region: BountyRegion | null) => void;
+  acceptBounty: (region: BountyRegion, tid: string) => void;
+  claimBounty: (region: BountyRegion, tid: string) => void;
+  abandonBounty: (region: BountyRegion, tid: string) => void;
+  setOpenTrader: (open: boolean) => void;
+  setTraderInfo: (stop: number, near: boolean) => void;
+  traderBuy: (item: string) => void;
+  traderSell: (item: string, qty: number) => void;
+  setOutpostRep: (rep: number) => void;
+  deliverSupply: (id: string) => void;
+  quartermasterBuy: (item: string) => void;
+  setLoginStreak: (n: number) => void;
+  /** grant any newly-earned achievement titles (called after stat changes) */
+  checkAchievements: () => void;
   /** record ownership of a bought cosmetic (gold is spent by the caller) */
   grantCosmetic: (kind: "dye" | "eye" | "aura" | "pet" | "title" | "avatar", key: string) => void;
   /** a relic left your hands (sold P2P) — stop owning it locally too */
@@ -295,6 +359,8 @@ interface GameState {
   setWallet: (a: string | null) => void;
   setTokenStatus: (balance: number, holder: boolean) => void;
   setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
+  setRift: (r: { kills: number; need: number; endsIn: number; x: number; y: number } | null) => void;
+  setBloodMoon: (b: boolean) => void;
   setOpenDock: (d: "forge" | "market" | "you" | "trade" | "pass" | null) => void;
   setSatchelOpen: (b: boolean) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
@@ -318,10 +384,15 @@ interface GameState {
   spendGold: (amount: number, reason?: GoldReason) => boolean;
   /** adopt the server ledger's authoritative balance (no forwarding) */
   setGold: (amount: number) => void;
+  setOwnsMount: (owns: boolean) => void;
+  setSwiftMount: (owns: boolean) => void;
+  setMounted: (on: boolean) => void;
   questEvent: (e: QuestEvent) => void;
   claimQuest: (id: string) => void;
   sellItem: (item: ItemKey, qty: number, goldEach: number) => void;
   equip: (item: EquipmentItem) => void;
+  /** Forge enchant: reinforce an equipped slot for gold (+1 power, capped) */
+  enchant: (slot: EquipSlot) => void;
   /** reason-tagged calls forward to the server inventory ledger when online */
   addItem: (item: ItemKey, qty: number, reason?: ItemReason) => void;
   removeItem: (item: ItemKey, qty: number, reason?: ItemReason) => boolean;
@@ -404,6 +475,14 @@ export const useGame = create<GameState>((set, get) => ({
   myClaims: 0,
   listings: [],
   openShop: null,
+  bounties: [],
+  bountyOffers: [],
+  openBounty: null,
+  openTrader: false,
+  traderStop: -1,
+  traderNear: false,
+  outpostRep: 0,
+  loginStreak: 0,
   ownedDyes: ["stone"],
   ownedEyes: ["drift"],
   ownedAuras: [],
@@ -415,7 +494,12 @@ export const useGame = create<GameState>((set, get) => ({
   wallet: null,
   tokenBalance: 0,
   holder: false,
+  ownsMount: false,
+  swiftMount: false,
+  mounted: false,
   night: null,
+  rift: null,
+  bloodMoon: false,
   tutorialDone: false,
   tutorialObjective: null,
   wheelSpin: null,
@@ -443,9 +527,11 @@ export const useGame = create<GameState>((set, get) => ({
           : {}),
       },
     })),
-  bumpKills: () => set((s) => ({ kills: s.kills + 1 })),
-  bumpStat: (key, n = 1) =>
-    set((s) => ({ stats: { ...s.stats, [key]: s.stats[key] + n } })),
+  bumpKills: () => { set((s) => ({ kills: s.kills + 1 })); get().checkAchievements(); },
+  bumpStat: (key, n = 1) => {
+    set((s) => ({ stats: { ...s.stats, [key]: s.stats[key] + n } }));
+    get().checkAchievements();
+  },
   setMinimap: (m) => set({ minimap: m }),
   setRoster: (r) => set({ roster: r }),
   setOnline: (b) => set({ online: b }),
@@ -454,6 +540,52 @@ export const useGame = create<GameState>((set, get) => ({
   setMyClaims: (n) => set({ myClaims: n }),
   setListings: (l) => set({ listings: l }),
   setOpenShop: (k) => set({ openShop: k }),
+
+  // ---- frontier bounties (server-authoritative online; read-only offline) ----
+  setBounties: (epoch, bounties, offers) => set({ bounties, bountyOffers: offers }),
+  setOpenBounty: (region) => set({ openBounty: region }),
+  acceptBounty: (region, tid) => {
+    if (!get().online) {
+      get().pushLog("The frontier postmaster keeps no ledger while you wander offline.", "#a99fb8");
+      return;
+    }
+    bus.emit("bountyAccept", { region, tid });
+  },
+  claimBounty: (region, tid) => {
+    const c = get().bounties.find((b) => b.tid === tid && b.region === region);
+    const t = bountyTemplate(tid);
+    if (!c || !t || c.progress < t.target) return;
+    if (!get().online) return;
+    bus.emit("bountyClaim", { region, tid });
+  },
+  abandonBounty: (region, tid) => {
+    if (!get().online) return;
+    bus.emit("bountyAbandon", { region, tid });
+  },
+
+  setOpenTrader: (open) => set({ openTrader: open }),
+  setTraderInfo: (stop, near) =>
+    set((s) => (s.traderStop === stop && s.traderNear === near ? s : { traderStop: stop, traderNear: near })),
+  traderBuy: (item) => { if (get().online) bus.emit("traderBuy", { item }); },
+  traderSell: (item, qty) => { if (get().online && qty > 0) bus.emit("traderSell", { item, qty }); },
+  setOutpostRep: (rep) => set((s) => (s.outpostRep === rep ? s : { outpostRep: rep })),
+  deliverSupply: (id) => {
+    if (!get().online) { get().pushLog("The Quartermaster keeps no tally while you wander offline.", "#a99fb8"); return; }
+    bus.emit("deliverSupply", { id });
+  },
+  quartermasterBuy: (item) => { if (get().online) bus.emit("quartermasterBuy", { item }); },
+  setLoginStreak: (n) => set((s) => (s.loginStreak === n ? s : { loginStreak: n })),
+  checkAchievements: () => {
+    const s = get();
+    for (const a of ACHIEVEMENTS) {
+      if (s.ownedTitles.includes(a.title)) continue;
+      if (a.met({ kills: s.kills, stats: s.stats, skills: s.skills })) {
+        get().grantCosmetic("title", a.title);
+        play("coin");
+        get().pushLog(`Title earned: "${a.title}" — ${a.desc}.`, "#e7c873");
+      }
+    }
+  },
   grantCosmetic: (kind, key) =>
     set((s) => {
       if (kind === "dye" && !s.ownedDyes.includes(key as DyeKey))
@@ -490,6 +622,8 @@ export const useGame = create<GameState>((set, get) => ({
   setWallet: (a) => set({ wallet: a }),
   setTokenStatus: (tokenBalance, holder) => set({ tokenBalance, holder }),
   setNight: (night) => set({ night }),
+  setRift: (rift) => set({ rift }),
+  setBloodMoon: (bloodMoon) => set({ bloodMoon }),
   setTutorialDone: (tutorialDone) => set({ tutorialDone }),
   setTutorialObjective: (tutorialObjective) => set({ tutorialObjective }),
   setWheelSpin: (wheelSpin) => set({ wheelSpin }),
@@ -523,6 +657,9 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   setGold: (amount) => set({ gold: Math.max(0, amount) }),
+  setOwnsMount: (owns) => set({ ownsMount: owns }),
+  setSwiftMount: (owns) => set({ swiftMount: owns }),
+  setMounted: (on) => set({ mounted: on }),
 
   setQuests: (list) =>
     set({
@@ -583,6 +720,24 @@ export const useGame = create<GameState>((set, get) => ({
   equip: (item) =>
     set((s) => ({ equipment: { ...s.equipment, [item.slot]: item } })),
 
+  enchant: (slot) => {
+    const item = get().equipment[slot];
+    if (!item) return;
+    const ench = item.ench ?? 0;
+    if (ench >= ENCHANT_MAX) { get().pushLog("This gear can take no more reinforcement.", "#a99fb8"); return; }
+    const cost = enchantCost(ench);
+    if (get().gold < cost) { get().pushLog(`The rune-anvil needs ${cost}g.`, "#dc2626"); return; }
+    if (!get().spendGold(cost, "shop")) return; // server ledger debits online
+    const power = item.power + 1;
+    const upgraded: EquipmentItem = {
+      ...item, power, ench: ench + 1,
+      flavor: item.flavor.replace(/\d+/, String(power)),
+    };
+    set((s) => ({ equipment: { ...s.equipment, [slot]: upgraded } }));
+    play("craft");
+    get().pushLog(`You reinforce your ${item.label}. ${upgraded.flavor} (+${ench + 1}).`, "#e7c873");
+  },
+
   addItem: (item, qty, reason) => {
     set((s) => ({ inventory: { ...s.inventory, [item]: s.inventory[item] + qty } }));
     if (reason) bus.emit("itemDelta", { item, qty, reason });
@@ -629,6 +784,7 @@ export const useGame = create<GameState>((set, get) => ({
     set((s) => ({
       skills: { ...s.skills, [skill]: { xp: newXp, level: newLevel } },
     }));
+    if (leveledTo) get().checkAchievements(); // skill-level titles (Warbrand, Realm-worn)
     return { leveledTo };
   },
 

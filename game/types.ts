@@ -17,6 +17,42 @@ export const codeToTile = (c: number): TileType => TILE_CODES[c] ?? "grass";
 export const CLAIM_COST = 250;
 export const CLAIM_MAX = 3;
 
+// ─── Movement speed ──────────────────────────────────────────────────────────
+// Base walk speed (tiles/sec). Shared so the authoritative server stepSim and
+// the client's local prediction compute the SAME effective speed — any drift
+// between the two shows up as rubber-banding.
+export const PLAYER_BASE_SPEED = 3.2;
+// The King's-Road network (game/world/tilemap.ts roadAt) speeds travel along the
+// intended routes; a gold-bought mount stacks on top. Combined mul is capped so
+// the 20Hz sim never steps more than a fraction of a tile (no cell-skipping).
+export const MOVE_ROAD_MUL = 1.4;
+export const MOVE_MOUNT_MUL = 1.5;
+export const MOVE_SPEED_CAP = 2.0;
+/** the Swift Steed upgrade: a faster mount + a higher combined cap */
+export const MOVE_SWIFT_MOUNT_MUL = 1.7;
+export const MOVE_SWIFT_CAP = 2.4;
+/** a gold-bought steed from the Stable — never DRIFTS (a one-time gold sink) */
+export const MOUNT_COST = 3000;
+/** the Swift Steed: a Stable upgrade (requires a steed first) — gold sink */
+export const SWIFT_MOUNT_COST = 4000;
+
+/** The one effective-speed channel both sides compute identically. The road
+ *  bonus is severed on corrupt ground (the Drift breaks the roads). */
+export function effectiveMoveSpeed(opts: {
+  base?: number;
+  mounted?: boolean;
+  swift?: boolean;
+  onRoad?: boolean;
+  corrupt?: boolean;
+}): number {
+  const base = opts.base ?? PLAYER_BASE_SPEED;
+  let mul = 1;
+  if (opts.mounted) mul *= opts.swift ? MOVE_SWIFT_MOUNT_MUL : MOVE_MOUNT_MUL;
+  if (opts.onRoad && !opts.corrupt) mul *= MOVE_ROAD_MUL;
+  const cap = opts.mounted && opts.swift ? MOVE_SWIFT_CAP : MOVE_SPEED_CAP;
+  return base * Math.min(mul, cap);
+}
+
 // ─── the Waystation catalogs ───────────────────────────────────────────────────
 
 export type AuraKey =
@@ -47,12 +83,13 @@ export const AURA_CATALOG: Record<
 // The art lives in game/render/sprites.ts (DS avatars.js port); this table is
 // the shared truth for the HUD shop, the server's identity validation and the
 // codex. Each kind has two cosmetic channels; options are locked-ramp names.
-export type AvatarKind = "ashbound" | "mireborn" | "bonecaller" | "veilborn";
+export type AvatarKind = "ashbound" | "mireborn" | "bonecaller" | "veilborn" | "driftwarden";
 export const AVATAR_CHANNELS: Record<AvatarKind, Record<string, readonly string[]>> = {
   ashbound:   { seam:   ["ember", "gold", "blood", "drift", "bone"],  wrap:   ["stone", "dirt", "blood", "bone", "drift"] },
   mireborn:   { flame:  ["ember", "drift", "gold", "water", "blood"], shawl:  ["grass", "dirt", "stone", "water", "bone"] },
   bonecaller: { socket: ["drift", "ember", "gold", "blood", "water"], mantle: ["bone", "stone", "gold", "dirt", "blood"] },
   veilborn:   { veil:   ["stone", "drift", "blood", "water", "bone"], mote:   ["drift", "ember", "gold", "water", "blood"] },
+  driftwarden:{ cloak:  ["stone", "dirt", "grass", "blood", "drift"], ward:   ["drift", "ember", "gold", "water", "blood"] },
 };
 export const AVATAR_KINDS = Object.keys(AVATAR_CHANNELS) as AvatarKind[];
 
@@ -129,6 +166,10 @@ export const PRESTIGE_CATALOG: Record<string, PrestigeEntry> = {
     kind: "avatar", label: "The Veilborn", action: "prestigeAvatar",
     desc: "one the Drift gave back. The hem never touches the ground",
   },
+  driftwarden: {
+    kind: "avatar", label: "The Driftwarden", action: "prestigeAvatar",
+    desc: "a ranger of the frontier line. The belt-lantern burns where the Drift is thickest",
+  },
 };
 
 export type PetKey = "wisp" | "crow" | "emberling";
@@ -148,13 +189,24 @@ export const DRINK_CATALOG: Record<
   driftgin:  { label: "Driftgin", price: 35, desc: "see node charges at a glance, 5 min", buff: "sight", ms: 300_000 },
 };
 
-export type PropKey = "campfire" | "banner" | "driftlamp" | "statue";
+export type PropKey =
+  | "campfire" | "banner" | "driftlamp" | "statue"
+  | "claim_stash" | "claim_workbench" | "claim_ward";
 export const PROP_CATALOG: Record<PropKey, { label: string; price: number }> = {
   campfire:  { label: "Campfire", price: 100 },
   banner:    { label: "Claim Banner", price: 150 },
   driftlamp: { label: "Drift Lamp", price: 200 },
   statue:    { label: "Wanderer Statue", price: 300 },
+  // claim upgrades (functional): field banking, field forge, Drift-ward
+  claim_stash:     { label: "Storage Stash", price: 400 },
+  claim_workbench: { label: "Workbench", price: 350 },
+  claim_ward:      { label: "Drift-Ward", price: 500 },
 };
+/** claim upgrade props grant a benefit rather than just decorating */
+export const CLAIM_UPGRADE_KEYS = ["claim_stash", "claim_workbench", "claim_ward"] as const;
+
+/** gold cost of a waystation fast-travel jump (the DRIFTS burn is the premium tier) */
+export const WAYSTATION_GOLD = 60;
 
 export const DYE_PRICE = 200;
 export const EYE_PRICE = 350;
@@ -169,6 +221,7 @@ export const BURN_COSTS = {
   aura: 15_000,    // any Dyeworks aura
   cleanse: 10_000, // feeds the Shrine pot
   obelisk: 5_000,  // the Ash Obelisk rewrites the day's quests
+  waystation: 3_000, // leap across the realm between waystations
   reinforce: 10_000, // shore up your weakest claim against the Drift
   prestigeDye: 15_000,   // Drift-touched cloak dye (burn-only, never gold)
   prestigeAura: 25_000,  // Drift-touched aura (burn-only, never gold)
@@ -401,7 +454,13 @@ export interface EquipmentItem {
   /** flat bonus: weapon = +damage, tool = gather speed %, ward = damage reduction */
   power: number;
   flavor: string;
+  /** reinforcement level from the Forge enchant rail (0..ENCHANT_MAX) */
+  ench?: number;
 }
+
+/** Forge enchanting: reinforce equipped gear for gold (a flat +1 power each, capped) */
+export const ENCHANT_MAX = 5;
+export function enchantCost(ench: number): number { return 100 + ench * 75; }
 
 export interface Recipe {
   result: EquipmentItem;
@@ -571,6 +630,187 @@ export function rollDailyQuestIds(day: number): string[] {
   }
   return ids;
 }
+
+// ---- frontier bounties ------------------------------------------------------
+// Regional work orders posted at the waystation boards. Distinct from the daily
+// quests: sourced PER REGION, refreshed on a clock, accepted then turned in at
+// the board. Progress is region-scoped (the kill/gather must happen in the
+// board's region). Reward is gold + bonus driftshards — and gold feeds DRIFTS
+// through the Exchange, so the boards are an "earn" rail without minting tokens.
+
+/** the four frontier quadrants that post bounties (the heartland does not) */
+export const BOUNTY_REGIONS = [
+  "Palewater",
+  "The Ashen Flats",
+  "Hollowmere Reach",
+  "The Bonefields",
+] as const;
+export type BountyRegion = (typeof BOUNTY_REGIONS)[number];
+
+/** boards re-post every 30 min; at most 3 contracts active at once */
+export const BOUNTY_REFRESH_MS = 30 * 60_000;
+export const MAX_ACTIVE_BOUNTIES = 3;
+export function bountyEpoch(now = Date.now()): number {
+  return Math.floor(now / BOUNTY_REFRESH_MS);
+}
+
+export type BountyKind = "kill" | "gather";
+export interface BountyTemplate {
+  id: string;
+  kind: BountyKind;
+  item?: ItemKey; // gather target
+  verb: string;
+  noun: string;
+  icon: string;
+  target: number;
+  gold: number;
+  /** bonus driftshards paid on top of the gold */
+  shards: number;
+}
+export const BOUNTY_TEMPLATES: BountyTemplate[] = [
+  { id: "cull",  kind: "kill",                       verb: "Cull",    noun: "Drift Beasts", icon: "⚔️", target: 6,  gold: 90,  shards: 2 },
+  { id: "hunt",  kind: "kill",                       verb: "Hunt",    noun: "frontier beasts", icon: "🏹", target: 12, gold: 130, shards: 3 },
+  { id: "wood",  kind: "gather", item: "wood",       verb: "Harvest", noun: "Driftwood",    icon: "🪓", target: 14, gold: 70,  shards: 1 },
+  { id: "stone", kind: "gather", item: "stone",      verb: "Quarry",  noun: "Pale Stone",   icon: "⛏️", target: 12, gold: 75,  shards: 1 },
+  { id: "fish",  kind: "gather", item: "fish",       verb: "Land",    noun: "Hollowfish",   icon: "🎣", target: 12, gold: 70,  shards: 1 },
+];
+export function bountyTemplate(tid: string): BountyTemplate | undefined {
+  return BOUNTY_TEMPLATES.find((t) => t.id === tid);
+}
+export function bountyLabel(tid: string): string {
+  const t = bountyTemplate(tid);
+  return t ? `${t.verb} ${t.target} ${t.noun}` : tid;
+}
+
+/** the three template ids a region's board posts this epoch (deterministic, so
+ *  the client renders the same board the server will accept against) */
+export function rollBountyOffers(region: BountyRegion, epoch: number): string[] {
+  const ri = BOUNTY_REGIONS.indexOf(region);
+  let seed = (((epoch * 2654435761) >>> 0) ^ ((ri + 1) * 40503)) >>> 0;
+  const pool = BOUNTY_TEMPLATES.map((t) => t.id);
+  const out: string[] = [];
+  for (let i = 0; i < 3 && pool.length; i++) {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    const idx = seed % pool.length;
+    out.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
+
+/** an accepted contract (per-player; lives until claimed or abandoned) */
+export interface BountyContract {
+  tid: string;
+  region: BountyRegion;
+  progress: number;
+}
+/** how much an event in `region` advances a contract (0 = no match) */
+export function bountyMatch(c: BountyContract, region: string, e: QuestEvent): number {
+  if (region !== c.region) return 0;
+  const t = bountyTemplate(c.tid);
+  if (!t) return 0;
+  if (t.kind === "kill" && e.type === "kill") return 1;
+  if (t.kind === "gather" && e.type === "gather" && e.item === t.item) return 1;
+  return 0;
+}
+/** clamp/validate a stored contract list (used on both ends) */
+export function sanitizeBounties(raw: unknown): BountyContract[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BountyContract[] = [];
+  for (const r of raw as BountyContract[]) {
+    const t = bountyTemplate(r?.tid);
+    if (!t) continue;
+    if (!BOUNTY_REGIONS.includes(r.region)) continue;
+    out.push({ tid: r.tid, region: r.region, progress: Math.max(0, Math.min(t.target, r.progress | 0)) });
+    if (out.length >= MAX_ACTIVE_BOUNTIES) break;
+  }
+  return out;
+}
+
+// ---- the Roaming Trader (a moving frontier vendor) --------------------------
+// A peddler who walks the waystation circuit. While parked, an adjacent player
+// can BUY a rotating stock with gold, or SELL loot back at a premium over the
+// town vendor rate (the "earn" edge). Server-authoritative (online only); the
+// stock is deterministic per (epoch, stop) so the client renders the same shelf.
+export interface TraderStockItem { item: ItemKey; price: number }
+export const TRADER_STOCK_POOL: TraderStockItem[] = [
+  { item: "cooked_fish", price: 12 },
+  { item: "hide", price: 16 },
+  { item: "driftshard", price: 28 },
+  { item: "wood", price: 6 },
+  { item: "stone", price: 7 },
+  { item: "fish", price: 8 },
+];
+/** the trader pays this multiple of ITEM_META.sellValue on a buyback (a
+ *  convenience premium over the town vendor, tuned to stay in the economy band) */
+export const TRADER_BUYBACK_MULT = 1.4;
+export const TRADER_RANGE = 2.5; // tiles within which you can deal
+/** the 4 items the trader stocks at a waystation this epoch (deterministic) */
+export function rollTraderStock(epoch: number, stop: number): TraderStockItem[] {
+  let seed = (((epoch * 374761393) >>> 0) ^ ((stop + 1) * 668265263)) >>> 0;
+  const pool = [...TRADER_STOCK_POOL];
+  const out: TraderStockItem[] = [];
+  for (let i = 0; i < 4 && pool.length; i++) {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    const idx = seed % pool.length;
+    out.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
+/** what the trader pays for one unit of `item` (0 = it won't buy that) */
+export function traderBuyback(item: ItemKey): number {
+  const v = ITEM_META[item]?.sellValue ?? 0;
+  return v > 0 ? Math.round(v * TRADER_BUYBACK_MULT) : 0;
+}
+
+// ---- the Frontier Outpost: reputation + supply contracts --------------------
+// Deliver supplies to the Quartermaster for gold + reputation. Rep tiers unlock
+// the quartermaster's wares (gold). Server-authoritative rep; contracts roll
+// deterministically per epoch (client renders what the server will accept).
+export const OUTPOST_TIERS = [
+  { name: "Drifter", rep: 0 },
+  { name: "Recruit", rep: 100 },
+  { name: "Regular", rep: 350 },
+  { name: "Veteran", rep: 800 },
+] as const;
+export function outpostTier(rep: number): number {
+  let t = 0;
+  for (let i = 0; i < OUTPOST_TIERS.length; i++) if (rep >= OUTPOST_TIERS[i].rep) t = i;
+  return t;
+}
+export function outpostTierName(rep: number): string { return OUTPOST_TIERS[outpostTier(rep)].name; }
+
+export interface SupplyContract { id: string; item: ItemKey; qty: number; gold: number; rep: number }
+export const SUPPLY_CONTRACTS: SupplyContract[] = [
+  { id: "wood",   item: "wood",        qty: 15, gold: 80,  rep: 15 },
+  { id: "stone",  item: "stone",       qty: 12, gold: 85,  rep: 15 },
+  { id: "fish",   item: "fish",        qty: 12, gold: 80,  rep: 14 },
+  { id: "cooked", item: "cooked_fish", qty: 8,  gold: 110, rep: 20 },
+  { id: "hide",   item: "hide",        qty: 8,  gold: 120, rep: 22 },
+  { id: "shard",  item: "driftshard",  qty: 5,  gold: 150, rep: 30 },
+];
+export function supplyContract(id: string): SupplyContract | undefined { return SUPPLY_CONTRACTS.find((c) => c.id === id); }
+/** the 3 supply contracts the Quartermaster posts this epoch (deterministic) */
+export function rollSupplyContracts(epoch: number): string[] {
+  let seed = ((epoch * 2246822519) >>> 0) ^ 0x9e3779b9;
+  const pool = SUPPLY_CONTRACTS.map((c) => c.id);
+  const out: string[] = [];
+  for (let i = 0; i < 3 && pool.length; i++) {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    const idx = seed % pool.length;
+    out.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
+/** the Quartermaster's gold wares, each gated behind a rep tier */
+export interface QuartermasterItem { item: ItemKey; price: number; tier: number }
+export const QUARTERMASTER_STOCK: QuartermasterItem[] = [
+  { item: "cooked_fish", price: 10, tier: 0 },
+  { item: "hide",        price: 13, tier: 1 },
+  { item: "driftshard",  price: 22, tier: 2 },
+];
 
 // ---- seasons ----------------------------------------------------------------
 
@@ -763,6 +1003,7 @@ export type GoldReason =
   | "vein"     // a Mine vein strike
   | "chest"    // the Husk Den war-chest
   | "losttomb" // a Drowned Field lost tombstone
+  | "salvage"  // searching a frontier wreck (wagon/hut/old campfire)
   | "quest"    // daily quest reward
   | "sell"     // vendor (satchel) sale
   | "death"    // negative: half your purse drops into your tombstone
@@ -777,6 +1018,7 @@ export type ItemReason =
   | "chest" // the Husk Den war-chest shards
   | "eat"   // negative: food leaves the satchel
   | "brew"  // negative: Mirewife brew materials
+  | "salvage" // a frontier wreck gave up scrap (shards/hide/wood/stone)
   | "sell"; // negative: vendor (satchel) sale
 
 // ─── Phase 5: Solana wallet link (devnet) ─────────────────────────────────────

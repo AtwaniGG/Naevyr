@@ -44,10 +44,24 @@ type Events = {
   auraBurn: string;
   /** burn-paid Obelisk quest reroll */
   obeliskBurn: boolean;
+  /** burn-paid fast-travel to a waystation (payload = destination index) */
+  waystationTravel: number;
+  /** gold fast-travel (Cluster B): leap to waystation index, paid in gold */
+  waystationGoldTravel: number;
   /** claim a completed daily quest (server validates + pays) */
   questClaim: string;
   /** reroll the daily board for 75g (server debits + rerolls) */
   questReroll: boolean;
+  /** frontier bounties: take / turn in / abandon a regional contract */
+  bountyAccept: { region: string; tid: string };
+  bountyClaim: { region: string; tid: string };
+  bountyAbandon: { region: string; tid: string };
+  /** the Roaming Trader: buy a stock item / sell loot back at a premium */
+  traderBuy: { item: string };
+  traderSell: { item: string; qty: number };
+  /** Frontier Outpost: deliver a supply contract / buy the Quartermaster's wares */
+  deliverSupply: { id: string };
+  quartermasterBuy: { item: string };
   /** burn-paid claim reinforcement (server shores up your weakest claim) */
   reinforceBurn: boolean;
   /** burn-paid Drift-touched cosmetic (payload = prestige catalog key) */
@@ -93,6 +107,11 @@ type Events = {
   passBuyBurn: boolean;
   /** battle pass: claim an earned tier on the free or premium track */
   passClaim: { tier: number; track: "free" | "premium" };
+  /** buy a steed from the Stable (gold, never DRIFTS; server debits + persists) */
+  buyMount: boolean;
+  buySwiftMount: boolean;
+  /** summon (true) or dismiss (false) the steed */
+  mountToggle: boolean;
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

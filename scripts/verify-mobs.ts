@@ -10,6 +10,9 @@ import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client, Room } from "colyseus.js";
+import { WILD_STRUCTURES } from "@/game/world/tilemap";
+
+const DEN = WILD_STRUCTURES.find((s) => s.key === "huskden")!;
 
 const PORT = 2592;
 const URL = `ws://localhost:${PORT}`;
@@ -90,9 +93,9 @@ async function main() {
   check("shared mobs in the schema", all.length >= 10, `${all.length} mobs`);
   const den = all.filter(
     (m) => m.kind === "husk" && m.level === 5 &&
-      Math.max(Math.abs(m.x - 8), Math.abs(m.y - 8)) <= 6,
+      Math.max(Math.abs(m.x - DEN.x), Math.abs(m.y - DEN.y)) <= 6,
   );
-  check("den pack holds the Husk Den (lv5 elites)", den.length >= 3, `${den.length}/5 near (8,8)`);
+  check("den pack holds the Husk Den (lv5 elites)", den.length >= 3, `${den.length}/5 near (${DEN.x},${DEN.y})`);
 
   // ---- range gate: a swing from across the map does nothing ------------------------
   const me = self(room);

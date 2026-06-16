@@ -55,6 +55,8 @@ export interface SaveData {
   quests: { id: string; progress: number; claimed: boolean }[];
   /** the Threshold has been walked (or skipped); new wanderers go there first */
   tutorialDone?: boolean;
+  /** owns a Stable steed (offline cache; server-authoritative online) */
+  ownsMount?: boolean;
 }
 
 const today = () => Math.floor(Date.now() / 86_400_000);
@@ -143,6 +145,7 @@ export function buildSnapshot(): SaveData {
       claimed: q.claimed,
     })),
     tutorialDone: s.tutorialDone,
+    ownsMount: s.ownsMount,
   };
 }
 
@@ -192,6 +195,8 @@ export function applySnapshot(data: SaveData) {
     // sticky: an older snapshot (from before the flag existed) must never send
     // a wanderer who finished the Threshold back through it
     tutorialDone: (data.tutorialDone ?? false) || useGame.getState().tutorialDone,
+    // offline cache; the server profile re-asserts the truth right after, online
+    ownsMount: data.ownsMount ?? false,
   });
 }
 

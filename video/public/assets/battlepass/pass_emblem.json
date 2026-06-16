@@ -1,0 +1,30 @@
+{
+  "images": {
+    "color": "battlepass/pass_emblem.svg",
+    "mono": "battlepass/pass_emblem-mono.svg"
+  },
+  "cell": {
+    "w": 32,
+    "h": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 16
+  },
+  "static": true,
+  "frames": 1,
+  "ramp": "gold(chalice + trim) + bone(parchment) + drift(corruption flecks)  ·  mono = bone only",
+  "season": "S01 Ashfall",
+  "use": "panel headers / docs (NOT the in-HUD 16×16 button)",
+  "motif": "a gilded two-handled chalice mark over a furled parchment \"ledger\" banner with drift-corruption flecks",
+  "variants": [
+    {
+      "name": "pass_emblem",
+      "file": "battlepass/pass_emblem.svg"
+    },
+    {
+      "name": "pass_emblem-mono",
+      "file": "battlepass/pass_emblem-mono.svg"
+    }
+  ]
+}

@@ -449,6 +449,14 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     `gate_door` 96×128 (3 frames: shut → runes pulsing → opening glow; the token-gate visual),
     `wordmark_plate` 320×96 (2-frame inlay pulse — bone-and-gold frame with drift inlay to sit
     behind the NAEVYR wordmark).
+  - `worldchoice/` — **"choose your path" cards** (DOM art, SVG + atlas JSON, 2-frame idle shimmer
+    via CSS `steps()` like the landing set; both vistas 256×160 so they tile as equal columns).
+    Ramps per asset: `guest_vista` (**stone + dirt + ember/gold (warm), NO corruption**) — a safe
+    walled threshold camp at dusk: warm lantern glow, one open stone gateway, a campfire, calm dirt
+    ground; reads *free, no risk, try it*. `realm_vista` (**stone town + drift haze + blood/gold**) —
+    the full Waystation skyline sprawling under a creeping violet Drift corruption haze: towers,
+    banners, lit windows, scale; reads *the real world, wallet-gated*. `guest_seal` 32×32 1f
+    (**bone only**) — an open-padlock sigil meaning "guest / no wallet", pinned on the demo card.
   - `social/` — **social / launch pack** (PNG, nearest-neighbor upscaled, opaque sRGB) for the
     **$DRIFTS** coin: `pfp_coin.png` 1024×1024 (pump.fun coin — the warded gate rune struck in
     gold over a drift field with the **$DRIFTS** ticker on the lower face, 128px grid ×8),
@@ -504,6 +512,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `walls-preview.html` — corrected iso walls (`wall2_*`) tiled 4-in-a-row to prove seams.
   - `wilds-preview.html` — wild structures, doodads, interior additions & lore graves.
   - `landing-preview.html` — hero composition (vista + plate + nav + buttons), icons, gate.
+  - `worldchoice-preview.html` — the two "choose your path" cards (guest_vista vs realm_vista) shimmering live, with the guest_seal pinned and demo/realm copy.
   - `social-preview.html` — coin/avatar marks, banner & an X-profile mock with safe-zone notes.
   - `threshold-preview.html` — gate (sealed/open), gatewarden facings, beacon, drift-wall tiling & path accents, all cycling live.
   - `systems-preview.html` — wheel faces (with segment angles), guild banner sway + fallen, drift cache states, the Exchange counter.
@@ -547,7 +556,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     ×3). All inside the locked RAMP — no palette seam beside the town.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `avatars.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `battlepass.js`, `wheelfaces.js`, `guildbanner.js`,
+    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `battlepass.js`, `worldchoice.js`, `wheelfaces.js`, `guildbanner.js`,
     `cache.js`, `exchange.js`, `arena.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 

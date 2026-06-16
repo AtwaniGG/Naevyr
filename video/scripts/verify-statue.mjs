@@ -1,0 +1,20 @@
+import { chromium } from "playwright";
+const today=Math.floor(Date.now()/86400000);
+const save={day:today,gold:9999,driftSeason:2,quests:[],tutorialDone:true,ownsMount:true,cosmetics:{name:"Tester",avatar:"",dye:"gold",eye:"drift",aura:"",pet:""},skills:{woodcutting:{xp:9000,level:18},mining:{xp:9000,level:18},fishing:{xp:6000,level:14},combat:{xp:40000,level:24}},inventory:{wood:10,stone:10,fish:5},kills:10};
+const b=await chromium.launch();
+const ctx=await b.newContext({viewport:{width:1200,height:900},deviceScaleFactor:2});
+const p=await ctx.newPage(); p.on("pageerror",e=>console.log("PE:",e.message));
+await p.addInitScript(s=>localStorage.setItem("driftlands-save-v1",JSON.stringify(s)),save);
+await p.goto("http://localhost:3000/play?demo=1&hud=1",{waitUntil:"domcontentloaded"});
+await p.getByRole("button",{name:"Enter the Realm"}).click({timeout:90000});
+await p.getByRole("button",{name:"Wander offline"}).click({timeout:30000});
+try{await p.locator("input.drift-well").fill("Tester",{timeout:6000});}catch{}
+await p.getByText("Step into the Drift").click({timeout:30000});
+await p.waitForFunction(()=>"__demo" in window,null,{timeout:45000});
+await p.waitForTimeout(2500);
+await p.evaluate(()=>window.__demo.zoom(2.4));
+await p.evaluate(()=>window.__demo.tp(58,36)); await p.waitForTimeout(800);
+await p.screenshot({path:"/tmp/conn-shots/zz-statue-fixed.png"}); console.log("statue shot");
+await p.evaluate(()=>window.__demo.tp(52,44)); await p.waitForTimeout(800);
+await p.screenshot({path:"/tmp/conn-shots/zz-quarry-fixed.png"}); console.log("quarry shot");
+await b.close(); console.log("DONE");

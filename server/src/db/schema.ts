@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   jsonb,
   pgTable,
   real,
@@ -43,6 +44,8 @@ export const players = pgTable("players", {
   /** the seasonal battle pass (Drift Ledger): { season, xp, premium,
    *  claimedFree[], claimedPremium[], week, challenges:[{id,progress,claimed}] } */
   battlepass: jsonb("battlepass"),
+  /** accepted frontier bounty contracts [{tid,region,progress}] (server-owned) */
+  bounties: jsonb("bounties").$type<{ tid: string; region: string; progress: number }[]>(),
   /** burned DRIFTS during the beta window — one-time Founder cosmetics */
   founder: boolean("founder").notNull().default(false),
   /** Drift-touched cosmetics this player has BURNED for (server-authoritative
@@ -52,6 +55,15 @@ export const players = pgTable("players", {
   wheelPity: real("wheel_pity").notNull().default(0),
   /** guild membership (null = guildless) */
   guildId: real("guild_id"),
+  /** owns a gold-bought steed from the Stable (the free travel layer) */
+  ownsMount: boolean("owns_mount").notNull().default(false),
+  /** owns the Swift Steed upgrade (a faster mount) */
+  ownsSwiftMount: boolean("owns_swift_mount").notNull().default(false),
+  /** Frontier Outpost standing: earned by delivering supply contracts */
+  outpostRep: real("outpost_rep").notNull().default(0),
+  /** daily login streak: the last UTC day index seen + the running streak */
+  lastLoginDay: real("last_login_day"),
+  loginStreak: real("login_streak").notNull().default(0),
 
   // where the wanderer last stood
   lastX: real("last_x"),
@@ -129,6 +141,11 @@ export const realm = pgTable("realm", {
   season: real("season").notNull().default(1),
   driftPct: real("drift_pct").notNull().default(0),
   corrupt: jsonb("corrupt").$type<number[]>().notNull().default([]),
+  // grid size the corrupt[] indices were authored against. A saved realm whose
+  // size differs from the live map is discarded on restore (linear tile index
+  // depends on width, so old indices can't be replayed onto a resized grid).
+  gridW: integer("grid_w").notNull().default(40),
+  gridH: integer("grid_h").notNull().default(40),
 });
 
 // Guilds: founded with a DRIFTS burn; territory = a region banner kept alive

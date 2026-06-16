@@ -22,6 +22,7 @@ export interface NetPlayer {
   avB: string;
   guildTag: string;
   guest: boolean;
+  mounted: boolean;
 }
 
 export interface NetProp {
@@ -99,6 +100,14 @@ export interface NetCaravan {
   waves: number;
   waveKills: number;
   waveNeed: number;
+}
+
+export interface NetTrader {
+  active: boolean;
+  x: number;
+  y: number;
+  moving: boolean;
+  stop: number; // waystation index parked at, -1 walking
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -212,8 +221,21 @@ export class NetClient {
     (this.room.state.props as Map<string, NetProp>).forEach((p) => fn(p));
   }
 
+  /** the placed prop at a cell (for click-to-use claim upgrades), else null */
+  propAt(x: number, y: number): NetProp | null {
+    let found: NetProp | null = null;
+    (this.room.state.props as Map<string, NetProp>).forEach((p) => {
+      if (Math.round(p.x) === x && Math.round(p.y) === y) found = p;
+    });
+    return found;
+  }
+
   get caravan(): NetCaravan | null {
     return (this.room.state.caravan as NetCaravan) ?? null;
+  }
+
+  get trader(): NetTrader | null {
+    return (this.room.state.trader as NetTrader) ?? null;
   }
 
   get night(): { active: boolean; kills: number; need: number; endsIn: number } {
@@ -224,6 +246,23 @@ export class NetClient {
       need: s.nightNeed ?? 0,
       endsIn: s.nightEndsIn ?? 0,
     };
+  }
+
+  get rift(): { active: boolean; kills: number; need: number; endsIn: number; x: number; y: number } {
+    const s = this.room.state;
+    return {
+      active: !!s.riftActive,
+      kills: s.riftKills ?? 0,
+      need: s.riftNeed ?? 0,
+      endsIn: s.riftEndsIn ?? 0,
+      x: s.riftX ?? 0,
+      y: s.riftY ?? 0,
+    };
+  }
+
+  get bloodMoon(): { active: boolean; endsIn: number } {
+    const s = this.room.state;
+    return { active: !!s.bloodMoon, endsIn: s.bloodMoonEndsIn ?? 0 };
   }
 
   get shrinePot(): number {
@@ -277,6 +316,19 @@ export class NetClient {
     this.safeSend("bank", { delta });
   }
 
+  /** buy the gold steed from the Stable (server debits + persists ownership) */
+  sendBuyMount() {
+    this.safeSend("buyMount", undefined);
+  }
+  sendBuySwiftMount() {
+    this.safeSend("buySwiftMount", undefined);
+  }
+
+  /** summon / dismiss the steed (server sets the synced `mounted` flag) */
+  sendMount(on: boolean) {
+    this.safeSend("mount", { on });
+  }
+
   sendSpin(burnSig?: string) {
     this.safeSend("spin", burnSig ? { burnSig } : undefined);
   }
@@ -295,6 +347,13 @@ export class NetClient {
 
   sendObeliskBurn(burnSig: string) {
     this.safeSend("obeliskBurn", { burnSig });
+  }
+
+  sendWaystationTravel(to: number, burnSig: string) {
+    this.safeSend("waystationTravel", { to, burnSig });
+  }
+  sendWaystationGoldTravel(to: number) {
+    this.safeSend("waystationGoldTravel", { to });
   }
 
   sendReinforce(burnSig: string) {
@@ -483,6 +542,29 @@ export class NetClient {
 
   sendQuestReroll() {
     this.safeSend("questReroll", {});
+  }
+
+  sendAcceptBounty(region: string, tid: string) {
+    this.safeSend("acceptBounty", { region, tid });
+  }
+  sendClaimBounty(region: string, tid: string) {
+    this.safeSend("claimBounty", { region, tid });
+  }
+  sendAbandonBounty(region: string, tid: string) {
+    this.safeSend("abandonBounty", { region, tid });
+  }
+
+  sendTraderBuy(item: string) {
+    this.safeSend("traderBuy", { item });
+  }
+  sendTraderSell(item: string, qty: number) {
+    this.safeSend("traderSell", { item, qty });
+  }
+  sendDeliverSupply(id: string) {
+    this.safeSend("deliverSupply", { id });
+  }
+  sendQuartermasterBuy(item: string) {
+    this.safeSend("quartermasterBuy", { item });
   }
 
   // ---- lifecycle -----------------------------------------------------------------

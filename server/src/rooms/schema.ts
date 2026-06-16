@@ -31,6 +31,8 @@ export class PlayerState extends Schema {
   @type("string") guildTag = "";
   /** demo lane: a guest wanderer (no wallet, economy locked) — server-set */
   @type("boolean") guest = false;
+  /** riding a gold-bought steed (drives the road/mount speed bonus + render) */
+  @type("boolean") mounted = false;
 }
 
 /** a guild + its territory banner (the recurring social DRIFTS sink) */
@@ -120,6 +122,17 @@ export class CaravanState extends Schema {
   @type("number") waveNeed = 0;
 }
 
+/** the Roaming Trader: a moving frontier vendor that walks the waystations */
+export class TraderState extends Schema {
+  @type("boolean") active = false;
+  @type("number") x = 0;
+  @type("number") y = 0;
+  /** actually walking (drives the puppet's walk anim) */
+  @type("boolean") moving = false;
+  /** waystation index it's parked at, -1 while walking (drives the shelf roll) */
+  @type("number") stop = -1;
+}
+
 export class DriftRoomState extends Schema {
   @type("number") w = 0;
   @type("number") h = 0;
@@ -133,11 +146,22 @@ export class DriftRoomState extends Schema {
   @type({ map: GuildState }) guilds = new MapSchema<GuildState>();
   @type({ map: RelicState }) relics = new MapSchema<RelicState>();
   @type(CaravanState) caravan = new CaravanState();
+  @type(TraderState) trader = new TraderState();
   // THE LONG NIGHT: realm-wide assault on the Waystation at terminal corruption
   @type("boolean") nightActive = false;
   @type("number") nightEndsIn = 0; // seconds
   @type("number") nightKills = 0;
   @type("number") nightNeed = 0;
+  // DRIFT RIFT: a timed frontier incursion (clear the wave for loot, then it seals)
+  @type("boolean") riftActive = false;
+  @type("number") riftEndsIn = 0; // seconds
+  @type("number") riftKills = 0;
+  @type("number") riftNeed = 0;
+  @type("number") riftX = 0;
+  @type("number") riftY = 0;
+  // BLOOD MOON: a scheduled corrupted night that buffs the frontier
+  @type("boolean") bloodMoon = false;
+  @type("number") bloodMoonEndsIn = 0; // seconds
   @type("number") shrinePot = 0;
   @type("number") shrineGoal = 500;
   @type("number") season = 1;

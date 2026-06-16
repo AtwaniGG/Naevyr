@@ -20,10 +20,22 @@ export function findPath(
   start: Cell,
   goal: Cell,
 ): Cell[] | null {
-  if (!world.isWalkable(goal.x, goal.y)) return null;
+  return findPathOn(world.w, start, goal, (x, y) => world.isWalkable(x, y));
+}
+
+/** The same 8-dir A*, parameterised on a walkability predicate + grid width so
+ *  the road network can route over a terrain-only mask (no resource nodes) and
+ *  stay deterministic. The live player movement delegates here via findPath. */
+export function findPathOn(
+  w: number,
+  start: Cell,
+  goal: Cell,
+  walkable: (x: number, y: number) => boolean,
+): Cell[] | null {
+  if (!walkable(goal.x, goal.y)) return null;
   if (start.x === goal.x && start.y === goal.y) return [];
 
-  const key = (x: number, y: number) => y * world.w + x;
+  const key = (x: number, y: number) => y * w + x;
   const open = new MinHeap();
   const gScore = new Map<number, number>();
   const came = new Map<number, number>();
@@ -34,19 +46,19 @@ export function findPath(
 
   while (open.size) {
     const current = open.pop()!;
-    const cx = current % world.w;
-    const cy = (current / world.w) | 0;
+    const cx = current % w;
+    const cy = (current / w) | 0;
     if (cx === goal.x && cy === goal.y) {
-      return reconstruct(came, current, world.w);
+      return reconstruct(came, current, w);
     }
     const cg = gScore.get(current)!;
     for (const [dx, dy] of DIRS) {
       const nx = cx + dx;
       const ny = cy + dy;
-      if (!world.isWalkable(nx, ny)) continue;
+      if (!walkable(nx, ny)) continue;
       if (dx !== 0 && dy !== 0) {
         // prevent corner cutting
-        if (!world.isWalkable(cx + dx, cy) || !world.isWalkable(cx, cy + dy)) continue;
+        if (!walkable(cx + dx, cy) || !walkable(cx, cy + dy)) continue;
       }
       const step = dx !== 0 && dy !== 0 ? 1.41421356 : 1;
       const nk = key(nx, ny);

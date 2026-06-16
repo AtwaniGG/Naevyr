@@ -1,6 +1,6 @@
 import { Mob } from "@/game/entities/mob";
 import { Player } from "@/game/entities/player";
-import { World } from "@/game/world/tilemap";
+import { World, TOWN_CENTER } from "@/game/world/tilemap";
 import { useGame, MAX_HP } from "@/game/state/store";
 import { weaponBonus, damageReduction } from "@/game/systems/crafting";
 import { play } from "@/game/audio/sound";
@@ -10,7 +10,7 @@ import { play } from "@/game/audio/sound";
 
 const PLAYER_ATTACK_MS = 1100;
 const MOB_ATTACK_MS = 1500;
-const SPAWN_CELL = { x: 20, y: 20 };
+const SPAWN_CELL = { x: TOWN_CENTER.x, y: TOWN_CENTER.y };
 
 function cheby(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));

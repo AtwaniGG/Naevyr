@@ -4,8 +4,10 @@
 // Run with the server up:  npx tsx scripts/verify-town.ts
 
 import { Client, Room } from "colyseus.js";
+import { TOWN_BUILDINGS } from "@/game/world/tilemap";
 
 const URL = process.env.GAME_SERVER ?? "ws://localhost:2567";
+const PIT = TOWN_BUILDINGS.find((b) => b.key === "pit")!;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
@@ -172,7 +174,7 @@ async function main() {
     await wait(400);
     const pa = b.state.players.get(a2.sessionId);
     const pb = b.state.players.get(b.sessionId);
-    const inRing = (p: any) => p && Math.abs(p.x - 20) <= 2 && Math.abs(p.y - 32) <= 2;
+    const inRing = (p: any) => p && Math.abs(p.x - PIT.x) <= 2 && Math.abs(p.y - PIT.y) <= 2;
     check("both fighters seated in the ring", inRing(pa) && inRing(pb),
       `a=(${pa?.x},${pa?.y}) b=(${pb?.x},${pb?.y})`);
 
