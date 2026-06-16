@@ -94,7 +94,7 @@ const MICRO_POIS: { x: number; y: number; kind: MicroPoiKey }[] = ([
 
 /** the micro-POI kinds you can salvage for gold + scrap (cooldown-gated) */
 const SALVAGE_KINDS = new Set<MicroPoiKey>(["wagon_wreck", "ruined_hut", "old_campfire"]);
-const SALVAGE_COOLDOWN_MS = 6 * 60_000;
+const SALVAGE_COOLDOWN_MS = 8 * 60_000;
 
 /** where each region's guild banner stands (decor only — no walkability
  *  change; cells chosen clear of every structure sprite) */
@@ -875,13 +875,12 @@ export class Game {
       store.setOpenShop(null);
       store.pushLog(`The Drift Roads carry you to ${WAYSTATIONS[m.to]?.label ?? "a distant waygate"}. -${m.gold}g.`, "#d8b4fe");
     });
-    // a relic surfaced from a boss/elite — own it client-side so the relic market can list it
-    net.onMessage<{ key: string }>("relicDropped", (m) => {
+    // a drift cache spills from a camp boss / rare elite — gold + shards (loot
+    // already landed on the ledgers via goldSync/invSync; this is the flavor)
+    net.onMessage<{ gold: number; shards: number }>("driftCache", (m) => {
       const store = useGame.getState();
       play("coin");
-      store.grantCosmetic("aura", m.key);
-      const label = PRESTIGE_CATALOG[m.key]?.label ?? "a relic";
-      store.pushLog(`A Drift-touched relic surfaces: ${label}! Sell it at the Relic stall for DRIFTS.`, "#e7c873");
+      store.pushLog(`A drift cache spills from the corpse: +${m.gold}g + ${m.shards} Drift Shard${m.shards > 1 ? "s" : ""}.`, "#e7c873");
     });
     // daily login streak: the living-economy retention reward
     net.onMessage<{ streak: number; reward: number }>("streakSync", (m) => {
@@ -2457,7 +2456,7 @@ export class Game {
     this.salvageReadyAt.set(key, now + SALVAGE_COOLDOWN_MS);
     this.salvageDigs.push({ x: wreck.x, y: wreck.y, t0: now });
     const st = useGame.getState();
-    const gold = 20 + Math.floor(Math.random() * 41); // 20-60
+    const gold = 20 + Math.floor(Math.random() * 31); // 20-50
     st.addGold(gold, "salvage");
     play("coin");
     const mats: string[] = [];

@@ -644,7 +644,7 @@ export interface BountyTemplate {
 }
 export const BOUNTY_TEMPLATES: BountyTemplate[] = [
   { id: "cull",  kind: "kill",                       verb: "Cull",    noun: "Drift Beasts", icon: "⚔️", target: 6,  gold: 90,  shards: 2 },
-  { id: "hunt",  kind: "kill",                       verb: "Hunt",    noun: "frontier beasts", icon: "🏹", target: 12, gold: 160, shards: 4 },
+  { id: "hunt",  kind: "kill",                       verb: "Hunt",    noun: "frontier beasts", icon: "🏹", target: 12, gold: 130, shards: 3 },
   { id: "wood",  kind: "gather", item: "wood",       verb: "Harvest", noun: "Driftwood",    icon: "🪓", target: 14, gold: 70,  shards: 1 },
   { id: "stone", kind: "gather", item: "stone",      verb: "Quarry",  noun: "Pale Stone",   icon: "⛏️", target: 12, gold: 75,  shards: 1 },
   { id: "fish",  kind: "gather", item: "fish",       verb: "Land",    noun: "Hollowfish",   icon: "🎣", target: 12, gold: 70,  shards: 1 },
@@ -716,8 +716,9 @@ export const TRADER_STOCK_POOL: TraderStockItem[] = [
   { item: "stone", price: 7 },
   { item: "fish", price: 8 },
 ];
-/** the trader pays this multiple of ITEM_META.sellValue on a buyback */
-export const TRADER_BUYBACK_MULT = 1.6;
+/** the trader pays this multiple of ITEM_META.sellValue on a buyback (a
+ *  convenience premium over the town vendor, tuned to stay in the economy band) */
+export const TRADER_BUYBACK_MULT = 1.4;
 export const TRADER_RANGE = 2.5; // tiles within which you can deal
 /** the 4 items the trader stocks at a waystation this epoch (deterministic) */
 export function rollTraderStock(epoch: number, stop: number): TraderStockItem[] {

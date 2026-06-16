@@ -188,7 +188,7 @@ const GOLD_DELTA_CAPS: Record<string, { event: number; perMin: number }> = {
   vein:     { event: 25,  perMin: 350 },   // strike = 3 + lvl/2 + rand(3); 14-strike burst
   chest:    { event: 110, perMin: 120 },   // den war-chest 60-100, 15min reseed
   losttomb: { event: 90,  perMin: 100 },   // lost tombstones 30-80, one per 6-10min
-  salvage:  { event: 70,  perMin: 150 },   // wreck search 20-60, ~6min cooldown per wreck
+  salvage:  { event: 55,  perMin: 90 },    // wreck search 20-50, ~8min cooldown per wreck
   quest:    { event: 70,  perMin: 250 },   // daily rewards top out at 60
 };
 
@@ -2399,13 +2399,16 @@ export class DriftRoom extends Room<DriftRoomState> {
       client.send("mobKill", {
         id: mob.id, kind: mob.kind, level: mob.level, xp: mob.xp, rare: mob.rare, ...loot,
       });
-      // a Drift-touched relic can surface from a camp boss / rare elite (a real
-      // earn-toward-DRIFTS: relics sell wallet-to-wallet on the relic market)
-      const relicChance = mob.boss ? 0.3 : mob.rare ? 0.07 : 0;
-      if (relicChance > 0 && Math.random() < relicChance) {
-        const key = this.grantRelicDrop(sim);
-        if (key) client.send("relicDropped", { key });
-        else this.creditItem(sim, "driftshard", mob.boss ? 3 : 1); // owns them all → shards
+      // a rare extra cache from a camp boss / rare elite: gold + driftshards.
+      // NOT a prestige aura — those stay DRIFTS-burn-only, so bosses can't be
+      // farmed for sellable relics that would undercut the token sink.
+      const cacheChance = mob.boss ? 0.3 : mob.rare ? 0.07 : 0;
+      if (cacheChance > 0 && Math.random() < cacheChance) {
+        const cacheGold = mob.boss ? 30 : 10;
+        const cacheShards = mob.boss ? 3 : 1;
+        this.credit(sim, cacheGold);
+        this.creditItem(sim, "driftshard", cacheShards);
+        client.send("driftCache", { gold: cacheGold, shards: cacheShards });
       }
       // any overworld mob death advances the kill quest (matches the current
       // client behavior where any mob death fired the kill event)
@@ -2591,9 +2594,15 @@ export class DriftRoom extends Room<DriftRoomState> {
       let reward = 0;
       if (lastDay !== today) {
         streak = lastDay === today - 1 ? streak + 1 : 1;
-        reward = Math.min(40 + streak * 15, 250); // day 1 = 55g … capped at 250g
         void persistLoginStreak(sim.token, today, streak).catch(() => {});
-        this.credit(sim, reward); // gold ledger + goldSync
+        // pay the reward ONLY once the gold ledger is seeded. Crediting an
+        // unseeded brand-new ledger would mark it seeded (credit() sets
+        // goldSeeded) and block the client's first-save gold seed — a truly
+        // new account records the streak now and earns the reward from day 2.
+        if (sim.goldSeeded) {
+          reward = Math.min(40 + streak * 15, 250); // day 1 = 55g … capped at 250g
+          this.credit(sim, reward); // gold ledger + goldSync
+        }
       }
       sim.client.send("streakSync", { streak, reward });
     }
@@ -3861,17 +3870,6 @@ export class DriftRoom extends Room<DriftRoomState> {
       if (path && path.length >= CARAVAN_MIN_ROUTE) return { cell, path };
     }
     return null;
-  }
-
-  /** grant an unowned prestige aura as a relic drop (mirrors the Drift Wheel's
-   *  1% grant; server-authoritative so it can't be spoofed). null = owns them all. */
-  private grantRelicDrop(sim: PlayerSim): string | null {
-    const open = [...PRESTIGE_AURA_KEYS].filter((k) => !sim.prestige.has(k));
-    if (open.length === 0) return null;
-    const key = open[(Math.random() * open.length) | 0];
-    sim.prestige.add(key);
-    void setPrestige(sim.token, [...sim.prestige]).catch(() => {});
-    return key;
   }
 
   // ---- The Roaming Trader -----------------------------------------------------
