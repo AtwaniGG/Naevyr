@@ -6,8 +6,8 @@ import React from "react";
 import {
   AbsoluteFill, Sequence, Audio, staticFile, useVideoConfig, useCurrentFrame, interpolate,
 } from "remotion";
-import { spriteCache } from "../../game/render/sprites";
-import type { BeastKind, BuildingSpriteKey, IsoFacing, RiftState, LookVisual } from "../../game/render/sprites";
+import { spriteCache, steedSaddle, STEED_ANCHOR } from "../../game/render/sprites";
+import type { BeastKind, BuildingSpriteKey, IsoFacing, RiftState, LookVisual, SteedFacing, WaysideKey } from "../../game/render/sprites";
 import {
   EngineCanvas, Cam, camOnCell, cellToScreen, makeCrowd, crowdPose, paint, type CrowdMember,
 } from "./engine";
@@ -16,8 +16,8 @@ import {
 } from "./scenes";
 
 export const FPS = 30;
-const TITLE = 135, BEASTS = 120, BOSSES = 115, RIFT = 130, MOON = 120, CTA = 55;
-export const FRONTIER_FRAMES = TITLE + BEASTS + BOSSES + RIFT + MOON + CTA;
+const TITLE = 135, BEASTS = 120, BOSSES = 115, RIFT = 130, MOON = 120, LIFE = 140, CTA = 55;
+export const FRONTIER_FRAMES = TITLE + BEASTS + BOSSES + RIFT + MOON + LIFE + CTA;
 
 // ─── frontier ground (ash-bitten: dirt/stone, the Drift creeping in as corrupt) ─
 function frontierTile(gx: number, gy: number, seed: number, corruptBias: number): "dirt" | "stone" | "corrupt" {
@@ -53,6 +53,11 @@ type FieldConf = {
   crowd: { seed: number; count: number; cx: number; cy: number };
   rift?: { x: number; y: number; state: RiftState };
   moon?: boolean;
+  // interactive frontier life (the new POIs + actors)
+  props?: { key: WaysideKey; x: number; y: number }[];
+  claimProps?: { key: "stash" | "workbench" | "ward" | "rune"; x: number; y: number }[];
+  trader?: { path: { x: number; y: number }[]; speed: number; phase: number };
+  mount?: { path: { x: number; y: number }[]; speed: number; phase: number; look: LookVisual };
 };
 
 const FrontierField: React.FC<{ conf: FieldConf }> = ({ conf }) => {
@@ -82,6 +87,71 @@ const FrontierField: React.FC<{ conf: FieldConf }> = ({ conf }) => {
             draw: () => {
               const s = cellToScreen(cam, b.x, b.y);
               spriteCache.drawBuilding(ctx, b.key, s.x, s.y, cam.z, Math.floor(t * 3) % 3, false);
+            },
+          });
+        }
+
+        // interactive POIs (bounty boards / supply posts / quartermaster stalls)
+        for (const pr of conf.props ?? []) {
+          items.push({
+            depth: pr.x + pr.y - 0.4,
+            draw: () => {
+              const s = cellToScreen(cam, pr.x, pr.y);
+              spriteCache.drawWayside(ctx, pr.key, Math.floor(t * 3), s.x, s.y, cam.z);
+            },
+          });
+        }
+
+        // claim upgrade props (stash / workbench / ward / rune)
+        for (const cp of conf.claimProps ?? []) {
+          items.push({
+            depth: cp.x + cp.y - 0.3,
+            draw: () => {
+              const s = cellToScreen(cam, cp.x, cp.y);
+              spriteCache.drawClaimProp(ctx, cp.key, Math.floor(t * 3), s.x, s.y, cam.z);
+            },
+          });
+        }
+
+        // the Roaming Trader + pack mule (the mule trails a beat behind)
+        if (conf.trader) {
+          const tr = conf.trader;
+          const pe = crowdPose({ path: tr.path, speed: tr.speed, phase: tr.phase } as CrowdMember, t);
+          const pm = crowdPose({ path: tr.path, speed: tr.speed, phase: tr.phase } as CrowdMember, t - 0.7);
+          const muleFacing = (pm.facing === "ne" ? "n" : pm.facing) as "s" | "se" | "e" | "n";
+          items.push({
+            depth: pm.x + pm.y,
+            draw: () => {
+              const s = cellToScreen(cam, pm.x, pm.y);
+              spriteCache.drawPackMule(ctx, muleFacing, Math.floor(t * 5) % 4, s.x, s.y, cam.z, pm.mirror);
+            },
+          });
+          items.push({
+            depth: pe.x + pe.y + 0.05,
+            draw: () => {
+              const s = cellToScreen(cam, pe.x, pe.y);
+              const tf = pe.moving ? Math.floor(t * 7) % 6 : Math.floor(t * 3) % 2;
+              spriteCache.drawTrader(ctx, pe.facing, pe.moving ? "walk" : "idle", tf, s.x, s.y, cam.z, pe.mirror);
+            },
+          });
+        }
+
+        // a mounted rider on a swift steed (drift-road fast travel)
+        if (conf.mount) {
+          const mt = conf.mount;
+          const p = crowdPose({ path: mt.path, speed: mt.speed, phase: mt.phase } as CrowdMember, t);
+          const fc = p.facing as SteedFacing;
+          const sf = Math.floor(t * 9) % 6;
+          items.push({
+            depth: p.x + p.y + 0.2,
+            draw: () => {
+              const s = cellToScreen(cam, p.x, p.y);
+              spriteCache.drawSteed(ctx, fc, p.mirror, "walk", sf, s.x, s.y, cam.z);
+              const sad = steedSaddle(fc, "walk", sf);
+              const [ax, ay] = STEED_ANCHOR;
+              const cx2 = p.mirror ? s.x - (sad.x - ax) * cam.z : s.x + (sad.x - ax) * cam.z;
+              const cy2 = s.y + (sad.y - ay) * cam.z;
+              spriteCache.drawChar(ctx, p.facing, p.mirror, "walk", sf, cx2, cy2, cam.z, { weapon: 2, ward: 1, held: "weapon" }, mt.look);
             },
           });
         }
@@ -208,7 +278,7 @@ const DEF_LOOKS: LookVisual[] = [
 const TITLE_FIELD: FieldConf = {
   seed: 91, focus: { x: 11, y: 11 }, zoom: 2.7, corruptBias: 0.16,
   buildings: [
-    { key: "ashwarcamp", x: 9, y: 7 },
+    { key: "ashwarcamp", x: 10, y: 14 },
     { key: "waystation", x: 16, y: 9 },
   ],
   beasts: [
@@ -259,83 +329,123 @@ const MOON_FIELD: FieldConf = {
   crowd: { seed: 13, count: 12, cx: 11, cy: 16 },
 };
 
-// ─── the clip ─────────────────────────────────────────────────────────────────
+// a settled, working stretch of the frontier — the new POIs, the trader, a steed
+const LIFE_FIELD: FieldConf = {
+  seed: 71, focus: { x: 11, y: 12 }, zoom: 2.5, corruptBias: 0.06,
+  buildings: [
+    { key: "waystation", x: 13, y: 15 },
+    { key: "outpost", x: 16, y: 7 },
+  ],
+  props: [
+    { key: "bounty_board", x: 10, y: 9 },
+    { key: "supply_post", x: 13, y: 10 },
+    { key: "quartermaster_stall", x: 6, y: 12 },
+  ],
+  claimProps: [
+    { key: "ward", x: 16, y: 12 },
+    { key: "stash", x: 15, y: 13 },
+  ],
+  trader: { path: [{ x: 5, y: 14 }, { x: 10, y: 13 }, { x: 15, y: 14 }], speed: 1.1, phase: 0.1 },
+  mount: { path: [{ x: 4, y: 11 }, { x: 9, y: 12 }, { x: 14, y: 11 }, { x: 9, y: 12 }], speed: 2.0, phase: 0.0, look: { dye: "gold", eye: "gold" } },
+  beasts: [],
+  defenders: [{ x: 12, y: 13, look: DEF_LOOKS[2] }],
+  crowd: { seed: 71, count: 13, cx: 11, cy: 15 },
+};
+
+// ─── the showcase scenes (each is a self-contained FadeShell beat; reused by
+//     both the standalone FrontierClip AND the full ExpansionTrailer) ───────────
+export const FrontierTitleScene: React.FC = () => (
+  <FadeShell>
+    <FrontierField conf={TITLE_FIELD} />
+    <Wash color="rgba(168,85,247,0.5)" />
+    <Scrim />
+    <TitlePlate at={6} sub="the world doubled. the Drift dug deeper.">THE FRONTIER</TitlePlate>
+    <Caption at={40} sub="frontier camps · waystations · drift roads">A wider, hungrier map</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+export const HorrorsScene: React.FC = () => (
+  <FadeShell>
+    <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 44%, #1c1526 0%, #0a0810 76%)" }} />
+    <BeastParade beasts={[
+      { kind: "bogwretch", label: "Bogwretch", targetPx: 270 },
+      { kind: "brute", label: "Ash Brute", targetPx: 330 },
+      { kind: "bonehusk", label: "Bone Husk", targetPx: 300 },
+      { kind: "wisp", label: "Drift Wisp", targetPx: 230 },
+      { kind: "wight", label: "Barrow Wight", targetPx: 300 },
+    ]} />
+    <Scrim />
+    <TitlePlate at={6} sub="they spit, they conjure, they swarm">NEW HORRORS</TitlePlate>
+    <Caption at={8} color={PAL.GOLD} sub="ranged bog-spit · summoned adds · diving wisps">Five new species roam the wilds</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+export const WarlordsScene: React.FC = () => (
+  <FadeShell>
+    <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 50%, #241016 0%, #0a0810 78%)" }} />
+    <BeastParade baseY={0.66} beasts={[
+      { kind: "drownedking", label: "The Drowned King", targetPx: 520 },
+      { kind: "barrowlord", label: "The Barrow Lord", targetPx: 540 },
+      { kind: "ashwarlord", label: "The Ashen Warlord", targetPx: 520 },
+    ]} />
+    <Wash color="rgba(220,38,38,0.55)" />
+    <Scrim />
+    <TitlePlate at={6} sub="each camp answers to a Colossus-scale boss">THE WARLORDS</TitlePlate>
+    <Caption at={8} color={PAL.GOLD} sub="160-176 hp · they guard the war-chests">Bring friends. Bring more.</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+export const RiftScene: React.FC = () => (
+  <FadeShell>
+    <FrontierField conf={RIFT_FIELD} />
+    <Wash color="rgba(168,85,247,0.7)" strength={0.3} />
+    <Scrim />
+    <TitlePlate at={6} sub="tears in the world that vomit the Drift">DRIFT RIFTS</TitlePlate>
+    <Caption at={8} sub="cut down what crawls out before it seals shut">Seal it for gold and shards</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+export const MoonScene: React.FC = () => (
+  <FadeShell>
+    <FrontierField conf={MOON_FIELD} />
+    <Wash color="rgba(220,38,38,0.85)" strength={0.32} />
+    <Scrim />
+    <TitlePlate at={6} color={PAL.BLOOD} sub="when it rises, everything hunts at once">THE BLOOD MOON</TitlePlate>
+    <Caption at={8} color={PAL.GOLD} sub="hold the outpost · survive until it sets">The wilds turn feral</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+export const LifeScene: React.FC = () => (
+  <FadeShell>
+    <FrontierField conf={LIFE_FIELD} />
+    <Wash color="rgba(231,200,115,0.6)" strength={0.16} />
+    <Scrim />
+    <TitlePlate at={6} color={PAL.GOLD} sub="the wilds give you work, and a way to run it">A LIVING FRONTIER</TitlePlate>
+    <Caption at={8} sub="bounty boards · a roaming trader · drift roads · swift steeds">Earn it. Spend it. Claim it.</Caption>
+    <CornerBrand />
+  </FadeShell>
+);
+
+// the per-scene durations, exported so the ExpansionTrailer can lay them out too
+export const FRONTIER_SCENES = { TITLE, BEASTS, BOSSES, RIFT, MOON, LIFE, CTA };
+
+// ─── the standalone clip ──────────────────────────────────────────────────────
 export const FrontierClip: React.FC = () => (
   <AbsoluteFill style={{ background: PAL.VOID }}>
     <Audio src={staticFile("naevyr-music.mp3")} volume={(f) => interpolate(f, [0, 20, FRONTIER_FRAMES - 24, FRONTIER_FRAMES], [0, 0.5, 0.5, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
 
-    {/* 1 · the doubled world */}
-    <Sequence durationInFrames={TITLE + 8} name="frontier">
-      <FadeShell>
-        <FrontierField conf={TITLE_FIELD} />
-        <Wash color="rgba(168,85,247,0.5)" />
-        <Scrim />
-        <TitlePlate at={6} sub="the world doubled. the Drift dug deeper.">THE FRONTIER</TitlePlate>
-        <Caption at={40} sub="frontier camps · waystations · drift roads">A wider, hungrier map</Caption>
-        <CornerBrand />
-      </FadeShell>
-    </Sequence>
-
-    {/* 2 · new horrors */}
-    <Sequence from={TITLE} durationInFrames={BEASTS + 8} name="beasts">
-      <FadeShell>
-        <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 44%, #1c1526 0%, #0a0810 76%)" }} />
-        <BeastParade beasts={[
-          { kind: "bogwretch", label: "Bogwretch", targetPx: 300 },
-          { kind: "brute", label: "Ash Brute", targetPx: 360 },
-          { kind: "wisp", label: "Drift Wisp", targetPx: 250 },
-          { kind: "wight", label: "Barrow Wight", targetPx: 320 },
-        ]} />
-        <Scrim />
-        <TitlePlate at={6} sub="they spit, they conjure, they swarm">NEW HORRORS</TitlePlate>
-        <Caption at={8} color={PAL.GOLD} sub="ranged bog-spit · summoned adds · diving wisps">Five new species roam the wilds</Caption>
-        <CornerBrand />
-      </FadeShell>
-    </Sequence>
-
-    {/* 3 · the warlords */}
-    <Sequence from={TITLE + BEASTS} durationInFrames={BOSSES + 8} name="bosses">
-      <FadeShell>
-        <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 50%, #241016 0%, #0a0810 78%)" }} />
-        <BeastParade baseY={0.66} beasts={[
-          { kind: "drownedking", label: "The Drowned King", targetPx: 520 },
-          { kind: "barrowlord", label: "The Barrow Lord", targetPx: 540 },
-          { kind: "ashwarlord", label: "The Ashen Warlord", targetPx: 520 },
-        ]} />
-        <Wash color="rgba(220,38,38,0.55)" />
-        <Scrim />
-        <TitlePlate at={6} sub="each camp answers to a Colossus-scale boss">THE WARLORDS</TitlePlate>
-        <Caption at={8} color={PAL.GOLD} sub="160–176 hp · they guard the war-chests">Bring friends. Bring more.</Caption>
-        <CornerBrand />
-      </FadeShell>
-    </Sequence>
-
-    {/* 4 · drift rifts */}
-    <Sequence from={TITLE + BEASTS + BOSSES} durationInFrames={RIFT + 8} name="rift">
-      <FadeShell>
-        <FrontierField conf={RIFT_FIELD} />
-        <Wash color="rgba(168,85,247,0.7)" strength={0.3} />
-        <Scrim />
-        <TitlePlate at={6} sub="tears in the world that vomit the Drift">DRIFT RIFTS</TitlePlate>
-        <Caption at={8} sub="cut down what crawls out before it seals shut">Seal it for gold and shards</Caption>
-        <CornerBrand />
-      </FadeShell>
-    </Sequence>
-
-    {/* 5 · the blood moon */}
-    <Sequence from={TITLE + BEASTS + BOSSES + RIFT} durationInFrames={MOON + 8} name="moon">
-      <FadeShell>
-        <FrontierField conf={MOON_FIELD} />
-        <Wash color="rgba(220,38,38,0.85)" strength={0.32} />
-        <Scrim />
-        <TitlePlate at={6} color={PAL.BLOOD} sub="when it rises, everything hunts at once">THE BLOOD MOON</TitlePlate>
-        <Caption at={8} color={PAL.GOLD} sub="hold the outpost · survive until it sets">The wilds turn feral</Caption>
-        <CornerBrand />
-      </FadeShell>
-    </Sequence>
-
-    {/* 6 · CTA */}
-    <Sequence from={TITLE + BEASTS + BOSSES + RIFT + MOON} durationInFrames={CTA} name="cta">
+    <Sequence durationInFrames={TITLE + 8} name="frontier"><FrontierTitleScene /></Sequence>
+    <Sequence from={TITLE} durationInFrames={BEASTS + 8} name="beasts"><HorrorsScene /></Sequence>
+    <Sequence from={TITLE + BEASTS} durationInFrames={BOSSES + 8} name="bosses"><WarlordsScene /></Sequence>
+    <Sequence from={TITLE + BEASTS + BOSSES} durationInFrames={RIFT + 8} name="rift"><RiftScene /></Sequence>
+    <Sequence from={TITLE + BEASTS + BOSSES + RIFT} durationInFrames={MOON + 8} name="moon"><MoonScene /></Sequence>
+    <Sequence from={TITLE + BEASTS + BOSSES + RIFT + MOON} durationInFrames={LIFE + 8} name="life"><LifeScene /></Sequence>
+    <Sequence from={TITLE + BEASTS + BOSSES + RIFT + MOON + LIFE} durationInFrames={CTA} name="cta">
       <PlayNow line="The frontier is open." />
     </Sequence>
   </AbsoluteFill>

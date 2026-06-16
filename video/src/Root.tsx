@@ -7,6 +7,7 @@ import { CosmeticsClip, COSMETICS_FRAMES } from "./CosmeticsClip";
 import { BattlePassClip, BATTLEPASS_FRAMES } from "./BattlePassClip";
 import { LandClip, LAND_FRAMES } from "./LandClip";
 import { FrontierClip, FRONTIER_FRAMES } from "./FrontierClip";
+import { ExpansionTrailer, EXPANSION_FRAMES } from "./ExpansionTrailer";
 import { ExchangeGif, EXGIF_FRAMES, EXGIF_W, EXGIF_H, FPS as GIF_FPS } from "./ExchangeGif";
 
 export const Root: React.FC = () => (
@@ -24,6 +25,7 @@ export const Root: React.FC = () => (
     <Composition id="BattlePassClip" component={BattlePassClip} durationInFrames={BATTLEPASS_FRAMES} fps={FPS} width={1920} height={1080} />
     <Composition id="LandClip" component={LandClip} durationInFrames={LAND_FRAMES} fps={FPS} width={1920} height={1080} />
     <Composition id="FrontierClip" component={FrontierClip} durationInFrames={FRONTIER_FRAMES} fps={FPS} width={1920} height={1080} />
+    <Composition id="ExpansionLaunch" component={ExpansionTrailer} durationInFrames={EXPANSION_FRAMES} fps={FPS} width={1920} height={1080} />
     <Composition id="ExchangeGif" component={ExchangeGif} durationInFrames={EXGIF_FRAMES} fps={GIF_FPS} width={EXGIF_W} height={EXGIF_H} />
     <Composition
       id="ExchangeClip"
