@@ -1,0 +1,188 @@
+{
+  "image": "deeds/",
+  "theme": "earned honors · weathered heraldry · old struck gold, not shiny trophies",
+  "grid": {
+    "unit": 16,
+    "outline": "#0a0810 (1px void, auto)",
+    "rendering": "crispEdges · pixelated · no anti-aliasing · dither not blur"
+  },
+  "badges": {
+    "deed_blade": {
+      "image": "deeds/deed_blade.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "steel/bone + blood",
+      "motif": "crossed swords bound at the cross",
+      "line": "War",
+      "frames": 1,
+      "static": true
+    },
+    "deed_coin": {
+      "image": "deeds/deed_coin.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "gold (struck)",
+      "motif": "old coin stamped with a 4-point star",
+      "line": "Value",
+      "frames": 1,
+      "static": true
+    },
+    "deed_labor": {
+      "image": "deeds/deed_labor.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "steel + wood",
+      "motif": "anvil on a wood stump",
+      "line": "Toil",
+      "frames": 1,
+      "static": true
+    },
+    "deed_endure": {
+      "image": "deeds/deed_endure.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "bone + drift",
+      "motif": "ward shield with a Drift boss",
+      "line": "Endurance",
+      "frames": 1,
+      "static": true
+    },
+    "deed_realm": {
+      "image": "deeds/deed_realm.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "drift-purple",
+      "motif": "the Drift sigil — core + four spikes",
+      "line": "The Realm",
+      "frames": 1,
+      "static": true
+    }
+  },
+  "tiers": {
+    "tier_bronze": {
+      "image": "deeds/tier_bronze.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "ember (warm)",
+      "overlay": true,
+      "frames": 1,
+      "static": true,
+      "use": "wraps a badge to show rank — composite this bronze laurel over any deed_* badge"
+    },
+    "tier_silver": {
+      "image": "deeds/tier_silver.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "bone (cool)",
+      "overlay": true,
+      "frames": 1,
+      "static": true,
+      "use": "wraps a badge to show rank — composite this silver laurel over any deed_* badge"
+    },
+    "tier_gold": {
+      "image": "deeds/tier_gold.svg",
+      "cell": {
+        "w": 16,
+        "h": 16
+      },
+      "anchor": {
+        "x": 8,
+        "y": 8
+      },
+      "ramp": "gold (struck)",
+      "overlay": true,
+      "frames": 1,
+      "static": true,
+      "use": "wraps a badge to show rank — composite this gold laurel over any deed_* badge"
+    }
+  },
+  "emblem": {
+    "motif": "medallion · 4-point star · short ribbon",
+    "ramp": "gold + blood (ribbon) + drift (fleck)",
+    "use": "Hall of Deeds panel / tab icon",
+    "variants": [
+      {
+        "name": "deed_emblem",
+        "image": "deeds/deed_emblem.svg",
+        "cell": {
+          "w": 16,
+          "h": 16
+        },
+        "anchor": {
+          "x": 8,
+          "y": 8
+        },
+        "use": "inline / tab icon (1em)"
+      },
+      {
+        "name": "deed_emblem-32",
+        "image": "deeds/deed_emblem-32.svg",
+        "cell": {
+          "w": 32,
+          "h": 32
+        },
+        "anchor": {
+          "x": 16,
+          "y": 16
+        },
+        "use": "panel header / Hall of Deeds mark"
+      }
+    ],
+    "static": true,
+    "frames": 1
+  },
+  "names": [
+    "deed_blade",
+    "deed_coin",
+    "deed_labor",
+    "deed_endure",
+    "deed_realm",
+    "tier_bronze",
+    "tier_silver",
+    "tier_gold",
+    "deed_emblem",
+    "deed_emblem-32"
+  ]
+}

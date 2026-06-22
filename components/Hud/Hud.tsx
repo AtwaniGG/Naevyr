@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useGame, xpForLevel, currentTitle, QuestState } from "@/game/state/store";
+import { useGame, xpForLevel, currentTitle, QuestState, DEEDS, DEED_CATEGORIES, deedCtx } from "@/game/state/store";
 import {
   AURA_CATALOG,
   CLAIM_COST,
@@ -305,6 +305,7 @@ function MobileHud() {
         <ForgeTabButton />
         <MarketTabButton />
         <PassTabButton />
+        <DeedsTabButton />
         <YouTabButton />
         <Trap label="StakeButton"><StakeButton /></Trap>
         <Trap label="ReinforceButton"><ReinforceButton /></Trap>
@@ -1995,6 +1996,156 @@ function PassDock() {
   );
 }
 
+// ---- right rail: THE HALL OF DEEDS (lifetime honors) ---------------------------
+
+/** the Design-System deed badge exports (struck-gold heraldry), served straight
+ *  from the design-system bundle like the brand/landing art. `tier` composites
+ *  a laurel ring over the badge to show a category's standing. */
+const DEED_ART = "/assets/design-system.nosync/assets/deeds";
+type DeedTier = "bronze" | "silver" | "gold" | null;
+function DeedGlyph({ name, size = 16, tier = null, glow = false }: { name: string; size?: number; tier?: DeedTier; glow?: boolean }) {
+  return (
+    <span style={{ position: "relative", display: "inline-block", width: size, height: size, flex: "0 0 auto", lineHeight: 0 }}>
+      <img
+        src={`${DEED_ART}/${name}.svg`}
+        width={size}
+        height={size}
+        alt=""
+        draggable={false}
+        style={{ display: "block", imageRendering: "pixelated", filter: glow ? "drop-shadow(0 0 3px var(--drift-gold))" : undefined }}
+      />
+      {tier && (
+        <img
+          src={`${DEED_ART}/tier_${tier}.svg`}
+          width={size}
+          height={size}
+          alt=""
+          draggable={false}
+          style={{ position: "absolute", inset: 0, imageRendering: "pixelated" }}
+        />
+      )}
+    </span>
+  );
+}
+
+/** none → no ring; some walked → bronze; ≥half → silver; all → gold. */
+function tierFor(walked: number, total: number): DeedTier {
+  if (!total || walked <= 0) return null;
+  if (walked >= total) return "gold";
+  if (walked * 2 >= total) return "silver";
+  return "bronze";
+}
+
+/** the mobile tab-bar button (desktop renders its own via DeedsDock). */
+function DeedsTabButton() {
+  const open = useGame((s) => s.openDock) === "deeds";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  return (
+    <Button variant={open ? "primary" : "ghost"} size="md" onClick={() => setOpenDock(open ? null : "deeds")} iconLeft={<DeedGlyph name="deed_emblem" size={16} glow={open} />}>Deeds</Button>
+  );
+}
+
+function DeedRow({ name, desc, cur, goal, title, walked }: { name: string; desc: string; cur: number; goal: number; title?: string; walked: boolean }) {
+  const pct = Math.max(0, Math.min(1, cur / goal));
+  return (
+    <div style={{ marginBottom: 7, opacity: walked ? 1 : 0.92 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ font: "700 11px/1.2 var(--font-ui)", color: walked ? "var(--drift-gold)" : "var(--text-primary)" }}>
+          {walked ? "✦ " : ""}{name}
+        </span>
+        <span style={{ font: "600 10px/1 var(--font-num)", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {walked ? "walked" : `${Math.min(cur, goal).toLocaleString()} / ${goal.toLocaleString()}`}
+        </span>
+      </div>
+      <div style={{ font: "400 9px/1.3 var(--font-ui)", color: "var(--text-muted)", marginBottom: 3 }}>
+        {desc}{title ? <span style={{ color: "var(--drift-corrupt)" }}> · title "{title}"</span> : null}
+      </div>
+      <div style={{ height: 3, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct * 100}%`, background: walked ? "var(--drift-gold)" : "var(--drift-corrupt)" }} />
+      </div>
+    </div>
+  );
+}
+
+function DeedsDock() {
+  const open = useGame((s) => s.openDock) === "deeds";
+  const setOpenDock = useGame((s) => s.setOpenDock);
+  const kills = useGame((s) => s.kills);
+  const stats = useGame((s) => s.stats);
+  const skills = useGame((s) => s.skills);
+  const loginStreak = useGame((s) => s.loginStreak);
+  const claimedDeeds = useGame((s) => s.claimedDeeds);
+  const isPhone = useViewport().isPhone;
+
+  const ctx = deedCtx({ kills, stats, skills, loginStreak });
+  const walkedCount = DEEDS.filter((d) => claimedDeeds.includes(d.id) || d.progress(ctx) >= d.goal).length;
+  const overall = Math.round((walkedCount / DEEDS.length) * 100);
+
+  return (
+    <div style={{ position: "relative" }}>
+      {!isPhone && (
+        <Button
+          variant={open ? "primary" : "ghost"}
+          size="md"
+          onClick={() => setOpenDock(open ? null : "deeds")}
+          iconLeft={<DeedGlyph name="deed_emblem" size={16} glow={open} />}
+        >
+          Deeds
+        </Button>
+      )}
+      <DockPopout open={open}>
+        <Panel kicker="Lifetime honors" title="Hall of Deeds" style={{ width: 320 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <DeedGlyph name="deed_emblem-32" size={32} />
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                <span style={{ font: "700 13px/1 var(--font-display)", color: "var(--text-primary)" }}>
+                  {walkedCount}<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {DEEDS.length} walked</span>
+                </span>
+                <span style={{ font: "600 11px/1 var(--font-num)", color: "var(--drift-gold)" }}>{overall}%</span>
+              </div>
+              <div style={{ height: 4, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden", marginTop: 4 }}>
+                <div style={{ height: "100%", width: `${overall}%`, background: "var(--drift-gold)" }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ font: "400 10px/1.4 var(--font-ui)", color: "var(--text-muted)", marginBottom: 10 }}>
+            Honors earned by walking, not given. Each capstone strikes a title you keep for good.
+          </div>
+          {DEED_CATEGORIES.map((cat) => {
+            const rows = DEEDS.filter((d) => d.cat === cat.key);
+            if (!rows.length) return null;
+            const catWalked = rows.filter((d) => claimedDeeds.includes(d.id) || d.progress(ctx) >= d.goal).length;
+            return (
+              <div key={cat.key} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+                  <DeedGlyph name={cat.badge} size={18} tier={tierFor(catWalked, rows.length)} />
+                  <span className="drift-label" style={{ fontSize: 9 }}>{cat.label}</span>
+                  <span style={{ font: "600 9px/1 var(--font-num)", color: "var(--text-muted)" }}>{catWalked}/{rows.length}</span>
+                </div>
+                {rows.map((d) => {
+                  const cur = d.progress(ctx);
+                  return (
+                    <DeedRow
+                      key={d.id}
+                      name={d.name}
+                      desc={d.desc}
+                      cur={cur}
+                      goal={d.goal}
+                      title={d.title}
+                      walked={claimedDeeds.includes(d.id) || cur >= d.goal}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </Panel>
+      </DockPopout>
+    </div>
+  );
+}
+
 function RightRail() {
   return (
     <div
@@ -2010,6 +2161,7 @@ function RightRail() {
       <ForgeDock />
       <MarketDock />
       <PassDock />
+      <DeedsDock />
       <IdentityDock />
       <StakeButton />
       <ReinforceButton />
@@ -2532,10 +2684,21 @@ function IdentityDock() {
                 )}
               </>
             )}
-            {/* lifetime deeds */}
-            <label className="drift-label" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
-              Deeds
-            </label>
+            {/* lifetime tallies + a door into the Hall of Deeds */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <label className="drift-label" style={{ fontSize: 9 }}>Lifetime</label>
+              <button
+                type="button"
+                onClick={() => setOpenDock("deeds")}
+                style={{
+                  background: "none", border: "none", cursor: "pointer", padding: 0,
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  font: "600 9px/1 var(--font-ui)", color: "var(--drift-gold)",
+                }}
+              >
+                <DeedGlyph name="deed_emblem" size={12} /> Hall of Deeds
+              </button>
+            </div>
             <div
               style={{
                 display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px",

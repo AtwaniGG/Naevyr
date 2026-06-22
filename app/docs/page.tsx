@@ -34,6 +34,7 @@ const SECTIONS: { id: string; group: string; title: string }[] = [
   { id: "caravans", group: "Core Systems", title: "Caravans" },
   { id: "guilds", group: "Core Systems", title: "Guilds & Territory" },
   { id: "streaks", group: "Core Systems", title: "Streaks & Boards" },
+  { id: "deeds", group: "Core Systems", title: "The Hall of Deeds" },
   { id: "events", group: "Core Systems", title: "World Events" },
   { id: "token", group: "DRIFTS", title: "DRIFTS & Burn Rites" },
   { id: "driftwheel", group: "DRIFTS", title: "The Drift Wheel & Relics" },
@@ -606,6 +607,34 @@ export default function DocsPage() {
             <Gold>Wealth</Gold> (purse and vault together), <Gold>Kills</Gold>,{" "}
             <Gold>Total Level</Gold>, and the longest <Gold>Streak</Gold>. The realm
             sees who walks it hardest.
+          </P>
+
+          <H id="deeds">The Hall of Deeds</H>
+          <Art
+            src="/assets/design-system.nosync/assets/deeds/deed_emblem-32.svg"
+            caption="The Hall of Deeds · earned, never given"
+            ratio={1}
+            maxWidth={96}
+          />
+          <P>
+            Seasons end. Deeds do not. The <Gold>Hall of Deeds</Gold> is the
+            realm's long ledger of lifetime honors, thirty in all, struck across
+            five lines: <Gold>Blade</Gold> for beasts felled and crits landed,{" "}
+            <Gold>Coin</Gold> for gold earned and given to the Pale Flame,{" "}
+            <Gold>Labor</Gold> for resources gathered and trades mastered,{" "}
+            <Gold>Endure</Gold> for falls survived and days walked unbroken, and{" "}
+            <Gold>The Realm</Gold> for driftfalls weathered. Each is earned by
+            walking, never bought.
+          </P>
+          <P>
+            <Gold>Honor, not coin.</Gold> A deed pays no gold. Cross its bar and
+            the capstone strikes a <Gold>title</Gold> that is yours for good,
+            Beastbane, Magnate, Realm-worn, Drift-walker and more, each pickable
+            from the You panel. As a line fills, its badge takes a laurel:{" "}
+            <Gold>bronze</Gold> when it is begun, <Gold>silver</Gold> at the
+            halfway mark, <Gold>gold</Gold> when every deed in it is walked.
+            Open the Hall from the Deeds tab to read how far the road has carried
+            you. It costs nothing to chase and the standing never fades.
           </P>
 
           <H id="events">World Events</H>
@@ -1200,7 +1229,8 @@ export default function DocsPage() {
             The coin must keep flowing. The Exchange, the sinks and the burn
             rites are tuned by hand as the realm fills: rates and daily limits
             shift, and new ways to spend <Gold>DRIFTS</Gold> open so a wanderer
-            never runs out of doors.
+            never runs out of doors. The <Gold>Hall of Deeds</Gold> stands beside
+            them, thirty lifetime honors to chase long after a season closes.
           </P>
           <Sub>V · The Long Road (always)</Sub>
           <P>

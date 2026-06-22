@@ -49,6 +49,8 @@ export interface SaveData {
   ownedPets?: string[];
   ownedAvatars?: string[];
   ownedTitles?: string[];
+  /** Hall-of-Deeds: ids of deeds already walked */
+  claimedDeeds?: string[];
   gold: number;
   driftSeason: number;
   driftPct?: number;
@@ -136,6 +138,7 @@ export function buildSnapshot(): SaveData {
     ownedPets: s.ownedPets,
     ownedAvatars: s.ownedAvatars,
     ownedTitles: s.ownedTitles,
+    claimedDeeds: s.claimedDeeds,
     gold: s.gold,
     driftSeason: s.driftSeason,
     driftPct: s.driftPct,
@@ -184,6 +187,8 @@ export function applySnapshot(data: SaveData) {
     // (the profile's prestige list re-grants after this runs)
     ownedAvatars: (data.ownedAvatars ?? []) as never,
     ownedTitles: data.ownedTitles ?? [],
+    // union with any deeds walked this session; the catalog re-evaluates after
+    claimedDeeds: [...new Set([...useGame.getState().claimedDeeds, ...(data.claimedDeeds ?? [])])],
     ...(data.stats
       ? { stats: { ...useGame.getState().stats, ...(data.stats as object) } as never }
       : {}),
@@ -198,6 +203,9 @@ export function applySnapshot(data: SaveData) {
     // offline cache; the server profile re-asserts the truth right after, online
     ownsMount: data.ownsMount ?? false,
   });
+  // back-fill: a returning wanderer's lifetime stats may already clear deeds
+  // that predate this system — walk them now (titles re-grant, dedup-safe)
+  useGame.getState().checkAchievements();
 }
 
 /** has this browser's wanderer walked the Threshold? (read before the engine mounts) */

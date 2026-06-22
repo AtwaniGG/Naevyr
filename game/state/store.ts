@@ -175,21 +175,92 @@ export interface MarketListing {
 
 /** Earned title, best first. Derived — never stored.
  *  Drift-touched titles (burn-bought) outrank every earned one. */
-/** earned milestone titles: hit the bar and the title is yours for good
- *  (added to ownedTitles, so it persists and is pickable in the You panel) */
-export interface Achievement { id: string; title: string; desc: string; met: (s: { kills: number; stats: LifetimeStats; skills: Record<SkillKey, SkillState> }) => boolean }
-export const ACHIEVEMENTS: Achievement[] = [
-  { id: "beast_tested", title: "Beast-tested", desc: "Fell 10 Drift Beasts", met: (s) => s.kills >= 10 },
-  { id: "beastbane",    title: "Beastbane",    desc: "Fell 50 Drift Beasts", met: (s) => s.kills >= 50 },
-  { id: "centurion",    title: "Centurion",    desc: "Fell 100 Drift Beasts", met: (s) => s.kills >= 100 },
-  { id: "gilded",       title: "Gilded",       desc: "Earned 1,000 gold", met: (s) => s.stats.goldEarned >= 1000 },
-  { id: "magnate",      title: "Magnate",      desc: "Earned 10,000 gold", met: (s) => s.stats.goldEarned >= 10000 },
-  { id: "provider",     title: "Provider",     desc: "Gathered 500 resources", met: (s) => s.stats.gathered >= 500 },
-  { id: "deathblow",    title: "Deathblow",    desc: "Landed 50 critical strikes", met: (s) => s.stats.crits >= 50 },
-  { id: "flamekeeper",  title: "Flamekeeper",  desc: "Donated 500 to the Shrine", met: (s) => s.stats.donated >= 500 },
-  { id: "warbrand",     title: "Warbrand",     desc: "Reached Combat 10", met: (s) => s.skills.combat.level >= 10 },
-  { id: "realm_worn",   title: "Realm-worn",   desc: "Took a skill to level 20", met: (s) => Object.values(s.skills).some((k) => k.level >= 20) },
+/** THE HALL OF DEEDS — long-term goals that outlast a season.
+ *  A deed tracks one lifetime measure toward a goal. Crossing the bar marks the
+ *  deed walked (recorded in claimedDeeds, so it never re-fires) and — for the
+ *  capstones — grants a permanent title (added to ownedTitles, pickable in the
+ *  You panel). Deeds are HONOR, not a gold faucet: the reward is the title and
+ *  the standing, never coin, so they don't touch the tuned economy. All of it
+ *  is computed from the lifetime stats the client already keeps, so it works
+ *  offline and needs no server rail (titles are client-trusted like cosmetics). */
+export type DeedCategory = "combat" | "wealth" | "industry" | "survival" | "realm";
+
+/** `badge` = the Design-System deed_* svg export served from design-system.nosync */
+export const DEED_CATEGORIES: { key: DeedCategory; label: string; badge: string }[] = [
+  { key: "combat",   label: "Blade",  badge: "deed_blade" },
+  { key: "wealth",   label: "Coin",   badge: "deed_coin" },
+  { key: "industry", label: "Labor",  badge: "deed_labor" },
+  { key: "survival", label: "Endure", badge: "deed_endure" },
+  { key: "realm",    label: "Realm",  badge: "deed_realm" },
 ];
+
+export interface DeedCtx {
+  kills: number;
+  stats: LifetimeStats;
+  skills: Record<SkillKey, SkillState>;
+  loginStreak: number;
+}
+
+export interface Deed {
+  id: string;
+  cat: DeedCategory;
+  name: string;
+  desc: string;
+  goal: number;
+  /** the current lifetime measure (uncapped) toward `goal` */
+  progress: (s: DeedCtx) => number;
+  /** capstone deeds grant a permanent title when walked */
+  title?: string;
+}
+
+const maxSkill = (s: DeedCtx) => Math.max(...Object.values(s.skills).map((k) => k.level));
+
+export const DEEDS: Deed[] = [
+  // ── Blade ──────────────────────────────────────────────────────────────
+  { id: "first_blood", cat: "combat", name: "First Blood", desc: "Fell your first Drift Beast", goal: 1, progress: (s) => s.kills },
+  { id: "beast_tested", cat: "combat", name: "Beast-tested", desc: "Fell 10 Drift Beasts", goal: 10, progress: (s) => s.kills, title: "Beast-tested" },
+  { id: "beastbane", cat: "combat", name: "Beastbane", desc: "Fell 50 Drift Beasts", goal: 50, progress: (s) => s.kills, title: "Beastbane" },
+  { id: "centurion", cat: "combat", name: "Centurion", desc: "Fell 100 Drift Beasts", goal: 100, progress: (s) => s.kills, title: "Centurion" },
+  { id: "warbringer", cat: "combat", name: "Warbringer", desc: "Fell 500 Drift Beasts", goal: 500, progress: (s) => s.kills, title: "Warbringer" },
+  { id: "deathblow", cat: "combat", name: "Deathblow", desc: "Landed 50 critical strikes", goal: 50, progress: (s) => s.stats.crits, title: "Deathblow" },
+  { id: "executioner", cat: "combat", name: "Executioner", desc: "Landed 250 critical strikes", goal: 250, progress: (s) => s.stats.crits, title: "Executioner" },
+  { id: "warbrand", cat: "combat", name: "Warbrand", desc: "Reached Combat 10", goal: 10, progress: (s) => s.skills.combat.level, title: "Warbrand" },
+  { id: "warlord", cat: "combat", name: "Warlord", desc: "Reached Combat 20", goal: 20, progress: (s) => s.skills.combat.level, title: "Warlord" },
+
+  // ── Coin ───────────────────────────────────────────────────────────────
+  { id: "first_coin", cat: "wealth", name: "First Coin", desc: "Earned 100 gold", goal: 100, progress: (s) => s.stats.goldEarned },
+  { id: "gilded", cat: "wealth", name: "Gilded", desc: "Earned 1,000 gold", goal: 1000, progress: (s) => s.stats.goldEarned, title: "Gilded" },
+  { id: "magnate", cat: "wealth", name: "Magnate", desc: "Earned 10,000 gold", goal: 10000, progress: (s) => s.stats.goldEarned, title: "Magnate" },
+  { id: "tycoon", cat: "wealth", name: "Tycoon", desc: "Earned 100,000 gold", goal: 100000, progress: (s) => s.stats.goldEarned, title: "Tycoon" },
+  { id: "flamekeeper", cat: "wealth", name: "Flamekeeper", desc: "Gave 500 to the Pale Flame", goal: 500, progress: (s) => s.stats.donated, title: "Flamekeeper" },
+  { id: "pyre_warden", cat: "wealth", name: "Pyre-warden", desc: "Gave 2,500 to the Pale Flame", goal: 2500, progress: (s) => s.stats.donated, title: "Pyre-warden" },
+
+  // ── Labor ──────────────────────────────────────────────────────────────
+  { id: "provider", cat: "industry", name: "Provider", desc: "Gathered 500 resources", goal: 500, progress: (s) => s.stats.gathered, title: "Provider" },
+  { id: "harvester", cat: "industry", name: "Harvester", desc: "Gathered 2,500 resources", goal: 2500, progress: (s) => s.stats.gathered, title: "Harvester" },
+  { id: "realm_fed", cat: "industry", name: "Realm-fed", desc: "Gathered 10,000 resources", goal: 10000, progress: (s) => s.stats.gathered, title: "Realm-fed" },
+  { id: "hewer", cat: "industry", name: "Hewer", desc: "Reached Woodcutting 5", goal: 5, progress: (s) => s.skills.woodcutting.level, title: "Hewer" },
+  { id: "timberlord", cat: "industry", name: "Timberlord", desc: "Reached Woodcutting 15", goal: 15, progress: (s) => s.skills.woodcutting.level, title: "Timberlord" },
+  { id: "stonebreaker", cat: "industry", name: "Stonebreaker", desc: "Reached Mining 5", goal: 5, progress: (s) => s.skills.mining.level, title: "Stonebreaker" },
+  { id: "deepdelver", cat: "industry", name: "Deepdelver", desc: "Reached Mining 15", goal: 15, progress: (s) => s.skills.mining.level, title: "Deepdelver" },
+  { id: "tidecaller", cat: "industry", name: "Tidecaller", desc: "Reached Fishing 5", goal: 5, progress: (s) => s.skills.fishing.level, title: "Tidecaller" },
+  { id: "deepnet", cat: "industry", name: "Deepnet", desc: "Reached Fishing 15", goal: 15, progress: (s) => s.skills.fishing.level, title: "Deepnet" },
+  { id: "realm_worn", cat: "industry", name: "Realm-worn", desc: "Took a skill to level 20", goal: 20, progress: maxSkill, title: "Realm-worn" },
+
+  // ── Endure ─────────────────────────────────────────────────────────────
+  { id: "thrice_fallen", cat: "survival", name: "Thrice-fallen", desc: "Fell to the Drift 5 times", goal: 5, progress: (s) => s.stats.deaths, title: "Thrice-fallen" },
+  { id: "faithful", cat: "survival", name: "Faithful", desc: "Walked 7 days unbroken", goal: 7, progress: (s) => s.loginStreak, title: "Faithful" },
+  { id: "devoted", cat: "survival", name: "Devoted", desc: "Walked 30 days unbroken", goal: 30, progress: (s) => s.loginStreak, title: "Devoted" },
+
+  // ── Realm ──────────────────────────────────────────────────────────────
+  { id: "drift_touched", cat: "realm", name: "Drift-touched", desc: "Endured 5 driftfalls", goal: 5, progress: (s) => s.stats.driftfalls },
+  { id: "drift_walker", cat: "realm", name: "Drift-walker", desc: "Endured 25 driftfalls", goal: 25, progress: (s) => s.stats.driftfalls, title: "Drift-walker" },
+];
+
+export const deedCtx = (s: { kills: number; stats: LifetimeStats; skills: Record<SkillKey, SkillState>; loginStreak: number }): DeedCtx => ({
+  kills: s.kills, stats: s.stats, skills: s.skills, loginStreak: s.loginStreak,
+});
+export const deedWalked = (d: Deed, ctx: DeedCtx) => d.progress(ctx) >= d.goal;
 
 export function currentTitle(s: {
   skills: Record<SkillKey, SkillState>;
@@ -233,6 +304,8 @@ interface GameState {
   /** lifetime Drift Beast kills (feeds titles) */
   kills: number;
   stats: LifetimeStats;
+  /** ids of Hall-of-Deeds deeds already walked (so they never re-fire) */
+  claimedDeeds: string[];
   minimap: MinimapSnap | null;
   roster: RosterEntry[];
   /** connected to the shared world (claims need it) */
@@ -297,7 +370,7 @@ interface GameState {
   /** BLOOD MOON: true while the corrupted night is up */
   bloodMoon: boolean;
   /** which right-rail popout is open (one at a time) */
-  openDock: "forge" | "market" | "you" | "trade" | "pass" | null;
+  openDock: "forge" | "market" | "you" | "trade" | "pass" | "deeds" | null;
   /** the Satchel panel: collapsed to a button when false (Activity grows) */
   satchelOpen: boolean;
   shrine: { pot: number; goal: number };
@@ -361,7 +434,7 @@ interface GameState {
   setNight: (n: { kills: number; need: number; endsIn: number } | null) => void;
   setRift: (r: { kills: number; need: number; endsIn: number; x: number; y: number } | null) => void;
   setBloodMoon: (b: boolean) => void;
-  setOpenDock: (d: "forge" | "market" | "you" | "trade" | "pass" | null) => void;
+  setOpenDock: (d: "forge" | "market" | "you" | "trade" | "pass" | "deeds" | null) => void;
   setSatchelOpen: (b: boolean) => void;
   setShrine: (s: { pot: number; goal: number }) => void;
   setDuel: (d: DuelState | null) => void;
@@ -483,6 +556,7 @@ export const useGame = create<GameState>((set, get) => ({
   traderNear: false,
   outpostRep: 0,
   loginStreak: 0,
+  claimedDeeds: [],
   ownedDyes: ["stone"],
   ownedEyes: ["drift"],
   ownedAuras: [],
@@ -577,14 +651,21 @@ export const useGame = create<GameState>((set, get) => ({
   setLoginStreak: (n) => set((s) => (s.loginStreak === n ? s : { loginStreak: n })),
   checkAchievements: () => {
     const s = get();
-    for (const a of ACHIEVEMENTS) {
-      if (s.ownedTitles.includes(a.title)) continue;
-      if (a.met({ kills: s.kills, stats: s.stats, skills: s.skills })) {
-        get().grantCosmetic("title", a.title);
-        play("coin");
-        get().pushLog(`Title earned: "${a.title}" — ${a.desc}.`, "#e7c873");
-      }
+    const ctx = deedCtx(s);
+    const freshlyWalked: string[] = [];
+    for (const d of DEEDS) {
+      if (s.claimedDeeds.includes(d.id)) continue;
+      if (!deedWalked(d, ctx)) continue;
+      freshlyWalked.push(d.id);
+      if (d.title) get().grantCosmetic("title", d.title);
+      play("coin");
+      get().pushLog(
+        d.title ? `Deed walked: ${d.name}. Title earned: "${d.title}".` : `Deed walked: ${d.name}.`,
+        "#e7c873",
+      );
     }
+    if (freshlyWalked.length)
+      set((st) => ({ claimedDeeds: [...st.claimedDeeds, ...freshlyWalked] }));
   },
   grantCosmetic: (kind, key) =>
     set((s) => {

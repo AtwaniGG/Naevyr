@@ -49,8 +49,8 @@ const MILES: Mile[] = [
   {
     n: "IV", title: "The Living Economy", status: "Standing, and tuned.", done: true,
     tag: "The coin must keep flowing.",
-    lede: "The Exchange stands. New sinks and earns by the dozen, the gold-to-DRIFTS loop tuned by hand, and the realm keeps a public reckoning of its richest and most faithful.",
-    items: ["The Exchange, the Forge enchant, claim upgrades", "Daily streaks and earned titles", "Wealth and streak leaderboards", "Sinks and earns tuned, while you sleep"],
+    lede: "The Exchange stands. New sinks and earns by the dozen, the gold-to-DRIFTS loop tuned by hand, and the realm keeps a public reckoning of its richest and most faithful. The Hall of Deeds now records the honors that outlast a season.",
+    items: ["The Exchange, the Forge enchant, claim upgrades", "Daily streaks and earned titles", "The Hall of Deeds, thirty lifetime honors", "Wealth and streak leaderboards", "Sinks and earns tuned, while you sleep"],
     foot: "Tuned, while you sleep.",
   },
   {
