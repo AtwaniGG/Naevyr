@@ -73,7 +73,7 @@ async function main() {
       return;
     }
     if (url.pathname === "/leaderboard") {
-      void leaderboards(10)
+      void leaderboards()
         .then((boards) => {
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify(boards));

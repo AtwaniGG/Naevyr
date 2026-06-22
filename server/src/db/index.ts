@@ -632,8 +632,10 @@ export interface BoardRow { name: string; value: number }
 export interface Leaderboards { gold: BoardRow[]; kills: BoardRow[]; levels: BoardRow[]; streak: BoardRow[] }
 
 /** landing-page boards: gold from the ledgers, kills/levels from snapshots,
- *  streak from the daily-login column (the living-economy retention board) */
-export async function leaderboards(limit = 10): Promise<Leaderboards> {
+ *  streak from the daily-login column (the living-economy retention board).
+ *  Guests (no linked wallet) are excluded — only wallet-bound wanderers rank.
+ *  `limit` undefined → the full ranked field (no cap). */
+export async function leaderboards(limit?: number): Promise<Leaderboards> {
   const rows = await db
     .select({
       name: players.name,
@@ -642,9 +644,12 @@ export async function leaderboards(limit = 10): Promise<Leaderboards> {
       streak: players.loginStreak,
       snapshot: players.snapshot,
     })
-    .from(players);
-  const top = (vals: BoardRow[]) =>
-    vals.filter((v) => v.value > 0).sort((a, b) => b.value - a.value).slice(0, limit);
+    .from(players)
+    .where(sql`${players.walletAddress} IS NOT NULL`);
+  const top = (vals: BoardRow[]) => {
+    const ranked = vals.filter((v) => v.value > 0).sort((a, b) => b.value - a.value);
+    return limit != null ? ranked.slice(0, limit) : ranked;
+  };
   const snap = (r: (typeof rows)[number]) =>
     (r.snapshot ?? {}) as { kills?: number; skills?: Record<string, { level?: number }> };
   return {
