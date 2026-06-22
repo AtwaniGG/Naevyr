@@ -633,22 +633,39 @@ export function roadAt(w: number, h: number, x: number, y: number): boolean {
 }
 
 // ─── Groves: clustered woods (decorative trees fill the open stretches) ──────
+// ─── THE FOREST-DENSITY KNOB (this is what makes the map look "overgrown") ────
+// The wall-of-trees you see is NOT the gatherable resource nodes (those are a
+// handful, tuned in DriftRoom). It is these DECORATIVE grove doodads: every
+// grove cell below grows a `grove_tree`/`dead_tree` sprite in game.ts. Tree
+// sprites are 58px tall and overlap, so even ~25% cell occupancy reads as solid
+// canopy. If the realm ever looks too overgrown (or too bare), tune ONLY these
+// three numbers — reducing resource-node counts will NOT thin the forest.
+//   GROVE_DIVISOR ↑  → fewer grove blobs        (groves ≈ w*h / divisor)
+//   GROVE_FILL    ↓  → thinner trees per grove  (fraction of disk cells treed)
+//   GROVE_R_MIN/SPAN → smaller copses           (radius = MIN + rand[0,SPAN))
+// Calibrated 2026-06-22: was 430/0.50/r3-5 (~27% peak canopy → "overgrown");
+// now 550/0.28/r2-4 (~8% peak) — light scattered copses, ~3.4× fewer trees.
+const GROVE_DIVISOR = 550; // ~12 copses on 80×80
+const GROVE_FILL    = 0.28;
+const GROVE_R_MIN   = 2;
+const GROVE_R_SPAN  = 3;   // radius 2..4
+
 let groveCache: { w: number; h: number; set: Set<number> } | null = null;
 /** deterministic clustered grove cells (pure in w,h; client renders trees here) */
 export function buildGroves(w: number, h: number): Set<number> {
   if (groveCache && groveCache.w === w && groveCache.h === h) return groveCache.set;
   const set = new Set<number>();
   const rng = mulberry32(909);
-  const N = Math.round((w * h) / 430); // ~15 groves on 80×80
+  const N = Math.round((w * h) / GROVE_DIVISOR);
   for (let i = 0; i < N; i++) {
-    const cx = (rng() * w) | 0, cy = (rng() * h) | 0, r = 3 + ((rng() * 3) | 0);
+    const cx = (rng() * w) | 0, cy = (rng() * h) | 0, r = GROVE_R_MIN + ((rng() * GROVE_R_SPAN) | 0);
     if (Math.hypot(cx - TOWN_CENTER.x, cy - TOWN_CENTER.y) < 13) continue; // keep the town airy
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++) {
         if (dx * dx + dy * dy > r * r) continue;
         const x = cx + dx, y = cy + dy;
         if (x < 0 || y < 0 || x >= w || y >= h) continue;
-        if (rng() < 0.5) set.add(y * w + x);
+        if (rng() < GROVE_FILL) set.add(y * w + x);
       }
   }
   groveCache = { w, h, set };
