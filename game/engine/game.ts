@@ -939,10 +939,15 @@ export class Game {
       store.pushLog(`A drift cache spills from the corpse: +${m.gold}g + ${m.shards} Drift Shard${m.shards > 1 ? "s" : ""}.`, "#e7c873");
     });
     // daily login streak: the living-economy retention reward
-    net.onMessage<{ streak: number; reward: number }>("streakSync", (m) => {
+    net.onMessage<{ streak: number; reward: number; milestone?: number }>("streakSync", (m) => {
       const store = useGame.getState();
       store.setLoginStreak(m.streak);
-      if (m.reward > 0) {
+      if (m.milestone && m.milestone >= 7) {
+        // a wax-seal milestone day (7 / 30): bigger fanfare + the seal popup
+        play("levelup");
+        store.setStreakMilestone(m.milestone);
+        store.pushLog(`Day ${m.milestone}. The Drift marks your devotion. +${m.reward}g.`, "#e7c873");
+      } else if (m.reward > 0) {
         play("coin");
         store.pushLog(`Day ${m.streak} of your streak. The realm rewards your return: +${m.reward}g.`, "#e7c873");
       }
@@ -3158,7 +3163,11 @@ export class Game {
       if (!r) {
         r = new Player(p.x, p.y);
         this.remotes.set(p.id, r);
-        store.pushLog(`${p.name || "A wanderer"} enters the Drift.`, "#7c6f93");
+        // Echoes drift in and out constantly as real players come and go;
+        // logging each one would bury the activity feed. New Echoes materialize
+        // with the drift-puff (echo_fade) before settling into the veil loop.
+        if (p.echo) r.echoBornAt = now;
+        else store.pushLog(`${p.name || "A wanderer"} enters the Drift.`, "#7c6f93");
       }
       r.name = p.name;
       r.dye = p.dye;
@@ -3171,6 +3180,7 @@ export class Game {
       r.avB = p.avB ?? "";
       r.guildTag = p.guildTag ?? "";
       r.guest = !!p.guest;
+      r.echo = !!p.echo;
       r.mounted = !!p.mounted;
       const dx = p.x - r.px;
       const dy = p.y - r.py;
@@ -3198,8 +3208,9 @@ export class Game {
     });
     for (const id of [...this.remotes.keys()]) {
       if (!seen.has(id)) {
+        const gone = this.remotes.get(id);
         this.remotes.delete(id);
-        store.pushLog("A wanderer fades from sight.", "#7c6f93");
+        if (!gone?.echo) store.pushLog("A wanderer fades from sight.", "#7c6f93");
       }
     }
 
@@ -5224,7 +5235,13 @@ export class Game {
       title = p.title;
       if (p.guildTag) name = `[${p.guildTag}] ${name}`;
       if (p.guest) name = `${name} · guest`;
+      if (p.echo) name = `${name} · Echo`;
     }
+
+    // an Echo is a faded remnant of the Drift: draw its body translucent so it
+    // reads as a ghost, never as a flesh-and-blood player.
+    const ghost = !isSelf && p.echo;
+    if (ghost) ctx.globalAlpha = 0.5;
 
     // the steed (DS frontier_steed): drawn under the rider, who is seated at the
     // per-frame saddle anchor so the bob lines up with the steed's gait.
@@ -5241,6 +5258,19 @@ export class Game {
     }
 
     spriteCache.drawChar(ctx, p.isoFacing, p.isoMirror, anim, frame, charX, charY, z, equip, look);
+    if (ghost) ctx.globalAlpha = 1; // body only is faded; tags + bubble stay crisp
+
+    // Echo drift FX, composited over the half-alpha body: the materialize puff
+    // (echo_fade, 4f @8fps) on first sight, then the veil shimmer loop (3f @3fps)
+    if (ghost) {
+      const ECHO_FADE_MS = 500; // 4 frames @ 8fps
+      const age = performance.now() - p.echoBornAt;
+      if (p.echoBornAt && age < ECHO_FADE_MS) {
+        spriteCache.drawEchoFade(ctx, Math.floor(age / (ECHO_FADE_MS / 4)), charX, charY, z);
+      } else {
+        spriteCache.drawEchoVeil(ctx, Math.floor(performance.now() / (1000 / 3)) % 3, charX, charY, z);
+      }
+    }
 
     // aura: prestige keys draw the baked DS sprite; legacy keys orbit motes
     const auraKey = (isSelf ? state.cosmetics.aura : p.aura) as AuraKey | "";

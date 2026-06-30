@@ -1,0 +1,24 @@
+{
+  "image": "claimworks/claim_stash.svg",
+  "cell": {
+    "w": 32,
+    "h": 28
+  },
+  "anchor": {
+    "x": 16,
+    "y": 27
+  },
+  "solid": true,
+  "frames": {
+    "claim_stash_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 28,
+      "anchor": {
+        "x": 16,
+        "y": 27
+      }
+    }
+  }
+}

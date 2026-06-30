@@ -1,0 +1,83 @@
+{
+  "image": "mobs/bog_spit.svg",
+  "cell": {
+    "w": 12,
+    "h": 12
+  },
+  "anchor": {
+    "x": 6,
+    "y": 6
+  },
+  "note": "Bogwretch projectile",
+  "frames": {
+    "spit-travel_00": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 6
+      }
+    },
+    "spit-travel_01": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 6
+      }
+    },
+    "spit-travel_02": {
+      "x": 24,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 6
+      }
+    },
+    "spit-splat_00": {
+      "x": 36,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 6
+      }
+    },
+    "spit-splat_01": {
+      "x": 48,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 6
+      }
+    }
+  },
+  "animations": {
+    "travel": {
+      "frames": [
+        "spit-travel_00",
+        "spit-travel_01",
+        "spit-travel_02"
+      ],
+      "fps": 12,
+      "loop": true
+    },
+    "splat": {
+      "frames": [
+        "spit-splat_00",
+        "spit-splat_01"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

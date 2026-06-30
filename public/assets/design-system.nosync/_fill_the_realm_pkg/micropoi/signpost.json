@@ -1,0 +1,23 @@
+{
+  "image": "micropoi/signpost.svg",
+  "cell": {
+    "w": 24,
+    "h": 40
+  },
+  "anchor": {
+    "x": 11,
+    "y": 37
+  },
+  "frames": {
+    "signpost_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 40,
+      "anchor": {
+        "x": 11,
+        "y": 37
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "image": "micropoi/bridge.svg",
+  "cell": {
+    "w": 96,
+    "h": 40
+  },
+  "anchor": {
+    "x": 48,
+    "y": 34
+  },
+  "footprint": "3x1",
+  "frames": {
+    "bridge_00": {
+      "x": 0,
+      "y": 0,
+      "w": 96,
+      "h": 40,
+      "anchor": {
+        "x": 48,
+        "y": 34
+      }
+    }
+  }
+}

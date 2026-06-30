@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/boulder.svg",
+  "biome": "highland",
+  "cell": {
+    "w": 22,
+    "h": 16
+  },
+  "anchor": {
+    "x": 11,
+    "y": 14
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "boulder_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 22,
+      "h": 16,
+      "anchor": {
+        "x": 11,
+        "y": 14
+      }
+    },
+    "boulder_v1": {
+      "x": 22,
+      "y": 0,
+      "w": 22,
+      "h": 16,
+      "anchor": {
+        "x": 11,
+        "y": 14
+      }
+    }
+  }
+}

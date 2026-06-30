@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/rubble.svg",
+  "biome": "highland",
+  "cell": {
+    "w": 16,
+    "h": 10
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "variants": 2,
+  "flat": true,
+  "frames": {
+    "rubble_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 10,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "rubble_v1": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 10,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  }
+}

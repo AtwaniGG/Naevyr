@@ -1,0 +1,44 @@
+{
+  "image": "ruins/drift_monolith.svg",
+  "cell": {
+    "w": 48,
+    "h": 96
+  },
+  "anchor": {
+    "x": 24,
+    "y": 95
+  },
+  "footprint": "2x2",
+  "frames": {
+    "drift_monolith_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    },
+    "drift_monolith_01": {
+      "x": 48,
+      "y": 0,
+      "w": 48,
+      "h": 96,
+      "anchor": {
+        "x": 24,
+        "y": 95
+      }
+    }
+  },
+  "animations": {
+    "shimmer": {
+      "frames": [
+        "drift_monolith_00",
+        "drift_monolith_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

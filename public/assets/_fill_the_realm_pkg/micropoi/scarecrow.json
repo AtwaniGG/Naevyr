@@ -1,0 +1,23 @@
+{
+  "image": "micropoi/scarecrow.svg",
+  "cell": {
+    "w": 24,
+    "h": 44
+  },
+  "anchor": {
+    "x": 11,
+    "y": 41
+  },
+  "frames": {
+    "scarecrow_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 44,
+      "anchor": {
+        "x": 11,
+        "y": 41
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@ render() { # <compositionId> <outfile>
 render WheelClip        naevyr-wheel.mp4
 render CosmeticsClip     naevyr-cosmetics.mp4
 render BattlePassClip    naevyr-battlepass.mp4
+render DeedsClip         naevyr-deeds.mp4
 render Building-Dyeworks naevyr-dyeworks.mp4
 render Building-Vault    naevyr-vault.mp4
 render Building-Lantern  naevyr-lantern.mp4

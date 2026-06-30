@@ -4,9 +4,21 @@ import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Encoder } from "@colyseus/schema";
 import { DriftRoom } from "./rooms/DriftRoom";
-import { initDb, leaderboards, burnTotals, burnTotalsFor } from "./db";
+import { initDb, leaderboards, burnTotals, burnTotalsFor, savePushSub, deletePushSub, countPushSubs } from "./db";
 import { gateTokens, getTokenBalance, tokenMint } from "./solana";
 import { issueGateNonce, verifyGateProof } from "./gate";
+import { initPush, pushPublicKey, notifyToken } from "./push";
+import type { IncomingMessage } from "node:http";
+
+/** read + JSON-parse a request body (bounded); resolves null on bad/oversized */
+function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (c) => { data += c; if (data.length > 100_000) req.destroy(); });
+    req.on("end", () => { try { resolve(JSON.parse(data || "{}")); } catch { resolve(null); } });
+    req.on("error", () => resolve(null));
+  });
+}
 
 // initial full state (1600-tile map + nodes + players) outgrows the 8KB default
 Encoder.BUFFER_SIZE = 64 * 1024;
@@ -53,8 +65,13 @@ async function handleGate(address: string | null, nonce: string | null, sig: str
 
 async function main() {
   await initDb();
+  const pushOn = initPush();
+  console.log(pushOn ? "push: web-push armed (VAPID configured)" : "push: disabled (no VAPID)");
   const http = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname === "/gate") {
       void handleGate(
@@ -106,6 +123,49 @@ async function main() {
     if (url.pathname === "/version") {
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ build: BUILD }));
+      return;
+    }
+    // ---- web-push (Phase 2B) ---------------------------------------------------
+    // the VAPID public key the client needs to subscribe ("" = push disabled)
+    if (url.pathname === "/push/key") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ key: pushPublicKey() }));
+      return;
+    }
+    // store a browser push subscription, owned by a device token
+    if (url.pathname === "/push/subscribe" && req.method === "POST") {
+      void readJson(req).then(async (b) => {
+        const token = typeof b?.token === "string" ? b.token : "";
+        const sub = b?.sub as { endpoint?: string; keys?: { p256dh?: string; auth?: string } } | undefined;
+        if (!token || !sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) { res.writeHead(400); res.end(); return; }
+        await savePushSub(token, typeof b?.wallet === "string" ? b.wallet : null,
+          { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } });
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true, count: await countPushSubs(token) }));
+      }).catch(() => { res.writeHead(500); res.end(); });
+      return;
+    }
+    // drop a subscription (client opt-out or a stale endpoint)
+    if (url.pathname === "/push/unsubscribe" && req.method === "POST") {
+      void readJson(req).then(async (b) => {
+        const endpoint = typeof b?.endpoint === "string" ? b.endpoint : "";
+        if (!endpoint) { res.writeHead(400); res.end(); return; }
+        await deletePushSub(endpoint);
+        const count = typeof b?.token === "string" ? await countPushSubs(b.token) : 0;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true, count }));
+      }).catch(() => { res.writeHead(500); res.end(); });
+      return;
+    }
+    // env-gated test trigger (PUSH_TEST=1) — used ONLY by the verify harness to
+    // exercise the real send path; never exposed in production.
+    if (url.pathname === "/push/test" && process.env.PUSH_TEST === "1") {
+      void readJson(req).then(async (b) => {
+        const token = (typeof b?.token === "string" ? b.token : url.searchParams.get("token")) ?? "";
+        const sent = token ? await notifyToken(token, { title: "Naevyr", body: "A nudge from the Drift.", tag: "test" }) : 0;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ sent }));
+      }).catch(() => { res.writeHead(500); res.end(); });
       return;
     }
     res.writeHead(404);

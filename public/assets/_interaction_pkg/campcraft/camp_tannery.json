@@ -1,0 +1,45 @@
+{
+  "image": "campcraft/camp_tannery.svg",
+  "cell": {
+    "w": 40,
+    "h": 48
+  },
+  "anchor": {
+    "x": 20,
+    "y": 47
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "camp_tannery_00": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 48,
+      "anchor": {
+        "x": 20,
+        "y": 47
+      }
+    },
+    "camp_tannery_01": {
+      "x": 40,
+      "y": 0,
+      "w": 40,
+      "h": 48,
+      "anchor": {
+        "x": 20,
+        "y": 47
+      }
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "camp_tannery_00",
+        "camp_tannery_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

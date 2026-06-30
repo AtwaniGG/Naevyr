@@ -1,0 +1,67 @@
+{
+  "image": "echofx/echo_fade.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 37
+  },
+  "frames": {
+    "echo_fade_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 37
+      }
+    },
+    "echo_fade_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 37
+      }
+    },
+    "echo_fade_02": {
+      "x": 64,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 37
+      }
+    },
+    "echo_fade_03": {
+      "x": 96,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 37
+      }
+    }
+  },
+  "animations": {
+    "materialize": {
+      "frames": [
+        "echo_fade_00",
+        "echo_fade_01",
+        "echo_fade_02",
+        "echo_fade_03"
+      ],
+      "fps": 8,
+      "loop": false
+    }
+  },
+  "overlay": true,
+  "note": "forward = spawn, reversed = despawn"
+}

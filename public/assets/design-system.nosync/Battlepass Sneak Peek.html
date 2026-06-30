@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Naevyr — Battle Pass sneak peek</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #06040a; }
+  img { image-rendering: pixelated; -ms-interpolation-mode: nearest-neighbor; display: block; }
+  #card {
+    position: relative; width: 1600px; height: 900px; overflow: hidden;
+    background: #0a0810; font-family: 'Sora', system-ui, sans-serif;
+  }
+  /* backdrop */
+  .vista { position: absolute; inset: 0; overflow: hidden; }
+  .vista img { position: absolute; left: -60px; top: -40px; width: 1760px; height: 990px; opacity: 0.7; }
+  .scrim { position: absolute; inset: 0; background:
+      radial-gradient(58% 70% at 30% 52%, rgba(231,200,115,0.16) 0%, transparent 55%),
+      radial-gradient(120% 100% at 50% 40%, transparent 38%, rgba(10,8,16,0.7) 100%),
+      linear-gradient(90deg, rgba(10,8,16,0.2) 0%, transparent 30%, transparent 55%, rgba(10,8,16,0.85) 100%);
+  }
+  .vig { position: absolute; inset: 0; box-shadow: inset 0 0 200px 50px rgba(6,4,10,0.95); pointer-events: none; }
+  .grain { position: absolute; inset: 0; opacity: 0.5; pointer-events: none; background-image:
+      linear-gradient(45deg, rgba(168,85,247,0.04) 25%, transparent 25%, transparent 75%, rgba(168,85,247,0.04) 75%);
+    background-size: 4px 4px; }
+
+  /* header */
+  .hd { position: absolute; left: 64px; top: 56px; display: flex; align-items: center; gap: 18px; z-index: 5; }
+  .hd img { width: 60px; height: 60px; filter: drop-shadow(0 0 10px rgba(168,85,247,0.6)); }
+  .hd .kick { font-family: 'Silkscreen', monospace; font-size: 16px; letter-spacing: 0.34em; color: #d8cfe0; }
+  .hd .kick small { display: block; font-size: 11px; letter-spacing: 0.2em; color: rgba(216,207,224,0.5); margin-top: 5px; }
+  .seasontag { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px;
+    padding: 5px 12px; border: 1px solid rgba(231,200,115,0.5); background: rgba(231,200,115,0.08);
+    font-family: 'Silkscreen', monospace; font-size: 12px; letter-spacing: 0.14em; color: #f6e0a6; }
+  .seasontag .dot { width: 7px; height: 7px; background: #a855f7; transform: rotate(45deg); box-shadow: 0 0 6px #a855f7; }
+
+  /* marquee */
+  .marquee { position: absolute; left: 96px; top: 226px; width: 560px; height: 560px; z-index: 4; }
+  .pedestal { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
+    width: 360px; height: 120px; border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, rgba(231,200,115,0.4) 0%, rgba(168,85,247,0.18) 45%, transparent 72%); }
+  .hero { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: 448px; height: 448px;
+    filter: drop-shadow(0 14px 22px rgba(6,4,10,0.7)); }
+  .heroglow { position: absolute; left: 50%; top: 120px; transform: translateX(-50%);
+    width: 300px; height: 300px; border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, rgba(243,232,255,0.12) 0%, transparent 65%); }
+
+  /* season wordmark block */
+  .title { position: absolute; left: 600px; top: 232px; z-index: 5; }
+  .title .pre { font-family: 'Silkscreen', monospace; font-size: 15px; letter-spacing: 0.3em; color: rgba(216,207,224,0.6); margin-bottom: 10px; }
+  .title h1 { font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 132px; line-height: 0.9;
+    color: #f6e0a6; letter-spacing: 0.01em;
+    text-shadow: 0 0 28px rgba(231,200,115,0.4), 0 4px 0 #5f1212, 0 5px 0 #0a0810; }
+  .title h1 .rot { color: #d8b4fe; text-shadow: 0 0 26px rgba(168,85,247,0.7), 0 4px 0 #3b1162; }
+  .title .sub { margin-top: 16px; font-size: 23px; color: #d8cfe0; font-weight: 400; letter-spacing: 0.01em; }
+  .title .sub b { color: #f6e0a6; font-weight: 600; }
+
+  /* reward rail */
+  .rail { position: absolute; right: 70px; top: 250px; width: 470px; z-index: 5; }
+  .rail .railhd { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .rail .railhd .t { font-family: 'Silkscreen', monospace; font-size: 13px; letter-spacing: 0.16em; color: #a855f7; }
+  .rail .railhd .n { font-family: 'Silkscreen', monospace; font-size: 11px; color: rgba(216,207,224,0.45); letter-spacing: 0.1em; }
+  .track { position: relative; display: flex; flex-direction: column; gap: 14px; }
+  .track::before { content: ''; position: absolute; left: 43px; top: 10px; bottom: 10px; width: 3px;
+    background: repeating-linear-gradient(180deg, rgba(231,200,115,0.55) 0 8px, transparent 8px 14px); }
+  .node { display: flex; align-items: center; gap: 18px; position: relative; }
+  .tier { width: 28px; text-align: right; font-family: 'Silkscreen', monospace; font-size: 13px; color: rgba(216,207,224,0.6); }
+  .slot { position: relative; width: 84px; height: 84px; flex-shrink: 0; background: rgba(23,19,32,0.92);
+    box-shadow: inset 1px 1px 0 0 #3a3350, inset -1px -1px 0 0 #0a0810, 0 0 0 1px rgba(168,85,247,0.45);
+    display: flex; align-items: center; justify-content: center; }
+  .slot.prem { box-shadow: inset 1px 1px 0 0 #6b5a2a, inset -1px -1px 0 0 #0a0810, 0 0 0 1px rgba(231,200,115,0.7), 0 0 16px rgba(231,200,115,0.35); }
+  .slot img { width: 72px; height: 72px; }
+  .slot .sm { width: 56px; height: 56px; }
+  .slot.locked { background: rgba(15,12,22,0.92); }
+  .slot.locked::after { content: ''; position: absolute; inset: 0; opacity: 0.6;
+    background-image: linear-gradient(45deg, rgba(10,8,16,0.6) 25%, transparent 25%, transparent 75%, rgba(10,8,16,0.6) 75%); background-size: 4px 4px; }
+  .qm { font-family: 'Pixelify Sans', monospace; font-size: 46px; color: rgba(168,85,247,0.55); position: relative; z-index: 2; }
+  .meta { display: flex; flex-direction: column; gap: 3px; }
+  .meta .nm { font-family: 'Silkscreen', monospace; font-size: 12px; letter-spacing: 0.06em; color: #efe9f4; }
+  .meta .nm.gold { color: #f6e0a6; }
+  .meta .nm.q { color: rgba(216,207,224,0.4); }
+  .meta .rr { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Silkscreen', monospace; }
+  .rr.season { color: #d8b4fe; } .rr.rare { color: #4a7fa0; } .rr.prem { color: #f6e0a6; } .rr.locked { color: rgba(216,207,224,0.3); }
+
+  /* footer + peek stamp */
+  .foot { position: absolute; left: 600px; bottom: 60px; z-index: 5; display: flex; align-items: center; gap: 16px; }
+  .foot .url { font-family: 'Pixelify Sans', monospace; font-weight: 600; font-size: 30px; color: #f6e0a6; text-shadow: 0 2px 0 #0a0810; }
+  .foot .soon { font-family: 'Silkscreen', monospace; font-size: 12px; letter-spacing: 0.18em; color: rgba(216,207,224,0.55); }
+  .foot .div { width: 1px; height: 26px; background: rgba(216,207,224,0.25); }
+  .peek { position: absolute; left: 92px; top: 150px; z-index: 6; transform: rotate(-7deg);
+    padding: 9px 20px 8px; background: #5f1212; border: 2px solid #f6e0a6;
+    font-family: 'Silkscreen', monospace; font-size: 19px; letter-spacing: 0.16em; color: #f6e0a6;
+    box-shadow: 0 6px 0 rgba(10,8,16,0.6), 0 0 22px rgba(220,38,38,0.4); }
+</style>
+</head>
+<body>
+  <div id="card">
+    <div class="vista"><img src="assets/landing/hero_vista.svg" alt=""></div>
+    <div class="scrim"></div>
+    <div class="grain"></div>
+
+    <div class="hd">
+      <img src="assets/battlepass/pass_emblem.svg" alt="">
+      <div class="kick">BATTLE PASS<small>NAEVYR · THE DRIFT</small></div>
+      <div class="seasontag"><span class="dot"></span>SEASON 01</div>
+    </div>
+
+    <div class="peek">SNEAK PEEK</div>
+
+    <div class="marquee">
+      <div class="pedestal"></div>
+      <div class="heroglow"></div>
+      <img class="hero" src="assets/_sneak/hero_ashfall.svg" alt="Ashfall cosmetic">
+    </div>
+
+    <div class="title">
+      <div class="pre">THE SEASON OF</div>
+      <h1>ASH<span class="rot">FALL</span></h1>
+      <div class="sub">Gilded. Corrupted. <b>Yours to claim.</b></div>
+    </div>
+
+    <div class="rail">
+      <div class="railhd"><span class="t">REWARD TRACK</span><span class="n">FIRST LOOK</span></div>
+      <div class="track">
+        <div class="node"><span class="tier">I</span>
+          <div class="slot"><img src="assets/battlepass/pass_emblem.svg" alt=""></div>
+          <div class="meta"><span class="nm">Season Sigil</span><span class="rr season">Seasonal</span></div></div>
+        <div class="node"><span class="tier">VII</span>
+          <div class="slot"><img class="sm" src="assets/_sneak/dye_swatch.svg" alt=""></div>
+          <div class="meta"><span class="nm">Ashfall Cloak Dye</span><span class="rr rare">Cosmetic</span></div></div>
+        <div class="node"><span class="tier">XX</span>
+          <div class="slot prem"><img src="assets/_sneak/chalice_icon.svg" alt=""></div>
+          <div class="meta"><span class="nm gold">Tarnished Chalice</span><span class="rr prem">Prestige Aura</span></div></div>
+        <div class="node"><span class="tier">XXX</span>
+          <div class="slot locked"><span class="qm">?</span></div>
+          <div class="meta"><span class="nm q">Frontier Reward</span><span class="rr locked">Locked</span></div></div>
+        <div class="node"><span class="tier">L</span>
+          <div class="slot locked prem"><span class="qm">?</span></div>
+          <div class="meta"><span class="nm q">Apex Cosmetic</span><span class="rr locked">Revealed soon</span></div></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="url">naevyr.com</span>
+      <span class="div"></span>
+      <span class="soon">SEASON BEGINS SOON</span>
+    </div>
+  </div>
+</body>
+</html>

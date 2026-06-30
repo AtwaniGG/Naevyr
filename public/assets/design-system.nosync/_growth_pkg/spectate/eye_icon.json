@@ -1,0 +1,25 @@
+{
+  "image": "spectate/eye_icon.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "frames": {
+    "eye_icon_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  },
+  "tintable": true,
+  "family": "nav_icons"
+}

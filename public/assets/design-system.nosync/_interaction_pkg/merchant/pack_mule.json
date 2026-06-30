@@ -1,0 +1,226 @@
+{
+  "image": "merchant/pack_mule.svg",
+  "cell": {
+    "w": 28,
+    "h": 28
+  },
+  "anchor": {
+    "x": 14,
+    "y": 27
+  },
+  "rig": "wanderer-compatible",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se"
+  },
+  "frames": {
+    "pack_mule-walk-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-s_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-s_02": {
+      "x": 56,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-s_03": {
+      "x": 84,
+      "y": 0,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-se_00": {
+      "x": 0,
+      "y": 28,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-se_01": {
+      "x": 28,
+      "y": 28,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-se_02": {
+      "x": 56,
+      "y": 28,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-se_03": {
+      "x": 84,
+      "y": 28,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-e_00": {
+      "x": 0,
+      "y": 56,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-e_01": {
+      "x": 28,
+      "y": 56,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-e_02": {
+      "x": 56,
+      "y": 56,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-e_03": {
+      "x": 84,
+      "y": 56,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-n_00": {
+      "x": 0,
+      "y": 84,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-n_01": {
+      "x": 28,
+      "y": 84,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-n_02": {
+      "x": 56,
+      "y": 84,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    },
+    "pack_mule-walk-n_03": {
+      "x": 84,
+      "y": 84,
+      "w": 28,
+      "h": 28,
+      "anchor": {
+        "x": 14,
+        "y": 27
+      }
+    }
+  },
+  "animations": {
+    "walk-s": {
+      "frames": [
+        "pack_mule-walk-s_00",
+        "pack_mule-walk-s_01",
+        "pack_mule-walk-s_02",
+        "pack_mule-walk-s_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "pack_mule-walk-se_00",
+        "pack_mule-walk-se_01",
+        "pack_mule-walk-se_02",
+        "pack_mule-walk-se_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "pack_mule-walk-e_00",
+        "pack_mule-walk-e_01",
+        "pack_mule-walk-e_02",
+        "pack_mule-walk-e_03"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "pack_mule-walk-n_00",
+        "pack_mule-walk-n_01",
+        "pack_mule-walk-n_02",
+        "pack_mule-walk-n_03"
+      ],
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

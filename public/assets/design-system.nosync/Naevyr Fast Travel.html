@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Fast Travel</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const DR='#a855f7',DRH='#d8b4fe',CORE='#f3e8ff',GOLD='#f6e0a6',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const way=await Reel.loadImg('assets/_reel/waystation.png');   // 64×112: col0 sealed, col1-3 active pulse
+  const pip=await Reel.loadImg('assets/_reel/waystation_pip.png');// 16×16: 0,1
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  const LOOP=6800, cx=W/2-30, baseY=H-96, sc=3.4, fw=64, fh=112;
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=0.42; ctx.imageSmoothingEnabled=false; ctx.drawImage(vista,0,0,480,270,-20,-30,1320,760); ctx.globalAlpha=1;
+
+    // activation timeline
+    const sealed = t<1300;
+    const charging = t>=1300 && t<1900;
+    const active = t>=1900;
+    const pulse = active ? (1+Math.floor((t-1900)/230)%3) : 0;       // cols 1,2,3 @ ~4fps
+    let col = sealed ? 0 : charging ? ((Math.floor(t/90)%2)?0:1) : pulse;
+    const energy = sealed?0 : charging?((t-1300)/600) : 1;
+
+    // dirt-apron + backlight glow (grows as it powers on)
+    ctx.fillStyle=Reel.radial(ctx,cx,baseY-150,420,[[0,'rgba(168,85,247,'+(0.30*energy)+')'],[0.5,'rgba(107,33,168,'+(0.14*energy)+')'],[0.8,'rgba(0,0,0,0)']]);
+    ctx.fillRect(0,0,W,H);
+
+    // rising light column through the arch (active)
+    if(energy>0){
+      const colH=(fh*sc)*0.82, topY=baseY-colH*(0.5+0.5*energy), grd=ctx.createLinearGradient(0,baseY-10,0,topY);
+      const a=0.5*energy*(0.7+0.3*Math.sin(t/120));
+      grd.addColorStop(0,'rgba(243,232,255,'+a+')'); grd.addColorStop(0.5,'rgba(168,85,247,'+(a*0.6)+')'); grd.addColorStop(1,'rgba(168,85,247,0)');
+      ctx.fillStyle=grd; const cw2=26*energy; ctx.fillRect(cx-cw2,topY,cw2*2,baseY-topY);
+      // dithered core
+      ctx.fillStyle='rgba(243,232,255,'+(0.5*energy)+')';
+      for(let y=baseY-10;y>topY;y-=4){ if(Math.random()<0.5) ctx.fillRect(cx-1,y,2,2); }
+    }
+
+    // the monolith
+    Reel.sprBase(ctx,way,fw,fh,col,cx,baseY,sc);
+
+    // escaping motes when active
+    if(active) Reel.motes(ctx,W,H,t,30,'#d8b4fe',9);
+
+    Reel.vignette(ctx,W,H,0.9);
+
+    // --- minimap "discovered" chip (top-right) ---
+    const chipIn=Math.min(1,Math.max(0,(t-2200)/500));
+    if(chipIn>0){
+      ctx.globalAlpha=chipIn; const bx=W-360,by=70,bw=296,bh=64;
+      ctx.fillStyle='rgba(20,16,30,0.9)'; ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle='rgba(231,200,115,0.6)'; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bw,bh);
+      // pip
+      const pcol=Math.floor(t/300)%2; ctx.imageSmoothingEnabled=false; ctx.drawImage(pip,pcol*16,0,16,16,bx+14,by+18,28,28);
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.fillStyle=GOLD; ctx.font=`14px ${SILK}`; ctx.fillText('WAYSTATION LINKED',bx+54,by+28);
+      ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`12px ${SILK}`; ctx.fillText('FAST-TRAVEL UNLOCKED',bx+54,by+48);
+      ctx.globalAlpha=1;
+    }
+
+    // header
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   THE FRONTIER EXPANSION',54,58);
+    // title
+    const tin=Math.min(1,Math.max(0,(t-2100)/500))*Math.min(1,(LOOP-t)/600);
+    ctx.textAlign='center'; ctx.globalAlpha=tin;
+    ctx.fillStyle=CORE; ctx.font=`700 64px ${PIX}`; ctx.shadowColor='rgba(168,85,247,0.6)'; ctx.shadowBlur=24; ctx.fillText('FAST TRAVEL ARRIVES',W/2,H-58); ctx.shadowBlur=0;
+    ctx.fillStyle=DRH; ctx.font=`15px ${SILK}`; ctx.fillText('THE MAP IS TWICE THE SIZE — LET THE WAYSTATIONS CARRY YOU',W/2,H-30);
+    ctx.globalAlpha=1;
+  });
+})();
+</script>
+</body></html>

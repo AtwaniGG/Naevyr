@@ -1,0 +1,44 @@
+{
+  "image": "micropoi/standing_stones.svg",
+  "cell": {
+    "w": 64,
+    "h": 72
+  },
+  "anchor": {
+    "x": 32,
+    "y": 68
+  },
+  "footprint": "2x2",
+  "frames": {
+    "standing_stones_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 72,
+      "anchor": {
+        "x": 32,
+        "y": 68
+      }
+    },
+    "standing_stones_01": {
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 72,
+      "anchor": {
+        "x": 32,
+        "y": 68
+      }
+    }
+  },
+  "animations": {
+    "shimmer": {
+      "frames": [
+        "standing_stones_00",
+        "standing_stones_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

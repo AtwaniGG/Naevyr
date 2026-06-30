@@ -1,0 +1,671 @@
+{
+  "image": "mobs/drift_wisp.svg",
+  "cell": {
+    "w": 28,
+    "h": 32
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "flying": true,
+  "hurtFlash": "drift-core (#f3e8ff)",
+  "deathNote": "death burst is outline-free",
+  "frames": {
+    "drift_wisp-hover-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-s_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-s_02": {
+      "x": 56,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-s_03": {
+      "x": 84,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-s_00": {
+      "x": 112,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-s_01": {
+      "x": 140,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-s_02": {
+      "x": 168,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-s_00": {
+      "x": 196,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-s_01": {
+      "x": 224,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-s_02": {
+      "x": 252,
+      "y": 0,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-se_00": {
+      "x": 0,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-se_01": {
+      "x": 28,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-se_02": {
+      "x": 56,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-se_03": {
+      "x": 84,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-se_00": {
+      "x": 112,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-se_01": {
+      "x": 140,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-se_02": {
+      "x": 168,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-se_00": {
+      "x": 196,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-se_01": {
+      "x": 224,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-se_02": {
+      "x": 252,
+      "y": 32,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-e_00": {
+      "x": 0,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-e_01": {
+      "x": 28,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-e_02": {
+      "x": 56,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-e_03": {
+      "x": 84,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-e_00": {
+      "x": 112,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-e_01": {
+      "x": 140,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-e_02": {
+      "x": 168,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-e_00": {
+      "x": 196,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-e_01": {
+      "x": 224,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-e_02": {
+      "x": 252,
+      "y": 64,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-ne_00": {
+      "x": 0,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-ne_01": {
+      "x": 28,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-ne_02": {
+      "x": 56,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-ne_03": {
+      "x": 84,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-ne_00": {
+      "x": 112,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-ne_01": {
+      "x": 140,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-ne_02": {
+      "x": 168,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-ne_00": {
+      "x": 196,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-ne_01": {
+      "x": 224,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-ne_02": {
+      "x": 252,
+      "y": 96,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-n_00": {
+      "x": 0,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-n_01": {
+      "x": 28,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-n_02": {
+      "x": 56,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-hover-n_03": {
+      "x": 84,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-n_00": {
+      "x": 112,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-n_01": {
+      "x": 140,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-dive-n_02": {
+      "x": 168,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-n_00": {
+      "x": 196,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-n_01": {
+      "x": 224,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    },
+    "drift_wisp-death-n_02": {
+      "x": 252,
+      "y": 128,
+      "w": 28,
+      "h": 32,
+      "anchor": {
+        "x": 14,
+        "y": 31
+      }
+    }
+  },
+  "animations": {
+    "hover-s": {
+      "frames": [
+        "drift_wisp-hover-s_00",
+        "drift_wisp-hover-s_01",
+        "drift_wisp-hover-s_02",
+        "drift_wisp-hover-s_03"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "dive-s": {
+      "frames": [
+        "drift_wisp-dive-s_00",
+        "drift_wisp-dive-s_01",
+        "drift_wisp-dive-s_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "drift_wisp-death-s_00",
+        "drift_wisp-death-s_01",
+        "drift_wisp-death-s_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "hover-se": {
+      "frames": [
+        "drift_wisp-hover-se_00",
+        "drift_wisp-hover-se_01",
+        "drift_wisp-hover-se_02",
+        "drift_wisp-hover-se_03"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "dive-se": {
+      "frames": [
+        "drift_wisp-dive-se_00",
+        "drift_wisp-dive-se_01",
+        "drift_wisp-dive-se_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "drift_wisp-death-se_00",
+        "drift_wisp-death-se_01",
+        "drift_wisp-death-se_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "hover-e": {
+      "frames": [
+        "drift_wisp-hover-e_00",
+        "drift_wisp-hover-e_01",
+        "drift_wisp-hover-e_02",
+        "drift_wisp-hover-e_03"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "dive-e": {
+      "frames": [
+        "drift_wisp-dive-e_00",
+        "drift_wisp-dive-e_01",
+        "drift_wisp-dive-e_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "drift_wisp-death-e_00",
+        "drift_wisp-death-e_01",
+        "drift_wisp-death-e_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "hover-ne": {
+      "frames": [
+        "drift_wisp-hover-ne_00",
+        "drift_wisp-hover-ne_01",
+        "drift_wisp-hover-ne_02",
+        "drift_wisp-hover-ne_03"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "dive-ne": {
+      "frames": [
+        "drift_wisp-dive-ne_00",
+        "drift_wisp-dive-ne_01",
+        "drift_wisp-dive-ne_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "drift_wisp-death-ne_00",
+        "drift_wisp-death-ne_01",
+        "drift_wisp-death-ne_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "hover-n": {
+      "frames": [
+        "drift_wisp-hover-n_00",
+        "drift_wisp-hover-n_01",
+        "drift_wisp-hover-n_02",
+        "drift_wisp-hover-n_03"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "dive-n": {
+      "frames": [
+        "drift_wisp-dive-n_00",
+        "drift_wisp-dive-n_01",
+        "drift_wisp-dive-n_02"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "drift_wisp-death-n_00",
+        "drift_wisp-death-n_01",
+        "drift_wisp-death-n_02"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

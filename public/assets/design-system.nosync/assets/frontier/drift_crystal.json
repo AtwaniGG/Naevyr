@@ -1,0 +1,34 @@
+{
+  "image": "frontier/drift_crystal.svg",
+  "cell": {
+    "w": 28,
+    "h": 44
+  },
+  "anchor": {
+    "x": 14,
+    "y": 41
+  },
+  "variants": 2,
+  "frames": {
+    "drift_crystal_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 44,
+      "anchor": {
+        "x": 14,
+        "y": 41
+      }
+    },
+    "drift_crystal_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 44,
+      "anchor": {
+        "x": 14,
+        "y": 41
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "image": "critters/frog.svg",
+  "cell": {
+    "w": 12,
+    "h": 10
+  },
+  "anchor": {
+    "x": 6,
+    "y": 9
+  },
+  "facings": [
+    "e"
+  ],
+  "mirror": {
+    "w": "e"
+  },
+  "flyer": false,
+  "anims": [
+    {
+      "name": "idle",
+      "count": 2,
+      "fps": 2
+    },
+    {
+      "name": "hop",
+      "count": 2,
+      "fps": 6
+    }
+  ],
+  "frames": {
+    "frog-idle-e_00": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "frog-idle-e_01": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "frog-hop-e_00": {
+      "x": 24,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "frog-hop-e_01": {
+      "x": 36,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    }
+  },
+  "animations": {
+    "idle-e": {
+      "frames": [
+        "frog-idle-e_00",
+        "frog-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "hop-e": {
+      "frames": [
+        "frog-hop-e_00",
+        "frog-hop-e_01"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

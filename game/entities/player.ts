@@ -57,6 +57,12 @@ export class Player {
   guildTag = "";
   /** a demo/guest-lane wanderer (shown muted on the nameplate) */
   guest = false;
+  /** an ambient Echo: a server-spawned diegetic wanderer (drawn translucent,
+   *  tagged on the nameplate, never logged as an arrival/departure) */
+  echo = false;
+  /** performance.now() when this Echo was first seen — drives the materialize
+   *  puff (echo_fade) on appearance, then the veil shimmer loop */
+  echoBornAt = 0;
   /** lagged follower position (NaN until the pet first appears) */
   petX = NaN;
   petY = NaN;

@@ -1,0 +1,25 @@
+{
+  "image": "crypt/rubble_pile.svg",
+  "cell": {
+    "w": 34,
+    "h": 24
+  },
+  "anchor": {
+    "x": 17,
+    "y": 23
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "rubble_pile": {
+      "x": 0,
+      "y": 0,
+      "w": 34,
+      "h": 24,
+      "anchor": {
+        "x": 17,
+        "y": 23
+      }
+    }
+  }
+}

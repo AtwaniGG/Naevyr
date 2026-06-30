@@ -1,0 +1,49 @@
+{
+  "image": "camps/drowned_ruins.svg",
+  "cell": {
+    "w": 120,
+    "h": 96
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 60,
+    "y": 95
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "drowned_ruins_00": {
+      "x": 0,
+      "y": 0,
+      "w": 120,
+      "h": 96,
+      "anchor": {
+        "x": 60,
+        "y": 95
+      }
+    },
+    "drowned_ruins_01": {
+      "x": 120,
+      "y": 0,
+      "w": 120,
+      "h": 96,
+      "anchor": {
+        "x": 60,
+        "y": 95
+      }
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "drowned_ruins_00",
+        "drowned_ruins_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

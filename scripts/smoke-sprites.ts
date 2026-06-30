@@ -397,6 +397,28 @@ for (let f = 0; f < 2; f++) {
   } catch (e) { failures++; console.error(`THROW threshold ground#${f}:`, e); }
 }
 
+// the Ambient Echo overlays (DS echofx.js port): 32×40, no outline, must animate
+import { drawEchoVeil, drawEchoFade } from "../game/render/sprites";
+for (let f = 0; f < 3; f++) {
+  try {
+    const g = drawEchoVeil(f); frames++;
+    if (g.w !== 32 || g.h !== 40 || g.d.filter(Boolean).length < 10) { failures++; console.error(`FAIL echo_veil#${f}`); }
+  } catch (e) { failures++; console.error(`THROW echo_veil#${f}:`, e); }
+}
+for (let f = 0; f < 4; f++) {
+  try {
+    const g = drawEchoFade(f); frames++;
+    if (g.w !== 32 || g.h !== 40 || g.d.filter(Boolean).length < 10) { failures++; console.error(`FAIL echo_fade#${f}`); }
+  } catch (e) { failures++; console.error(`THROW echo_fade#${f}:`, e); }
+}
+if (JSON.stringify(drawEchoVeil(0).d) === JSON.stringify(drawEchoVeil(1).d)) {
+  failures++; console.error("FAIL echo_veil: frames 0 and 1 are identical");
+}
+// the fade fills the silhouette as frames rise → frame 3 has more pixels than 0
+if (drawEchoFade(3).d.filter(Boolean).length <= drawEchoFade(0).d.filter(Boolean).length) {
+  failures++; console.error("FAIL echo_fade: frame 3 is not denser than frame 0");
+}
+
 // animated fixtures must actually animate
 if (JSON.stringify(makeFixture("hearth", "", 0).d) === JSON.stringify(makeFixture("hearth", "", 1).d)) {
   failures++; console.error("FAIL hearth: frames 0 and 1 are identical");

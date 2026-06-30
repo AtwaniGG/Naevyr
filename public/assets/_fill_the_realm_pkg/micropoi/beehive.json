@@ -1,0 +1,43 @@
+{
+  "image": "micropoi/beehive.svg",
+  "cell": {
+    "w": 20,
+    "h": 28
+  },
+  "anchor": {
+    "x": 10,
+    "y": 25
+  },
+  "frames": {
+    "beehive_00": {
+      "x": 0,
+      "y": 0,
+      "w": 20,
+      "h": 28,
+      "anchor": {
+        "x": 10,
+        "y": 25
+      }
+    },
+    "beehive_01": {
+      "x": 20,
+      "y": 0,
+      "w": 20,
+      "h": 28,
+      "anchor": {
+        "x": 10,
+        "y": 25
+      }
+    }
+  },
+  "animations": {
+    "bees": {
+      "frames": [
+        "beehive_00",
+        "beehive_01"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

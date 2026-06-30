@@ -1,0 +1,169 @@
+{
+  "image": "npcs/hermit.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "rig": "keeper (idle-only)",
+  "role": "The Hermit — ragged camp lore-keeper",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "frames": {
+    "hermit-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-s_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-se_00": {
+      "x": 0,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-se_01": {
+      "x": 32,
+      "y": 40,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-e_00": {
+      "x": 0,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-e_01": {
+      "x": 32,
+      "y": 80,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-ne_00": {
+      "x": 0,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-ne_01": {
+      "x": 32,
+      "y": 120,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-n_00": {
+      "x": 0,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    },
+    "hermit-idle-n_01": {
+      "x": 32,
+      "y": 160,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "hermit-idle-s_00",
+        "hermit-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-se": {
+      "frames": [
+        "hermit-idle-se_00",
+        "hermit-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-e": {
+      "frames": [
+        "hermit-idle-e_00",
+        "hermit-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-ne": {
+      "frames": [
+        "hermit-idle-ne_00",
+        "hermit-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "idle-n": {
+      "frames": [
+        "hermit-idle-n_00",
+        "hermit-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

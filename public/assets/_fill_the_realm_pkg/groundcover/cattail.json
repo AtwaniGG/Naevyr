@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/cattail.svg",
+  "biome": "marsh",
+  "cell": {
+    "w": 14,
+    "h": 20
+  },
+  "anchor": {
+    "x": 7,
+    "y": 19
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "cattail_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 14,
+      "h": 20,
+      "anchor": {
+        "x": 7,
+        "y": 19
+      }
+    },
+    "cattail_v1": {
+      "x": 14,
+      "y": 0,
+      "w": 14,
+      "h": 20,
+      "anchor": {
+        "x": 7,
+        "y": 19
+      }
+    }
+  }
+}

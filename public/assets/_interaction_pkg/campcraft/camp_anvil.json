@@ -1,0 +1,45 @@
+{
+  "image": "campcraft/camp_anvil.svg",
+  "cell": {
+    "w": 36,
+    "h": 40
+  },
+  "anchor": {
+    "x": 18,
+    "y": 39
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "camp_anvil_00": {
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    },
+    "camp_anvil_01": {
+      "x": 36,
+      "y": 0,
+      "w": 36,
+      "h": 40,
+      "anchor": {
+        "x": 18,
+        "y": 39
+      }
+    }
+  },
+  "animations": {
+    "ember": {
+      "frames": [
+        "camp_anvil_00",
+        "camp_anvil_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

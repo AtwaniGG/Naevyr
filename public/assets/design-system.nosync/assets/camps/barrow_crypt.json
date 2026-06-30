@@ -1,0 +1,49 @@
+{
+  "image": "camps/barrow_crypt.svg",
+  "cell": {
+    "w": 116,
+    "h": 100
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 58,
+    "y": 99
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "barrow_crypt_00": {
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 100,
+      "anchor": {
+        "x": 58,
+        "y": 99
+      }
+    },
+    "barrow_crypt_01": {
+      "x": 116,
+      "y": 0,
+      "w": 116,
+      "h": 100,
+      "anchor": {
+        "x": 58,
+        "y": 99
+      }
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "barrow_crypt_00",
+        "barrow_crypt_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

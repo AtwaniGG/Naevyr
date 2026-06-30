@@ -1,0 +1,115 @@
+<!-- @dsCard group="World Art" viewport="900x720" name="Streak Set — retention HUD art" subtitle="streak_ember flicker, 7-pip week meter, day-7 & day-30 wax milestone seals" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Streak Set</title>
+<style>
+  body{margin:0;padding:26px;background:#0a0810;font-family:monospace;color:#d8cfe0}
+  h1{font-size:18px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}
+  .lede{font-size:11px;color:rgba(216,207,224,.45);margin:0 0 18px;letter-spacing:.04em;max-width:760px}
+  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#a855f7;margin:26px 0 12px;border-top:1px solid rgba(168,85,247,.25);padding-top:12px}
+  .row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-end}
+  .card{display:flex;flex-direction:column;gap:7px}
+  .well{background:#13111a;box-shadow:inset 1px 1px 0 0 rgba(10,8,16,.9),inset -1px -1px 0 0 rgba(58,51,80,.6);display:flex;align-items:center;justify-content:center}
+  .clip{position:relative;overflow:hidden;image-rendering:pixelated}
+  .clip img{position:absolute;left:0;top:0;height:100%;image-rendering:pixelated;display:block}
+  .pip{position:relative;overflow:hidden;image-rendering:pixelated}
+  .pip img{position:absolute;top:0;height:100%;image-rendering:pixelated;display:block}
+  .cap{font-size:10px;color:rgba(216,207,224,.6);letter-spacing:.03em}
+  .cap b{color:#e7c873;font-weight:400}
+  .tag{font-size:9px;color:#a855f7;letter-spacing:.06em;text-transform:uppercase}
+  /* HUD mock */
+  .hud{display:flex;align-items:center;gap:10px;background:#14101e;padding:10px 12px;box-shadow:0 0 0 1px #322b46,inset 1px 1px 0 rgba(58,51,80,.5);width:max-content;clip-path:polygon(0 4px,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px))}
+  .hud .num{font-size:13px;color:#f6e0a6;letter-spacing:.04em}
+  .hud .lab{font-size:9px;color:rgba(216,207,224,.5);text-transform:uppercase;letter-spacing:.08em}
+  .meter{display:flex;gap:1px}
+  /* popup mock */
+  .popup{background:#14101e;box-shadow:0 0 0 1px #6b21a8,inset 1px 1px 0 rgba(168,85,247,.25),0 6px 0 rgba(10,8,16,.6);padding:18px 22px;display:flex;flex-direction:column;align-items:center;gap:10px;width:200px;clip-path:polygon(0 5px,5px 0,calc(100% - 5px) 0,100% 5px,100% calc(100% - 5px),calc(100% - 5px) 100%,5px 100%,0 calc(100% - 5px))}
+  .popup .seal{width:96px;height:96px;image-rendering:pixelated}
+  .popup .seal img{width:100%;height:100%;image-rendering:pixelated}
+  .popup .t{font-size:12px;color:#efe9f4;letter-spacing:.06em;text-transform:uppercase}
+  .popup .s{font-size:10px;color:rgba(216,207,224,.55);text-align:center}
+</style></head>
+<body>
+  <h1>Naevyr — Streak Set</h1>
+  <p class="lede">DOM-rendered retention HUD art — CSS <b>steps()</b>-friendly sheets + JSON frame tables. Locked RAMP, 1px void outline. The week meter tiles one 2-state pip; seals are emblem-adjacent wax medallions for reward popups.</p>
+
+  <h2>streak_ember · 24×24 · 4f flicker @6fps · marks an active streak</h2>
+  <div class="row" id="emberRow"></div>
+
+  <h2>streak_meter · 7 pips (lit gold / unlit bone) · lights 1..7 across a week</h2>
+  <div class="row" id="meterRow"></div>
+
+  <h2>milestone seals · 32×32 wax medallions · day-7 (gold) & day-30 (drift)</h2>
+  <div class="row" id="sealRow"></div>
+
+<script>
+// flame, scaled
+function ember(scale){
+  const F=4, CW=24, CH=24;
+  const wrap=document.createElement('div'); wrap.className='clip';
+  wrap.style.width=(CW*scale)+'px'; wrap.style.height=(CH*scale)+'px';
+  const img=document.createElement('img'); img.src='streak/streak_ember.svg'; img.style.width=(CW*F*scale)+'px';
+  wrap.appendChild(img);
+  let f=0; setInterval(()=>{ f=(f+1)%F; img.style.left=(-f*CW*scale)+'px'; }, 1000/6);
+  return wrap;
+}
+// one pip: lit or unlit (sprite strip = [unlit, lit] at 16px each)
+function pip(lit, scale){
+  const CW=16;
+  const w=document.createElement('div'); w.className='pip';
+  w.style.width=(CW*scale)+'px'; w.style.height=(CW*scale)+'px';
+  const img=document.createElement('img'); img.src='streak/streak_pip.svg'; img.style.width=(CW*2*scale)+'px';
+  img.style.left=(-(lit?1:0)*CW*scale)+'px';
+  w.appendChild(img); return w;
+}
+function meter(daysLit, scale){
+  const m=document.createElement('div'); m.className='meter';
+  for(let i=0;i<7;i++) m.appendChild(pip(i<daysLit, scale));
+  return m;
+}
+function seal(days, size){
+  const w=document.createElement('div'); w.style.cssText='width:'+size+'px;height:'+size+'px;image-rendering:pixelated';
+  w.innerHTML='<img src="streak/milestone_seal_'+days+'.svg" style="width:100%;height:100%;image-rendering:pixelated">';
+  return w;
+}
+function card(tag, capHtml, ...nodes){
+  const c=document.createElement('div'); c.className='card';
+  const t=document.createElement('div'); t.className='tag'; t.textContent=tag; c.appendChild(t);
+  nodes.forEach(n=>c.appendChild(n));
+  const cap=document.createElement('div'); cap.className='cap'; cap.innerHTML=capHtml; c.appendChild(cap);
+  return c;
+}
+function well(node, pad){ const w=document.createElement('div'); w.className='well'; w.style.padding=(pad||16)+'px'; w.appendChild(node); return w; }
+
+// ember row
+const emberRow=document.getElementById('emberRow');
+emberRow.appendChild(card('icon', 'raw 4× · live flicker', well(ember(4))));
+// ember in a HUD streak counter
+const hud=document.createElement('div'); hud.className='hud';
+const eb=ember(2); hud.appendChild(eb);
+const col=document.createElement('div'); col.innerHTML='<div class="num">5</div><div class="lab">day streak</div>'; hud.appendChild(col);
+emberRow.appendChild(card('in-context', 'HUD streak counter', hud));
+
+// meter row — a few states
+const meterRow=document.getElementById('meterRow');
+meterRow.appendChild(card('day 3 / 7', 'three pips lit', meter(3,3)));
+meterRow.appendChild(card('day 5 / 7', 'five pips lit', meter(5,3)));
+meterRow.appendChild(card('day 7 / 7', 'full week — fires the seal', meter(7,3)));
+// meter inside a HUD plate with the ember
+const mh=document.createElement('div'); mh.className='hud';
+const me=ember(2); mh.appendChild(me);
+const mw=document.createElement('div'); mw.style.display='flex'; mw.style.flexDirection='column'; mw.style.gap='4px';
+mw.innerHTML='<div class="lab">this week</div>'; mw.appendChild(meter(4,2)); mh.appendChild(mw);
+meterRow.appendChild(card('in-context', 'weekly HUD with active flame', mh));
+
+// seal row — raw + in popup
+const sealRow=document.getElementById('sealRow');
+sealRow.appendChild(card('day-7 · raw', 'gold wax · 3×', well(seal(7,96),20)));
+sealRow.appendChild(card('day-30 · raw', 'drift wax · 3×', well(seal(30,96),20)));
+const p7=document.createElement('div'); p7.className='popup';
+p7.innerHTML='<div class="seal"><img src="streak/milestone_seal_7.svg"></div><div class="t">Week One</div><div class="s">7-day streak reward unlocked</div>';
+sealRow.appendChild(card('reward popup', 'day-7 milestone', p7));
+const p30=document.createElement('div'); p30.className='popup';
+p30.innerHTML='<div class="seal"><img src="streak/milestone_seal_30.svg"></div><div class="t">The Long Vigil</div><div class="s">30-day streak reward unlocked</div>';
+sealRow.appendChild(card('reward popup', 'day-30 milestone', p30));
+</script>
+</body></html>

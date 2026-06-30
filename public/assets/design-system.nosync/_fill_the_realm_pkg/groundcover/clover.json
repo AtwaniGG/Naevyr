@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/clover.svg",
+  "biome": "meadow",
+  "cell": {
+    "w": 12,
+    "h": 8
+  },
+  "anchor": {
+    "x": 6,
+    "y": 7
+  },
+  "variants": 2,
+  "flat": true,
+  "frames": {
+    "clover_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "anchor": {
+        "x": 6,
+        "y": 7
+      }
+    },
+    "clover_v1": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "anchor": {
+        "x": 6,
+        "y": 7
+      }
+    }
+  }
+}

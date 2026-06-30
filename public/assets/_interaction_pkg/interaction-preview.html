@@ -1,0 +1,70 @@
+<!-- @dsCard group="World Art" viewport="1320x1640" name="The Frontier Interaction Set" subtitle="Frontier signage, campcraft stations, the Roaming Trader + mule, and claim-upgrade props — interaction layer for the 80×80 world" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — The Frontier Interaction Set</title>
+<style>
+  body{margin:0;padding:26px;background:#0a0810;font-family:monospace;color:#d8cfe0}
+  h1{font-size:18px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}
+  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#a855f7;margin:26px 0 12px;border-top:1px solid rgba(168,85,247,.25);padding-top:12px}
+  .lede{font-size:11px;color:rgba(216,207,224,.45);margin:0 0 8px;letter-spacing:.04em;max-width:1040px;line-height:1.6}
+  .lede code{color:#d8b4fe}
+  .sub{font-size:11px;color:rgba(216,207,224,.55);margin:0 0 14px;letter-spacing:.03em;max-width:1040px;line-height:1.55}
+  .grid{display:flex;flex-wrap:wrap;gap:30px 22px;align-items:flex-end}
+  .card{display:flex;flex-direction:column;gap:7px}
+  .cap{min-height:30px}
+  .well{position:relative;background:#14101e;box-shadow:inset 1px 1px 0 0 rgba(10,8,16,.9),inset -1px -1px 0 0 rgba(58,51,80,.7);overflow:hidden}
+  .well img{display:block;image-rendering:pixelated}
+  .clear{position:absolute;left:0;width:100%;border-top:1px dashed rgba(231,200,115,.28);pointer-events:none}
+  .pin{position:absolute;width:3px;height:3px;margin:-1px 0 0 -1px;background:#e7c873;box-shadow:0 0 0 1px rgba(10,8,16,.9);pointer-events:none}
+  .cap{font-size:10px;color:rgba(216,207,224,.78);letter-spacing:.03em;display:flex;gap:7px;align-items:baseline;max-width:340px;flex-wrap:wrap}
+  .cap i{font-style:normal;color:#a855f7;font-size:9px}
+</style></head>
+<body>
+  <h1>Naevyr — The Frontier Interaction Set</h1>
+  <p class="lede">The interaction layer for the 80×80 world: where players take work, trade, craft and upgrade. Same pixlib generators, RAMP-only palette, 1px <code>#0a0810</code> void outline, dither not blur, bottom-center anchors, <code>crispEdges</code>. The Roaming Trader rides the wanderer rig; salvage FX are ADDITIVE (un-outlined); claim props ride the Furnisher pipeline.</p>
+
+  <h2>Frontier signage</h2>
+  <p class="sub">Weathered timber + drift-stained parchment. bounty_board is the flagship “go get work” object. Wells at 2×; gold dash = top label-clear, gold pin = bottom-center anchor.</p>
+  <div class="grid"><div class="card"><div class="well" style="width:160px;height:112px">
+      <img src="frontierboards/bounty_board.svg" width="160" height="112" alt="bounty_board"><div class="clear" style="top:12px"></div><div class="pin" style="left:40px;top:109px"></div><div class="pin" style="left:120px;top:109px"></div></div>
+      <div class="cap">bounty_board<i>40×56 · 2f · flutter 2fps · solid</i></div></div><div class="card"><div class="well" style="width:112px;height:112px">
+      <img src="frontierboards/supply_post.svg" width="112" height="112" alt="supply_post"><div class="clear" style="top:12px"></div><div class="pin" style="left:56px;top:109px"></div></div>
+      <div class="cap">supply_post<i>56×56 · solid</i></div></div><div class="card"><div class="well" style="width:128px;height:96px">
+      <img src="frontierboards/quartermaster_stall.svg" width="128" height="96" alt="quartermaster_stall"><div class="clear" style="top:12px"></div><div class="pin" style="left:64px;top:93px"></div></div>
+      <div class="cap">quartermaster_stall<i>64×48 · solid</i></div></div><div class="card"><div class="well" style="width:192px;height:144px">
+      <img src="frontierboards/garrison_banner.svg" width="192" height="144" alt="garrison_banner"><div class="clear" style="top:12px"></div><div class="pin" style="left:24px;top:141px"></div><div class="pin" style="left:72px;top:141px"></div><div class="pin" style="left:120px;top:141px"></div><div class="pin" style="left:168px;top:141px"></div></div>
+      <div class="cap">garrison_banner<i>24×72 · raised(sway 3f) / lowered</i></div></div></div>
+  <h2>Campcraft · field workstations + salvage FX</h2>
+  <p class="sub">Roadside resource-camp stations (idle/ember/flame loops) + ADDITIVE, un-outlined salvage FX. FX shown at 3×.</p>
+  <div class="grid"><div class="card"><div class="well" style="width:160px;height:96px">
+      <img src="campcraft/camp_tannery.svg" width="160" height="96" alt="camp_tannery"><div class="clear" style="top:12px"></div><div class="pin" style="left:40px;top:93px"></div><div class="pin" style="left:120px;top:93px"></div></div>
+      <div class="cap">camp_tannery<i>40×48 · 2f · idle 2fps · solid</i></div></div><div class="card"><div class="well" style="width:144px;height:80px">
+      <img src="campcraft/camp_anvil.svg" width="144" height="80" alt="camp_anvil"><div class="clear" style="top:12px"></div><div class="pin" style="left:36px;top:77px"></div><div class="pin" style="left:108px;top:77px"></div></div>
+      <div class="cap">camp_anvil<i>36×40 · 2f · ember 4fps · solid</i></div></div><div class="card"><div class="well" style="width:216px;height:80px">
+      <img src="campcraft/camp_cookfire.svg" width="216" height="80" alt="camp_cookfire"><div class="clear" style="top:12px"></div><div class="pin" style="left:36px;top:77px"></div><div class="pin" style="left:108px;top:77px"></div><div class="pin" style="left:180px;top:77px"></div></div>
+      <div class="cap">camp_cookfire<i>36×40 · 3f · flame 4fps · solid</i></div></div><div class="card"><div class="well" style="width:96px;height:48px">
+      <img src="campcraft/salvage_glint.svg" width="96" height="48" alt="salvage_glint"></div>
+      <div class="cap">salvage_glint<i>16×16 · 2f · twinkle 4fps · ADDITIVE</i></div></div><div class="card"><div class="well" style="width:216px;height:60px">
+      <img src="campcraft/dig_puff.svg" width="216" height="60" alt="dig_puff"></div>
+      <div class="cap">dig_puff<i>24×20 · 3f · burst 4fps · ADDITIVE</i></div></div></div>
+  <h2>The Roaming Trader</h2>
+  <p class="sub">Wanderer-rig compatible — 32×40, 5 facings (engine mirrors w/sw/nw), idle 2f + walk 6f. Sheet = facings as rows, frames as columns. One ramp-swap cloth channel. The pack_mule companion trails him (4 facings, walk 4f).</p>
+  <div class="grid"><div class="card"><div class="well" style="width:512px;height:400px">
+      <img src="merchant/roaming_trader.svg" width="512" height="400" alt="roaming_trader"></div>
+      <div class="cap">roaming_trader<i>32×40 · 5 facings · idle / walk</i></div></div><div class="card"><div class="well" style="width:320px;height:80px">
+      <img src="merchant/roaming_trader_cloth_options.svg" width="320" height="80" alt="roaming_trader_cloth_options"></div>
+      <div class="cap">roaming_trader_cloth_options<i>32×40 · 5 ramps: dirt · stone · grass · blood · drift</i></div></div><div class="card"><div class="well" style="width:224px;height:224px">
+      <img src="merchant/pack_mule.svg" width="224" height="224" alt="pack_mule"></div>
+      <div class="cap">pack_mule<i>28×28 · 4 facings · walk</i></div></div></div>
+  <h2>Claim upgrades</h2>
+  <p class="sub">Furnisher-pipeline props placed on claimed ground. claim_ward / rune_anvil carry drift glow + rune loops; all carry a solid-collision flag.</p>
+  <div class="grid"><div class="card"><div class="well" style="width:64px;height:56px">
+      <img src="claimworks/claim_stash.svg" width="64" height="56" alt="claim_stash"><div class="pin" style="left:32px;top:53px"></div></div>
+      <div class="cap">claim_stash<i>32×28 · solid</i></div></div><div class="card"><div class="well" style="width:72px;height:56px">
+      <img src="claimworks/claim_workbench.svg" width="72" height="56" alt="claim_workbench"><div class="pin" style="left:36px;top:53px"></div></div>
+      <div class="cap">claim_workbench<i>36×28 · solid</i></div></div><div class="card"><div class="well" style="width:96px;height:88px">
+      <img src="claimworks/claim_ward.svg" width="96" height="88" alt="claim_ward"><div class="pin" style="left:24px;top:85px"></div><div class="pin" style="left:72px;top:85px"></div></div>
+      <div class="cap">claim_ward<i>24×44 · 2f · glow 4fps · solid</i></div></div><div class="card"><div class="well" style="width:128px;height:80px">
+      <img src="claimworks/rune_anvil.svg" width="128" height="80" alt="rune_anvil"><div class="pin" style="left:32px;top:77px"></div><div class="pin" style="left:96px;top:77px"></div></div>
+      <div class="cap">rune_anvil<i>32×40 · 2f · rune 4fps · solid</i></div></div></div>
+  <script>/* @dsCard preview — Frontier Interaction Set */</script>
+</body></html>

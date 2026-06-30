@@ -520,6 +520,7 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
   - `mirror-preview.html` — the Drift Mirror rippling beside the hearth for scale.
   - `arena-preview.html` — composed Pit scene + catalog: floors, ring/gate tiling, torch, watchers, victory plate, blood decals.
   - `auras-preview.html` — the four prestige auras animating over the wanderer (back/front motes).
+  - `deeds-preview.html` — the Deeds & Honors set: five category badges (large + inline 1em), the three tier rings composited over a badge to show rank, and the Hall of Deeds emblem at 16/24/32 + as a tab icon.
   - `battlepass-preview.html` — Battle Pass "Ashfall": the tarnished_chalice aura over the wanderer, the ashfall_dye colorway (default vs dyed walk + facings) with channel swatches, and the pass_emblem sigil (color + mono, 1×/2×/5×).
   - `avatars/` — **four premium playable avatars** (DRIFTS cosmetics, drop-in on the wanderer
     rig: 32×40, 5 facings, idle 2f/walk 6f/swing 4f, identical swing pivot/arc + hit-spark, so
@@ -554,9 +555,18 @@ adds the Drift drop-shadow; icons inherit the palette ramp baked into each grid.
     wanderer-rig spectators, idle + cheer 2f each, ember eyes), `victory_plate` (96×48, crossed
     gold blades + finger-bone laurel on void, 2-frame shimmer), `blood_fx` (48×24 ground decals
     ×3). All inside the locked RAMP — no palette seam beside the town.
+  - `deeds/` — **the Deeds & Honors badge set** (rect-grid SVG + `deeds.json`): five 16×16
+    category badges — `deed_blade` (crossed swords · war, steel+blood), `deed_coin` (struck
+    coin+star · value, gold), `deed_labor` (anvil on a stump · toil, steel+wood), `deed_endure`
+    (pewter ward shield + Drift boss · endurance, bone+drift), `deed_realm` (the Drift sigil ·
+    corruption, drift-purple); three 16×16 **tier rings** `tier_{bronze,silver,gold}` (laurel
+    OVERLAY, transparent center — composite over a badge to show rank); and `deed_emblem`
+    (16+32, the Hall of Deeds mark — struck gold medallion, 4-point star, short blood ribbon).
+    Earned honors, weathered heraldry — old struck gold (y→g→G ramp), not shiny trophies; same
+    silhouette weight + 1px void outline as the `Icon.jsx` glyphs. Anchors = cell center.
   - `_gen/` — the deterministic generators (`pixlib.js`, `tiles.js`, `nodes.js`,
     `character.js`, `avatars.js`, `beasts.js`, `town.js`, `interiors.js`, `walls.js`, `wilds.js`,
-    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `battlepass.js`, `worldchoice.js`, `wheelfaces.js`, `guildbanner.js`,
+    `landing.js`, `social.js`, `threshold.js`, `auras.js`, `battlepass.js`, `deeds.js`, `worldchoice.js`, `wheelfaces.js`, `guildbanner.js`,
     `cache.js`, `exchange.js`, `arena.js`, `fxlogo.js`) + `sheet_*.png` preview rasters; re-run to regenerate any sprite.
 - **`SKILL.md`** — Agent-Skill manifest.
 

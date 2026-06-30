@@ -1,0 +1,57 @@
+{
+  "image": "campcraft/dig_puff.svg",
+  "cell": {
+    "w": 24,
+    "h": 20
+  },
+  "anchor": {
+    "x": 12,
+    "y": 18
+  },
+  "additive": true,
+  "blend": "additive",
+  "outline": false,
+  "frames": {
+    "dig_puff_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 20,
+      "anchor": {
+        "x": 12,
+        "y": 18
+      }
+    },
+    "dig_puff_01": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 20,
+      "anchor": {
+        "x": 12,
+        "y": 18
+      }
+    },
+    "dig_puff_02": {
+      "x": 48,
+      "y": 0,
+      "w": 24,
+      "h": 20,
+      "anchor": {
+        "x": 12,
+        "y": 18
+      }
+    }
+  },
+  "animations": {
+    "burst": {
+      "frames": [
+        "dig_puff_00",
+        "dig_puff_01",
+        "dig_puff_02"
+      ],
+      "fps": 4,
+      "loop": false
+    }
+  }
+}

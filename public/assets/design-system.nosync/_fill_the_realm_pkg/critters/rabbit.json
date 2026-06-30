@@ -1,0 +1,101 @@
+{
+  "image": "critters/rabbit.svg",
+  "cell": {
+    "w": 14,
+    "h": 14
+  },
+  "anchor": {
+    "x": 6,
+    "y": 13
+  },
+  "facings": [
+    "e"
+  ],
+  "mirror": {
+    "w": "e"
+  },
+  "flyer": false,
+  "anims": [
+    {
+      "name": "idle",
+      "count": 2,
+      "fps": 2
+    },
+    {
+      "name": "hop",
+      "count": 3,
+      "fps": 8
+    }
+  ],
+  "frames": {
+    "rabbit-idle-e_00": {
+      "x": 0,
+      "y": 0,
+      "w": 14,
+      "h": 14,
+      "anchor": {
+        "x": 6,
+        "y": 13
+      }
+    },
+    "rabbit-idle-e_01": {
+      "x": 14,
+      "y": 0,
+      "w": 14,
+      "h": 14,
+      "anchor": {
+        "x": 6,
+        "y": 13
+      }
+    },
+    "rabbit-hop-e_00": {
+      "x": 28,
+      "y": 0,
+      "w": 14,
+      "h": 14,
+      "anchor": {
+        "x": 6,
+        "y": 13
+      }
+    },
+    "rabbit-hop-e_01": {
+      "x": 42,
+      "y": 0,
+      "w": 14,
+      "h": 14,
+      "anchor": {
+        "x": 6,
+        "y": 13
+      }
+    },
+    "rabbit-hop-e_02": {
+      "x": 56,
+      "y": 0,
+      "w": 14,
+      "h": 14,
+      "anchor": {
+        "x": 6,
+        "y": 13
+      }
+    }
+  },
+  "animations": {
+    "idle-e": {
+      "frames": [
+        "rabbit-idle-e_00",
+        "rabbit-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "hop-e": {
+      "frames": [
+        "rabbit-hop-e_00",
+        "rabbit-hop-e_01",
+        "rabbit-hop-e_02"
+      ],
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

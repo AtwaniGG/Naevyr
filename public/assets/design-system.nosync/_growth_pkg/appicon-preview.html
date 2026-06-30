@@ -1,0 +1,81 @@
+<!-- @dsCard group="Brand" viewport="900x680" name="PWA + Notification Icons" subtitle="512/192 app icons, maskable safe-zone variant, monochrome Android notif badge + manifest" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — App Icons</title>
+<style>
+  body{margin:0;padding:26px;background:#0a0810;font-family:monospace;color:#d8cfe0}
+  h1{font-size:18px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}
+  .lede{font-size:11px;color:rgba(216,207,224,.45);margin:0 0 18px;letter-spacing:.04em;max-width:760px}
+  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#a855f7;margin:26px 0 12px;border-top:1px solid rgba(168,85,247,.25);padding-top:12px}
+  .row{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+  .card{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .ico{image-rendering:pixelated;box-shadow:0 4px 0 rgba(10,8,16,.6)}
+  .ico img{display:block;width:100%;height:100%;image-rendering:pixelated}
+  .cap{font-size:10px;color:rgba(216,207,224,.6);letter-spacing:.03em}
+  .cap b{color:#e7c873;font-weight:400}
+  .tag{font-size:9px;color:#a855f7;letter-spacing:.06em;text-transform:uppercase}
+  .maskwrap{position:relative;width:128px;height:128px}
+  .maskwrap .full{position:absolute;inset:0;image-rendering:pixelated;opacity:.32}
+  .maskwrap .full img{width:100%;height:100%;image-rendering:pixelated}
+  .maskwrap .crop{position:absolute;inset:0;image-rendering:pixelated;border-radius:50%;overflow:hidden}
+  .maskwrap .crop img{width:100%;height:100%;image-rendering:pixelated}
+  .maskwrap .ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 1px rgba(168,85,247,.6) inset}
+  /* faux home screen */
+  .home{display:flex;gap:18px;background:linear-gradient(160deg,#1a1530,#0a0810);padding:20px;border-radius:8px;box-shadow:inset 0 0 0 1px #322b46}
+  .app{display:flex;flex-direction:column;align-items:center;gap:6px;width:72px}
+  .app .ic{width:60px;height:60px;border-radius:14px;overflow:hidden;image-rendering:pixelated;box-shadow:0 3px 6px rgba(0,0,0,.5)}
+  .app .ic img{width:100%;height:100%;image-rendering:pixelated}
+  .app span{font-size:10px;color:#d8cfe0}
+  /* faux android status bar */
+  .statusbar{display:flex;align-items:center;gap:8px;background:#0c0a12;padding:8px 12px;border-radius:6px 6px 0 0;box-shadow:inset 0 0 0 1px #211c30;width:260px}
+  .statusbar .badge{width:16px;height:16px;image-rendering:pixelated}
+  /* tint the monochrome badge like the OS would */
+  .statusbar .badge.tint img{filter:brightness(0) saturate(100%) invert(83%) sepia(12%) saturate(500%) hue-rotate(230deg)}
+  .statusbar .badge img{width:100%;height:100%;image-rendering:pixelated}
+  .statusbar .clock{margin-left:auto;font-size:10px;color:#d8cfe0}
+  .statusbar .title{font-size:10px;color:rgba(216,207,224,.7)}
+  .swatchbar{display:flex;gap:0;margin-top:4px}
+  .swatchbar i{width:22px;height:14px;display:block}
+</style></head>
+<body>
+  <h1>Naevyr — PWA &amp; Notification Icons</h1>
+  <p class="lede">The Naevyr/DRIFTS <b>emblem</b> on a dark drift-stone field. SVGs carry a small native viewBox sized to the exact target px — crisp at any raster. <b>maskable</b> keeps the emblem inside the Android safe-zone; the notif badge is a flat monochrome silhouette the OS tints.</p>
+
+  <h2>app_icon · full-bleed · purpose "any"</h2>
+  <div class="row">
+    <div class="card"><div class="tag">512×512</div><div class="ico" style="width:160px;height:160px"><img src="appicon/app_icon_512.svg"></div><div class="cap">store / install icon</div></div>
+    <div class="card"><div class="tag">192×192</div><div class="ico" style="width:96px;height:96px"><img src="appicon/app_icon_192.svg"></div><div class="cap">home-screen / favicon</div></div>
+    <div class="card"><div class="tag">on a home screen</div>
+      <div class="home">
+        <div class="app"><div class="ic"><img src="appicon/app_icon_512.svg"></div><span>Naevyr</span></div>
+        <div class="app"><div class="ic" style="border-radius:50%"><img src="appicon/app_icon_maskable_512.svg"></div><span>circle</span></div>
+      </div>
+      <div class="cap">rounded-rect &amp; circle launcher masks</div>
+    </div>
+  </div>
+
+  <h2>maskable · safe-zone padding survives the Android crop</h2>
+  <div class="row">
+    <div class="card"><div class="tag">maskable 512</div><div class="ico" style="width:128px;height:128px"><img src="appicon/app_icon_maskable_512.svg"></div><div class="cap">full bleed (bg extends to edge)</div></div>
+    <div class="card"><div class="tag">circle-cropped</div>
+      <div class="maskwrap">
+        <div class="full"><img src="appicon/app_icon_maskable_512.svg"></div>
+        <div class="crop"><img src="appicon/app_icon_maskable_512.svg"></div>
+        <div class="ring"></div>
+      </div>
+      <div class="cap">emblem stays clear of the <b>cut edge</b></div>
+    </div>
+  </div>
+
+  <h2>notif_badge · 96×96 monochrome · Android status bar (system-tinted)</h2>
+  <div class="row">
+    <div class="card"><div class="tag">raw glyph</div><div class="ico" style="width:64px;height:64px;background:#211c30;padding:8px"><img src="appicon/notif_badge.svg"></div><div class="cap">flat white silhouette · transparent bg</div></div>
+    <div class="card"><div class="tag">in the status bar</div>
+      <div class="statusbar">
+        <div class="badge tint"><img src="appicon/notif_badge.svg"></div>
+        <span class="title">Naevyr</span>
+        <span class="clock">9:41</span>
+      </div>
+      <div class="cap">OS recolors the single shape — no detail needed</div>
+    </div>
+  </div>
+</body></html>

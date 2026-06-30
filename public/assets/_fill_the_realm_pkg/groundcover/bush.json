@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/bush.svg",
+  "biome": "meadow",
+  "cell": {
+    "w": 20,
+    "h": 18
+  },
+  "anchor": {
+    "x": 10,
+    "y": 16
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "bush_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 20,
+      "h": 18,
+      "anchor": {
+        "x": 10,
+        "y": 16
+      }
+    },
+    "bush_v1": {
+      "x": 20,
+      "y": 0,
+      "w": 20,
+      "h": 18,
+      "anchor": {
+        "x": 10,
+        "y": 16
+      }
+    }
+  }
+}

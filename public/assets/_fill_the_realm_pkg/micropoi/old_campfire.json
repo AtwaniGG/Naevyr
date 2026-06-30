@@ -1,0 +1,43 @@
+{
+  "image": "micropoi/old_campfire.svg",
+  "cell": {
+    "w": 32,
+    "h": 28
+  },
+  "anchor": {
+    "x": 16,
+    "y": 25
+  },
+  "frames": {
+    "old_campfire_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 28,
+      "anchor": {
+        "x": 16,
+        "y": 25
+      }
+    },
+    "old_campfire_01": {
+      "x": 32,
+      "y": 0,
+      "w": 32,
+      "h": 28,
+      "anchor": {
+        "x": 16,
+        "y": 25
+      }
+    }
+  },
+  "animations": {
+    "embers": {
+      "frames": [
+        "old_campfire_00",
+        "old_campfire_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

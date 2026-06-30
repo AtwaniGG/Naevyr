@@ -1,0 +1,43 @@
+{
+  "image": "waystation/waystation_pip.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "frames": {
+    "waystation_pip_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "waystation_pip_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "waystation_pip_00",
+        "waystation_pip_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

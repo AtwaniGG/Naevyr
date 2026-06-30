@@ -1,0 +1,1086 @@
+{
+  "image": "beasts/barrow_lord.svg",
+  "cell": {
+    "w": 110,
+    "h": 116
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "class": "miniboss",
+  "camp": "Barrow-Crypt",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "bone-hi (#efe9f4) then drift-hi",
+  "frames": {
+    "barrow_lord-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-s_01": {
+      "x": 110,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_00": {
+      "x": 220,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_01": {
+      "x": 330,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_02": {
+      "x": 440,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_03": {
+      "x": 550,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_04": {
+      "x": 660,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-s_05": {
+      "x": 770,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-s_00": {
+      "x": 880,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-s_01": {
+      "x": 990,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-s_02": {
+      "x": 1100,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-s_03": {
+      "x": 1210,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-s_00": {
+      "x": 1320,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-s_01": {
+      "x": 1430,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-s_02": {
+      "x": 1540,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-s_03": {
+      "x": 1650,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-s_04": {
+      "x": 1760,
+      "y": 0,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-se_00": {
+      "x": 0,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-se_01": {
+      "x": 110,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_00": {
+      "x": 220,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_01": {
+      "x": 330,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_02": {
+      "x": 440,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_03": {
+      "x": 550,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_04": {
+      "x": 660,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-se_05": {
+      "x": 770,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-se_00": {
+      "x": 880,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-se_01": {
+      "x": 990,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-se_02": {
+      "x": 1100,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-se_03": {
+      "x": 1210,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-se_00": {
+      "x": 1320,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-se_01": {
+      "x": 1430,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-se_02": {
+      "x": 1540,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-se_03": {
+      "x": 1650,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-se_04": {
+      "x": 1760,
+      "y": 116,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-e_00": {
+      "x": 0,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-e_01": {
+      "x": 110,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_00": {
+      "x": 220,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_01": {
+      "x": 330,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_02": {
+      "x": 440,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_03": {
+      "x": 550,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_04": {
+      "x": 660,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-e_05": {
+      "x": 770,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-e_00": {
+      "x": 880,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-e_01": {
+      "x": 990,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-e_02": {
+      "x": 1100,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-e_03": {
+      "x": 1210,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-e_00": {
+      "x": 1320,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-e_01": {
+      "x": 1430,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-e_02": {
+      "x": 1540,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-e_03": {
+      "x": 1650,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-e_04": {
+      "x": 1760,
+      "y": 232,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-ne_00": {
+      "x": 0,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-ne_01": {
+      "x": 110,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_00": {
+      "x": 220,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_01": {
+      "x": 330,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_02": {
+      "x": 440,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_03": {
+      "x": 550,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_04": {
+      "x": 660,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-ne_05": {
+      "x": 770,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-ne_00": {
+      "x": 880,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-ne_01": {
+      "x": 990,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-ne_02": {
+      "x": 1100,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-ne_03": {
+      "x": 1210,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-ne_00": {
+      "x": 1320,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-ne_01": {
+      "x": 1430,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-ne_02": {
+      "x": 1540,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-ne_03": {
+      "x": 1650,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-ne_04": {
+      "x": 1760,
+      "y": 348,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-n_00": {
+      "x": 0,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-idle-n_01": {
+      "x": 110,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_00": {
+      "x": 220,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_01": {
+      "x": 330,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_02": {
+      "x": 440,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_03": {
+      "x": 550,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_04": {
+      "x": 660,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-walk-n_05": {
+      "x": 770,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-n_00": {
+      "x": 880,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-n_01": {
+      "x": 990,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-n_02": {
+      "x": 1100,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-attack-n_03": {
+      "x": 1210,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-n_00": {
+      "x": 1320,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-n_01": {
+      "x": 1430,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-n_02": {
+      "x": 1540,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-n_03": {
+      "x": 1650,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    },
+    "barrow_lord-death-n_04": {
+      "x": 1760,
+      "y": 464,
+      "w": 110,
+      "h": 116,
+      "anchor": {
+        "x": 55,
+        "y": 115
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "barrow_lord-idle-s_00",
+        "barrow_lord-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "barrow_lord-walk-s_00",
+        "barrow_lord-walk-s_01",
+        "barrow_lord-walk-s_02",
+        "barrow_lord-walk-s_03",
+        "barrow_lord-walk-s_04",
+        "barrow_lord-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-s": {
+      "frames": [
+        "barrow_lord-attack-s_00",
+        "barrow_lord-attack-s_01",
+        "barrow_lord-attack-s_02",
+        "barrow_lord-attack-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "barrow_lord-death-s_00",
+        "barrow_lord-death-s_01",
+        "barrow_lord-death-s_02",
+        "barrow_lord-death-s_03",
+        "barrow_lord-death-s_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "barrow_lord-idle-se_00",
+        "barrow_lord-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "barrow_lord-walk-se_00",
+        "barrow_lord-walk-se_01",
+        "barrow_lord-walk-se_02",
+        "barrow_lord-walk-se_03",
+        "barrow_lord-walk-se_04",
+        "barrow_lord-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-se": {
+      "frames": [
+        "barrow_lord-attack-se_00",
+        "barrow_lord-attack-se_01",
+        "barrow_lord-attack-se_02",
+        "barrow_lord-attack-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "barrow_lord-death-se_00",
+        "barrow_lord-death-se_01",
+        "barrow_lord-death-se_02",
+        "barrow_lord-death-se_03",
+        "barrow_lord-death-se_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "barrow_lord-idle-e_00",
+        "barrow_lord-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "barrow_lord-walk-e_00",
+        "barrow_lord-walk-e_01",
+        "barrow_lord-walk-e_02",
+        "barrow_lord-walk-e_03",
+        "barrow_lord-walk-e_04",
+        "barrow_lord-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-e": {
+      "frames": [
+        "barrow_lord-attack-e_00",
+        "barrow_lord-attack-e_01",
+        "barrow_lord-attack-e_02",
+        "barrow_lord-attack-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "barrow_lord-death-e_00",
+        "barrow_lord-death-e_01",
+        "barrow_lord-death-e_02",
+        "barrow_lord-death-e_03",
+        "barrow_lord-death-e_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "barrow_lord-idle-ne_00",
+        "barrow_lord-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "barrow_lord-walk-ne_00",
+        "barrow_lord-walk-ne_01",
+        "barrow_lord-walk-ne_02",
+        "barrow_lord-walk-ne_03",
+        "barrow_lord-walk-ne_04",
+        "barrow_lord-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-ne": {
+      "frames": [
+        "barrow_lord-attack-ne_00",
+        "barrow_lord-attack-ne_01",
+        "barrow_lord-attack-ne_02",
+        "barrow_lord-attack-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "barrow_lord-death-ne_00",
+        "barrow_lord-death-ne_01",
+        "barrow_lord-death-ne_02",
+        "barrow_lord-death-ne_03",
+        "barrow_lord-death-ne_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "barrow_lord-idle-n_00",
+        "barrow_lord-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "barrow_lord-walk-n_00",
+        "barrow_lord-walk-n_01",
+        "barrow_lord-walk-n_02",
+        "barrow_lord-walk-n_03",
+        "barrow_lord-walk-n_04",
+        "barrow_lord-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-n": {
+      "frames": [
+        "barrow_lord-attack-n_00",
+        "barrow_lord-attack-n_01",
+        "barrow_lord-attack-n_02",
+        "barrow_lord-attack-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "barrow_lord-death-n_00",
+        "barrow_lord-death-n_01",
+        "barrow_lord-death-n_02",
+        "barrow_lord-death-n_03",
+        "barrow_lord-death-n_04"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

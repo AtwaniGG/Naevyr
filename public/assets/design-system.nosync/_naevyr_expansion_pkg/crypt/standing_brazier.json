@@ -1,0 +1,45 @@
+{
+  "image": "crypt/standing_brazier.svg",
+  "cell": {
+    "w": 24,
+    "h": 40
+  },
+  "anchor": {
+    "x": 12,
+    "y": 37
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "standing_brazier_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 40,
+      "anchor": {
+        "x": 12,
+        "y": 37
+      }
+    },
+    "standing_brazier_01": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 40,
+      "anchor": {
+        "x": 12,
+        "y": 37
+      }
+    }
+  },
+  "animations": {
+    "flame": {
+      "frames": [
+        "standing_brazier_00",
+        "standing_brazier_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

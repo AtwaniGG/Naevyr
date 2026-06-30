@@ -1,0 +1,47 @@
+{
+  "image": "streak/streak_pip.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "frames": {
+    "streak_pip_unlit": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    },
+    "streak_pip_lit": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 8
+      }
+    }
+  },
+  "states": [
+    "unlit",
+    "lit"
+  ],
+  "meter": {
+    "pips": 7,
+    "field": [
+      120,
+      16
+    ],
+    "stride": 17,
+    "pad": 2
+  },
+  "dom": true
+}

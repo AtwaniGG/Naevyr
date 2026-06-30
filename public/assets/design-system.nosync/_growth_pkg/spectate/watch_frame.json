@@ -1,0 +1,44 @@
+{
+  "image": "spectate/watch_frame.svg",
+  "cell": {
+    "w": 480,
+    "h": 270
+  },
+  "anchor": {
+    "x": 240,
+    "y": 135
+  },
+  "frames": {
+    "watch_frame_00": {
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 270,
+      "anchor": {
+        "x": 240,
+        "y": 135
+      }
+    },
+    "watch_frame_01": {
+      "x": 480,
+      "y": 0,
+      "w": 480,
+      "h": 270,
+      "anchor": {
+        "x": 240,
+        "y": 135
+      }
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "watch_frame_00",
+        "watch_frame_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  },
+  "overlay": true
+}

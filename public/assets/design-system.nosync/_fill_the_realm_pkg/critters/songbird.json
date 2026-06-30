@@ -1,0 +1,98 @@
+{
+  "image": "critters/songbird.svg",
+  "cell": {
+    "w": 12,
+    "h": 10
+  },
+  "anchor": {
+    "x": 6,
+    "y": 9
+  },
+  "facings": [
+    "e"
+  ],
+  "mirror": {
+    "w": "e"
+  },
+  "flyer": true,
+  "fly": {
+    "height": 14,
+    "shadow": {
+      "rx": 4,
+      "ry": 1.5
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "anims": [
+    {
+      "name": "hop",
+      "count": 2,
+      "fps": 4
+    },
+    {
+      "name": "fly",
+      "count": 2,
+      "fps": 8
+    }
+  ],
+  "frames": {
+    "songbird-hop-e_00": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "songbird-hop-e_01": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "songbird-fly-e_00": {
+      "x": 24,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "songbird-fly-e_01": {
+      "x": 36,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    }
+  },
+  "animations": {
+    "hop-e": {
+      "frames": [
+        "songbird-hop-e_00",
+        "songbird-hop-e_01"
+      ],
+      "fps": 4,
+      "loop": true
+    },
+    "fly-e": {
+      "frames": [
+        "songbird-fly-e_00",
+        "songbird-fly-e_01"
+      ],
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

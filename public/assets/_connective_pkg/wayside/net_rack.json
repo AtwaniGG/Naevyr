@@ -1,0 +1,24 @@
+{
+  "image": "wayside/net_rack.svg",
+  "cell": {
+    "w": 48,
+    "h": 56
+  },
+  "anchor": {
+    "x": 24,
+    "y": 55
+  },
+  "camp": "fishing",
+  "frames": {
+    "net_rack_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 56,
+      "anchor": {
+        "x": 24,
+        "y": 55
+      }
+    }
+  }
+}

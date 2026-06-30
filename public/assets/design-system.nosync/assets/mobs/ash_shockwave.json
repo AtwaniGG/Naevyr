@@ -1,0 +1,67 @@
+{
+  "image": "mobs/ash_shockwave.svg",
+  "cell": {
+    "w": 48,
+    "h": 24
+  },
+  "anchor": {
+    "x": 24,
+    "y": 12
+  },
+  "centered": true,
+  "note": "Ash Brute slam ground FX (centered on impact)",
+  "frames": {
+    "ring_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    },
+    "ring_01": {
+      "x": 48,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    },
+    "ring_02": {
+      "x": 96,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    },
+    "ring_03": {
+      "x": 144,
+      "y": 0,
+      "w": 48,
+      "h": 24,
+      "anchor": {
+        "x": 24,
+        "y": 12
+      }
+    }
+  },
+  "animations": {
+    "ring": {
+      "frames": [
+        "ring_00",
+        "ring_01",
+        "ring_02",
+        "ring_03"
+      ],
+      "fps": 12,
+      "loop": false
+    }
+  }
+}

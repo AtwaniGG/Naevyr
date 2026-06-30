@@ -15,9 +15,10 @@ import {
   guilds, GuildRow,
   relics, RelicRow,
   exchangeLog,
+  pushSubs, PushSubRow,
 } from "./schema";
 
-export type { PlayerRow, ClaimRow, ListingRow, PropRow, GuildRow, RelicRow } from "./schema";
+export type { PlayerRow, ClaimRow, ListingRow, PropRow, GuildRow, RelicRow, PushSubRow } from "./schema";
 
 // DATABASE_URL set (Neon/any Postgres) → node-postgres pool.
 // Otherwise → PGlite, an embedded Postgres persisted to server/.data.
@@ -220,6 +221,20 @@ export async function initDb(): Promise<Db> {
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  // web-push subscriptions for off-tab notifications (Phase 2B). Keyed by the
+  // browser push endpoint (unique); a device token may hold several (multi
+  // device). wallet is copied along so a future cross-device lookup is possible.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS push_subs (
+      endpoint text PRIMARY KEY,
+      token text NOT NULL,
+      wallet text,
+      p256dh text NOT NULL,
+      auth text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS push_subs_token_idx ON push_subs (token)`);
   return db;
 }
 
@@ -687,4 +702,43 @@ export async function guildMemberCounts(): Promise<Map<number, number>> {
   const out = new Map<number, number>();
   for (const r of rows) if (r.guildId != null) out.set(Number(r.guildId), Number(r.n));
   return out;
+}
+
+// ---- web-push subscriptions (Phase 2B) --------------------------------------
+
+export interface PushSubInput {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+/** upsert a browser push subscription, owned by a device token (+ wallet) */
+export async function savePushSub(token: string, wallet: string | null, sub: PushSubInput) {
+  await db
+    .insert(pushSubs)
+    .values({ endpoint: sub.endpoint, token, wallet, p256dh: sub.keys.p256dh, auth: sub.keys.auth })
+    .onConflictDoUpdate({
+      target: pushSubs.endpoint,
+      set: { token, wallet, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+    });
+}
+
+/** drop a subscription by its endpoint (client unsubscribe, or a dead 404/410) */
+export async function deletePushSub(endpoint: string) {
+  await db.delete(pushSubs).where(eq(pushSubs.endpoint, endpoint));
+}
+
+/** all live subscriptions for a device token (a player on N devices) */
+export async function getPushSubs(token: string): Promise<PushSubRow[]> {
+  return db.select().from(pushSubs).where(eq(pushSubs.token, token));
+}
+
+/** how many subscriptions a token holds (used by the verify harness) */
+export async function countPushSubs(token: string): Promise<number> {
+  const rows = await db.select({ endpoint: pushSubs.endpoint }).from(pushSubs).where(eq(pushSubs.token, token));
+  return rows.length;
+}
+
+/** every subscription in the realm (realm-wide pushes, e.g. the Long Night) */
+export async function getAllPushSubs(): Promise<PushSubRow[]> {
+  return db.select().from(pushSubs);
 }

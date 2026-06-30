@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/war_debris.svg",
+  "biome": "ash",
+  "cell": {
+    "w": 20,
+    "h": 12
+  },
+  "anchor": {
+    "x": 10,
+    "y": 11
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "war_debris_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 20,
+      "h": 12,
+      "anchor": {
+        "x": 10,
+        "y": 11
+      }
+    },
+    "war_debris_v1": {
+      "x": 20,
+      "y": 0,
+      "w": 20,
+      "h": 12,
+      "anchor": {
+        "x": 10,
+        "y": 11
+      }
+    }
+  }
+}

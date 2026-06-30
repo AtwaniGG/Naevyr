@@ -1,0 +1,97 @@
+<!-- @dsCard group="World Art" viewport="900x720" name="Spectator / Demo Set" subtitle="eye nav glyph, 'observing' watch_frame overlay, and a watching-the-realm banner plate" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Spectator Set</title>
+<style>
+  body{margin:0;padding:26px;background:#0a0810;font-family:monospace;color:#d8cfe0}
+  h1{font-size:18px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}
+  .lede{font-size:11px;color:rgba(216,207,224,.45);margin:0 0 18px;letter-spacing:.04em;max-width:780px}
+  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#a855f7;margin:26px 0 12px;border-top:1px solid rgba(168,85,247,.25);padding-top:12px}
+  .row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-end}
+  .card{display:flex;flex-direction:column;gap:7px}
+  .cap{font-size:10px;color:rgba(216,207,224,.6);letter-spacing:.03em}
+  .cap b{color:#e7c873;font-weight:400}
+  .tag{font-size:9px;color:#a855f7;letter-spacing:.06em;text-transform:uppercase}
+  .well{width:48px;height:48px;background:#14101e;box-shadow:inset 1px 1px 0 0 rgba(10,8,16,.9),inset -1px -1px 0 0 rgba(58,51,80,.7);display:flex;align-items:center;justify-content:center}
+  .well .ic{width:32px;height:32px;image-rendering:pixelated}
+  .well .ic img{width:100%;height:100%;image-rendering:pixelated}
+  /* nav bar mock */
+  .navbar{display:flex;gap:16px;align-items:center;background:#14101e;padding:10px 16px;box-shadow:0 0 0 1px #322b46;width:max-content}
+  .navbar .ico{width:22px;height:22px;image-rendering:pixelated;opacity:.6;position:relative;overflow:hidden}
+  .navbar .ico.active{opacity:1}
+  .navbar .ico img{position:absolute;top:0;left:0;height:22px;image-rendering:pixelated}
+  .navbar .ico.watch img{left:0;width:22px;filter:drop-shadow(0 0 2px rgba(168,85,247,.8))}
+  /* spectator stage */
+  .stage{position:relative;width:480px;height:270px;overflow:hidden;background:#0a0810;box-shadow:0 0 0 1px #322b46}
+  .stage .world{position:absolute;inset:0;image-rendering:pixelated}
+  .stage .world img{position:absolute;left:0;top:0;width:200%;height:100%;image-rendering:pixelated}
+  .stage .frame{position:absolute;inset:0;image-rendering:pixelated;pointer-events:none}
+  .stage .frame img{position:absolute;left:0;top:0;width:100%;height:100%;image-rendering:pixelated}
+  .stage .plate{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:200px;height:28px;image-rendering:pixelated;display:flex;align-items:center;justify-content:center}
+  .stage .plate img{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+  .stage .plate span{position:relative;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#efe9f4;text-shadow:1px 1px 0 #0a0810}
+  /* plate standalone */
+  .platebig{position:relative;width:400px;height:56px;image-rendering:pixelated;display:flex;align-items:center;justify-content:center}
+  .platebig img{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+  .platebig span{position:relative;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#efe9f4;text-shadow:1px 1px 0 #0a0810}
+</style></head>
+<body>
+  <h1>Naevyr — Spectator / Demo Set</h1>
+  <p class="lede">Read-only "watching the realm" chrome. The <b>eye_icon</b> joins the 16×16 nav_icons family; the <b>watch_frame</b> says "observing" with a drift-rune border + corner darkening over a transparent center; the <b>watch_plate</b> matches the landing wordmark_plate.</p>
+
+  <h2>eye_icon · 16×16 · nav_icons family · tintable</h2>
+  <div class="row" id="eyeRow">
+    <div class="card"><div class="tag">2× / 3×</div>
+      <div style="display:flex;gap:14px;align-items:flex-end">
+        <div class="well" style="width:32px;height:32px"><div class="ic" style="width:16px;height:16px"><img src="spectate/eye_icon.svg"></div></div>
+        <div class="well"><div class="ic"><img src="spectate/eye_icon.svg"></div></div>
+        <div class="well" style="width:64px;height:64px"><div class="ic" style="width:48px;height:48px"><img src="spectate/eye_icon.svg"></div></div>
+      </div>
+      <div class="cap">bone silhouette · drift iris · void outline</div>
+    </div>
+    <div class="card"><div class="tag">in the nav bar</div>
+      <div class="navbar">
+        <div class="ico"><img src="landing/nav_icons.svg" style="height:22px;left:0"></div>
+        <div class="ico"><img src="landing/nav_icons.svg" style="height:22px;left:-44px"></div>
+        <div class="ico"><img src="landing/nav_icons.svg" style="height:22px;left:-66px"></div>
+        <div class="ico watch active"><img src="spectate/eye_icon.svg"></div>
+      </div>
+      <div class="cap"><b>Watch</b> tab — the spectator entry point</div>
+    </div>
+  </div>
+
+  <h2>watch_frame · 480×270 · 2f pulse @2fps · over a live world</h2>
+  <div class="row">
+    <div class="card"><div class="tag">spectator view</div>
+      <div class="stage">
+        <div class="world"><img id="worldImg" src="landing/hero_vista.svg"></div>
+        <div class="frame"><img id="frameImg" src="spectate/watch_frame.svg"></div>
+        <div class="plate"><img src="spectate/watch_plate.svg"><span>Watching the realm</span></div>
+      </div>
+      <div class="cap">rune border + corner vignette · center stays clear so the world reads</div>
+    </div>
+    <div class="card"><div class="tag">overlay alone</div>
+      <div class="stage" style="background:#1a1626">
+        <div class="frame"><img id="frameImg2" src="spectate/watch_frame.svg"></div>
+      </div>
+      <div class="cap">on flat fill — shows the transparent center</div>
+    </div>
+  </div>
+
+  <h2>watch_plate · 200×28 · "You are watching the realm" banner</h2>
+  <div class="row">
+    <div class="card"><div class="tag">HUD banner</div>
+      <div class="platebig"><img src="spectate/watch_plate.svg"><span>You are watching the realm</span></div>
+      <div class="cap">bone bevel · gold rails · drift inlay — text set in DS type</div>
+    </div>
+  </div>
+
+<script>
+// pulse the 2-frame watch_frame (480-wide frames in a 960-wide strip)
+function pulse(id){
+  const img=document.getElementById(id); if(!img) return;
+  img.style.width='200%'; let f=0;
+  setInterval(()=>{ f=(f+1)%2; img.style.left=(f? '-100%':'0'); }, 500);
+}
+pulse('frameImg'); pulse('frameImg2');
+</script>
+</body></html>

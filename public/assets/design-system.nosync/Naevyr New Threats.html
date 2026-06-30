@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — New Threats</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const DR='#a855f7',DRH='#d8b4fe',GOLD='#f6e0a6',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const L=async k=>Reel.loadImg('assets/_reel/'+k+'.png');
+  const imgs={bogwretch:await L('bogwretch'),barrow_wight:await L('barrow_wight'),bone_husk:await L('bone_husk'),ash_brute:await L('ash_brute'),drift_wisp:await L('drift_wisp')};
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  // [key, fw, fh, scale, walk[start,end], action[start,end], flying, name, role, tint]
+  const mobs=[
+    {key:'bogwretch',fw:32,fh:40,sc:6.5,walk:[2,7],act:[8,11],name:'BOGWRETCH',role:'Palewater spitter',tint:'rgba(74,127,160,0.5)'},
+    {key:'barrow_wight',fw:32,fh:44,sc:6.0,walk:[2,7],act:[8,11],name:'BARROW WIGHT',role:'Bonefields summoner',tint:'rgba(216,180,254,0.45)'},
+    {key:'bone_husk',fw:28,fh:36,sc:6.5,walk:[2,7],act:[8,11],name:'BONE HUSK',role:'Risen footsoldier',tint:'rgba(239,233,244,0.4)'},
+    {key:'ash_brute',fw:48,fh:52,sc:4.6,walk:[2,5],act:[6,9],name:'ASH BRUTE',role:'Frontier AoE slammer',tint:'rgba(245,158,11,0.45)'},
+    {key:'drift_wisp',fw:28,fh:32,sc:6.5,walk:[0,3],act:[4,6],flying:true,name:'DRIFT WISP',role:'Corrupted hunter',tint:'rgba(168,85,247,0.55)'},
+  ];
+  const SEG=3000, LOOP=SEG*mobs.length, cx=W/2, baseY=H-150;
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=0.45; ctx.imageSmoothingEnabled=false; ctx.drawImage(vista,0,0,480,270,-20,-30,1320,760); ctx.globalAlpha=1;
+    const idx=Math.floor(t/SEG)%mobs.length, st=t-idx*SEG, m=mobs[idx];
+    const fin=Math.min(1,st/260), fout=Math.min(1,(SEG-st)/260), fade=Math.min(fin,fout);
+    // pedestal glow
+    ctx.fillStyle=Reel.radial(ctx,cx,baseY-30,250,[[0,m.tint],[0.5,'rgba(107,33,168,0.12)'],[0.78,'rgba(0,0,0,0)']]);
+    ctx.globalAlpha=fade; ctx.fillRect(cx-300,baseY-250,600,300); ctx.globalAlpha=1;
+    // frame: walk-cycle, then action in the last ~900ms
+    let col;
+    const doAct = st>1900 && st<2700;
+    if(doAct){ const n=m.act[1]-m.act[0]+1; col=m.act[0]+Math.min(n-1,Math.floor((st-1900)/(800/n))); }
+    else { const n=m.walk[1]-m.walk[0]+1; col=m.walk[0]+Math.floor(st/110)%n; }
+    ctx.globalAlpha=fade;
+    if(m.flying){ const fy=baseY-150+Math.round(Math.sin(t/300)*8); ctx.imageSmoothingEnabled=false;
+      // soft shadow
+      ctx.fillStyle='rgba(10,8,16,0.5)'; ctx.beginPath(); ctx.ellipse(cx,baseY-6,38,10,0,0,7); ctx.fill();
+      ctx.drawImage(imgs[m.key],col*m.fw,0,m.fw,m.fh, Math.round(cx-m.fw*m.sc/2), Math.round(fy-m.fh*m.sc), m.fw*m.sc,m.fh*m.sc);
+    } else {
+      const bob=Math.round(Math.sin(t/500)*3);
+      Reel.sprBase(ctx,imgs[m.key],m.fw,m.fh,col,cx,baseY+bob,m.sc);
+    }
+    ctx.globalAlpha=1;
+    Reel.motes(ctx,W,H,t,30,'#a855f7',idx+2);
+    Reel.vignette(ctx,W,H,0.92);
+    // header
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   FRONTIER BESTIARY',54,58);
+    // name card
+    ctx.globalAlpha=fade; ctx.textAlign='center';
+    ctx.fillStyle=GOLD; ctx.font=`700 60px ${PIX}`; ctx.shadowColor='rgba(168,85,247,0.5)'; ctx.shadowBlur=20; ctx.fillText(m.name,W/2,H-62); ctx.shadowBlur=0;
+    ctx.fillStyle=DRH; ctx.font=`15px ${SILK}`; ctx.fillText(m.role.toUpperCase()+'  ·  NEW',W/2,H-34);
+    ctx.globalAlpha=1;
+    // counter
+    for(let i=0;i<mobs.length;i++){ ctx.fillStyle=i===idx?GOLD:'rgba(216,207,224,0.3)'; ctx.fillRect(W/2-mobs.length*7+i*14,28,8,8); }
+  });
+})();
+</script>
+</body></html>

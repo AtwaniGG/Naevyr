@@ -1,0 +1,24 @@
+{
+  "image": "wayside/pick_stump.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "anchor": {
+    "x": 16,
+    "y": 39
+  },
+  "camp": "quarry",
+  "frames": {
+    "pick_stump_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 40,
+      "anchor": {
+        "x": 16,
+        "y": 39
+      }
+    }
+  }
+}

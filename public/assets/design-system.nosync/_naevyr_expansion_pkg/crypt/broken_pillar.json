@@ -1,0 +1,25 @@
+{
+  "image": "crypt/broken_pillar.svg",
+  "cell": {
+    "w": 24,
+    "h": 40
+  },
+  "anchor": {
+    "x": 12,
+    "y": 37
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "broken_pillar": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 40,
+      "anchor": {
+        "x": 12,
+        "y": 37
+      }
+    }
+  }
+}

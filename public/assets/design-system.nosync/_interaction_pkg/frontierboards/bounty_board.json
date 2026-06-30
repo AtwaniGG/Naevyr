@@ -1,0 +1,45 @@
+{
+  "image": "frontierboards/bounty_board.svg",
+  "cell": {
+    "w": 40,
+    "h": 56
+  },
+  "anchor": {
+    "x": 20,
+    "y": 55
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "bounty_board_00": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 56,
+      "anchor": {
+        "x": 20,
+        "y": 55
+      }
+    },
+    "bounty_board_01": {
+      "x": 40,
+      "y": 0,
+      "w": 40,
+      "h": 56,
+      "anchor": {
+        "x": 20,
+        "y": 55
+      }
+    }
+  },
+  "animations": {
+    "flutter": {
+      "frames": [
+        "bounty_board_00",
+        "bounty_board_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

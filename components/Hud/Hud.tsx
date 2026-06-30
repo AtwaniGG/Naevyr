@@ -60,6 +60,7 @@ import { cookAllFish, eat } from "@/game/systems/cooking";
 import { canCraft, craft } from "@/game/systems/crafting";
 import { audioEnabled, setAudioEnabled, initAudio } from "@/game/audio/sound";
 import { SpeakerGlyph } from "@/components/BgMusic";
+import { currentPushState, enablePush, disablePush, type PushState } from "@/components/push";
 import { bus } from "@/game/state/bus";
 import { WAYSTATIONS, buildRoadNetwork, REST_STOPS } from "@/game/world/tilemap";
 import { useViewport } from "@/game/state/viewport";
@@ -178,6 +179,7 @@ function ResponsiveHud() {
       <DuelOverlay />
       <ChallengePrompt />
       <WheelOverlay />
+      <StreakSeal />
     </div>
   );
 }
@@ -242,11 +244,15 @@ function MobileHud() {
             NAEVYR
           </a>
           <Trap label="GuestBadge"><GuestBadge /></Trap>
+          <Trap label="StreakChip"><StreakChip /></Trap>
           <Trap label="Vitals"><Vitals /></Trap>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <Trap label="OnlineBadge"><OnlineBadge /></Trap>
-          <Trap label="SoundToggle"><SoundToggle /></Trap>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Trap label="SoundToggle"><SoundToggle /></Trap>
+            <Trap label="NotifyToggle"><NotifyToggle /></Trap>
+          </div>
         </div>
       </div>
 
@@ -262,6 +268,7 @@ function MobileHud() {
       <Trap label="DuelOverlay"><DuelOverlay /></Trap>
       <Trap label="ChallengePrompt"><ChallengePrompt /></Trap>
       <Trap label="WheelOverlay"><WheelOverlay /></Trap>
+      <Trap label="StreakSeal"><StreakSeal /></Trap>
 
       {/* dock + satchel sheets (button suppressed on phone — the bar toggles
           them; each renders only its bottom sheet when open) */}
@@ -386,6 +393,62 @@ function SoundToggle() {
     >
       <SpeakerGlyph on={sound} />
     </button>
+  );
+}
+
+/** opt-in push notifications: come-back nudges (a sale, a besieged claim, the
+ *  Long Night) delivered even with the tab closed. Hidden where unsupported. */
+function NotifyToggle() {
+  const wallet = useGame((s) => s.wallet);
+  const [state, setState] = useState<PushState>("idle");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { void currentPushState().then(setState); }, []);
+  if (state === "unsupported") return null;
+  const on = state === "subscribed";
+  const denied = state === "denied";
+  const label = denied
+    ? "Notifications are blocked in your browser settings"
+    : on
+    ? "Notifications on. Click to stop."
+    : "Get notified when your wares sell, your claim is besieged, or the Long Night falls.";
+  return (
+    <button
+      type="button"
+      className="pointer-events-auto"
+      aria-label={label}
+      title={label}
+      aria-pressed={on}
+      disabled={busy || denied}
+      onClick={async () => {
+        setBusy(true);
+        try { setState(on ? await disablePush() : await enablePush(wallet)); }
+        finally { setBusy(false); }
+      }}
+      style={{
+        width: 38, height: 38, display: "inline-flex", alignItems: "center",
+        justifyContent: "center", padding: 0, cursor: denied ? "default" : "pointer",
+        color: on ? "var(--drift-gold, #e7c873)" : "var(--text-secondary, #9a8fb0)",
+        background: "rgba(10, 8, 16, 0.86)",
+        border: "1px solid rgba(124, 58, 237, 0.45)",
+        borderRadius: 8, lineHeight: 0, opacity: denied ? 0.5 : 1,
+      }}
+    >
+      <BellGlyph on={on} />
+    </button>
+  );
+}
+
+function BellGlyph({ on }: { on: boolean }) {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M8 2c-2 0-3.2 1.4-3.2 3.4 0 2.6-.8 3.8-1.6 4.6h9.6c-.8-.8-1.6-2-1.6-4.6C11.2 3.4 10 2 8 2Z"
+        stroke="currentColor" strokeWidth={1.3} strokeLinejoin="round"
+        fill={on ? "currentColor" : "none"} fillOpacity={on ? 0.25 : 0}
+      />
+      <path d="M6.6 12.2c.2.8.8 1.3 1.4 1.3s1.2-.5 1.4-1.3" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" />
+      {!on && <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" />}
+    </svg>
   );
 }
 
@@ -2946,9 +3009,11 @@ function TopLeft() {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <SeasonBadge season={season} name={seasonName(season)} driftPct={driftPct} />
         <SoundToggle />
+        <NotifyToggle />
       </div>
       <GuestBadge />
       <OnlineBadge />
+      <StreakChip />
       <Vitals />
       <BuffChips />
       <QuestBoard />
@@ -2976,6 +3041,72 @@ function GuestBadge() {
       <span style={{ font: "700 9px/1 var(--font-ui)", letterSpacing: "0.14em", color: "#c79be6" }}>
         GUEST
       </span>
+    </div>
+  );
+}
+
+/** the daily login-streak chip: an animated ember + day count + a 7-pip week
+ *  meter (pips light across the current week). Server-authoritative; hidden
+ *  offline / before the first streakSync (loginStreak === 0). */
+function StreakChip() {
+  const streak = useGame((s) => s.loginStreak);
+  if (!streak || streak < 1) return null;
+  const week = ((streak - 1) % 7) + 1; // which pip of the current week we're on
+  return (
+    <div
+      className="drift-hud-text"
+      title={`Login streak: ${streak} day${streak === 1 ? "" : "s"} unbroken. Return daily for an escalating reward; day 7 and day 30 pay a bonus.`}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "3px 8px", borderRadius: 4,
+        background: "rgba(231,200,115,0.12)",
+        border: "1px solid rgba(231,200,115,0.4)",
+      }}
+    >
+      <span className="streak-ember" style={{ width: 14, height: 14 }} />
+      <span style={{ font: "700 9px/1 var(--font-ui)", letterSpacing: "0.1em", color: "#e7c873" }}>
+        DAY {streak}
+      </span>
+      <span style={{ display: "flex", gap: 2 }}>
+        {Array.from({ length: 7 }, (_, i) => (
+          <span key={i} className={`streak-pip${i < week ? " lit" : ""}`} style={{ width: 8, height: 8 }} />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/** the milestone celebration: pops the wax seal (day 7 / 30) center-screen for a
+ *  few seconds when store.streakMilestone is set, then self-dismisses. */
+function StreakSeal() {
+  const milestone = useGame((s) => s.streakMilestone);
+  const setMilestone = useGame((s) => s.setStreakMilestone);
+  useEffect(() => {
+    if (!milestone) return;
+    const t = setTimeout(() => setMilestone(0), 4200);
+    return () => clearTimeout(t);
+  }, [milestone, setMilestone]);
+  if (!milestone) return null;
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      style={{ zIndex: 30 }}
+    >
+      <div
+        className="drift-hud-text flex flex-col items-center"
+        style={{ gap: 10, animation: "streak-seal-pop 0.5s ease-out both" }}
+      >
+        <span
+          className={`streak-seal streak-seal-${milestone >= 30 ? 30 : 7}`}
+          style={{ width: 96, height: 96 }}
+        />
+        <span style={{ font: "700 13px/1 var(--font-ui)", letterSpacing: "0.12em", color: "#e7c873", textShadow: "0 1px 3px rgba(10,8,16,0.9)" }}>
+          {milestone} DAYS UNBROKEN
+        </span>
+        <span style={{ font: "500 9px/1.3 var(--font-ui)", color: "var(--text-muted)", textAlign: "center" }}>
+          The Drift marks your devotion.
+        </span>
+      </div>
     </div>
   );
 }

@@ -337,6 +337,8 @@ interface GameState {
   outpostRep: number;
   /** daily login streak (server-authoritative; 0 offline) */
   loginStreak: number;
+  /** a just-reached streak milestone (7/30) to celebrate; 0 = none/dismissed */
+  streakMilestone: number;
   // ---- the Waystation ----
   ownedDyes: DyeKey[];
   ownedEyes: EyeKey[];
@@ -421,6 +423,7 @@ interface GameState {
   deliverSupply: (id: string) => void;
   quartermasterBuy: (item: string) => void;
   setLoginStreak: (n: number) => void;
+  setStreakMilestone: (n: number) => void;
   /** grant any newly-earned achievement titles (called after stat changes) */
   checkAchievements: () => void;
   /** record ownership of a bought cosmetic (gold is spent by the caller) */
@@ -556,6 +559,7 @@ export const useGame = create<GameState>((set, get) => ({
   traderNear: false,
   outpostRep: 0,
   loginStreak: 0,
+  streakMilestone: 0,
   claimedDeeds: [],
   ownedDyes: ["stone"],
   ownedEyes: ["drift"],
@@ -649,6 +653,7 @@ export const useGame = create<GameState>((set, get) => ({
   },
   quartermasterBuy: (item) => { if (get().online) bus.emit("quartermasterBuy", { item }); },
   setLoginStreak: (n) => set((s) => (s.loginStreak === n ? s : { loginStreak: n })),
+  setStreakMilestone: (n) => set({ streakMilestone: n }),
   checkAchievements: () => {
     const s = get();
     const ctx = deedCtx(s);

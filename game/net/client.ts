@@ -23,6 +23,8 @@ export interface NetPlayer {
   guildTag: string;
   guest: boolean;
   mounted: boolean;
+  /** a server-spawned ambient Echo (rendered translucent + tagged) */
+  echo: boolean;
 }
 
 export interface NetProp {

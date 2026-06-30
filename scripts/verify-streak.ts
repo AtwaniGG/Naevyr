@@ -8,6 +8,7 @@
 //   cd server && DRIFT_DATA_DIR=/tmp/st PORT=2598 CARAVAN_FIRST_S=9999 npx tsx src/index.ts
 //   GAME_SERVER=ws://localhost:2598 npx tsx scripts/verify-streak.ts
 import { Client } from "colyseus.js";
+import { streakReward } from "../server/src/streak";
 
 const WS = process.env.GAME_SERVER ?? "ws://localhost:2598";
 const HTTP = WS.replace(/^ws/, "http");
@@ -55,6 +56,14 @@ async function main() {
     check("our streak is on the board", (boards.streak ?? []).some((row: any) => row.value >= 1), JSON.stringify(boards.streak?.slice(0, 3)));
     check("the wealth (gold) board still exists", Array.isArray(boards.gold));
   } catch (e) { check("leaderboard fetch", false, String(e)); }
+
+  // 5. milestone reward math (pure — day 7/30 can't be reached via the live day
+  //    clock in a test, so assert the exact function the room credits from)
+  check("day 1 pays base 55, no seal", JSON.stringify(streakReward(1)) === JSON.stringify({ reward: 55, milestone: 0 }), JSON.stringify(streakReward(1)));
+  check("day 6 base caps at 130, no seal", JSON.stringify(streakReward(6)) === JSON.stringify({ reward: 130, milestone: 0 }), JSON.stringify(streakReward(6)));
+  check("day 7 adds the +200 seal (145+200)", JSON.stringify(streakReward(7)) === JSON.stringify({ reward: 345, milestone: 7 }), JSON.stringify(streakReward(7)));
+  check("day 30 adds the +750 seal (250+750)", JSON.stringify(streakReward(30)) === JSON.stringify({ reward: 1000, milestone: 30 }), JSON.stringify(streakReward(30)));
+  check("day 8 is base only again (no lingering seal)", JSON.stringify(streakReward(8)) === JSON.stringify({ reward: 160, milestone: 0 }), JSON.stringify(streakReward(8)));
 
   console.log(fails === 0 ? "\nALL PASS" : `\n${fails} FAILED`);
   process.exit(fails === 0 ? 0 : 1);

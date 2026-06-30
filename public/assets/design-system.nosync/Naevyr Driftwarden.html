@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — Driftwarden</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const DR='#a855f7',DRH='#d8b4fe',GOLD='#f6e0a6',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const dw=await Reel.loadImg('assets/_reel/driftwarden.png');     // s: idle0,1 walk2-7 swing8-11
+  const turn=await Reel.loadImg('assets/_reel/driftwarden_turn.png'); // idle0 s,se,e,ne,n
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  const LOOP=7200, cx=W/2, baseY=H-150, sc=8;
+  // phases: 0 turn-around (0-2.4s), 1 walk (2.4-4.6s), 2 swing combo (4.6-7.2s)
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=0.4; ctx.imageSmoothingEnabled=false; ctx.drawImage(vista,0,0,480,270,-20,-30,1320,760); ctx.globalAlpha=1;
+    // hero spotlight
+    ctx.fillStyle=Reel.radial(ctx,cx,baseY-30,260,[[0,'rgba(168,85,247,0.4)'],[0.5,'rgba(107,33,168,0.14)'],[0.78,'rgba(0,0,0,0)']]); ctx.fillRect(cx-320,baseY-260,640,300);
+    // shadow
+    ctx.fillStyle='rgba(10,8,16,0.5)'; ctx.beginPath(); ctx.ellipse(cx,baseY-4,52,12,0,0,7); ctx.fill();
+
+    let img=dw, fw=32, col, sub;
+    if(t<2400){ img=turn; const order=[0,1,2,3,4,3,2,1]; col=order[Math.floor(t/300)%8]; sub='FIVE-WAY FACING'; }
+    else if(t<4600){ col=2+Math.floor((t-2400)/110)%6; sub='TRAVEL ANIMATION'; }
+    else { const s=t-4600; if(s%1300<800){ col=8+Math.min(3,Math.floor((s%1300)/200)); } else { col=Math.floor(s/250)%2; } sub='WARDEN\u2019S GLAIVE'; }
+    const bob=(t>=2400&&t<4600)?0:Math.round(Math.sin(t/520)*2);
+    Reel.sprBase(ctx,img,fw,40,col,cx,baseY+bob,sc);
+    Reel.motes(ctx,W,H,t,26,'#d8b4fe',4);
+    Reel.vignette(ctx,W,H,0.9);
+
+    // header
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   NEW AVATAR',54,58);
+    // "NEW COSMETIC" tag top-right
+    const bx=W-260,by=44; ctx.fillStyle='rgba(168,85,247,0.12)'; ctx.fillRect(bx,by,196,38); ctx.strokeStyle='rgba(168,85,247,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,196,38);
+    ctx.fillStyle=DRH; ctx.font=`13px ${SILK}`; ctx.textBaseline='middle'; ctx.fillText('PREMIUM AVATAR',bx+16,by+20); ctx.textBaseline='alphabetic';
+    // name card
+    ctx.textAlign='center';
+    ctx.fillStyle=GOLD; ctx.font=`700 66px ${PIX}`; ctx.shadowColor='rgba(168,85,247,0.55)'; ctx.shadowBlur=22; ctx.fillText('THE DRIFTWARDEN',W/2,H-60); ctx.shadowBlur=0;
+    ctx.fillStyle=DRH; ctx.font=`15px ${SILK}`; ctx.fillText(sub+'  ·  FRONTIER RANGER',W/2,H-32);
+    // phase dots
+    const ph=t<2400?0:t<4600?1:2; for(let i=0;i<3;i++){ ctx.fillStyle=i===ph?GOLD:'rgba(216,207,224,0.3)'; ctx.fillRect(W/2-18+i*14,28,8,8); }
+  });
+})();
+</script>
+</body></html>

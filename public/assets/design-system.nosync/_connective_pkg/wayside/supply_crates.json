@@ -1,0 +1,24 @@
+{
+  "image": "wayside/supply_crates.svg",
+  "cell": {
+    "w": 48,
+    "h": 40
+  },
+  "anchor": {
+    "x": 24,
+    "y": 39
+  },
+  "camp": "rest",
+  "frames": {
+    "supply_crates_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 40,
+      "anchor": {
+        "x": 24,
+        "y": 39
+      }
+    }
+  }
+}

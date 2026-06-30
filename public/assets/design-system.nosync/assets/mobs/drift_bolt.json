@@ -1,0 +1,55 @@
+{
+  "image": "mobs/drift_bolt.svg",
+  "cell": {
+    "w": 10,
+    "h": 10
+  },
+  "anchor": {
+    "x": 5,
+    "y": 5
+  },
+  "note": "Drift Wisp projectile (engine rotates to heading)",
+  "frames": {
+    "travel_00": {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    },
+    "travel_01": {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    },
+    "travel_02": {
+      "x": 20,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    }
+  },
+  "animations": {
+    "travel": {
+      "frames": [
+        "travel_00",
+        "travel_01",
+        "travel_02"
+      ],
+      "fps": 12,
+      "loop": true
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "image": "crypt/sarcophagus.svg",
+  "cell": {
+    "w": 44,
+    "h": 36
+  },
+  "anchor": {
+    "x": 22,
+    "y": 35
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "sarcophagus": {
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 36,
+      "anchor": {
+        "x": 22,
+        "y": 35
+      }
+    }
+  }
+}

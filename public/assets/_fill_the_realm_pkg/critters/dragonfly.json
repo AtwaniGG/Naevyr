@@ -1,0 +1,61 @@
+{
+  "image": "critters/dragonfly.svg",
+  "cell": {
+    "w": 12,
+    "h": 8
+  },
+  "anchor": {
+    "x": 4,
+    "y": 4
+  },
+  "facings": [],
+  "mirror": null,
+  "flyer": true,
+  "fly": {
+    "height": 12,
+    "shadow": {
+      "rx": 3,
+      "ry": 1
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "anims": [
+    {
+      "name": "hover",
+      "count": 2,
+      "fps": 12
+    }
+  ],
+  "frames": {
+    "dragonfly-hover_00": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "anchor": {
+        "x": 4,
+        "y": 4
+      }
+    },
+    "dragonfly-hover_01": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 8,
+      "anchor": {
+        "x": 4,
+        "y": 4
+      }
+    }
+  },
+  "animations": {
+    "hover": {
+      "frames": [
+        "dragonfly-hover_00",
+        "dragonfly-hover_01"
+      ],
+      "fps": 12,
+      "loop": true
+    }
+  }
+}

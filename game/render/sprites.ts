@@ -8745,6 +8745,87 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+// ─── echofx.js (Ambient Echo overlays) ─────────────────────────────────────────
+// Faithful port of assets/_gen/echofx.js. Drift-shimmer overlays sized to the
+// 32×40 wanderer rig (feet anchor [16,37]); they composite OVER a half-alpha
+// wanderer so an Echo reads as a ghost. No void outline — these are drift FX.
+
+/** silhouette envelope of the wanderer rig: y → [x0,x1] inclusive, or null */
+function wandererEnvelope(): ([number, number] | null)[] {
+  const env: ([number, number] | null)[] = [];
+  for (let y = 0; y < 40; y++) {
+    if (y < 6) env.push(null);            // above head
+    else if (y < 16) env.push([12, 19]);  // head + hood
+    else if (y < 20) env.push([11, 20]);  // shoulders
+    else if (y < 31) env.push([10, 21]);  // torso + arms
+    else if (y <= 37) env.push([12, 19]); // legs
+    else env.push(null);                  // below feet
+  }
+  return env;
+}
+
+/** ECHO VEIL — 32×40, 3 frames @3fps loop. Faint edge wisps + rising motes. */
+export function drawEchoVeil(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(32, 40);
+  const env = wandererEnvelope();
+  const dr = RAMP.drift;
+  for (let y = 6; y <= 37; y++) {
+    const e = env[y]; if (!e) continue;
+    const ph = y + frame * 2;
+    if (ph % 3 === 0)               P(g, e[0] - 1, y, dr[1], 0.34); // left outer wisp
+    if ((y + frame) % 4 === 0)      P(g, e[0], y, dr[0], 0.22);     // left inner shimmer
+    if ((ph + 1) % 3 === 0)         P(g, e[1] + 1, y, dr[1], 0.34); // right outer wisp
+    if ((y + frame + 2) % 4 === 0)  P(g, e[1], y, dr[0], 0.22);     // right inner shimmer
+    if (hash2(e[0], y, 711) < 0.04) P(g, e[0] - 1, y, dr[0], 0.5);  // seam vein nodes
+    if (hash2(e[1], y, 712) < 0.04) P(g, e[1] + 1, y, dr[0], 0.5);
+  }
+  const motes = [[14, 34], [18, 30], [12, 25], [20, 21], [16, 15], [19, 37], [11, 29], [21, 18]];
+  motes.forEach(([mx, my], i) => {
+    let yy = my - frame * 2;
+    while (yy < 6) yy += 32;                          // wrap up through the body
+    const e = env[yy]; if (!e) return;
+    const x = Math.min(Math.max(mx, e[0]), e[1]);
+    P(g, x, yy, i % 2 ? dr[0] : dr[1], 0.3);
+  });
+  const crownY = 5 - frame;                           // crown shimmer lifting off
+  if (crownY >= 0) { P(g, 15, crownY, dr[0], 0.28); P(g, 17, crownY + 1, dr[1], 0.22); }
+  return g;
+}
+
+/** ECHO FADE — 32×40, 4 frames one-shot. Motes gather INTO the silhouette
+ *  0→3 (forward = materialize/spawn, reversed = dissolve/despawn). */
+export function drawEchoFade(frame: number): Grid {
+  frame = frame || 0;
+  const g = makeGrid(32, 40);
+  const env = wandererEnvelope();
+  const dr = RAMP.drift;
+  const rng = mulberry(733);
+  const dens   = [0.14, 0.42, 0.72, 1][frame];        // silhouette fill ratio
+  const spread = [5, 4, 2, 0][frame];                 // outer scatter distance
+  for (let y = 6; y <= 37; y++) {
+    const e = env[y]; if (!e) continue;
+    for (let x = e[0]; x <= e[1]; x++) {
+      const h = hash2(x, y, 73);
+      if (h < dens) {
+        const c = h < dens * 0.3 ? dr[0] : h < dens * 0.6 ? dr[1] : dr[2];
+        P(g, x, y, c, 0.3 + 0.6 * dens);
+      }
+    }
+  }
+  if (spread > 0) {
+    for (let i = 0; i < 26; i++) {
+      const ey = 6 + Math.floor(rng() * 32);
+      const e = env[ey]; if (!e) continue;
+      const side = rng() < 0.5 ? -1 : 1;
+      const off = 1 + Math.floor(rng() * spread);
+      const x = side < 0 ? e[0] - off : e[1] + off;
+      P(g, x, ey, rng() < 0.5 ? dr[0] : dr[1], 0.22 + 0.06 * (4 - spread));
+    }
+  }
+  return g;
+}
+
 function gridToCanvas(g: Grid): OffscreenCanvas {
   const cv = new OffscreenCanvas(g.w, g.h);
   const ctx = cv.getContext('2d')!;
@@ -9092,6 +9173,8 @@ export class SpriteCache {
   private rockNorm!: OffscreenCanvas;
   private rockDep!:  OffscreenCanvas;
   private fishAnim: OffscreenCanvas[]   = [];
+  // ambient Echo overlays: `veil-${0..2}` (loop), `fade-${0..3}` (one-shot)
+  private echoFx = new Map<string, OffscreenCanvas>();
   // char key: `${facing}-${anim}-${frame}` (or +'-m' for mirrored);
   // equipped variants append the gear signature and are generated lazily
   private charMap  = new Map<string, OffscreenCanvas>();
@@ -9149,6 +9232,9 @@ export class SpriteCache {
     // salvage FX (additive) + claim upgrade props
     for (let f = 0; f < 2; f++) this.salvageFx.set(`glint-${f}`, gridToCanvas(drawSalvageGlint(f)));
     for (let f = 0; f < 3; f++) this.salvageFx.set(`puff-${f}`, gridToCanvas(drawDigPuff(f)));
+    // ambient Echo overlays (7 tiny 32×40 frames — cheap to bake up front)
+    for (let f = 0; f < 3; f++) this.echoFx.set(`veil-${f}`, gridToCanvas(drawEchoVeil(f)));
+    for (let f = 0; f < 4; f++) this.echoFx.set(`fade-${f}`, gridToCanvas(drawEchoFade(f)));
     this.claimProps.set('stash', gridToCanvas(drawClaimStash()));
     this.claimProps.set('workbench', gridToCanvas(drawClaimWorkbench()));
     for (let f = 0; f < 2; f++) { this.claimProps.set(`ward-${f}`, gridToCanvas(drawClaimWard(f))); this.claimProps.set(`rune-${f}`, gridToCanvas(drawRuneAnvil(f))); }
@@ -10019,6 +10105,25 @@ export class SpriteCache {
     }
     if (!cv) return;
     // 32×40, feet at y=37 → anchor at sy
+    ctx.drawImage(cv, sx - 16 * z, sy - 37 * z, 32 * z, 40 * z);
+  }
+
+  /** Echo veil overlay (loops 0..2) — composite over a half-alpha wanderer at
+   *  the SAME feet anchor drawChar uses, so the wisps hug the body edges */
+  drawEchoVeil(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    const cv = this.echoFx.get(`veil-${((frame % 3) + 3) % 3}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, sx - 16 * z, sy - 37 * z, 32 * z, 40 * z);
+  }
+
+  /** Echo materialize puff (one-shot 0..3) — played when an Echo first appears */
+  drawEchoFade(ctx: CanvasRenderingContext2D, frame: number, sx: number, sy: number, z: number) {
+    if (!this.ready) return;
+    const cv = this.echoFx.get(`fade-${Math.max(0, Math.min(3, frame | 0))}`);
+    if (!cv) return;
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(cv, sx - 16 * z, sy - 37 * z, 32 * z, 40 * z);
   }
 

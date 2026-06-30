@@ -1,0 +1,36 @@
+{
+  "image": "events/blood_sky.svg",
+  "cell": {
+    "w": 64,
+    "h": 128
+  },
+  "type": "gradient-reference",
+  "note": "Full-screen Blood Moon sky tint. Overlay top→horizon over the world at ~0.5 strength.",
+  "stops": [
+    {
+      "at": 0,
+      "hex": "#1a0610",
+      "note": "zenith — near-void, faint red"
+    },
+    {
+      "at": 0.35,
+      "hex": "#2a0810",
+      "note": "upper sky"
+    },
+    {
+      "at": 0.62,
+      "hex": "#3b0d14",
+      "note": "mid sky"
+    },
+    {
+      "at": 0.82,
+      "hex": "#5f1212",
+      "note": "low sky (blood-dp)"
+    },
+    {
+      "at": 1,
+      "hex": "#991b1b",
+      "note": "horizon glow (blood-lo)"
+    }
+  ]
+}

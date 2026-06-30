@@ -1,0 +1,46 @@
+{
+  "image": "campcraft/salvage_glint.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 12
+  },
+  "additive": true,
+  "blend": "additive",
+  "outline": false,
+  "frames": {
+    "salvage_glint_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 12
+      }
+    },
+    "salvage_glint_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 12
+      }
+    }
+  },
+  "animations": {
+    "twinkle": {
+      "frames": [
+        "salvage_glint_00",
+        "salvage_glint_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

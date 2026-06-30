@@ -1,0 +1,24 @@
+{
+  "image": "ruins/broken_arch.svg",
+  "cell": {
+    "w": 96,
+    "h": 88
+  },
+  "anchor": {
+    "x": 48,
+    "y": 87
+  },
+  "footprint": "3x3",
+  "frames": {
+    "broken_arch_00": {
+      "x": 0,
+      "y": 0,
+      "w": 96,
+      "h": 88,
+      "anchor": {
+        "x": 48,
+        "y": 87
+      }
+    }
+  }
+}

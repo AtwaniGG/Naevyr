@@ -1,0 +1,23 @@
+{
+  "image": "micropoi/hay_bales.svg",
+  "cell": {
+    "w": 40,
+    "h": 24
+  },
+  "anchor": {
+    "x": 20,
+    "y": 22
+  },
+  "frames": {
+    "hay_bales_00": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 24,
+      "anchor": {
+        "x": 20,
+        "y": 22
+      }
+    }
+  }
+}

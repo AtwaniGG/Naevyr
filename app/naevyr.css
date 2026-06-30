@@ -482,6 +482,49 @@ svg.drift-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
   flex-shrink: 0;
 }
 
+/* ─── Login-streak HUD art (DS streak.js exports, DOM-rendered) ──────────────
+   streak_ember: 4-frame 96x24 flicker; streak_pip: 2-state 32x16; the wax
+   seals are static 32x32. Served straight from the DS exports like the landing. */
+.streak-ember {
+  display: inline-block;
+  background-image: url("/assets/design-system.nosync/assets/streak/streak_ember.svg");
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: streak-ember-flicker 0.667s steps(1) infinite; /* 4 frames @ 6fps */
+}
+@keyframes streak-ember-flicker {
+  0%,   24.9% { background-position-x: 0%; }
+  25%,  49.9% { background-position-x: 33.333%; }
+  50%,  74.9% { background-position-x: 66.667%; }
+  75%,  100%  { background-position-x: 100%; }
+}
+.streak-pip {
+  display: inline-block;
+  background-image: url("/assets/design-system.nosync/assets/streak/streak_pip.svg");
+  background-size: 200% 100%;
+  background-position-x: 0%; /* unlit (left cell) */
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+.streak-pip.lit { background-position-x: 100%; } /* lit (right cell) */
+.streak-seal {
+  display: inline-block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+.streak-seal-7  { background-image: url("/assets/design-system.nosync/assets/streak/milestone_seal_7.svg"); }
+.streak-seal-30 { background-image: url("/assets/design-system.nosync/assets/streak/milestone_seal_30.svg"); }
+@keyframes streak-seal-pop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  35%  { transform: scale(1.08); opacity: 1; }
+  60%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .landing-nav-link {
   display: inline-flex;
   align-items: center;

@@ -1,0 +1,25 @@
+{
+  "image": "frontierboards/supply_post.svg",
+  "cell": {
+    "w": 56,
+    "h": 56
+  },
+  "anchor": {
+    "x": 28,
+    "y": 55
+  },
+  "labelClearTop": 6,
+  "solid": true,
+  "frames": {
+    "supply_post_00": {
+      "x": 0,
+      "y": 0,
+      "w": 56,
+      "h": 56,
+      "anchor": {
+        "x": 28,
+        "y": 55
+      }
+    }
+  }
+}

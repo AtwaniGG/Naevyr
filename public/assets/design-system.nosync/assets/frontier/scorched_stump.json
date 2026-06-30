@@ -1,0 +1,34 @@
+{
+  "image": "frontier/scorched_stump.svg",
+  "cell": {
+    "w": 24,
+    "h": 22
+  },
+  "anchor": {
+    "x": 12,
+    "y": 21
+  },
+  "variants": 2,
+  "frames": {
+    "scorched_stump_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 22,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    },
+    "scorched_stump_01": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 22,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    }
+  }
+}

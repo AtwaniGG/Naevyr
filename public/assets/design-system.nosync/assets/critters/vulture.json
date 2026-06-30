@@ -1,0 +1,94 @@
+{
+  "image": "critters/vulture.svg",
+  "cell": {
+    "w": 18,
+    "h": 16
+  },
+  "anchor": {
+    "x": 9,
+    "y": 8
+  },
+  "facings": [],
+  "mirror": null,
+  "flyer": true,
+  "fly": {
+    "height": 34,
+    "shadow": {
+      "rx": 7,
+      "ry": 2.5
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "anims": [
+    {
+      "name": "glide",
+      "count": 2,
+      "fps": 2
+    },
+    {
+      "name": "flap",
+      "count": 2,
+      "fps": 4
+    }
+  ],
+  "frames": {
+    "vulture-glide_00": {
+      "x": 0,
+      "y": 0,
+      "w": 18,
+      "h": 16,
+      "anchor": {
+        "x": 9,
+        "y": 8
+      }
+    },
+    "vulture-glide_01": {
+      "x": 18,
+      "y": 0,
+      "w": 18,
+      "h": 16,
+      "anchor": {
+        "x": 9,
+        "y": 8
+      }
+    },
+    "vulture-flap_00": {
+      "x": 36,
+      "y": 0,
+      "w": 18,
+      "h": 16,
+      "anchor": {
+        "x": 9,
+        "y": 8
+      }
+    },
+    "vulture-flap_01": {
+      "x": 54,
+      "y": 0,
+      "w": 18,
+      "h": 16,
+      "anchor": {
+        "x": 9,
+        "y": 8
+      }
+    }
+  },
+  "animations": {
+    "glide": {
+      "frames": [
+        "vulture-glide_00",
+        "vulture-glide_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "flap": {
+      "frames": [
+        "vulture-flap_00",
+        "vulture-flap_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

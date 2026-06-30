@@ -30,16 +30,27 @@ async function main() {
   await wait(600); // let initial patches land
 
   check("both clients in the same room", a.roomId === b.roomId);
+  // Ambient Echoes (server-spawned fake wanderers) may share the realm. They
+  // carry echo=true; the headcount that matters is the REAL (non-echo) players.
+  const realPlayers = (room: Room<any>) => {
+    let n = 0;
+    (room.state.players as Map<string, any>).forEach((p) => { if (!p.echo) n++; });
+    return n;
+  };
+  check("A sees 2 real players", realPlayers(a) === 2, `real=${realPlayers(a)}`);
+  check("B sees 2 real players", realPlayers(b) === 2, `real=${realPlayers(b)}`);
+  // the two real clients are NOT flagged as Echoes; any Echo present is flagged
   check(
-    "A sees 2 players",
-    a.state.players.size === 2,
-    `size=${a.state.players.size}`,
+    "real clients carry echo=false",
+    !a.state.players.get(a.sessionId)?.echo && !a.state.players.get(b.sessionId)?.echo,
   );
-  check(
-    "B sees 2 players",
-    b.state.players.size === 2,
-    `size=${b.state.players.size}`,
-  );
+  {
+    let echoesWellFormed = true;
+    (a.state.players as Map<string, any>).forEach((p) => {
+      if (p.echo && (!String(p.id).startsWith("echo:") || !p.name)) echoesWellFormed = false;
+    });
+    check("any Echoes present are well-formed (echo:id + name)", echoesWellFormed);
+  }
   check(
     `map synced (${MAP_W}×${MAP_H})`,
     a.state.w === MAP_W && a.state.h === MAP_H && a.state.tiles.length === MAP_W * MAP_H,
@@ -164,8 +175,8 @@ async function main() {
   await wait(600);
   check(
     "A sees B leave",
-    a.state.players.size === 1,
-    `size=${a.state.players.size}`,
+    realPlayers(a) === 1,
+    `real=${realPlayers(a)}`,
   );
 
   await a.leave();

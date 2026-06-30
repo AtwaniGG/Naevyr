@@ -31,6 +31,10 @@ export class PlayerState extends Schema {
   @type("string") guildTag = "";
   /** demo lane: a guest wanderer (no wallet, economy locked) — server-set */
   @type("boolean") guest = false;
+  /** an ambient Echo: a server-spawned diegetic wanderer that fills a quiet
+   *  realm. Pure presence (no economy/combat/DB); rendered translucent + tagged
+   *  so it's never mistaken for a real player. Despawns as real players join. */
+  @type("boolean") echo = false;
   /** riding a gold-bought steed (drives the road/mount speed bonus + render) */
   @type("boolean") mounted = false;
 }

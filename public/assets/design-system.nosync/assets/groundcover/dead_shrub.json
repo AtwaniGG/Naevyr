@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/dead_shrub.svg",
+  "biome": "bonefields",
+  "cell": {
+    "w": 16,
+    "h": 14
+  },
+  "anchor": {
+    "x": 8,
+    "y": 13
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "dead_shrub_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 14,
+      "anchor": {
+        "x": 8,
+        "y": 13
+      }
+    },
+    "dead_shrub_v1": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 14,
+      "anchor": {
+        "x": 8,
+        "y": 13
+      }
+    }
+  }
+}

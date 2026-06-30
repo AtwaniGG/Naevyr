@@ -1,0 +1,43 @@
+{
+  "image": "ruins/waystone.svg",
+  "cell": {
+    "w": 28,
+    "h": 44
+  },
+  "anchor": {
+    "x": 14,
+    "y": 43
+  },
+  "frames": {
+    "waystone_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 44,
+      "anchor": {
+        "x": 14,
+        "y": 43
+      }
+    },
+    "waystone_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 44,
+      "anchor": {
+        "x": 14,
+        "y": 43
+      }
+    }
+  },
+  "animations": {
+    "rune_glow": {
+      "frames": [
+        "waystone_00",
+        "waystone_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

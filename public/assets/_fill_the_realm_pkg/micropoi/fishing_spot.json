@@ -1,0 +1,43 @@
+{
+  "image": "micropoi/fishing_spot.svg",
+  "cell": {
+    "w": 40,
+    "h": 28
+  },
+  "anchor": {
+    "x": 20,
+    "y": 25
+  },
+  "frames": {
+    "fishing_spot_00": {
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 28,
+      "anchor": {
+        "x": 20,
+        "y": 25
+      }
+    },
+    "fishing_spot_01": {
+      "x": 40,
+      "y": 0,
+      "w": 40,
+      "h": 28,
+      "anchor": {
+        "x": 20,
+        "y": 25
+      }
+    }
+  },
+  "animations": {
+    "water_lap": {
+      "frames": [
+        "fishing_spot_00",
+        "fishing_spot_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

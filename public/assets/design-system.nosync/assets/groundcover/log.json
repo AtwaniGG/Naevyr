@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/log.svg",
+  "biome": "woodland",
+  "cell": {
+    "w": 24,
+    "h": 12
+  },
+  "anchor": {
+    "x": 12,
+    "y": 10
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "log_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 12,
+      "anchor": {
+        "x": 12,
+        "y": 10
+      }
+    },
+    "log_v1": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 12,
+      "anchor": {
+        "x": 12,
+        "y": 10
+      }
+    }
+  }
+}

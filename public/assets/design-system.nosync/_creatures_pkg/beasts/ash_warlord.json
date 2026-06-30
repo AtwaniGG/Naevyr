@@ -1,0 +1,1086 @@
+{
+  "image": "beasts/ash_warlord.svg",
+  "cell": {
+    "w": 100,
+    "h": 110
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "class": "miniboss",
+  "camp": "Ashen Warcamp",
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "ember-hi (#fcd34d)",
+  "frames": {
+    "ash_warlord-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-s_01": {
+      "x": 100,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_00": {
+      "x": 200,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_01": {
+      "x": 300,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_02": {
+      "x": 400,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_03": {
+      "x": 500,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_04": {
+      "x": 600,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-s_05": {
+      "x": 700,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-s_00": {
+      "x": 800,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-s_01": {
+      "x": 900,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-s_02": {
+      "x": 1000,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-s_03": {
+      "x": 1100,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-s_00": {
+      "x": 1200,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-s_01": {
+      "x": 1300,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-s_02": {
+      "x": 1400,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-s_03": {
+      "x": 1500,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-s_04": {
+      "x": 1600,
+      "y": 0,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-se_00": {
+      "x": 0,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-se_01": {
+      "x": 100,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_00": {
+      "x": 200,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_01": {
+      "x": 300,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_02": {
+      "x": 400,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_03": {
+      "x": 500,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_04": {
+      "x": 600,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-se_05": {
+      "x": 700,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-se_00": {
+      "x": 800,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-se_01": {
+      "x": 900,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-se_02": {
+      "x": 1000,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-se_03": {
+      "x": 1100,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-se_00": {
+      "x": 1200,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-se_01": {
+      "x": 1300,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-se_02": {
+      "x": 1400,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-se_03": {
+      "x": 1500,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-se_04": {
+      "x": 1600,
+      "y": 110,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-e_00": {
+      "x": 0,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-e_01": {
+      "x": 100,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_00": {
+      "x": 200,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_01": {
+      "x": 300,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_02": {
+      "x": 400,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_03": {
+      "x": 500,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_04": {
+      "x": 600,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-e_05": {
+      "x": 700,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-e_00": {
+      "x": 800,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-e_01": {
+      "x": 900,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-e_02": {
+      "x": 1000,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-e_03": {
+      "x": 1100,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-e_00": {
+      "x": 1200,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-e_01": {
+      "x": 1300,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-e_02": {
+      "x": 1400,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-e_03": {
+      "x": 1500,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-e_04": {
+      "x": 1600,
+      "y": 220,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-ne_00": {
+      "x": 0,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-ne_01": {
+      "x": 100,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_00": {
+      "x": 200,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_01": {
+      "x": 300,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_02": {
+      "x": 400,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_03": {
+      "x": 500,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_04": {
+      "x": 600,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-ne_05": {
+      "x": 700,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-ne_00": {
+      "x": 800,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-ne_01": {
+      "x": 900,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-ne_02": {
+      "x": 1000,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-ne_03": {
+      "x": 1100,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-ne_00": {
+      "x": 1200,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-ne_01": {
+      "x": 1300,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-ne_02": {
+      "x": 1400,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-ne_03": {
+      "x": 1500,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-ne_04": {
+      "x": 1600,
+      "y": 330,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-n_00": {
+      "x": 0,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-idle-n_01": {
+      "x": 100,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_00": {
+      "x": 200,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_01": {
+      "x": 300,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_02": {
+      "x": 400,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_03": {
+      "x": 500,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_04": {
+      "x": 600,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-walk-n_05": {
+      "x": 700,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-n_00": {
+      "x": 800,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-n_01": {
+      "x": 900,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-n_02": {
+      "x": 1000,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-attack-n_03": {
+      "x": 1100,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-n_00": {
+      "x": 1200,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-n_01": {
+      "x": 1300,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-n_02": {
+      "x": 1400,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-n_03": {
+      "x": 1500,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    },
+    "ash_warlord-death-n_04": {
+      "x": 1600,
+      "y": 440,
+      "w": 100,
+      "h": 110,
+      "anchor": {
+        "x": 50,
+        "y": 109
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "ash_warlord-idle-s_00",
+        "ash_warlord-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "ash_warlord-walk-s_00",
+        "ash_warlord-walk-s_01",
+        "ash_warlord-walk-s_02",
+        "ash_warlord-walk-s_03",
+        "ash_warlord-walk-s_04",
+        "ash_warlord-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-s": {
+      "frames": [
+        "ash_warlord-attack-s_00",
+        "ash_warlord-attack-s_01",
+        "ash_warlord-attack-s_02",
+        "ash_warlord-attack-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "ash_warlord-death-s_00",
+        "ash_warlord-death-s_01",
+        "ash_warlord-death-s_02",
+        "ash_warlord-death-s_03",
+        "ash_warlord-death-s_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "ash_warlord-idle-se_00",
+        "ash_warlord-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "ash_warlord-walk-se_00",
+        "ash_warlord-walk-se_01",
+        "ash_warlord-walk-se_02",
+        "ash_warlord-walk-se_03",
+        "ash_warlord-walk-se_04",
+        "ash_warlord-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-se": {
+      "frames": [
+        "ash_warlord-attack-se_00",
+        "ash_warlord-attack-se_01",
+        "ash_warlord-attack-se_02",
+        "ash_warlord-attack-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "ash_warlord-death-se_00",
+        "ash_warlord-death-se_01",
+        "ash_warlord-death-se_02",
+        "ash_warlord-death-se_03",
+        "ash_warlord-death-se_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "ash_warlord-idle-e_00",
+        "ash_warlord-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "ash_warlord-walk-e_00",
+        "ash_warlord-walk-e_01",
+        "ash_warlord-walk-e_02",
+        "ash_warlord-walk-e_03",
+        "ash_warlord-walk-e_04",
+        "ash_warlord-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-e": {
+      "frames": [
+        "ash_warlord-attack-e_00",
+        "ash_warlord-attack-e_01",
+        "ash_warlord-attack-e_02",
+        "ash_warlord-attack-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "ash_warlord-death-e_00",
+        "ash_warlord-death-e_01",
+        "ash_warlord-death-e_02",
+        "ash_warlord-death-e_03",
+        "ash_warlord-death-e_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "ash_warlord-idle-ne_00",
+        "ash_warlord-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "ash_warlord-walk-ne_00",
+        "ash_warlord-walk-ne_01",
+        "ash_warlord-walk-ne_02",
+        "ash_warlord-walk-ne_03",
+        "ash_warlord-walk-ne_04",
+        "ash_warlord-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-ne": {
+      "frames": [
+        "ash_warlord-attack-ne_00",
+        "ash_warlord-attack-ne_01",
+        "ash_warlord-attack-ne_02",
+        "ash_warlord-attack-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "ash_warlord-death-ne_00",
+        "ash_warlord-death-ne_01",
+        "ash_warlord-death-ne_02",
+        "ash_warlord-death-ne_03",
+        "ash_warlord-death-ne_04"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "ash_warlord-idle-n_00",
+        "ash_warlord-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "ash_warlord-walk-n_00",
+        "ash_warlord-walk-n_01",
+        "ash_warlord-walk-n_02",
+        "ash_warlord-walk-n_03",
+        "ash_warlord-walk-n_04",
+        "ash_warlord-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "attack-n": {
+      "frames": [
+        "ash_warlord-attack-n_00",
+        "ash_warlord-attack-n_01",
+        "ash_warlord-attack-n_02",
+        "ash_warlord-attack-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "ash_warlord-death-n_00",
+        "ash_warlord-death-n_01",
+        "ash_warlord-death-n_02",
+        "ash_warlord-death-n_03",
+        "ash_warlord-death-n_04"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

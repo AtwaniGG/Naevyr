@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/tallgrass.svg",
+  "biome": "meadow",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 15
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "tallgrass_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 15
+      }
+    },
+    "tallgrass_v1": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 15
+      }
+    }
+  }
+}

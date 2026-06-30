@@ -185,3 +185,15 @@ export const exchangeLog = pgTable("exchange_log", {
   /** last payout tx signature (audit trail) */
   lastSig: text("last_sig"),
 });
+
+// web-push subscriptions for off-tab notifications (Phase 2B). One row per
+// browser push endpoint; a device token may hold several (multiple devices).
+export const pushSubs = pgTable("push_subs", {
+  endpoint: text("endpoint").primaryKey(),
+  token: text("token").notNull(),
+  wallet: text("wallet"),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type PushSubRow = typeof pushSubs.$inferSelect;

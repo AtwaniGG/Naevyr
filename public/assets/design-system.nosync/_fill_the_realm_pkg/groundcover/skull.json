@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/skull.svg",
+  "biome": "bonefields",
+  "cell": {
+    "w": 12,
+    "h": 10
+  },
+  "anchor": {
+    "x": 6,
+    "y": 9
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "skull_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    },
+    "skull_v1": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 10,
+      "anchor": {
+        "x": 6,
+        "y": 9
+      }
+    }
+  }
+}

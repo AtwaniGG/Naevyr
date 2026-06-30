@@ -1,0 +1,49 @@
+{
+  "image": "camps/ashen_warcamp.svg",
+  "cell": {
+    "w": 120,
+    "h": 104
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 60,
+    "y": 103
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "ashen_warcamp_00": {
+      "x": 0,
+      "y": 0,
+      "w": 120,
+      "h": 104,
+      "anchor": {
+        "x": 60,
+        "y": 103
+      }
+    },
+    "ashen_warcamp_01": {
+      "x": 120,
+      "y": 0,
+      "w": 120,
+      "h": 104,
+      "anchor": {
+        "x": 60,
+        "y": 103
+      }
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "ashen_warcamp_00",
+        "ashen_warcamp_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

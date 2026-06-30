@@ -1,0 +1,24 @@
+{
+  "image": "claimworks/claim_workbench.svg",
+  "cell": {
+    "w": 36,
+    "h": 28
+  },
+  "anchor": {
+    "x": 18,
+    "y": 27
+  },
+  "solid": true,
+  "frames": {
+    "claim_workbench_00": {
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 28,
+      "anchor": {
+        "x": 18,
+        "y": 27
+      }
+    }
+  }
+}

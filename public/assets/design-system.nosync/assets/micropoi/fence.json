@@ -1,0 +1,24 @@
+{
+  "image": "micropoi/fence.svg",
+  "cell": {
+    "w": 48,
+    "h": 20
+  },
+  "anchor": {
+    "x": 24,
+    "y": 18
+  },
+  "tileable": "x",
+  "frames": {
+    "fence_00": {
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 20,
+      "anchor": {
+        "x": 24,
+        "y": 18
+      }
+    }
+  }
+}

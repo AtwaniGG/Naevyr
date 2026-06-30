@@ -1,0 +1,44 @@
+{
+  "image": "claimworks/claim_ward.svg",
+  "cell": {
+    "w": 24,
+    "h": 44
+  },
+  "anchor": {
+    "x": 12,
+    "y": 43
+  },
+  "solid": true,
+  "frames": {
+    "claim_ward_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 44,
+      "anchor": {
+        "x": 12,
+        "y": 43
+      }
+    },
+    "claim_ward_01": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 44,
+      "anchor": {
+        "x": 12,
+        "y": 43
+      }
+    }
+  },
+  "animations": {
+    "glow": {
+      "frames": [
+        "claim_ward_00",
+        "claim_ward_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "image": "critters/crow.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 14
+  },
+  "facings": [],
+  "mirror": null,
+  "flyer": true,
+  "fly": {
+    "height": 22,
+    "shadow": {
+      "rx": 5,
+      "ry": 2
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "anims": [
+    {
+      "name": "perch",
+      "count": 2,
+      "fps": 2
+    },
+    {
+      "name": "fly",
+      "count": 2,
+      "fps": 6
+    }
+  ],
+  "frames": {
+    "crow-perch_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 14
+      }
+    },
+    "crow-perch_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 14
+      }
+    },
+    "crow-fly_00": {
+      "x": 32,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 14
+      }
+    },
+    "crow-fly_01": {
+      "x": 48,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": {
+        "x": 8,
+        "y": 14
+      }
+    }
+  },
+  "animations": {
+    "perch": {
+      "frames": [
+        "crow-perch_00",
+        "crow-perch_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "fly": {
+      "frames": [
+        "crow-fly_00",
+        "crow-fly_01"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

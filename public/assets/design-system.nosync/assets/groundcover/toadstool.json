@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/toadstool.svg",
+  "biome": "woodland",
+  "cell": {
+    "w": 12,
+    "h": 12
+  },
+  "anchor": {
+    "x": 6,
+    "y": 11
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "toadstool_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 11
+      }
+    },
+    "toadstool_v1": {
+      "x": 12,
+      "y": 0,
+      "w": 12,
+      "h": 12,
+      "anchor": {
+        "x": 6,
+        "y": 11
+      }
+    }
+  }
+}

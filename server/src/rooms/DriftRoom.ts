@@ -41,6 +41,8 @@ import {
   type EscrowPayout,
 } from "../solana";
 import { verifyGateProof } from "../gate";
+import { streakReward } from "../streak";
+import { notifyToken, notifyAll } from "../push";
 import {
   tryInsertBurn, setFounder, setPrestige, setWheelPity, setMount, setSwiftMount,
   loadGuilds, insertGuild, setGuildRegion, setPlayerGuild, guildMemberCounts,
@@ -227,6 +229,45 @@ const ENGAGE_TIMEOUT_MS = 6000;   // no swings for this long → the beast loses
 /** corruption thresholds that wake a Colossus (env override for tests) */
 const BOSS_PCTS = (process.env.BOSS_PCTS ?? "10,25,40,60,80")
   .split(",").map(Number).filter((n) => Number.isFinite(n));
+
+// ---- Ambient Echoes ---------------------------------------------------------
+// Diegetic server-spawned wanderers that keep a quiet realm feeling inhabited.
+// They are PURE PRESENCE: they wander, idle and murmur, but never touch nodes,
+// gold, claims, combat, quests or the DB. They fill the gap below a target
+// "presence" and quietly fade as real players arrive, so they never crowd out
+// real people. Rendered translucent + tagged "· Echo" client-side — honest,
+// never passed off as real players (this is a token-gated game).
+const ECHO_TARGET = Number(process.env.ECHO_TARGET ?? 12); // desired total presence
+const ECHO_MAX    = Number(process.env.ECHO_MAX ?? 16);    // hard ceiling on Echoes
+const ECHO_OFF    = process.env.ECHO_OFF === "1";          // kill switch
+const ECHO_SPEED  = 1.0;                                   // tiles/sec (human-ish stroll)
+const ECHO_CHAT_MIN_MS = Number(process.env.ECHO_CHAT_MIN_S ?? 45) * 1000;  // earliest an Echo murmurs again
+const ECHO_CHAT_SPAN_MS = Number(process.env.ECHO_CHAT_SPAN_S ?? 90) * 1000; // + up to this much jitter
+/** lore-y wanderer names (no premium/guild framing — these are the Drift-lost) */
+const ECHO_NAMES = [
+  "Ashen", "Corvane", "Pell", "Lowen", "Mireth", "Vael", "Tamsin", "Rook",
+  "Sable", "Wend", "Cael", "Drust", "Yorek", "Nimue", "Hollis", "Bram",
+  "Fenn", "Oseric", "Maple", "Thorn", "Vesper", "Calla", "Greve", "Isolde",
+  "Marrow", "Quill", "Ren", "Sorrel", "Tace", "Wynn", "Alder", "Brisk",
+];
+/** basic cosmetic pools only (no void/prestige dyes, no fancy eyes) */
+const ECHO_DYES = ["stone", "ember", "moss", "blood", "gold", "bone", "water"];
+const ECHO_EYES = ["drift", "ember", "blood", "gold", "water"];
+/** sparse dark-fantasy murmurs (laconic, no em dashes — house voice) */
+const ECHO_LINES = [
+  "The Drift takes the road west.",
+  "Cold out past the stones.",
+  "Heard the wagon rolls again soon.",
+  "Stay clear of the husks tonight.",
+  "The shrine still hungers.",
+  "Lost my bearings near the mire.",
+  "Quiet. Too quiet for my liking.",
+  "Saw a colossus stir at the ridge.",
+  "Coin's thin these days.",
+  "The corruption creeps closer.",
+  "Keep your blade near.",
+  "Long way to the next waystation.",
+];
 
 type MobKind =
   | "husk" | "stalker" | "raider" | "colossus"
@@ -439,6 +480,70 @@ class ServerMob {
   }
 }
 
+/** an Ambient Echo: a server-side fake wanderer. Roams walkable ground at a
+ *  human stroll, idling between legs, murmuring rarely. No hp, no combat, no
+ *  economy — it only exists to make a quiet realm feel inhabited. */
+class AmbientEcho {
+  id: string; // "echo:<n>" — namespaced so it never collides with a sessionId
+  name: string;
+  dye: string;
+  eye: string;
+  px: number;
+  py: number;
+  moving = false;
+  chatIn: number;
+  private tx: number;
+  private ty: number;
+  private idle = 0;
+
+  constructor(id: string, x: number, y: number, name: string, dye: string, eye: string) {
+    this.id = id;
+    this.px = this.tx = x;
+    this.py = this.ty = y;
+    this.name = name;
+    this.dye = dye;
+    this.eye = eye;
+    this.chatIn = ECHO_CHAT_MIN_MS + Math.random() * ECHO_CHAT_SPAN_MS;
+  }
+
+  update(dt: number, world: World) {
+    const dx = this.tx - this.px;
+    const dy = this.ty - this.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.1) {
+      this.moving = false;
+      this.idle -= dt;
+      if (this.idle <= 0) this.pickTarget(world);
+    } else {
+      const step = ECHO_SPEED * dt;
+      const nx = this.px + (dx / dist) * Math.min(step, dist);
+      const ny = this.py + (dy / dist) * Math.min(step, dist);
+      if (inPit(nx, ny)) { this.moving = false; this.pickTarget(world); return; }
+      this.moving = true;
+      this.px = nx;
+      this.py = ny;
+    }
+  }
+
+  /** wander widely from the CURRENT position so Echoes migrate across the realm
+   *  over time (unlike beasts, which orbit a fixed spawn) */
+  pickTarget(world: World) {
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 3 + Math.random() * 10;
+      const x = Math.round(this.px + Math.cos(a) * r);
+      const y = Math.round(this.py + Math.sin(a) * r);
+      if (world.isWalkable(x, y) && !inPit(x, y)) {
+        this.tx = x;
+        this.ty = y;
+        this.idle = 1.5 + Math.random() * 4;
+        return;
+      }
+    }
+    this.idle = 1.5;
+  }
+}
+
 // the Wheel (server-rolled; the spin price is debited from the ledger).
 // The table lives in types.ts now — the HUD's spin animation and the docs
 // render the same segments the house actually rolls.
@@ -618,6 +723,12 @@ export class DriftRoom extends Room<DriftRoomState> {
 
   /** gold recorded into a tombstone at death, reclaimable once (token → g) */
   private tombGold = new Map<string, number>();
+
+  /** ambient Echoes: server-spawned fake wanderers that fill a quiet realm */
+  private echoes: AmbientEcho[] = [];
+  private nextEchoId = 1;
+  /** throttles spawn/despawn so the population eases toward target, not snaps */
+  private echoCooldown = 0;
 
   /** shared ambient beasts + the den pack (server-side sim) */
   private mobSims: ServerMob[] = [];
@@ -2012,6 +2123,12 @@ export class DriftRoom extends Room<DriftRoomState> {
         });
       } else if (sellerToken) {
         await addEscrow(sellerToken, ls.price).catch(() => {});
+        // the seller's away: nudge them to come collect (the come-back trigger)
+        void notifyToken(sellerToken, {
+          title: "Your wares sold",
+          body: `${ls.qty}× ${ls.item} sold for ${ls.price}g. The coin waits in escrow.`,
+          tag: "sold", url: "/play",
+        }).catch(() => {});
       }
     });
 
@@ -2667,6 +2784,7 @@ export class DriftRoom extends Room<DriftRoomState> {
       const lastDay = row.lastLoginDay != null ? Math.round(row.lastLoginDay) : null;
       let streak = Math.max(0, Math.round(row.loginStreak ?? 0));
       let reward = 0;
+      let milestone = 0; // 7 or 30 when this login lands on that streak day
       if (lastDay !== today) {
         streak = lastDay === today - 1 ? streak + 1 : 1;
         void persistLoginStreak(sim.token, today, streak).catch(() => {});
@@ -2675,11 +2793,11 @@ export class DriftRoom extends Room<DriftRoomState> {
         // goldSeeded) and block the client's first-save gold seed — a truly
         // new account records the streak now and earns the reward from day 2.
         if (sim.goldSeeded) {
-          reward = Math.min(40 + streak * 15, 250); // day 1 = 55g … capped at 250g
+          ({ reward, milestone } = streakReward(streak)); // daily + day 7/30 bonus
           this.credit(sim, reward); // gold ledger + goldSync
         }
       }
-      sim.client.send("streakSync", { streak, reward });
+      sim.client.send("streakSync", { streak, reward, milestone });
     }
 
     // a player who cleared the entry gate already proved wallet ownership at the
@@ -2745,6 +2863,7 @@ export class DriftRoom extends Room<DriftRoomState> {
     this.stepRift();
     this.stepBloodMoon();
     this.stepMobs(dt);
+    this.stepEchoes(dt);
 
     // duel timeouts → draw, both refunded client-side
     const now = Date.now();
@@ -3086,6 +3205,12 @@ export class DriftRoom extends Room<DriftRoomState> {
       need: this.state.nightNeed,
       level,
     });
+    // the endgame siege is rare and realm-defining: call EVERY subscriber back
+    void notifyAll({
+      title: "THE LONG NIGHT falls",
+      body: "The horde closes on the Waystation. Defenders are needed before dawn.",
+      tag: "long-night", url: "/play",
+    }).catch(() => {});
   }
 
   private stepNight() {
@@ -3985,6 +4110,88 @@ export class DriftRoom extends Room<DriftRoomState> {
     }
   }
 
+  // ---- Ambient Echoes ---------------------------------------------------------------
+  // Keep a small population of diegetic wanderers in the world, scaled to fill
+  // the gap below a target presence. They never touch the economy, combat or DB
+  // (no PlayerSim, no DB row) — they only exist in `state.players` as cosmetic
+  // entries the client already knows how to render.
+
+  private stepEchoes(dt: number) {
+    // fill-the-gap: every real player (sims) counts against the presence target
+    const real = this.sims.size;
+    const want = ECHO_OFF ? 0 : Math.max(0, Math.min(ECHO_MAX, ECHO_TARGET - real));
+
+    // ease the population toward `want` (at most one in/out per cooldown) so a
+    // wave of joins/leaves doesn't pop a crowd in or out all at once
+    this.echoCooldown -= dt;
+    if (this.echoCooldown <= 0) {
+      if (this.echoes.length < want) {
+        this.spawnEcho();
+        this.echoCooldown = 2 + Math.random() * 2;
+      } else if (this.echoes.length > want) {
+        this.despawnEcho();
+        this.echoCooldown = 2 + Math.random() * 2;
+      }
+    }
+
+    for (const e of this.echoes) {
+      e.update(dt, this.world);
+      // rare murmurs, on the same broadcast rail real chat uses
+      e.chatIn -= dt * 1000;
+      if (e.chatIn <= 0) {
+        e.chatIn = ECHO_CHAT_MIN_MS + Math.random() * ECHO_CHAT_SPAN_MS;
+        if (Math.random() < 0.5) {
+          const text = ECHO_LINES[(Math.random() * ECHO_LINES.length) | 0];
+          this.broadcast("chat", { id: e.id, name: e.name, text, kind: "say" });
+        }
+      }
+    }
+    this.syncEchoes();
+  }
+
+  private spawnEcho() {
+    // drop onto any walkable cell (outside the duel ring); fall back to spawn
+    let x = 0, y = 0, ok = false;
+    for (let i = 0; i < 60; i++) {
+      const cx = (Math.random() * this.world.w) | 0;
+      const cy = (Math.random() * this.world.h) | 0;
+      if (this.world.isWalkable(cx, cy) && !inPit(cx, cy)) { x = cx; y = cy; ok = true; break; }
+    }
+    if (!ok) { const s = this.findSpawn(); x = s.x; y = s.y; }
+    const id = `echo:${this.nextEchoId++}`;
+    const name = ECHO_NAMES[(Math.random() * ECHO_NAMES.length) | 0];
+    const dye = ECHO_DYES[(Math.random() * ECHO_DYES.length) | 0];
+    const eye = ECHO_EYES[(Math.random() * ECHO_EYES.length) | 0];
+    const e = new AmbientEcho(id, x, y, name, dye, eye);
+    e.pickTarget(this.world);
+    this.echoes.push(e);
+  }
+
+  private despawnEcho() {
+    const e = this.echoes.pop();
+    if (e) this.state.players.delete(e.id);
+  }
+
+  private syncEchoes() {
+    for (const e of this.echoes) {
+      let ps = this.state.players.get(e.id);
+      if (!ps) {
+        ps = new PlayerState();
+        ps.id = e.id;
+        ps.name = e.name;
+        ps.dye = e.dye;
+        ps.eye = e.eye;
+        ps.title = ""; // the "· Echo" tag carries the framing client-side
+        ps.echo = true;
+        this.state.players.set(e.id, ps);
+      }
+      if (ps.x !== e.px) ps.x = e.px;
+      if (ps.y !== e.py) ps.y = e.py;
+      const action = e.moving ? "walk" : "idle";
+      if (ps.action !== action) ps.action = action;
+    }
+  }
+
   // ---- Caravans ---------------------------------------------------------------------
 
   private stepCaravan(dt: number) {
@@ -4373,6 +4580,7 @@ export class DriftRoom extends Room<DriftRoomState> {
           if (t === "grass" || t === "dirt") this.world.setTile(x, y, "corrupt");
         }
       }
+      const fallenOwner = this.claimOwner.get(cs.id);
       this.state.claims.delete(key);
       this.claimOwner.delete(cs.id);
       void deleteClaim(cs.id).catch(() => {});
@@ -4385,6 +4593,13 @@ export class DriftRoom extends Room<DriftRoomState> {
       }
       void deletePropsForClaim(cs.id).catch(() => {});
       this.broadcast("claimFallen", { id: cs.id, x: cs.x, y: cs.y, name: cs.ownerName });
+      if (fallenOwner) {
+        void notifyToken(fallenOwner, {
+          title: "Your claim has fallen",
+          body: "The Drift broke your warding and swallowed your land. Re-stake it before the corruption spreads.",
+          tag: `claim-${cs.id}`, url: "/play",
+        }).catch(() => {});
+      }
     }
   }
 

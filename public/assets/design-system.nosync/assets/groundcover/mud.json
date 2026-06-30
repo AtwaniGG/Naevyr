@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/mud.svg",
+  "biome": "marsh",
+  "cell": {
+    "w": 16,
+    "h": 8
+  },
+  "anchor": {
+    "x": 8,
+    "y": 6
+  },
+  "variants": 2,
+  "flat": true,
+  "frames": {
+    "mud_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    },
+    "mud_v1": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    }
+  }
+}

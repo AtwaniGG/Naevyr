@@ -1,0 +1,44 @@
+{
+  "image": "events/rift_mote.svg",
+  "cell": {
+    "w": 16,
+    "h": 16
+  },
+  "anchor": {
+    "x": 8,
+    "y": 8
+  },
+  "note": "drifts around an active Drift Rift",
+  "frames": {
+    "rift_mote_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": [
+        8,
+        8
+      ]
+    },
+    "rift_mote_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "anchor": [
+        8,
+        8
+      ]
+    }
+  },
+  "animations": {
+    "drift": {
+      "frames": [
+        "rift_mote_00",
+        "rift_mote_01"
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  }
+}

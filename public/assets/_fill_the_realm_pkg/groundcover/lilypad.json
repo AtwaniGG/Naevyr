@@ -1,0 +1,74 @@
+{
+  "image": "groundcover/lilypad.svg",
+  "biome": "marsh",
+  "cell": {
+    "w": 16,
+    "h": 8
+  },
+  "anchor": {
+    "x": 8,
+    "y": 6
+  },
+  "variants": 2,
+  "flat": true,
+  "frames": {
+    "lilypad_v0_00": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    },
+    "lilypad_v0_01": {
+      "x": 16,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    },
+    "lilypad_v1_00": {
+      "x": 32,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    },
+    "lilypad_v1_01": {
+      "x": 48,
+      "y": 0,
+      "w": 16,
+      "h": 8,
+      "anchor": {
+        "x": 8,
+        "y": 6
+      }
+    }
+  },
+  "animations": {
+    "bob_v0": {
+      "frames": [
+        "lilypad_v0_00",
+        "lilypad_v0_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "bob_v1": {
+      "frames": [
+        "lilypad_v1_00",
+        "lilypad_v1_01"
+      ],
+      "fps": 2,
+      "loop": true
+    }
+  }
+}

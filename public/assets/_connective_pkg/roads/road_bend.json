@@ -1,0 +1,51 @@
+{
+  "image": "roads/road_bend.svg",
+  "cell": {
+    "w": 64,
+    "h": 36
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "anchor": {
+    "x": 32,
+    "y": 16
+  },
+  "sink": true,
+  "outline": false,
+  "connects": [
+    "se",
+    "sw"
+  ],
+  "mask": 6,
+  "autotile": {
+    "bits": {
+      "ne": 1,
+      "se": 2,
+      "sw": 4,
+      "nw": 8
+    },
+    "canon": {
+      "straight": 5,
+      "bend": 6,
+      "tee": 7,
+      "cross": 15,
+      "cap": 4,
+      "isolated": 0
+    },
+    "rule": "index by 4-neighbour road bitmask; rotate/mirror the matching canonical piece"
+  },
+  "frames": {
+    "road_bend_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 36,
+      "anchor": {
+        "x": 32,
+        "y": 16
+      }
+    }
+  }
+}

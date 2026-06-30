@@ -1,0 +1,16 @@
+{
+  "image": "merchant/roaming_trader_cloth_options.svg",
+  "cell": {
+    "w": 32,
+    "h": 40
+  },
+  "count": 5,
+  "channel": "cloth",
+  "options": [
+    "dirt",
+    "stone",
+    "grass",
+    "blood",
+    "drift"
+  ]
+}

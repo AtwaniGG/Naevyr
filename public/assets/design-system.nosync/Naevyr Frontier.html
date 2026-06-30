@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Naevyr — The Frontier</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@600;700&family=Silkscreen&family=Sora:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#06040a;font-family:'Sora',sans-serif}canvas{display:block}</style>
+</head><body>
+<script src="reel-common.js"></script>
+<script>
+const W=1280,H=720;
+const PIX="'Pixelify Sans',monospace",SILK="'Silkscreen',monospace";
+const DR='#a855f7',DRH='#d8b4fe',GOLD='#f6e0a6',BONE='#efe9f4',VOID='#0a0810';
+(async()=>{
+  const L=async k=>Reel.loadImg('assets/_reel/struct_'+k+'.png');
+  const S={
+    waystation:await L('waystation'), palisade_gate:await L('palisade_gate'), trading_post:await L('trading_post'),
+    watchtower:await L('watchtower'), drowned_ruins:await L('drowned_ruins'), barrow_crypt:await L('barrow_crypt'), ashen_warcamp:await L('ashen_warcamp'),
+  };
+  const vista=await Reel.loadImg('assets/landing/hero_vista.svg');
+  // a left-to-right procession of structures on an iso ground strip
+  const items=[
+    {k:'waystation',fw:64,fh:112,sc:2.6,label:'WAYSTATION',cap:'Fast-travel monolith'},
+    {k:'palisade_gate',fw:144,fh:128,sc:2.0,label:'FRONTIER OUTPOST',cap:'Palisade gate'},
+    {k:'trading_post',fw:120,fh:130,sc:2.0,label:'TRADING POST',cap:'Stock up & resupply'},
+    {k:'watchtower',fw:80,fh:152,sc:1.9,label:'WATCHTOWER',cap:'Eyes on the Drift'},
+    {k:'drowned_ruins',fw:120,fh:96,sc:2.0,label:'DROWNED RUINS',cap:'Palewater wild camp'},
+    {k:'barrow_crypt',fw:116,fh:100,sc:2.0,label:'BARROW-CRYPT',cap:'Bonefields wild camp'},
+    {k:'ashen_warcamp',fw:120,fh:104,sc:2.0,label:'ASHEN WARCAMP',cap:'Raider stronghold'},
+  ];
+  const SPACING=620, baseY=H-150;
+  const totalW=items.length*SPACING;
+  const PXPS=150;                 // pan speed px/sec
+  const LOOP=totalW/PXPS*1000;    // loop when fully panned past
+  // precompute iso ground tile
+  Reel.makeStage(W,H,LOOP,(ctx,t)=>{
+    ctx.fillStyle=VOID; ctx.fillRect(0,0,W,H);
+    // sky vista, parallax slow
+    const pan=(t/1000*PXPS);
+    ctx.globalAlpha=0.4; ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(vista,(pan*0.04)%480,0,480,200,-20,-20,1320,560); ctx.globalAlpha=1;
+    // ground band
+    const gy=baseY+6; const g=ctx.createLinearGradient(0,gy-40,0,H); g.addColorStop(0,'#140f1e'); g.addColorStop(1,'#0a0810'); ctx.fillStyle=g; ctx.fillRect(0,gy-40,W,H-gy+40);
+    // iso lattice on the ground (scrolls with pan)
+    ctx.strokeStyle='rgba(124,58,237,0.10)'; ctx.lineWidth=1;
+    for(let i=-2;i<22;i++){ const x=(i*64 - pan%64); ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x+120,H); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x-120,H); ctx.stroke(); }
+    // structures
+    ctx.imageSmoothingEnabled=false;
+    items.forEach((it,i)=>{
+      const x = W*0.5 + i*SPACING - pan;
+      if(x < -300 || x > W+300) return;
+      // glow pad
+      ctx.fillStyle=Reel.radial(ctx,x,baseY-10,180,[[0,'rgba(168,85,247,0.22)'],[0.6,'rgba(0,0,0,0)']]); ctx.fillRect(x-200,baseY-180,400,200);
+      const dh=it.fh*it.sc, dwid=it.fw*it.sc;
+      ctx.drawImage(S[it.k],0,0,it.fw,it.fh, Math.round(x-dwid/2), Math.round(baseY-dh), dwid,dh);
+      // label under each
+      const near=Math.abs(x-W*0.5)<260;
+      ctx.globalAlpha=near?1:0.4; ctx.textAlign='center';
+      ctx.fillStyle=near?GOLD:'rgba(216,207,224,0.6)'; ctx.font=`14px ${SILK}`; ctx.fillText(it.label, x, baseY+44);
+      ctx.fillStyle='rgba(216,207,224,0.55)'; ctx.font=`13px ${SORA='Sora,sans-serif'}`; ctx.fillText(it.cap, x, baseY+66);
+      ctx.globalAlpha=1;
+    });
+    Reel.motes(ctx,W,H,t,24,'#a855f7',6);
+    Reel.vignette(ctx,W,H,0.9);
+    // header + title
+    ctx.textAlign='left'; ctx.fillStyle='rgba(216,207,224,0.6)'; ctx.font=`16px ${SILK}`; ctx.fillText('N A E V Y R   ·   THE WIDER REALM',54,58);
+    ctx.textAlign='center';
+    ctx.fillStyle=BONE; ctx.font=`700 56px ${PIX}`; ctx.shadowColor='rgba(168,85,247,0.5)'; ctx.shadowBlur=20; ctx.fillText('EXPLORE THE FRONTIER',W/2,132); ctx.shadowBlur=0;
+    // map-growth badge bottom
+    ctx.fillStyle=DRH; ctx.font=`15px ${SILK}`; ctx.fillText('THE MAP IS NOW 80×80  ·  4× THE WORLD TO WALK',W/2,H-26);
+  });
+})();
+</script>
+</body></html>

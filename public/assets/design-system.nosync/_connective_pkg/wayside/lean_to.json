@@ -1,0 +1,25 @@
+{
+  "image": "wayside/lean_to.svg",
+  "cell": {
+    "w": 80,
+    "h": 72
+  },
+  "anchor": {
+    "x": 40,
+    "y": 71
+  },
+  "footprint": "2x2",
+  "camp": "rest",
+  "frames": {
+    "lean_to_00": {
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 72,
+      "anchor": {
+        "x": 40,
+        "y": 71
+      }
+    }
+  }
+}

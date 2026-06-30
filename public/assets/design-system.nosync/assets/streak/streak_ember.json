@@ -1,0 +1,66 @@
+{
+  "image": "streak/streak_ember.svg",
+  "cell": {
+    "w": 24,
+    "h": 24
+  },
+  "anchor": {
+    "x": 12,
+    "y": 21
+  },
+  "frames": {
+    "streak_ember_00": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 24,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    },
+    "streak_ember_01": {
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 24,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    },
+    "streak_ember_02": {
+      "x": 48,
+      "y": 0,
+      "w": 24,
+      "h": 24,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    },
+    "streak_ember_03": {
+      "x": 72,
+      "y": 0,
+      "w": 24,
+      "h": 24,
+      "anchor": {
+        "x": 12,
+        "y": 21
+      }
+    }
+  },
+  "animations": {
+    "flicker": {
+      "frames": [
+        "streak_ember_00",
+        "streak_ember_01",
+        "streak_ember_02",
+        "streak_ember_03"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  },
+  "dom": true
+}

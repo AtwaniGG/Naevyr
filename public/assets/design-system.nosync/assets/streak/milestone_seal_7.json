@@ -1,0 +1,24 @@
+{
+  "image": "streak/milestone_seal_7.svg",
+  "cell": {
+    "w": 32,
+    "h": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 16
+  },
+  "frames": {
+    "milestone_seal_7_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 16
+      }
+    }
+  },
+  "dom": true
+}

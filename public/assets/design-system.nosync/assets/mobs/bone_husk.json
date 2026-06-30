@@ -1,0 +1,1029 @@
+{
+  "image": "mobs/bone_husk.svg",
+  "cell": {
+    "w": 28,
+    "h": 36
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "hpBarClearTop": 4,
+  "hurtFlash": "bone-hi (#efe9f4)",
+  "frames": {
+    "bone_husk-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-s_01": {
+      "x": 28,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_00": {
+      "x": 56,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_01": {
+      "x": 84,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_02": {
+      "x": 112,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_03": {
+      "x": 140,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_04": {
+      "x": 168,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-s_05": {
+      "x": 196,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-s_00": {
+      "x": 224,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-s_01": {
+      "x": 252,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-s_02": {
+      "x": 280,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-s_03": {
+      "x": 308,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-s_00": {
+      "x": 336,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-s_01": {
+      "x": 364,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-s_02": {
+      "x": 392,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-s_03": {
+      "x": 420,
+      "y": 0,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-se_00": {
+      "x": 0,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-se_01": {
+      "x": 28,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_00": {
+      "x": 56,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_01": {
+      "x": 84,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_02": {
+      "x": 112,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_03": {
+      "x": 140,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_04": {
+      "x": 168,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-se_05": {
+      "x": 196,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-se_00": {
+      "x": 224,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-se_01": {
+      "x": 252,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-se_02": {
+      "x": 280,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-se_03": {
+      "x": 308,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-se_00": {
+      "x": 336,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-se_01": {
+      "x": 364,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-se_02": {
+      "x": 392,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-se_03": {
+      "x": 420,
+      "y": 36,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-e_00": {
+      "x": 0,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-e_01": {
+      "x": 28,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_00": {
+      "x": 56,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_01": {
+      "x": 84,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_02": {
+      "x": 112,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_03": {
+      "x": 140,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_04": {
+      "x": 168,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-e_05": {
+      "x": 196,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-e_00": {
+      "x": 224,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-e_01": {
+      "x": 252,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-e_02": {
+      "x": 280,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-e_03": {
+      "x": 308,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-e_00": {
+      "x": 336,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-e_01": {
+      "x": 364,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-e_02": {
+      "x": 392,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-e_03": {
+      "x": 420,
+      "y": 72,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-ne_00": {
+      "x": 0,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-ne_01": {
+      "x": 28,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_00": {
+      "x": 56,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_01": {
+      "x": 84,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_02": {
+      "x": 112,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_03": {
+      "x": 140,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_04": {
+      "x": 168,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-ne_05": {
+      "x": 196,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-ne_00": {
+      "x": 224,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-ne_01": {
+      "x": 252,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-ne_02": {
+      "x": 280,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-ne_03": {
+      "x": 308,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-ne_00": {
+      "x": 336,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-ne_01": {
+      "x": 364,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-ne_02": {
+      "x": 392,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-ne_03": {
+      "x": 420,
+      "y": 108,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-n_00": {
+      "x": 0,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-idle-n_01": {
+      "x": 28,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_00": {
+      "x": 56,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_01": {
+      "x": 84,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_02": {
+      "x": 112,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_03": {
+      "x": 140,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_04": {
+      "x": 168,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-walk-n_05": {
+      "x": 196,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-n_00": {
+      "x": 224,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-n_01": {
+      "x": 252,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-n_02": {
+      "x": 280,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-swing-n_03": {
+      "x": 308,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-n_00": {
+      "x": 336,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-n_01": {
+      "x": 364,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-n_02": {
+      "x": 392,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    },
+    "bone_husk-death-n_03": {
+      "x": 420,
+      "y": 144,
+      "w": 28,
+      "h": 36,
+      "anchor": {
+        "x": 14,
+        "y": 35
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "bone_husk-idle-s_00",
+        "bone_husk-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "bone_husk-walk-s_00",
+        "bone_husk-walk-s_01",
+        "bone_husk-walk-s_02",
+        "bone_husk-walk-s_03",
+        "bone_husk-walk-s_04",
+        "bone_husk-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-s": {
+      "frames": [
+        "bone_husk-swing-s_00",
+        "bone_husk-swing-s_01",
+        "bone_husk-swing-s_02",
+        "bone_husk-swing-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-s": {
+      "frames": [
+        "bone_husk-death-s_00",
+        "bone_husk-death-s_01",
+        "bone_husk-death-s_02",
+        "bone_husk-death-s_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-se": {
+      "frames": [
+        "bone_husk-idle-se_00",
+        "bone_husk-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "bone_husk-walk-se_00",
+        "bone_husk-walk-se_01",
+        "bone_husk-walk-se_02",
+        "bone_husk-walk-se_03",
+        "bone_husk-walk-se_04",
+        "bone_husk-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-se": {
+      "frames": [
+        "bone_husk-swing-se_00",
+        "bone_husk-swing-se_01",
+        "bone_husk-swing-se_02",
+        "bone_husk-swing-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-se": {
+      "frames": [
+        "bone_husk-death-se_00",
+        "bone_husk-death-se_01",
+        "bone_husk-death-se_02",
+        "bone_husk-death-se_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-e": {
+      "frames": [
+        "bone_husk-idle-e_00",
+        "bone_husk-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "bone_husk-walk-e_00",
+        "bone_husk-walk-e_01",
+        "bone_husk-walk-e_02",
+        "bone_husk-walk-e_03",
+        "bone_husk-walk-e_04",
+        "bone_husk-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-e": {
+      "frames": [
+        "bone_husk-swing-e_00",
+        "bone_husk-swing-e_01",
+        "bone_husk-swing-e_02",
+        "bone_husk-swing-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-e": {
+      "frames": [
+        "bone_husk-death-e_00",
+        "bone_husk-death-e_01",
+        "bone_husk-death-e_02",
+        "bone_husk-death-e_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-ne": {
+      "frames": [
+        "bone_husk-idle-ne_00",
+        "bone_husk-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "bone_husk-walk-ne_00",
+        "bone_husk-walk-ne_01",
+        "bone_husk-walk-ne_02",
+        "bone_husk-walk-ne_03",
+        "bone_husk-walk-ne_04",
+        "bone_husk-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-ne": {
+      "frames": [
+        "bone_husk-swing-ne_00",
+        "bone_husk-swing-ne_01",
+        "bone_husk-swing-ne_02",
+        "bone_husk-swing-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-ne": {
+      "frames": [
+        "bone_husk-death-ne_00",
+        "bone_husk-death-ne_01",
+        "bone_husk-death-ne_02",
+        "bone_husk-death-ne_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "idle-n": {
+      "frames": [
+        "bone_husk-idle-n_00",
+        "bone_husk-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "bone_husk-walk-n_00",
+        "bone_husk-walk-n_01",
+        "bone_husk-walk-n_02",
+        "bone_husk-walk-n_03",
+        "bone_husk-walk-n_04",
+        "bone_husk-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "swing-n": {
+      "frames": [
+        "bone_husk-swing-n_00",
+        "bone_husk-swing-n_01",
+        "bone_husk-swing-n_02",
+        "bone_husk-swing-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    },
+    "death-n": {
+      "frames": [
+        "bone_husk-death-n_00",
+        "bone_husk-death-n_01",
+        "bone_husk-death-n_02",
+        "bone_husk-death-n_03"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

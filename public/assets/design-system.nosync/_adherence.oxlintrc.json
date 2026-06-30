@@ -16,10 +16,13 @@
         "patterns": [
           {
             "group": [
+              "animations.jsx",
               "assets/_gen/**",
               "components/core/**",
               "components/game/**",
               "components/icons/**",
+              "naevyr_scenes.jsx",
+              "reel-common.js",
               "ui_kits/hud/**"
             ],
             "message": "Import design-system components from 'index.js', not component internals."

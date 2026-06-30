@@ -1,0 +1,24 @@
+{
+  "image": "wayside/stone_cart.svg",
+  "cell": {
+    "w": 64,
+    "h": 48
+  },
+  "anchor": {
+    "x": 32,
+    "y": 47
+  },
+  "camp": "quarry",
+  "frames": {
+    "stone_cart_00": {
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 48,
+      "anchor": {
+        "x": 32,
+        "y": 47
+      }
+    }
+  }
+}

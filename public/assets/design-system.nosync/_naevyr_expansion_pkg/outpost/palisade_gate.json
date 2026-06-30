@@ -1,0 +1,29 @@
+{
+  "image": "outpost/palisade_gate.svg",
+  "cell": {
+    "w": 144,
+    "h": 128
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "footprint": "3x3",
+  "anchor": {
+    "x": 72,
+    "y": 127
+  },
+  "labelClearTop": 6,
+  "frames": {
+    "palisade_gate": {
+      "x": 0,
+      "y": 0,
+      "w": 144,
+      "h": 128,
+      "anchor": {
+        "x": 72,
+        "y": 127
+      }
+    }
+  }
+}

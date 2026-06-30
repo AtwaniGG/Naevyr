@@ -39,6 +39,13 @@ const jacquard = Jacquard_12({
 export const metadata: Metadata = {
   title: "Naevyr",
   description: "A dark-fantasy play-to-earn MMO consumed by the Drift.",
+  // PWA: installable so it can receive web-push (iOS needs home-screen install)
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Naevyr", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: "/assets/design-system.nosync/assets/appicon/app_icon_192.svg",
+    apple: "/assets/design-system.nosync/assets/appicon/app_icon_192.svg",
+  },
 };
 
 // viewportFit=cover exposes env(safe-area-inset-*) so the mobile HUD can dodge

@@ -1,0 +1,24 @@
+{
+  "image": "wayside/cook_pot.svg",
+  "cell": {
+    "w": 32,
+    "h": 32
+  },
+  "anchor": {
+    "x": 16,
+    "y": 31
+  },
+  "camp": "rest",
+  "frames": {
+    "cook_pot_00": {
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "anchor": {
+        "x": 16,
+        "y": 31
+      }
+    }
+  }
+}

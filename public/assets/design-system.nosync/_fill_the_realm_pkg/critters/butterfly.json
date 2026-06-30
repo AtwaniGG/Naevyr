@@ -1,0 +1,72 @@
+{
+  "image": "critters/butterfly.svg",
+  "cell": {
+    "w": 10,
+    "h": 10
+  },
+  "anchor": {
+    "x": 5,
+    "y": 5
+  },
+  "facings": [],
+  "mirror": null,
+  "flyer": true,
+  "fly": {
+    "height": 14,
+    "shadow": {
+      "rx": 3,
+      "ry": 1
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "anims": [
+    {
+      "name": "flutter",
+      "count": 3,
+      "fps": 6
+    }
+  ],
+  "frames": {
+    "butterfly-flutter_00": {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    },
+    "butterfly-flutter_01": {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    },
+    "butterfly-flutter_02": {
+      "x": 20,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "anchor": {
+        "x": 5,
+        "y": 5
+      }
+    }
+  },
+  "animations": {
+    "flutter": {
+      "frames": [
+        "butterfly-flutter_00",
+        "butterfly-flutter_01",
+        "butterfly-flutter_02"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

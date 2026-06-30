@@ -1,0 +1,724 @@
+{
+  "image": "mounts/frontier_steed.svg",
+  "kind": "frontier_steed",
+  "cell": {
+    "w": 56,
+    "h": 48
+  },
+  "tile": {
+    "w": 64,
+    "h": 32
+  },
+  "anchor": {
+    "x": 28,
+    "y": 47
+  },
+  "facings": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirror": {
+    "w": "e",
+    "sw": "se",
+    "nw": "ne"
+  },
+  "rideRig": "wanderer",
+  "riderCell": {
+    "w": 32,
+    "h": 40
+  },
+  "riderAnchor": {
+    "x": 16,
+    "y": 39
+  },
+  "saddleAnchorDoc": "engine draws the rider (wanderer rig) at steedScreenPos + frame.saddleAnchor; saddleAnchor is the steed-cell-local px where the rider bottom-center (riderAnchor) sits. walk bob = [0,-1,0,0,-1,0] matches the wanderer walk so the seated rider lines up.",
+  "coatDye": {
+    "channel": "coat",
+    "ramp": "stone",
+    "swappable": [
+      "stone",
+      "bone",
+      "blood",
+      "drift"
+    ]
+  },
+  "anims": [
+    {
+      "name": "idle",
+      "count": 2,
+      "fps": 2
+    },
+    {
+      "name": "walk",
+      "count": 6,
+      "fps": 8
+    }
+  ],
+  "frames": {
+    "frontier_steed-idle-s_00": {
+      "x": 0,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-idle-s_01": {
+      "x": 56,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-s_00": {
+      "x": 112,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-s_01": {
+      "x": 168,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-s_02": {
+      "x": 224,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-s_03": {
+      "x": 280,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-s_04": {
+      "x": 336,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-s_05": {
+      "x": 392,
+      "y": 0,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-idle-se_00": {
+      "x": 0,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 25
+      }
+    },
+    "frontier_steed-idle-se_01": {
+      "x": 56,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-se_00": {
+      "x": 112,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-se_01": {
+      "x": 168,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-se_02": {
+      "x": 224,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-se_03": {
+      "x": 280,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-se_04": {
+      "x": 336,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-se_05": {
+      "x": 392,
+      "y": 48,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 25
+      }
+    },
+    "frontier_steed-idle-e_00": {
+      "x": 0,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-idle-e_01": {
+      "x": 56,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 23
+      }
+    },
+    "frontier_steed-walk-e_00": {
+      "x": 112,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-e_01": {
+      "x": 168,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 23
+      }
+    },
+    "frontier_steed-walk-e_02": {
+      "x": 224,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-e_03": {
+      "x": 280,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-e_04": {
+      "x": 336,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 23
+      }
+    },
+    "frontier_steed-walk-e_05": {
+      "x": 392,
+      "y": 96,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 27,
+        "y": 24
+      }
+    },
+    "frontier_steed-idle-ne_00": {
+      "x": 0,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 25
+      }
+    },
+    "frontier_steed-idle-ne_01": {
+      "x": 56,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-ne_00": {
+      "x": 112,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-ne_01": {
+      "x": 168,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-ne_02": {
+      "x": 224,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-ne_03": {
+      "x": 280,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-ne_04": {
+      "x": 336,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 24
+      }
+    },
+    "frontier_steed-walk-ne_05": {
+      "x": 392,
+      "y": 144,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 29,
+        "y": 25
+      }
+    },
+    "frontier_steed-idle-n_00": {
+      "x": 0,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-idle-n_01": {
+      "x": 56,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-n_00": {
+      "x": 112,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-n_01": {
+      "x": 168,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-n_02": {
+      "x": 224,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-n_03": {
+      "x": 280,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    },
+    "frontier_steed-walk-n_04": {
+      "x": 336,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 25
+      }
+    },
+    "frontier_steed-walk-n_05": {
+      "x": 392,
+      "y": 192,
+      "w": 56,
+      "h": 48,
+      "anchor": {
+        "x": 28,
+        "y": 47
+      },
+      "saddleAnchor": {
+        "x": 28,
+        "y": 26
+      }
+    }
+  },
+  "animations": {
+    "idle-s": {
+      "frames": [
+        "frontier_steed-idle-s_00",
+        "frontier_steed-idle-s_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-s": {
+      "frames": [
+        "frontier_steed-walk-s_00",
+        "frontier_steed-walk-s_01",
+        "frontier_steed-walk-s_02",
+        "frontier_steed-walk-s_03",
+        "frontier_steed-walk-s_04",
+        "frontier_steed-walk-s_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "idle-se": {
+      "frames": [
+        "frontier_steed-idle-se_00",
+        "frontier_steed-idle-se_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-se": {
+      "frames": [
+        "frontier_steed-walk-se_00",
+        "frontier_steed-walk-se_01",
+        "frontier_steed-walk-se_02",
+        "frontier_steed-walk-se_03",
+        "frontier_steed-walk-se_04",
+        "frontier_steed-walk-se_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "idle-e": {
+      "frames": [
+        "frontier_steed-idle-e_00",
+        "frontier_steed-idle-e_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-e": {
+      "frames": [
+        "frontier_steed-walk-e_00",
+        "frontier_steed-walk-e_01",
+        "frontier_steed-walk-e_02",
+        "frontier_steed-walk-e_03",
+        "frontier_steed-walk-e_04",
+        "frontier_steed-walk-e_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "idle-ne": {
+      "frames": [
+        "frontier_steed-idle-ne_00",
+        "frontier_steed-idle-ne_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-ne": {
+      "frames": [
+        "frontier_steed-walk-ne_00",
+        "frontier_steed-walk-ne_01",
+        "frontier_steed-walk-ne_02",
+        "frontier_steed-walk-ne_03",
+        "frontier_steed-walk-ne_04",
+        "frontier_steed-walk-ne_05"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "idle-n": {
+      "frames": [
+        "frontier_steed-idle-n_00",
+        "frontier_steed-idle-n_01"
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "walk-n": {
+      "frames": [
+        "frontier_steed-walk-n_00",
+        "frontier_steed-walk-n_01",
+        "frontier_steed-walk-n_02",
+        "frontier_steed-walk-n_03",
+        "frontier_steed-walk-n_04",
+        "frontier_steed-walk-n_05"
+      ],
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

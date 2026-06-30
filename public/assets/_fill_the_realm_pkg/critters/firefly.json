@@ -1,0 +1,62 @@
+{
+  "image": "critters/firefly.svg",
+  "cell": {
+    "w": 8,
+    "h": 8
+  },
+  "anchor": {
+    "x": 4,
+    "y": 4
+  },
+  "facings": [],
+  "mirror": null,
+  "flyer": true,
+  "fly": {
+    "height": 16,
+    "shadow": {
+      "rx": 2,
+      "ry": 1
+    }
+  },
+  "flyDoc": "engine offsets the sprite up by fly.height px and draws a ground shadow (fly.shadow ellipse) at the anchor.",
+  "additive": true,
+  "anims": [
+    {
+      "name": "pulse",
+      "count": 2,
+      "fps": 3
+    }
+  ],
+  "frames": {
+    "firefly-pulse_00": {
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 8,
+      "anchor": {
+        "x": 4,
+        "y": 4
+      }
+    },
+    "firefly-pulse_01": {
+      "x": 8,
+      "y": 0,
+      "w": 8,
+      "h": 8,
+      "anchor": {
+        "x": 4,
+        "y": 4
+      }
+    }
+  },
+  "animations": {
+    "pulse": {
+      "frames": [
+        "firefly-pulse_00",
+        "firefly-pulse_01"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}

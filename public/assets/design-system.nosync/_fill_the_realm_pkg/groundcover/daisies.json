@@ -1,0 +1,36 @@
+{
+  "image": "groundcover/daisies.svg",
+  "biome": "meadow",
+  "cell": {
+    "w": 14,
+    "h": 10
+  },
+  "anchor": {
+    "x": 7,
+    "y": 9
+  },
+  "variants": 2,
+  "flat": false,
+  "frames": {
+    "daisies_v0": {
+      "x": 0,
+      "y": 0,
+      "w": 14,
+      "h": 10,
+      "anchor": {
+        "x": 7,
+        "y": 9
+      }
+    },
+    "daisies_v1": {
+      "x": 14,
+      "y": 0,
+      "w": 14,
+      "h": 10,
+      "anchor": {
+        "x": 7,
+        "y": 9
+      }
+    }
+  }
+}

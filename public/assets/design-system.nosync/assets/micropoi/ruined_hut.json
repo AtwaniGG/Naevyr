@@ -1,0 +1,24 @@
+{
+  "image": "micropoi/ruined_hut.svg",
+  "cell": {
+    "w": 80,
+    "h": 72
+  },
+  "anchor": {
+    "x": 40,
+    "y": 68
+  },
+  "footprint": "3x3",
+  "frames": {
+    "ruined_hut_00": {
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 72,
+      "anchor": {
+        "x": 40,
+        "y": 68
+      }
+    }
+  }
+}
